@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { ActionSet, ActionShowOptions } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
@@ -15,11 +16,14 @@ import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
+import { CodeActionAutoApply, CodeActionItem, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionShowOptions, CodeActionWidget } from './codeActionWidget';
+import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-
+export interface CodeActionSet extends ActionSet {
+	readonly validActions: readonly CodeActionItem[];
+	readonly allActions: readonly CodeActionItem[];
+}
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
@@ -150,7 +154,7 @@ export class CodeActionUi extends Disposable {
 		return undefined;
 	}
 
-	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: ActionShowOptions): Promise<void> {
 		const editorDom = this._editor.getDomNode();
 		if (!editorDom) {
 			return;

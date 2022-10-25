@@ -34,7 +34,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { IModelService } from 'vs/editor/common/services/model';
 import { Range } from 'vs/editor/common/core/range';
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource, CodeActionSet } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
@@ -50,6 +50,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;

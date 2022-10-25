@@ -4,25 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-export interface ActionList extends Disposable {
-	focusPrevious(): void;
-	focusNext(): void;
-	layout(minWidth: number): number;
-	toMenuItems(inputCodeActions: readonly ActionItem[], showHeaders: boolean): ActionMenuItem[];
-	acceptSelected(options?: { readonly preview?: boolean }): void;
-	domNode: HTMLElement;
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+
+export interface ActionSet extends IDisposable {
+	readonly validActions: readonly ActionItem[];
+	readonly allActions: readonly ActionItem[];
+	readonly hasAutoFix: boolean;
+
+	readonly documentation: readonly {
+		id: string;
+		title: string;
+		tooltip?: string;
+		arguments?: any[];
+	}[];
+}
+export interface ActionShowOptions {
+	readonly includeDisabledActions: boolean;
+	readonly fromLightbulb?: boolean;
+	readonly showHeaders?: boolean;
 }
 export interface ActionItem extends Disposable { }
 
 export interface ActionMenuItem {
 	action?: ActionItem;
+	isHeader?: boolean;
 }
 
-export abstract class BaseActionWidget<T extends ActionItem> extends Disposable {
+export interface IActionList extends Disposable {
+	hide(): void;
+	focusPrevious(): void;
+	focusNext(): void;
+	layout(minWidth: number): number;
+	toMenuItems(actions: readonly ActionItem[], showHeaders: boolean): ActionMenuItem[];
+	acceptSelected(options?: { readonly preview?: boolean }): void;
+	domNode: HTMLElement;
+}
 
-	list = this._register(new MutableDisposable<ActionList>());
-
+export abstract class BaseActionWidget<ActionItem> extends Disposable {
+	public showDisabled = false;
+	public list = this._register(new MutableDisposable<IActionList>());
 	constructor() {
 		super();
 	}
@@ -36,6 +56,7 @@ export abstract class BaseActionWidget<T extends ActionItem> extends Disposable 
 	}
 
 	public hide() {
+		this.list.value?.hide();
 		this.list.clear();
 	}
 
@@ -47,7 +68,6 @@ export abstract class BaseActionWidget<T extends ActionItem> extends Disposable 
 		this.list?.value?.layout(minWidth);
 	}
 
-	public abstract show(trigger: any, codeActions: any, anchor: IAnchor, container: HTMLElement | undefined, options: any, delegate: any): Promise<void>;
-	public abstract toMenuItems(actions: readonly T[], showHeaders: boolean): ActionMenuItem[];
+	public abstract show(trigger: any, actions: any, anchor: IAnchor, container: HTMLElement | undefined, options: any, delegate: any): Promise<void>;
+	public abstract toMenuItems(actions: readonly ActionItem[], showHeaders: boolean): ActionMenuItem[];
 }
-

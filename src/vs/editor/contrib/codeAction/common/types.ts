@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
 
@@ -213,11 +213,4 @@ export class CodeActionItem extends Disposable {
 	}
 }
 
-export interface CodeActionSet extends IDisposable {
-	readonly validActions: readonly CodeActionItem[];
-	readonly allActions: readonly CodeActionItem[];
-	readonly hasAutoFix: boolean;
-
-	readonly documentation: readonly languages.Command[];
-}
 

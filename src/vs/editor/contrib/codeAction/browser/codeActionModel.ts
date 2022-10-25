@@ -20,7 +20,8 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { getCodeActions } from './codeAction';
-import { CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
+import { CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 

@@ -5,19 +5,20 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionList, ActionMenuItem, BaseActionWidget } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionMenuItem, BaseActionWidget, ActionShowOptions, ActionItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
+import { ActionList } from 'vs/editor/contrib/codeAction/browser/actionList';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
+import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -35,12 +36,6 @@ export const Context = {
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction(action: CodeActionItem, trigger: CodeActionTrigger, options: { readonly preview: boolean }): Promise<any>;
 	onHide(cancelled: boolean): void;
-}
-
-export interface CodeActionShowOptions {
-	readonly includeDisabledActions: boolean;
-	readonly fromLightbulb?: boolean;
-	readonly showHeaders?: boolean;
 }
 
 enum CodeActionListItemKind {
@@ -174,140 +169,44 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
-const previewSelectedEventType = 'previewSelectedCodeAction';
-
-
-class CodeActionList extends Disposable implements ActionList {
-
-	private readonly codeActionLineHeight = 24;
-	private readonly headerLineHeight = 26;
-
-	private readonly list: List<ICodeActionMenuItem>;
-	public readonly domNode: HTMLElement;
-
-	private readonly allMenuItems: ICodeActionMenuItem[];
+class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActionListItemHeader> {
 
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		private readonly onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
+		onDidSelect: (action: ActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super();
-
-		this.domNode = document.createElement('div');
-		this.domNode.classList.add('codeActionList');
-
-		this.list = this._register(new List('codeActionWidget', this.domNode, {
-			getHeight: element => element.kind === CodeActionListItemKind.Header ? this.headerLineHeight : this.codeActionLineHeight,
-			getTemplateId: element => element.kind,
-		}, [
-			new CodeActionItemRenderer(new CodeActionKeybindingResolver(keybindingService), keybindingService),
-			new HeaderRenderer(),
-		], {
-			keyboardSupport: false,
-			accessibilityProvider: {
-				getAriaLabel: element => {
-					if (element.kind === CodeActionListItemKind.CodeAction) {
-						let label = stripNewlines(element.action.action.title);
-						if (element.action.action.disabled) {
-							label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
+		super({
+			user: 'codeActionWidget',
+			virtualDelegate: {
+				getHeight: element => element.kind === CodeActionListItemKind.Header ? this.headerLineHeight : this.codeActionLineHeight,
+				getTemplateId: element => element.kind
+			},
+			renderers: [
+				new CodeActionItemRenderer(new CodeActionKeybindingResolver(keybindingService), keybindingService),
+				new HeaderRenderer(),
+			],
+			options: {
+				keyboardSupport: false,
+				accessibilityProvider: {
+					getAriaLabel: element => {
+						if (element.kind === CodeActionListItemKind.CodeAction) {
+							let label = stripNewlines(element.action.action.title);
+							if (element.action.action.disabled) {
+								label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
+							}
+							return label;
 						}
-						return label;
-					}
-					return null;
+						return null;
+					},
+					getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
+					getRole: () => 'option',
+					getWidgetRole: () => 'code-action-widget'
 				},
-				getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
-				getRole: () => 'option',
-				getWidgetRole: () => 'code-action-widget'
 			}
-		}));
-
-		this._register(this.list.onMouseClick(e => this.onListClick(e)));
-		this._register(this.list.onMouseOver(e => this.onListHover(e)));
-		this._register(this.list.onDidChangeFocus(() => this.list.domFocus()));
-		this._register(this.list.onDidChangeSelection(e => this.onListSelection(e)));
-
-		this.allMenuItems = this.toMenuItems(codeActions, showHeaders);
-		this.list.splice(0, this.list.length, this.allMenuItems);
-
-		this.focusNext();
-	}
-
-	public layout(minWidth: number): number {
-		// Updating list height, depending on how many separators and headers there are.
-		const numHeaders = this.allMenuItems.filter(item => item.kind === CodeActionListItemKind.Header).length;
-		const height = this.allMenuItems.length * this.codeActionLineHeight;
-		const heightWithHeaders = height + numHeaders * this.headerLineHeight - numHeaders * this.codeActionLineHeight;
-		this.list.layout(heightWithHeaders);
-
-		// For finding width dynamically (not using resize observer)
-		const itemWidths: number[] = this.allMenuItems.map((_, index): number => {
-			const element = document.getElementById(this.list.getElementID(index));
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				return width;
-			}
-			return 0;
-		});
-
-		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const width = Math.max(...itemWidths, minWidth);
-		this.list.layout(heightWithHeaders, width);
-
-		this.domNode.style.height = `${heightWithHeaders}px`;
-
-		this.list.domFocus();
-		return width;
-	}
-
-	public focusPrevious() {
-		this.list.focusPrevious(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
-	}
-
-	public focusNext() {
-		this.list.focusNext(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
-	}
-
-	public acceptSelected(options?: { readonly preview?: boolean }) {
-		const focused = this.list.getFocus();
-		if (focused.length === 0) {
-			return;
-		}
-
-		const focusIndex = focused[0];
-		const element = this.list.element(focusIndex);
-		if (element.kind !== CodeActionListItemKind.CodeAction || element.action.action.disabled) {
-			return;
-		}
-
-		const event = new UIEvent(options?.preview ? previewSelectedEventType : 'acceptSelectedCodeAction');
-		this.list.setSelection([focusIndex], event);
-	}
-
-	private onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
-		if (!e.elements.length) {
-			return;
-		}
-
-		const element = e.elements[0];
-		if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
-			this.onDidSelect(element.action, { preview: e.browserEvent?.type === previewSelectedEventType });
-		} else {
-			this.list.setSelection([]);
-		}
-	}
-
-	private onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
-		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-	}
-
-	private onListClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
-		if (e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled) {
-			this.list.setFocus([]);
-		}
+		}, codeActions, showHeaders, (element: CodeActionListItemCodeAction | CodeActionListItemHeader) => { return element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled; }, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
@@ -342,9 +241,6 @@ class CodeActionList extends Disposable implements ActionList {
 	}
 }
 
-// TODO: Take a look at user storage for this so it is preserved across windows and on reload.
-let showDisabled = false;
-
 export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 
 	private static _instance?: CodeActionWidget;
@@ -359,7 +255,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 	}
 
 	private currentShowingContext?: {
-		readonly options: CodeActionShowOptions;
+		readonly options: ActionShowOptions;
 		readonly trigger: CodeActionTrigger;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
@@ -389,11 +285,11 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		return list.toMenuItems(actions, showHeaders);
 	}
 
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: CodeActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {
+	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
 
-		const actionsToShow = options.includeDisabledActions && (showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
+		const actionsToShow = options.includeDisabledActions && (this.showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
 			visibleContext.reset();
 			return;
@@ -418,21 +314,22 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		this.list.value?.acceptSelected(options);
 	}
 
-	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
+	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
-
+		const onDidSelect = (action: ActionItem, options: { readonly preview: boolean }) => {
+			this.hide();
+			delegate.onSelectCodeAction(action as CodeActionItem, trigger, options);
+		};
 		this.list.value = new CodeActionList(
 			showingCodeActions,
 			options.showHeaders ?? true,
-			(action, options) => {
-				this.hide();
-				delegate.onSelectCodeAction(action, trigger, options);
-			},
-			this._keybindingService);
+			onDidSelect,
+			this._keybindingService,
+			this._contextViewService);
 
 		widget.appendChild(this.list.value.domNode);
 
@@ -493,14 +390,14 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 
 		this.hide();
 
-		showDisabled = newShowDisabled;
+		this.showDisabled = newShowDisabled;
 
 		if (previousCtx) {
 			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
 		}
 	}
 
-	private onWidgetClosed(trigger: CodeActionTrigger, options: CodeActionShowOptions, codeActions: CodeActionSet, cancelled: boolean, delegate: CodeActionWidgetDelegate): void {
+	private onWidgetClosed(trigger: CodeActionTrigger, options: ActionShowOptions, codeActions: CodeActionSet, cancelled: boolean, delegate: CodeActionWidgetDelegate): void {
 		type ApplyCodeActionEvent = {
 			codeActionFrom: CodeActionTriggerSource;
 			validCodeActions: number;
@@ -526,7 +423,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		delegate.onHide(cancelled);
 	}
 
-	private createActionBar(codeActions: CodeActionSet, options: CodeActionShowOptions): ActionBar | undefined {
+	private createActionBar(codeActions: CodeActionSet, options: ActionShowOptions): ActionBar | undefined {
 		const actions = this.getActionBarActions(codeActions, options);
 		if (!actions.length) {
 			return undefined;
@@ -538,7 +435,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		return actionBar;
 	}
 
-	private getActionBarActions(codeActions: CodeActionSet, options: CodeActionShowOptions): IAction[] {
+	private getActionBarActions(codeActions: CodeActionSet, options: ActionShowOptions): IAction[] {
 		const actions = codeActions.documentation.map((command): IAction => ({
 			id: command.id,
 			label: command.title,
@@ -549,7 +446,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		}));
 
 		if (options.includeDisabledActions && codeActions.validActions.length > 0 && codeActions.allActions.length !== codeActions.validActions.length) {
-			actions.push(showDisabled ? {
+			actions.push(this.showDisabled ? {
 				id: 'hideMoreCodeActions',
 				label: localize('hideMoreCodeActions', 'Hide Disabled'),
 				enabled: true,
