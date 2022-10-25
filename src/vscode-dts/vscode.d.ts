@@ -15652,7 +15652,7 @@ declare module 'vscode' {
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.localize('hello', 'Hello {0}!', 'World');`
+		 * @example `l10n.t('Hello {0}!', 'World');`
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 
