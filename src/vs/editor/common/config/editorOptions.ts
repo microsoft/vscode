@@ -1183,7 +1183,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
+				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
