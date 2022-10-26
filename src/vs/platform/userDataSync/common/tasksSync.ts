@@ -77,7 +77,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		let hasConflicts: boolean = false;
 
 		if (remoteContent) {
-			const localContent = fileContent ? fileContent.value.toString() : null;
+			const localContent = fileContent ? (fileContent.value.toString() || '{}') : '{}';
 			if (!lastSyncContent // First time sync
 				|| lastSyncContent !== localContent // Local has forwarded
 				|| lastSyncContent !== remoteContent // Remote has forwarded
