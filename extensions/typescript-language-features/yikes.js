@@ -11,7 +11,7 @@ const o = {
 	to: 'dist/browser/typescript/tsserver.web.js',
 	transform() {
 		const dynamicImportCompatPath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
-		const cheat = fs.readFileSync('/home/nathansa/ts/built/local/tsserver.js', 'utf8');
+		const tsserver = fs.readFileSync(path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsserver.js'));
 		const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
 		// TODO: All this extra work can *probably* be done with webpack tools in some way.
 		const filenames = {
@@ -30,7 +30,7 @@ const o = {
 			'../common/api': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'api.js'),
 			'@vscode/sync-api-common': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'main.js'),
 			'@vscode/sync-api-common/browser': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'browser.js'),
-			'vscode-wasm-typescript': '/home/nathansa/src/vscode-wasm-typescript/dist/index.js',
+			'vscode-wasm-typescript': path.join(__dirname, 'node_modules', 'vscode-wasm-typescript', 'dist', 'index.js'),
 		};
 		const redirect = {
 			'./lib/browser/main': '@vscode/sync-api-common',
@@ -58,7 +58,7 @@ const o = {
 				}
 			}
 		}
-		return prefix + '\n' + cheat + '\n' + wrapper(modules, redirect);
+		return prefix + '\n' + tsserver + '\n' + wrapper(modules, redirect);
 	}
 };
 console.log(`\nwriting combined code to ${o.to}\n`);
