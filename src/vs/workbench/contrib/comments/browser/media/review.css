@@ -321,10 +321,6 @@
 	height: 100%;
 }
 
-.head .review-actions .monaco-action-bar .action-label {
-	display: inline;
-}
-
 .review-widget .head .review-title {
 	display: inline-block;
 	font-size: 13px;
@@ -362,7 +358,6 @@
 }
 
 .review-widget .head .review-actions > .monaco-action-bar .action-label {
-	width: 16px;
 	margin: 0;
 	line-height: inherit;
 	background-repeat: no-repeat;
