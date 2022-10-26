@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import * as languages from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -89,7 +88,7 @@ export class CellComments extends CellPart {
 
 		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {
 			if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-				this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 			}
 		}));
 	}
@@ -102,23 +101,39 @@ export class CellComments extends CellPart {
 					this._createCommentTheadWidget(info.owner, info.thread);
 					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
 					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
-
-					this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget!.container).height;
-
+					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget!.getDimensions().height);
 					return;
 				}
 
 				if (this._commentThreadWidget) {
-					if (info) {
-						this._commentThreadWidget.updateCommentThread(info.thread);
-						this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
-					} else {
+					if (!info) {
 						this._commentThreadWidget.dispose();
 						this.currentElement.commentHeight = 0;
+						return;
 					}
+					if (this._commentThreadWidget.commentThread === info.thread) {
+						this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+						return;
+					}
+
+					this._commentThreadWidget.updateCommentThread(info.thread);
+					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 				}
 			}
 		}));
+	}
+
+	private _calculateCommentThreadHeight(bodyHeight: number) {
+		const layoutInfo = this.notebookEditor.getLayoutInfo();
+
+		const headHeight = Math.ceil(layoutInfo.fontInfo.lineHeight * 1.2);
+		const lineHeight = layoutInfo.fontInfo.lineHeight;
+		const arrowHeight = Math.round(lineHeight / 3);
+		const frameThickness = Math.round(lineHeight / 9) * 2;
+
+		const computedHeight = headHeight + bodyHeight + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */;
+		return computedHeight;
+
 	}
 
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
@@ -149,7 +164,7 @@ export class CellComments extends CellPart {
 
 	override prepareLayout(): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-			this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 		}
 	}
 
