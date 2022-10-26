@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace } from 'vscode';
+import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
 import { Operation, Repository } from './repository';
 import { ApiRepository } from './api/api1';
@@ -16,8 +15,6 @@ export interface IPostCommitCommandsProviderRegistry {
 	getPostCommitCommandsProviders(): PostCommitCommandsProvider[];
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 }
-
-const localize = nls.loadMessageBundle();
 
 export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider {
 	getCommands(apiRepository: ApiRepository): Command[] {
@@ -34,33 +31,33 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 
 		// Tooltip (default)
 		let pushCommandTooltip = !alwaysCommitToNewBranch ?
-			localize('scm button commit and push tooltip', "Commit & Push Changes") :
-			localize('scm button commit to new branch and push tooltip', "Commit to New Branch & Push Changes");
+			l10n.t('Commit & Push Changes') :
+			l10n.t('Commit to New Branch & Push Changes');
 
 		let syncCommandTooltip = !alwaysCommitToNewBranch ?
-			localize('scm button commit and sync tooltip', "Commit & Sync Changes") :
-			localize('scm button commit to new branch and sync tooltip', "Commit to New Branch & Synchronize Changes");
+			l10n.t('Commit & Sync Changes') :
+			l10n.t('Commit to New Branch & Synchronize Changes');
 
 		// Tooltip (in progress)
 		if (apiRepository.repository.operations.isRunning(Operation.Commit)) {
 			pushCommandTooltip = !alwaysCommitToNewBranch ?
-				localize('scm button committing and pushing tooltip', "Committing & Pushing Changes...") :
-				localize('scm button committing to new branch and pushing tooltip', "Committing to New Branch & Pushing Changes...");
+				l10n.t('Committing & Pushing Changes...') :
+				l10n.t('Committing to New Branch & Pushing Changes...');
 
 			syncCommandTooltip = !alwaysCommitToNewBranch ?
-				localize('scm button committing and syncing tooltip', "Committing & Synchronizing Changes...") :
-				localize('scm button committing to new branch and syncing tooltip', "Committing to New Branch & Synchronizing Changes...");
+				l10n.t('Committing & Synchronizing Changes...') :
+				l10n.t('Committing to New Branch & Synchronizing Changes...');
 		}
 
 		return [
 			{
 				command: 'git.push',
-				title: localize('scm button commit and push title', "{0} Commit & Push", icon ?? '$(arrow-up)'),
+				title: l10n.t('{0} Commit & Push', icon ?? '$(arrow-up)'),
 				tooltip: pushCommandTooltip
 			},
 			{
 				command: 'git.sync',
-				title: localize('scm button commit and sync title', "{0} Commit & Sync", icon ?? '$(sync)'),
+				title: l10n.t('{0} Commit & Sync', icon ?? '$(sync)'),
 				tooltip: syncCommandTooltip
 			},
 		];
@@ -151,17 +148,17 @@ export class CommitCommandsCenter {
 
 		// Tooltip (default)
 		let tooltip = !alwaysCommitToNewBranch ?
-			localize('scm button commit tooltip', "Commit Changes") :
-			localize('scm button commit to new branch tooltip', "Commit Changes to New Branch");
+			l10n.t('Commit Changes') :
+			l10n.t('Commit Changes to New Branch');
 
 		// Tooltip (in progress)
 		if (this.repository.operations.isRunning(Operation.Commit)) {
 			tooltip = !alwaysCommitToNewBranch ?
-				localize('scm button committing tooltip', "Committing Changes...") :
-				localize('scm button committing to new branch tooltip', "Committing Changes to New Branch...");
+				l10n.t('Committing Changes...') :
+				l10n.t('Committing Changes to New Branch...');
 		}
 
-		return { command: 'git.commit', title: localize('scm button commit title', "{0} Commit", icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, ''] };
+		return { command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, ''] };
 	}
 
 	private getPostCommitCommandStringFromSetting(): string | undefined {

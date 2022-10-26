@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Operation, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -11,7 +11,6 @@ import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable,
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
 import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider } from './api/git';
 import { Askpass } from './askpass';
@@ -19,8 +18,6 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
-
-const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -187,7 +184,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				}
 
 				if (path.isAbsolute(scanPath)) {
-					const notSupportedMessage = localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting.");
+					const notSupportedMessage = l10n.t('Absolute paths not supported in "git.scanRepositories" setting.');
 					this.logger.warn(notSupportedMessage);
 					console.warn(notSupportedMessage);
 					continue;
@@ -376,7 +373,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 				if (!isRepoInWorkspaceFolders) {
 					if (this.showRepoOnHomeDriveRootWarning) {
-						window.showWarningMessage(localize('repoOnHomeDriveRootWarning', "Unable to automatically open the git repository at '{0}'. To open that git repository, open it directly as a folder in VS Code.", repositoryRoot));
+						window.showWarningMessage(l10n.t('Unable to automatically open the git repository at "{0}". To open that git repository, open it directly as a folder in VS Code.', repositoryRoot));
 						this.showRepoOnHomeDriveRootWarning = false;
 					}
 
@@ -439,7 +436,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			}
 
 			if (repository.submodules.length > submodulesLimit) {
-				window.showWarningMessage(localize('too many submodules', "The '{0}' repository has {1} submodules which won't be opened automatically. You can still open each one individually by opening a file within.", path.basename(repository.root), repository.submodules.length));
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length));
 				statusListener.dispose();
 			}
 
@@ -513,7 +510,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	async pickRepository(): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
-			throw new Error(localize('no repositories', "There are no available repositories"));
+			throw new Error(l10n.t('There are no available repositories'));
 		}
 
 		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
@@ -526,7 +523,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			picks.unshift(...picks.splice(index, 1));
 		}
 
-		const placeHolder = localize('pick repo', "Choose a repository");
+		const placeHolder = l10n.t('Choose a repository');
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
 		return pick && pick.repository;
