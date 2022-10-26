@@ -444,7 +444,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
-		return this.addWebExtension(webExtension, profileLocation);
+		const extension = await this.toScannedExtension(webExtension, false);
+		await this.addToInstalledExtensions([webExtension], profileLocation);
+		return extension;
 	}
 
 	async removeExtension(extension: IScannedExtension, profileLocation?: URI): Promise<void> {
