@@ -546,11 +546,18 @@
           "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
           "scope": "resource"
         },
-        "markdown.updateLinksOnFileMove.externalFileGlobs": {
-          "type": "string",
-          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}",
-          "description": "%configuration.markdown.updateLinksOnFileMove.fileGlobs%",
-          "scope": "resource"
+        "markdown.updateLinksOnFileMove.include": {
+          "type": "array",
+          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.include%",
+          "scope": "resource",
+          "items": {
+            "type": "string",
+            "description": "%configuration.markdown.updateLinksOnFileMove.include.property%"
+          },
+          "default": [
+            "**/*.{md,mkd,mdwn,mdown,markdown,markdn,mdtxt,mdtext,workbook}",
+            "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}"
+          ]
         },
         "markdown.updateLinksOnFileMove.enableForDirectories": {
           "type": "boolean",
