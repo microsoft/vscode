@@ -72,6 +72,7 @@ export class ActionButtonCommand {
 	}
 
 	get button(): SourceControlActionButton | undefined {
+		console.log('state: ', this.state);
 		if (!this.state.HEAD) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
@@ -140,10 +141,13 @@ export class ActionButtonCommand {
 		// Branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
 		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
+		// Button icon
+		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
+
 		return {
 			command: {
 				command: 'git.publish',
-				title: localize({ key: 'scm publish branch action button title', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "{0} Publish Branch", '$(cloud-upload)'),
+				title: localize({ key: 'scm publish branch action button title', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "{0} Publish Branch", icon),
 				tooltip: this.state.isSyncInProgress ?
 					localize({ key: 'scm button publish branch running', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publishing Branch...") :
 					localize({ key: 'scm button publish branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publish Branch"),
