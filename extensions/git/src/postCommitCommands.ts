@@ -76,6 +76,17 @@ export class CommitCommandsCenter {
 
 	private disposables: Disposable[] = [];
 
+	set postCommitCommand(command: string | null | undefined) {
+		if (command === undefined) {
+			// Commit WAS NOT initiated using the action button
+			// so there is no need to store the post-commit command
+			return;
+		}
+
+		this.globalState.update(this.repository.root, command)
+			.then(() => this._onDidChange.fire());
+	}
+
 	constructor(
 		private readonly globalState: Memento,
 		private readonly repository: Repository,
@@ -124,19 +135,32 @@ export class CommitCommandsCenter {
 		return commandGroups;
 	}
 
-	async executePostCommitCommand(command: string | undefined): Promise<void> {
-		if (command === undefined) {
-			// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar action,
-			// command palette) so we have to honour the default post commit command (memento/setting).
-			const primaryCommand = this.getPrimaryCommand();
-			command = primaryCommand.arguments?.length === 2 ? primaryCommand.arguments[1] : '';
-		}
+	async executePostCommitCommand(command: string | null | undefined): Promise<void> {
+		try {
+			if (command === null) {
+				// No post-commit command
+				return;
+			}
 
-		if (command?.length) {
-			await commands.executeCommand(command, new ApiRepository(this.repository));
-		}
+			if (command === undefined) {
+				// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar action,
+				// command palette) so we have to honour the default post commit command (memento/setting).
+				const primaryCommand = this.getPrimaryCommand();
+				command = primaryCommand.arguments?.length === 2 ? primaryCommand.arguments[1] : null;
+			}
 
-		await this.savePostCommitCommand(command);
+			if (command !== null) {
+				await commands.executeCommand(command!.toString(), new ApiRepository(this.repository));
+			}
+		} catch (err) {
+			throw err;
+		}
+		finally {
+			if (!this.isRememberPostCommitCommandEnabled()) {
+				await this.globalState.update(this.repository.root, undefined);
+				this._onDidChange.fire();
+			}
+		}
 	}
 
 	private getCommitCommand(): Command {
@@ -163,7 +187,7 @@ export class CommitCommandsCenter {
 				localize('scm button committing to new branch tooltip', "Committing Changes to New Branch...");
 		}
 
-		return { command: 'git.commit', title: localize('scm button commit title', "{0} Commit", icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, ''] };
+		return { command: 'git.commit', title: localize('scm button commit title', "{0} Commit", icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] };
 	}
 
 	private getPostCommitCommandStringFromSetting(): string | undefined {
@@ -173,27 +197,13 @@ export class CommitCommandsCenter {
 		return postCommitCommandSetting === 'push' || postCommitCommandSetting === 'sync' ? `git.${postCommitCommandSetting}` : undefined;
 	}
 
-	private getPostCommitCommandStringFromStorage(): string | undefined {
-		if (!this.isRememberPostCommitCommandEnabled()) {
-			return undefined;
-		}
-
-		return this.globalState.get<string>(this.repository.root);
+	private getPostCommitCommandStringFromStorage(): string | null | undefined {
+		return this.globalState.get<string | null>(this.repository.root);
 	}
 
 	private isRememberPostCommitCommandEnabled(): boolean {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		return config.get<boolean>('rememberPostCommitCommand') === true;
-	}
-
-	private async savePostCommitCommand(command: string | undefined): Promise<void> {
-		if (!this.isRememberPostCommitCommandEnabled()) {
-			return;
-		}
-
-		command = command !== '' ? command : undefined;
-		await this.globalState.update(this.repository.root, command);
-		this._onDidChange.fire();
 	}
 
 	dispose(): void {
