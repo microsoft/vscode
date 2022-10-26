@@ -202,7 +202,7 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 					getWidgetRole: () => 'code-action-widget'
 				},
 			}
-		}, codeActions, showHeaders, (element: CodeActionListItemCodeAction | CodeActionListItemHeader) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item.action.disabled; }, onDidSelect, contextViewService);
+		}, codeActions, showHeaders, acceptSelectedCodeActionCommand, (element: CodeActionListItemCodeAction | CodeActionListItemHeader) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item.action.disabled; }, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {

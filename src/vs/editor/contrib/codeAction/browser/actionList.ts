@@ -12,21 +12,19 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 
 export abstract class ActionList<T extends ListMenuItem> extends Disposable implements IActionList {
 
+	public readonly domNode: HTMLElement;
+	public list: List<T>;
+
 	readonly actionLineHeight = 24;
 	readonly headerLineHeight = 26;
 
-	public readonly domNode: HTMLElement;
-
 	private readonly allMenuItems: T[];
-
-	public list: List<T>;
-
-	private virtualDelegate: IListVirtualDelegate<T>;
 
 	constructor(
 		listCtor: { user: string; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
 		items: readonly ListItem[],
 		showHeaders: boolean,
+		private readonly acceptSelectedActionCommand: string,
 		private readonly focusCondition: (element: T) => boolean,
 		private readonly onDidSelect: (action: ListItem, options: { readonly preview: boolean }) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService
@@ -34,12 +32,13 @@ export abstract class ActionList<T extends ListMenuItem> extends Disposable impl
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		this.virtualDelegate = {
+
+		const virtualDelegate: IListVirtualDelegate<T> = {
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(listCtor.user, this.domNode, this.virtualDelegate, listCtor.renderers, listCtor.options);
 
+		this.list = new List(listCtor.user, this.domNode, virtualDelegate, listCtor.renderers, listCtor.options);
 
 		this._register(this.list.onMouseClick(e => this.onListClick(e)));
 		this._register(this.list.onMouseOver(e => this.onListHover(e)));
@@ -105,7 +104,7 @@ export abstract class ActionList<T extends ListMenuItem> extends Disposable impl
 			return;
 		}
 
-		const event = new UIEvent(options?.preview ? 'previewSelectedEventType' : 'acceptSelectedCodeAction');
+		const event = new UIEvent(options?.preview ? 'previewSelectedEventType' : this.acceptSelectedActionCommand);
 		this.list.setSelection([focusIndex], event);
 	}
 
