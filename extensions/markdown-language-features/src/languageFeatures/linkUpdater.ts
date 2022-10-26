@@ -131,17 +131,17 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: localize('always.title', "Always automatically update Markdown Links"),
+			title: localize('always.title', "Always"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: localize('never.title', "Never automatically update Markdown Links"),
+			title: localize('never.title', "Never"),
 		};
 
 		const choice = await vscode.window.showInformationMessage(
 			newResources.length === 1
 				? localize('prompt', "Update Markdown links for '{0}'?", path.basename(newResources[0].fsPath))
-				: this.getConfirmMessage(localize('promptMoreThanOne', "Update Markdown link for the following {0} files?", newResources.length), newResources), {
+				: this.getConfirmMessage(localize('promptMoreThanOne', "Update Markdown links for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
