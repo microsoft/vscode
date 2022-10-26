@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionItem, ActionMenuItem, IActionList } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListItem, ListMenuItem, IActionList } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 
-export abstract class ActionList<T extends ActionMenuItem> extends Disposable implements IActionList {
+export abstract class ActionList<T extends ListMenuItem> extends Disposable implements IActionList {
 
-	readonly codeActionLineHeight = 24;
+	readonly actionLineHeight = 24;
 	readonly headerLineHeight = 26;
 
 	public readonly domNode: HTMLElement;
@@ -25,17 +25,17 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 
 	constructor(
 		listCtor: { user: string; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
-		codeActions: readonly ActionItem[],
+		items: readonly ListItem[],
 		showHeaders: boolean,
 		private readonly focusCondition: (element: T) => boolean,
-		private readonly onDidSelect: (action: ActionItem, options: { readonly preview: boolean }) => void,
+		private readonly onDidSelect: (action: ListItem, options: { readonly preview: boolean }) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		this.virtualDelegate = {
-			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.codeActionLineHeight,
+			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
 		this.list = new List(listCtor.user, this.domNode, this.virtualDelegate, listCtor.renderers, listCtor.options);
@@ -46,7 +46,7 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 		this._register(this.list.onDidChangeFocus(() => this.list.domFocus()));
 		this._register(this.list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this.allMenuItems = this.toMenuItems(codeActions, showHeaders);
+		this.allMenuItems = this.toMenuItems(items, showHeaders);
 		this.list.splice(0, this.list.length, this.allMenuItems);
 
 		this.focusNext();
@@ -59,8 +59,8 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 	public layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this.allMenuItems.filter(item => item.kind === 'header').length;
-		const height = this.allMenuItems.length * this.codeActionLineHeight;
-		const heightWithHeaders = height + numHeaders * this.headerLineHeight - numHeaders * this.codeActionLineHeight;
+		const height = this.allMenuItems.length * this.actionLineHeight;
+		const heightWithHeaders = height + numHeaders * this.headerLineHeight - numHeaders * this.actionLineHeight;
 		this.list.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
@@ -115,8 +115,8 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 		}
 
 		const element = e.elements[0];
-		if (element.action && this.focusCondition(element)) {
-			this.onDidSelect(element.action, { preview: e.browserEvent?.type === 'previewSelectedEventType' });
+		if (element.item && this.focusCondition(element)) {
+			this.onDidSelect(element.item, { preview: e.browserEvent?.type === 'previewSelectedEventType' });
 		} else {
 			this.list.setSelection([]);
 		}
@@ -132,5 +132,5 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 		}
 	}
 
-	public abstract toMenuItems(inputCodeActions: readonly ActionItem[], showHeaders: boolean): T[];
+	public abstract toMenuItems(inputActions: readonly ListItem[], showHeaders: boolean): T[];
 }

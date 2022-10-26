@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionMenuItem, BaseActionWidget, ActionShowOptions, ActionItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListMenuItem, BaseActionWidget, ActionShowOptions, ListItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -43,13 +43,13 @@ enum CodeActionListItemKind {
 	Header = 'header'
 }
 
-interface CodeActionListItemCodeAction extends ActionMenuItem {
+interface CodeActionListItemCodeAction extends ListMenuItem {
 	readonly kind: CodeActionListItemKind.CodeAction;
-	readonly action: CodeActionItem;
+	readonly item: CodeActionItem;
 	readonly group: CodeActionGroup;
 }
 
-interface CodeActionListItemHeader extends ActionMenuItem {
+interface CodeActionListItemHeader extends ListMenuItem {
 	readonly kind: CodeActionListItemKind.Header;
 	readonly group: CodeActionGroup;
 }
@@ -118,9 +118,9 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 
-		data.text.textContent = stripNewlines(element.action.action.title);
+		data.text.textContent = stripNewlines(element.item.action.title);
 
-		const binding = this.keybindingResolver.getResolver()(element.action.action);
+		const binding = this.keybindingResolver.getResolver()(element.item.action);
 		data.keybinding.set(binding);
 		if (!binding) {
 			dom.hide(data.keybinding.element);
@@ -128,8 +128,8 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			dom.show(data.keybinding.element);
 		}
 
-		if (element.action.action.disabled) {
-			data.container.title = element.action.action.disabled;
+		if (element.item.action.disabled) {
+			data.container.title = element.item.action.disabled;
 			data.container.classList.add('option-disabled');
 		} else {
 			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
@@ -174,7 +174,7 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		onDidSelect: (action: ActionItem, options: { readonly preview: boolean }) => void,
+		onDidSelect: (action: ListItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
@@ -189,9 +189,9 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 				accessibilityProvider: {
 					getAriaLabel: element => {
 						if (element.kind === CodeActionListItemKind.CodeAction) {
-							let label = stripNewlines(element.action.action.title);
-							if (element.action.action.disabled) {
-								label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
+							let label = stripNewlines(element.item.action.title);
+							if (element.item.action.disabled) {
+								label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.action.disabled);
 							}
 							return label;
 						}
@@ -202,12 +202,12 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 					getWidgetRole: () => 'code-action-widget'
 				},
 			}
-		}, codeActions, showHeaders, (element: CodeActionListItemCodeAction | CodeActionListItemHeader) => { return element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled; }, onDidSelect, contextViewService);
+		}, codeActions, showHeaders, (element: CodeActionListItemCodeAction | CodeActionListItemHeader) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item.action.disabled; }, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, group: uncategorizedCodeActionGroup }));
+			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, item: action, group: uncategorizedCodeActionGroup }));
 		}
 
 		// Group code actions
@@ -228,7 +228,7 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 			if (menuEntry.actions.length) {
 				allMenuItems.push({ kind: CodeActionListItemKind.Header, group: menuEntry.group });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action, group: menuEntry.group });
+					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, item: action, group: menuEntry.group });
 				}
 			}
 		}
@@ -273,7 +273,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		return !!this.currentShowingContext;
 	}
 
-	public toMenuItems(actions: readonly CodeActionItem[], showHeaders: boolean): ActionMenuItem[] {
+	public toMenuItems(actions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem[] {
 		const list = this.list.value;
 		if (!list) {
 			throw new Error('No list');
@@ -316,7 +316,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
-		const onDidSelect = (action: ActionItem, options: { readonly preview: boolean }) => {
+		const onDidSelect = (action: ListItem, options: { readonly preview: boolean }) => {
 			this.hide();
 			delegate.onSelectCodeAction(action as CodeActionItem, trigger, options);
 		};
