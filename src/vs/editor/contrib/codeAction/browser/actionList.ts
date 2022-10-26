@@ -21,8 +21,10 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 
 	public list: List<T>;
 
+	private virtualDelegate: IListVirtualDelegate<T>;
+
 	constructor(
-		listCtor: { user: string; virtualDelegate: IListVirtualDelegate<any>; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
+		listCtor: { user: string; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
 		codeActions: readonly ActionItem[],
 		showHeaders: boolean,
 		private readonly focusCondition: (element: T) => boolean,
@@ -31,8 +33,12 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 	) {
 		super();
 		this.domNode = document.createElement('div');
-		this.domNode.classList.add('codeActionList');
-		this.list = new List(listCtor.user, this.domNode, listCtor.virtualDelegate, listCtor.renderers, listCtor.options);
+		this.domNode.classList.add('actionList');
+		this.virtualDelegate = {
+			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.codeActionLineHeight,
+			getTemplateId: element => element.kind
+		};
+		this.list = new List(listCtor.user, this.domNode, this.virtualDelegate, listCtor.renderers, listCtor.options);
 
 
 		this._register(this.list.onMouseClick(e => this.onListClick(e)));
@@ -52,7 +58,7 @@ export abstract class ActionList<T extends ActionMenuItem> extends Disposable im
 
 	public layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
-		const numHeaders = this.allMenuItems.filter(item => item.isHeader).length;
+		const numHeaders = this.allMenuItems.filter(item => item.kind === 'header').length;
 		const height = this.allMenuItems.length * this.codeActionLineHeight;
 		const heightWithHeaders = height + numHeaders * this.headerLineHeight - numHeaders * this.codeActionLineHeight;
 		this.list.layout(heightWithHeaders);

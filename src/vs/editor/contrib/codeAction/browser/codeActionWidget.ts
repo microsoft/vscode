@@ -180,10 +180,6 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 	) {
 		super({
 			user: 'codeActionWidget',
-			virtualDelegate: {
-				getHeight: element => element.kind === CodeActionListItemKind.Header ? this.headerLineHeight : this.codeActionLineHeight,
-				getTemplateId: element => element.kind
-			},
 			renderers: [
 				new CodeActionItemRenderer(new CodeActionKeybindingResolver(keybindingService), keybindingService),
 				new HeaderRenderer(),

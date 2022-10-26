@@ -27,7 +27,7 @@ export interface ActionItem extends Disposable { }
 
 export interface ActionMenuItem {
 	action?: ActionItem;
-	isHeader?: boolean;
+	kind?: any;
 }
 
 export interface IActionList extends Disposable {
