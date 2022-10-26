@@ -851,22 +851,31 @@ export class MouseTargetFactory {
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
 		const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-		const lineVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
-		const lineCenteredVerticalOffset = lineVerticalOffset + Math.floor(ctx.lineHeight / 2);
-		let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
+		const lineStartVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
+		const lineEndVerticalOffset = lineStartVerticalOffset + ctx.lineHeight;
 
-		if (adjustedPageY <= request.editorPos.y) {
-			adjustedPageY = request.editorPos.y + 1;
-		}
-		if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
-			adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
-		}
+		const isBelowLastLine = (
+			lineNumber === ctx.viewModel.getLineCount()
+			&& request.mouseVerticalOffset > lineEndVerticalOffset
+		);
 
-		const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+		if (!isBelowLastLine) {
+			const lineCenteredVerticalOffset = Math.floor((lineStartVerticalOffset + lineEndVerticalOffset) / 2);
+			let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
 
-		const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
-		if (r.type === HitTestResultType.Content) {
-			return r;
+			if (adjustedPageY <= request.editorPos.y) {
+				adjustedPageY = request.editorPos.y + 1;
+			}
+			if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
+				adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
+			}
+
+			const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+
+			const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
+			if (r.type === HitTestResultType.Content) {
+				return r;
+			}
 		}
 
 		// Also try to hit test without the adjustment (for the edge cases that we are near the top or bottom)
