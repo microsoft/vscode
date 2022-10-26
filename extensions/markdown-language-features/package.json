@@ -544,12 +544,12 @@
           ],
           "default": "never",
           "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
-          "scope": "resource"
+          "scope": "window"
         },
         "markdown.updateLinksOnFileMove.include": {
           "type": "array",
           "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.include%",
-          "scope": "resource",
+          "scope": "window",
           "items": {
             "type": "string",
             "description": "%configuration.markdown.updateLinksOnFileMove.include.property%"
@@ -563,7 +563,7 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
-          "scope": "resource"
+          "scope": "window"
         },
         "markdown.occurrencesHighlight.enabled": {
           "type": "boolean",
