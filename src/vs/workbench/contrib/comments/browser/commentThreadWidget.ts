@@ -150,8 +150,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
 		this._commentThread = commentThread;
-		this._commentThreadDisposables = [];
 		dispose(this._commentThreadDisposables);
+		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
 		this._body.updateCommentThread(commentThread);
