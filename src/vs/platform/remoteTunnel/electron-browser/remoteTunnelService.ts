@@ -170,7 +170,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			} else {
 				this._logger.info(message);
 			}
-			const m = message.match(/^\s*Open this link in your browser (https:\/\/([^\/]+)\/([^\/]+)\/([^\/]+))/);
+			const m = message.match(/^\s*Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
 				const info: ConnectionInfo = { link: m[1], domain: m[2], extensionId: 'ms-vscode.remote-server', hostName: m[4] };
 				this.setTunnelStatus(TunnelStates.connected(info));
@@ -217,9 +217,6 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 						tunnelProcess.kill();
 					}
 				});
-				this._logger.info(`${logLabel} appRoot ${this.environmentService.appRoot}`);
-				this._logger.info(`${logLabel} process.execPath ${process.execPath}`);
-
 				if (process.env['VSCODE_DEV']) {
 					onOutput('Compiling tunnel CLI from sources and run', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`, false);
@@ -272,7 +269,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		}
 		const hostName = hostname();
 		if (hostName && hostName.match(/^([\w-]+)$/)) {
-			return hostName;
+			return hostName.substring(0, 20);
 		}
 
 		return undefined;
