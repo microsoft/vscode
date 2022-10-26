@@ -313,6 +313,7 @@ export const enum Operation {
 	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
+	PostCommitCommand = 'PostCommitCommand',
 	Clean = 'Clean',
 	Branch = 'Branch',
 	GetBranch = 'GetBranch',
@@ -1282,7 +1283,9 @@ export class Repository implements Disposable {
 
 			// Execute post-commit command
 			if (opts.postCommitCommand !== null) {
-				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
+				await this.run(Operation.PostCommitCommand, async () => {
+					await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand as string | undefined);
+				});
 			}
 		}
 	}

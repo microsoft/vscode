@@ -30,7 +30,9 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 		const alwaysCommitToNewBranch = isBranchProtected && branchProtectionPrompt === 'alwaysCommitToNewBranch';
 
 		// Icon
-		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
+		const repository = apiRepository.repository;
+		const isCommitInProgress = repository.operations.isRunning(Operation.Commit) || repository.operations.isRunning(Operation.PostCommitCommand);
+		const icon = isCommitInProgress ? '$(sync~spin)' : alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 
 		// Tooltip (default)
 		let pushCommandTooltip = !alwaysCommitToNewBranch ?
@@ -42,7 +44,7 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 			localize('scm button commit to new branch and sync tooltip', "Commit to New Branch & Synchronize Changes");
 
 		// Tooltip (in progress)
-		if (apiRepository.repository.operations.isRunning(Operation.Commit)) {
+		if (isCommitInProgress) {
 			pushCommandTooltip = !alwaysCommitToNewBranch ?
 				localize('scm button committing and pushing tooltip', "Committing & Pushing Changes...") :
 				localize('scm button committing to new branch and pushing tooltip', "Committing to New Branch & Pushing Changes...");

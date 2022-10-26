@@ -72,7 +72,6 @@ export class ActionButtonCommand {
 	}
 
 	get button(): SourceControlActionButton | undefined {
-		console.log('state: ', this.state);
 		if (!this.state.HEAD) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
@@ -186,6 +185,7 @@ export class ActionButtonCommand {
 	private onDidChangeOperations(): void {
 		const isCommitInProgress =
 			this.repository.operations.isRunning(Operation.Commit) ||
+			this.repository.operations.isRunning(Operation.PostCommitCommand) ||
 			this.repository.operations.isRunning(Operation.RebaseContinue);
 
 		const isSyncInProgress =
