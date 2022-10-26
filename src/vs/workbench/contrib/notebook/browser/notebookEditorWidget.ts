@@ -556,7 +556,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			collapsedIndicatorHeight,
 			compactView,
 			focusIndicator,
-			insertToolbarPosition,
+			insertToolbarBetweenCells,
 			insertToolbarAlignment,
 			fontSize,
 			focusIndicatorLeftMargin,
@@ -674,7 +674,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		// between cell insert toolbar
-		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
+		if (insertToolbarBetweenCells) {
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { display: flex; }`);
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { display: flex; }`);
 		} else {
