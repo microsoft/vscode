@@ -180,7 +180,7 @@ stages:
       dependsOn: []
       jobs:
         - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
-          - job: Linux
+          - job: LinuxX64
             pool: vscode-1es-linux
             steps:
               - template: ./linux/cli-build-linux.yml
@@ -189,11 +189,19 @@ stages:
                   VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
                   VSCODE_BUILD_LINUX_ALPINE: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE }}
 
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-          - job: LinuxArm64
+        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+          - job: LinuxGnuARM
+            pool: vscode-1es-linux
+            steps:
+              - template: ./linux/cli-build-linux.yml
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
+                  VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true) }}:
+          - job: LinuxAlpineARM64
             pool: vscode-1es-linux-20.04-arm64
-            variables:
-              VSCODE_ARCH: arm64
             steps:
               - task: NodeTool@0
                 displayName: Install Node.js
@@ -207,11 +215,9 @@ stages:
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_LINUX_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64 }}
-                  VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
-                  VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
 
-        - ${{ if eq(variables.VSCODE_BUILD_STAGE_MACOS, true) }}:
-          - job: MacOS
+        - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+          - job: MacOSX64
             pool:
               vmImage: macOS-11
             steps:
@@ -219,17 +225,42 @@ stages:
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+
+        - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+          - job: MacOSARM64
+            pool:
+              vmImage: macOS-11
+            steps:
+              - template: ./darwin/cli-build-darwin.yml
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
-        - ${{ if eq(variables.VSCODE_BUILD_STAGE_WINDOWS, true) }}:
-          - job: Windows
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - job: WindowsX64
             pool: vscode-1es-windows
             steps:
               - template: ./win32/cli-build-win32.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - job: WindowsARM64
+            pool: vscode-1es-windows
+            steps:
+              - template: ./win32/cli-build-win32.yml
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
+          - job: WindowsX86
+            pool: vscode-1es-windows
+            steps:
+              - template: ./win32/cli-build-win32.yml
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:

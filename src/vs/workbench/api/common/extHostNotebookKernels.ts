@@ -74,7 +74,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					} else if (v && 'notebookEditor' in v) {
 						const notebookEditorId = this._extHostNotebook.getIdByEditor(v.notebookEditor);
 						if (notebookEditorId === undefined) {
-							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.document.uri.toString()}`);
+							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.notebook.uri.toString()}`);
 						}
 						return { notebookEditorId };
 					}

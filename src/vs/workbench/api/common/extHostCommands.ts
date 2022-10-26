@@ -322,7 +322,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
-	readonly delegatingCommandId: string = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
+	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)}`;
 	private readonly _cache = new Map<number, vscode.Command>();
 	private _cachIdPool = 0;
 

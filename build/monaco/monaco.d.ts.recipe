@@ -43,7 +43,7 @@ declare namespace monaco {
 #include(vs/base/common/uri): URI, UriComponents
 #include(vs/base/common/keyCodes): KeyCode
 #include(vs/editor/common/services/editorBaseApi): KeyMod
-#include(vs/base/common/htmlContent): IMarkdownString
+#include(vs/base/common/htmlContent): IMarkdownString, MarkdownStringTrustedOptions
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
 #include(vs/editor/common/editorCommon): IScrollEvent
