@@ -733,6 +733,16 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		}
 	}
 
+	protected async deleteLocalFile(): Promise<void> {
+		try {
+			await this.fileService.del(this.file);
+		} catch (e) {
+			if (!(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+				throw e;
+			}
+		}
+	}
+
 	private onFileChanges(e: FileChangesEvent): void {
 		if (!e.contains(this.file)) {
 			return;
