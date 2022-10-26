@@ -131,7 +131,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'telemetry.log');
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
 	}
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
@@ -222,7 +222,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
-	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
+	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'xf'); }
 
 	@memoize
 	get disableTelemetry(): boolean { return false; }
