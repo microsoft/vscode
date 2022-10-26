@@ -88,7 +88,7 @@ export class CellComments extends CellPart {
 
 		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {
 			if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-				this.currentElement.commentHeight = this._calcualteCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 			}
 		}));
 	}
@@ -101,7 +101,7 @@ export class CellComments extends CellPart {
 					this._createCommentTheadWidget(info.owner, info.thread);
 					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
 					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
-					this.currentElement.commentHeight = this._calcualteCommentThreadHeight(this._commentThreadWidget!.getDimensions().height);
+					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget!.getDimensions().height);
 					return;
 				}
 
@@ -112,18 +112,18 @@ export class CellComments extends CellPart {
 						return;
 					}
 					if (this._commentThreadWidget.commentThread === info.thread) {
-						this.currentElement.commentHeight = this._calcualteCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+						this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 						return;
 					}
 
 					this._commentThreadWidget.updateCommentThread(info.thread);
-					this.currentElement.commentHeight = this._calcualteCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 				}
 			}
 		}));
 	}
 
-	private _calcualteCommentThreadHeight(bodyHeight: number) {
+	private _calculateCommentThreadHeight(bodyHeight: number) {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 
 		const headHeight = Math.ceil(layoutInfo.fontInfo.lineHeight * 1.2);
@@ -164,7 +164,7 @@ export class CellComments extends CellPart {
 
 	override prepareLayout(): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-			this.currentElement.commentHeight = this._calcualteCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
 		}
 	}
 
