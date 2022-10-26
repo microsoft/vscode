@@ -23,6 +23,7 @@ import * as strings from 'vs/base/common/strings';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
@@ -31,7 +32,7 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 interface IFindOptions {
-	showOptionButtons?: boolean;
+	showCommonFindToggles?: boolean;
 	checkImeCompletionState?: boolean;
 	showResultCount?: boolean;
 	appendCaseSensitiveLabel?: string;
@@ -39,6 +40,9 @@ interface IFindOptions {
 	appendWholeWordsLabel?: string;
 	type?: 'Terminal' | 'Webview';
 }
+
+const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
+const MATCHES_COUNT_WIDTH = 68;
 
 export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
@@ -53,6 +57,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
+	private _width: number = 0;
 
 	constructor(
 		state: FindReplaceState = new FindReplaceState(),
@@ -79,11 +84,12 @@ export abstract class SimpleFindWidget extends Widget {
 					return { content: e.message };
 				}
 			},
+			showCommonFindToggles: options.showCommonFindToggles,
 			appendCaseSensitiveLabel: options.appendCaseSensitiveLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
 			appendRegexLabel: options.appendRegexLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
 			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined,
 			showHistoryHint: () => showHistoryKeybindingHint(_keybindingService)
-		}, contextKeyService, options.showOptionButtons));
+		}, contextKeyService));
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
@@ -176,6 +182,9 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (options?.showResultCount) {
 			this._domNode.classList.add('result-count');
+			this._matchesCount = document.createElement('div');
+			this._matchesCount.className = 'matchesCount';
+			this._findInput.domNode.insertAdjacentElement('afterend', this._matchesCount);
 			this._register(this._findInput.onDidChange(() => {
 				this.updateResultCount();
 				this.updateButtons(this._foundMatch);
@@ -222,7 +231,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	private _getKeybinding(actionId: string): string {
-		let kb = this._keybindingService?.lookupKeybinding(actionId);
+		const kb = this._keybindingService?.lookupKeybinding(actionId);
 		if (!kb) {
 			return '';
 		}
@@ -237,11 +246,15 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
+	public isVisible(): boolean {
+		return this._isVisible;
+	}
+
 	public getDomNode() {
 		return this._domNode;
 	}
 
-	public reveal(initialInput?: string): void {
+	public reveal(initialInput?: string, animated = true): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
@@ -253,11 +266,19 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._isVisible = true;
 		this.updateButtons(this._foundMatch);
+		this.layout();
 
 		setTimeout(() => {
+			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
+
+			if (!animated) {
+				setTimeout(() => {
+					this._innerDomNode.classList.remove('suppress-transition');
+				}, 0);
+			}
 		}, 0);
 	}
 
@@ -267,23 +288,42 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
+		this.layout();
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
+
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
-	public hide(): void {
+	public hide(animated = true): void {
 		if (this._isVisible) {
+			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.remove('visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this._foundMatch);
-				this._innerDomNode.classList.remove('visible');
-			}, 200);
+				this._innerDomNode.classList.remove('visible', 'suppress-transition');
+			}, animated ? 200 : 0);
+		}
+	}
+
+	public layout(width: number = this._width): void {
+		this._width = width;
+
+		if (!this._isVisible) {
+			return;
+		}
+
+		if (this._matchesCount) {
+			let reducedFindWidget = false;
+			if (SIMPLE_FIND_WIDGET_INITIAL_WIDTH + MATCHES_COUNT_WIDTH + 28 >= width) {
+				reducedFindWidget = true;
+			}
+			this._innerDomNode.classList.toggle('reduced-find-widget', reducedFindWidget);
 		}
 	}
 
@@ -321,15 +361,15 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	async updateResultCount(): Promise<void> {
-		const count = await this._getResultCount();
 		if (!this._matchesCount) {
-			this._matchesCount = document.createElement('div');
-			this._matchesCount.className = 'matchesCount';
+			return;
 		}
+
+		const count = await this._getResultCount();
 		this._matchesCount.innerText = '';
 		let label = '';
 		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount && count?.resultCount <= 0) {
+		if (count?.resultCount !== undefined && count?.resultCount === 0) {
 			label = NLS_NO_RESULTS;
 			if (!!this.inputValue) {
 				this._matchesCount.classList.toggle('no-results', true);
@@ -337,9 +377,22 @@ export abstract class SimpleFindWidget extends Widget {
 		} else if (count?.resultCount) {
 			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
 		}
+		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
-		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
 		this._foundMatch = !!count && count.resultCount > 0;
+	}
+
+	private _announceSearchResults(label: string, searchString?: string): string {
+		if (!searchString) {
+			return nls.localize('ariaSearchNoInput', "Enter search input");
+		}
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
+		}
+
+		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 }
 

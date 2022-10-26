@@ -46,7 +46,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 			case 'off':
 				return false;
 		}
-		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, false);
+		return this.storageService.getBoolean(enablementKey, StorageScope.APPLICATION, false);
 	}
 
 	canToggleEnablement(): boolean {
@@ -58,11 +58,11 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 			return;
 		}
 		this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(enablementKey, { enabled });
-		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(enablementKey, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	isResourceEnabled(resource: SyncResource): boolean {
-		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.GLOBAL, true);
+		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION, true);
 	}
 
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
@@ -77,11 +77,11 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	}
 
 	private storeResourceEnablement(resourceEnablementKey: string, enabled: boolean): void {
-		this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+		this.storageService.store(resourceEnablementKey, enabled, StorageScope.APPLICATION, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
+		if (storageChangeEvent.scope !== StorageScope.APPLICATION) {
 			return;
 		}
 

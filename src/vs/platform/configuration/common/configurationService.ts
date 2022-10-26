@@ -38,7 +38,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		this.defaultConfiguration = this._register(new DefaultConfiguration());
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
-		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel());
+		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel());
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ defaults, properties }) => this.onDidDefaultConfigurationChange(defaults, properties)));
@@ -48,7 +48,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	async initialize(): Promise<void> {
 		const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.loadConfiguration()]);
-		this.configuration = new Configuration(defaultModel, policyModel, userModel);
+		this.configuration = new Configuration(defaultModel, policyModel, new ConfigurationModel(), userModel);
 	}
 
 	getConfigurationData(): IConfigurationData {

@@ -48,16 +48,13 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
+	stateResource: URI;
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
@@ -66,6 +63,14 @@ export interface IEnvironmentService {
 	userDataSyncHome: URI;
 	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
+
+	// --- continue edit session
+	continueOn?: string;
+	editSessionId?: string;
+	editSessionsLogResource: URI;
+
+	// remote tunnel
+	remoteTunnelLogResource: URI;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -79,6 +84,7 @@ export interface IEnvironmentService {
 	// --- logging
 	logsPath: string;
 	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
 
@@ -122,6 +128,13 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	args: NativeParsedArgs;
 
 	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
@@ -132,11 +145,13 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- extensions
 	extensionsPath: string;
-	extensionsDownloadPath: string;
+	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;
+
+	crossOriginIsolated?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

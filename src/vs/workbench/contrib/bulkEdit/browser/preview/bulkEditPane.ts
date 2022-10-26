@@ -26,9 +26,7 @@ import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/l
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { basename, dirname } from 'vs/base/common/resources';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -78,10 +76,9 @@ export class BulkEditPane extends ViewPane {
 		@ILabelService private readonly _labelService: ILabelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IMenuService private readonly _menuService: IMenuService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -92,13 +89,13 @@ export class BulkEditPane extends ViewPane {
 	) {
 		super(
 			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
+			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
-		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
-		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
-		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
+		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
+		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
+		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
 	}
 
 	override dispose(): void {
@@ -124,7 +121,7 @@ export class BulkEditPane extends ViewPane {
 		contentContainer.appendChild(treeContainer);
 
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
-		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.GLOBAL, true);
+		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
@@ -272,9 +269,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
-		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
-		}
+		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._setState(State.Message);
 		this._sessionDisposables.clear();
@@ -304,7 +299,7 @@ export class BulkEditPane extends ViewPane {
 		if (input) {
 
 			// (1) capture view state
-			let oldViewState = this._tree.getViewState();
+			const oldViewState = this._tree.getViewState();
 			this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
 
 			// (2) toggle and update
@@ -312,7 +307,7 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.PROFILE, StorageTarget.USER);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
 	}
@@ -322,7 +317,7 @@ export class BulkEditPane extends ViewPane {
 			-readonly [P in keyof T]: T[P]
 		};
 
-		let options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
+		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
@@ -382,17 +377,11 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
-		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
-		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
-			getActions: () => actions,
-			getAnchor: () => e.anchor,
-			onHide: () => {
-				disposable.dispose();
-				menu.dispose();
-			}
+			menuId: MenuId.BulkEditContext,
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => e.anchor
 		});
 	}
 }

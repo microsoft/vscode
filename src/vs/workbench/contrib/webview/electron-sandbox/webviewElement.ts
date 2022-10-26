@@ -23,7 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewElement, WebviewInitInfo, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -68,14 +69,6 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this._webviewKeyboardHandler.didFocus();
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this._webviewKeyboardHandler.didBlur();
-		}));
-
 		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
 				if (this._findStarted && this._cachedHtmlContent !== newContent) {
@@ -88,6 +81,13 @@ export class ElectronWebviewElement extends WebviewElement {
 				this._hasFindResult.fire(result.matches > 0);
 			}));
 		}
+	}
+
+	override dispose(): void {
+		// Make sure keyboard handler knows it closed (#71800)
+		this._webviewKeyboardHandler.didBlur();
+
+		super.dispose();
 	}
 
 	protected override webviewContentEndpoint(iframeId: string): string {
@@ -159,5 +159,14 @@ export class ElectronWebviewElement extends WebviewElement {
 			keepSelection
 		});
 		this._onDidStopFind.fire();
+	}
+
+	protected override handleFocusChange(isFocused: boolean): void {
+		super.handleFocusChange(isFocused);
+		if (isFocused) {
+			this._webviewKeyboardHandler.didFocus();
+		} else {
+			this._webviewKeyboardHandler.didBlur();
+		}
 	}
 }

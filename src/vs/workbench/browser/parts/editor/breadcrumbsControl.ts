@@ -26,7 +26,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ColorIdentifier, ColorTransform } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
@@ -36,7 +36,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -109,7 +109,7 @@ class FileItem extends BreadcrumbsItem {
 		readonly model: BreadcrumbsModel,
 		readonly element: FileElement,
 		readonly options: IBreadcrumbsControlOptions,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		private readonly _labels: ResourceLabels
 	) {
 		super();
 	}
@@ -130,8 +130,8 @@ class FileItem extends BreadcrumbsItem {
 
 	render(container: HTMLElement): void {
 		// file/folder
-		let label = this._instantiationService.createInstance(ResourceLabel, container, {});
-		label.element.setFile(this.element.uri, {
+		const label = this._labels.create(container);
+		label.setFile(this.element.uri, {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
 			fileKind: this.element.kind,
@@ -182,6 +182,7 @@ export class BreadcrumbsControl {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _breadcrumbsDisposables = new DisposableStore();
+	private readonly _labels: ResourceLabels;
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
@@ -208,6 +209,8 @@ export class BreadcrumbsControl {
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 
+		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
+
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
 		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
@@ -232,6 +235,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._widget.dispose();
+		this._labels.dispose();
 		this.domNode.remove();
 	}
 
@@ -280,17 +284,17 @@ export class BreadcrumbsControl {
 			this._editorGroup.activeEditorPane
 		);
 
-		this.domNode.classList.toggle('relative-path', model.isRelative());
 		this.domNode.classList.toggle('backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
 		const updateBreadcrumbs = () => {
+			this.domNode.classList.toggle('relative-path', model.isRelative());
 			const showIcons = this._cfShowIcons.getValue();
 			const options: IBreadcrumbsControlOptions = {
 				...this._options,
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
+			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._labels) : new OutlineItem(model, element, options));
 			if (items.length === 0) {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
@@ -389,11 +393,11 @@ export class BreadcrumbsControl {
 					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
 				}
 
-				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
+				const selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
+				const zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
-				let focusTracker = dom.trackFocus(parent);
-				let blurListener = focusTracker.onDidBlur(() => {
+				const focusTracker = dom.trackFocus(parent);
+				const blurListener = focusTracker.onDidBlur(() => {
 					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
 					this._contextViewService.hideContextView({ source: this });
 				});
@@ -411,15 +415,15 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				if (!pickerAnchor) {
-					let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+					const maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
 					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
-					let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-					let pickerArrowSize = 8;
+					const pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
+					const pickerArrowSize = 8;
 					let pickerArrowOffset: number;
 
-					let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-					let y = data.top + data.height + pickerArrowSize;
+					const data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+					const y = data.top + data.height + pickerArrowSize;
 					if (y + maxHeight >= window.innerHeight) {
 						maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
 					}
@@ -428,7 +432,7 @@ export class BreadcrumbsControl {
 						x = maxInnerWidth - pickerWidth;
 					}
 					if (event.payload instanceof StandardMouseEvent) {
-						let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+						const maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
 						pickerArrowOffset = event.payload.posx - x;
 						if (pickerArrowOffset > maxPickerArrowOffset) {
 							x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
@@ -469,8 +473,8 @@ export class BreadcrumbsControl {
 				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
-				let items = this._widget.getItems();
-				let idx = items.indexOf(event.item);
+				const items = this._widget.getItems();
+				const idx = items.indexOf(event.item);
 				this._widget.setFocused(items[idx + 1]);
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
@@ -500,22 +504,27 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			id: 'breadcrumbs.toggle',
 			title: {
 				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs', "Toggle &&Breadcrumbs"),
 				original: 'Toggle Breadcrumbs',
 			},
-			category: CATEGORIES.View,
-			toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+			category: Categories.View,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+				title: localize('cmd.toggle2', "Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs2', "&&Breadcrumbs")
+			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 3 },
-				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 }
+				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 2 },
+				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
+				{ id: MenuId.StickyScrollContext }
 			]
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		let config = accessor.get(IConfigurationService);
-		let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
+		const config = accessor.get(IConfigurationService);
+		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
 		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
 	}
 
@@ -707,9 +716,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		if (groups.activeGroup.activeEditorPane) {
-			groups.activeGroup.activeEditorPane.focus();
-		}
+		groups.activeGroup.activeEditorPane?.focus();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({

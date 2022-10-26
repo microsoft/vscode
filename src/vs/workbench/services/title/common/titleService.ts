@@ -31,7 +31,7 @@ export interface ITitleService {
 	/**
 	 * An event when the title menu is enabled/disabled
 	 */
-	readonly onDidChangeTitleMenuVisibility: Event<void>;
+	readonly onDidChangeCommandCenterVisibility: Event<void>;
 
 	/**
 	 * Update some environmental title properties.

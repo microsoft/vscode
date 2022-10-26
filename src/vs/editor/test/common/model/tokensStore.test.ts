@@ -15,17 +15,15 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('TokensStore', () => {
 
 	const SEMANTIC_COLOR: ColorId = 5;
 
 	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens } {
-		let text: string[] = [];
-		let tokens: number[] = [];
+		const text: string[] = [];
+		const tokens: number[] = [];
 		let baseLine = 1;
 		for (let i = 0; i < state.length; i++) {
 			const line = state[i];
@@ -77,7 +75,7 @@ suite('TokensStore', () => {
 	}
 
 	function extractState(model: TextModel): string[] {
-		let result: string[] = [];
+		const result: string[] = [];
 		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
 			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = model.getLineContent(lineNumber);
@@ -193,7 +191,7 @@ suite('TokensStore', () => {
 			]))
 		], true);
 		const lineTokens = model.tokenization.getLineTokens(1);
-		let decodedTokens: number[] = [];
+		const decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
 		}
@@ -222,9 +220,9 @@ suite('TokensStore', () => {
 
 	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
 		const disposables = new DisposableStore();
-		const instantiationService = createModelServices(disposables, new ServiceCollection([
-			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
-		]));
+		const instantiationService = createModelServices(disposables, [
+			[ILanguageConfigurationService, LanguageConfigurationService]
+		]);
 		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
 		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([
@@ -373,7 +371,7 @@ suite('TokensStore', () => {
 			str = str.replace(/^\[\(/, '');
 			str = str.replace(/\)\]$/, '');
 			const strTokens = str.split('),(');
-			let result: number[] = [];
+			const result: number[] = [];
 			let firstLineNumber = 0;
 			for (const strToken of strTokens) {
 				const pieces = strToken.split(',');
@@ -429,7 +427,7 @@ suite('TokensStore', () => {
 		}
 
 		function toArr(lineTokens: LineTokens): number[] {
-			let r: number[] = [];
+			const r: number[] = [];
 			for (let i = 0; i < lineTokens.getCount(); i++) {
 				r.push(lineTokens.getEndOffset(i));
 				r.push(lineTokens.getMetadata(i));

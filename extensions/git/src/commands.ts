@@ -5,19 +5,17 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as picomatch from 'picomatch';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
 import { grep, isDescendant, pathEquals, relativePath } from './util';
-import { LogLevel, OutputChannelLogger } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { pickRemoteSource } from './remoteSource';
@@ -27,46 +25,67 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return this.ref.name || this.shortCommit; }
+	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
+	get refName(): string | undefined { return this.ref.name; }
 
-	constructor(protected ref: Ref) { }
+	constructor(protected repository: Repository, protected ref: Ref) { }
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
-		const ref = this.ref.name;
-
-		if (!ref) {
+	async run(opts?: { detached?: boolean }): Promise<void> {
+		if (!this.ref.name) {
 			return;
 		}
 
-		await repository.checkout(ref, opts);
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
+
+		if (pullBeforeCheckout) {
+			try {
+				await this.repository.fastForwardBranch(this.ref.name!);
+			}
+			catch (err) {
+				// noop
+			}
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
 class CheckoutTagItem extends CheckoutItem {
 
+	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
+	}
+
+	override async run(opts?: { detached?: boolean }): Promise<void> {
+		if (!this.ref.name) {
+			return;
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
+	override get label(): string { return `$(cloud) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	override async run(opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
 
-		const branches = await repository.findTrackingBranches(this.ref.name);
+		const branches = await this.repository.findTrackingBranches(this.ref.name);
 
 		if (branches.length > 0) {
-			await repository.checkout(branches[0].name!, opts);
+			await this.repository.checkout(branches[0].name!, opts);
 		} else {
-			await repository.checkoutTracking(this.ref.name, opts);
+			await this.repository.checkoutTracking(this.ref.name, opts);
 		}
 	}
 }
@@ -139,6 +158,7 @@ class HEADItem implements QuickPickItem {
 	get label(): string { return 'HEAD'; }
 	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
 	get alwaysShow(): boolean { return true; }
+	get refName(): string { return 'HEAD'; }
 }
 
 class AddRemoteItem implements QuickPickItem {
@@ -152,6 +172,28 @@ class AddRemoteItem implements QuickPickItem {
 
 	async run(repository: Repository): Promise<void> {
 		await this.cc.addRemote(repository);
+	}
+}
+
+class RemoteItem implements QuickPickItem {
+	get label() { return `$(cloud) ${this.remote.name}`; }
+	get description(): string | undefined { return this.remote.fetchUrl; }
+	get remoteName(): string { return this.remote.name; }
+
+	constructor(private readonly repository: Repository, private readonly remote: Remote) { }
+
+	async run(): Promise<void> {
+		await this.repository.fetch({ remote: this.remote.name });
+	}
+}
+
+class FetchAllRemotesItem implements QuickPickItem {
+	get label(): string { return localize('fetch all remotes', "{0} Fetch all remotes", '$(cloud-download)'); }
+
+	constructor(private readonly repository: Repository) { }
+
+	async run(): Promise<void> {
+		await this.repository.fetch({ all: true });
 	}
 }
 
@@ -219,7 +261,7 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 		checkoutTypes = checkoutTypeConfig;
 	}
 
-	const processors = checkoutTypes.map(getCheckoutProcessor)
+	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
 		.filter(p => !!p) as CheckoutProcessor[];
 
 	for (const ref of repository.refs) {
@@ -234,8 +276,8 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 class CheckoutProcessor {
 
 	private refs: Ref[] = [];
-	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
-	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(this.repository, r)); }
+	constructor(private repository: Repository, private type: RefType, private ctor: { new(repository: Repository, ref: Ref): CheckoutItem }) { }
 
 	onRef(ref: Ref): void {
 		if (ref.type === this.type) {
@@ -244,14 +286,14 @@ class CheckoutProcessor {
 	}
 }
 
-function getCheckoutProcessor(type: string): CheckoutProcessor | undefined {
+function getCheckoutProcessor(repository: Repository, type: string): CheckoutProcessor | undefined {
 	switch (type) {
 		case 'local':
-			return new CheckoutProcessor(RefType.Head, CheckoutItem);
+			return new CheckoutProcessor(repository, RefType.Head, CheckoutItem);
 		case 'remote':
-			return new CheckoutProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+			return new CheckoutProcessor(repository, RefType.RemoteHead, CheckoutRemoteHeadItem);
 		case 'tags':
-			return new CheckoutProcessor(RefType.Tag, CheckoutTagItem);
+			return new CheckoutProcessor(repository, RefType.Tag, CheckoutTagItem);
 	}
 
 	return undefined;
@@ -312,7 +354,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
-		private outputChannelLogger: OutputChannelLogger,
+		private logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
@@ -328,47 +370,9 @@ export class CommandCenter {
 		this.disposables.push(workspace.registerTextDocumentContentProvider('git-output', this.commandErrors));
 	}
 
-	@command('git.setLogLevel')
-	async setLogLevel(): Promise<void> {
-		const createItem = (logLevel: LogLevel) => {
-			let description: string | undefined;
-			const defaultDescription = localize('default', "Default");
-			const currentDescription = localize('current', "Current");
-
-			if (logLevel === this.outputChannelLogger.defaultLogLevel && logLevel === this.outputChannelLogger.currentLogLevel) {
-				description = `${defaultDescription} & ${currentDescription} `;
-			} else if (logLevel === this.outputChannelLogger.defaultLogLevel) {
-				description = defaultDescription;
-			} else if (logLevel === this.outputChannelLogger.currentLogLevel) {
-				description = currentDescription;
-			}
-
-			return {
-				label: LogLevel[logLevel],
-				logLevel,
-				description
-			};
-		};
-
-		const items = [
-			createItem(LogLevel.Trace),
-			createItem(LogLevel.Debug),
-			createItem(LogLevel.Info),
-			createItem(LogLevel.Warning),
-			createItem(LogLevel.Error),
-			createItem(LogLevel.Critical),
-			createItem(LogLevel.Off)
-		];
-
-		const choice = await window.showQuickPick(items, {
-			placeHolder: localize('select log level', "Select log level")
-		});
-
-		if (!choice) {
-			return;
-		}
-
-		this.outputChannelLogger.currentLogLevel = choice.logLevel;
+	@command('git.showOutput')
+	showOutput(): void {
+		this.logger.show();
 	}
 
 	@command('git.refresh', { repository: true })
@@ -405,8 +409,14 @@ export class CommandCenter {
 		}
 	}
 
-	@command('_git.openMergeEditor')
+	@command('git.openMergeEditor')
 	async openMergeEditor(uri: unknown) {
+		if (uri === undefined) {
+			// fallback to active editor...
+			if (window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputText) {
+				uri = window.tabGroups.activeTabGroup.activeTab.input.uri;
+			}
+		}
 		if (!(uri instanceof Uri)) {
 			return;
 		}
@@ -415,21 +425,40 @@ export class CommandCenter {
 			return;
 		}
 
+		const isRebasing = Boolean(repo.rebaseCommit);
 
-		type InputData = { uri: Uri; detail?: string; description?: string };
+		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		let input1: InputData = { uri: mergeUris.ours };
-		let input2: InputData = { uri: mergeUris.theirs };
+
+		let isStashConflict = false;
+		try {
+			// Look at the conflict markers to check if this is a stash conflict
+			const document = await workspace.openTextDocument(uri);
+			const firstConflictInfo = findFirstConflictMarker(document);
+			isStashConflict = firstConflictInfo?.incomingChangeLabel === 'Stashed changes';
+		} catch (error) {
+			console.error(error);
+		}
+
+		const current: InputData = { uri: mergeUris.ours, title: localize('Current', 'Current') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: localize('Incoming', 'Incoming') };
+
+		if (isStashConflict) {
+			incoming.title = localize('stashedChanges', 'Stashed Changes');
+		}
 
 		try {
-			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
+			const [head, rebaseOrMergeHead] = await Promise.all([
+				repo.getCommit('HEAD'),
+				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
+			]);
 			// ours (current branch and commit)
-			input1.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			input1.description = head.hash.substring(0, 7);
+			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
 
 			// theirs
-			input2.detail = mergeHead.refNames.join(', ');
-			input2.description = mergeHead.hash.substring(0, 7);
+			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
+			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -438,9 +467,9 @@ export class CommandCenter {
 		}
 
 		const options = {
-			ancestor: mergeUris.base,
-			input1,
-			input2,
+			base: mergeUris.base,
+			input1: isRebasing ? current : incoming,
+			input2: isRebasing ? incoming : current,
 			output: uri
 		};
 
@@ -448,9 +477,42 @@ export class CommandCenter {
 			'_open.mergeEditor',
 			options
 		);
+
+		function findFirstConflictMarker(doc: TextDocument): { currentChangeLabel: string; incomingChangeLabel: string } | undefined {
+			const conflictMarkerStart = '<<<<<<<';
+			const conflictMarkerEnd = '>>>>>>>';
+			let inConflict = false;
+			let currentChangeLabel: string = '';
+			let incomingChangeLabel: string = '';
+			let hasConflict = false;
+
+			for (let lineIdx = 0; lineIdx < doc.lineCount; lineIdx++) {
+				const lineStr = doc.lineAt(lineIdx).text;
+				if (!inConflict) {
+					if (lineStr.startsWith(conflictMarkerStart)) {
+						currentChangeLabel = lineStr.substring(conflictMarkerStart.length).trim();
+						inConflict = true;
+						hasConflict = true;
+					}
+				} else {
+					if (lineStr.startsWith(conflictMarkerEnd)) {
+						incomingChangeLabel = lineStr.substring(conflictMarkerStart.length).trim();
+						inConflict = false;
+						break;
+					}
+				}
+			}
+			if (hasConflict) {
+				return {
+					currentChangeLabel,
+					incomingChangeLabel
+				};
+			}
+			return undefined;
+		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -462,7 +524,7 @@ export class CommandCenter {
 			/* __GDPR__
 				"clone" : {
 					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
@@ -481,6 +543,7 @@ export class CommandCenter {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: Uri.file(defaultCloneDirectory),
+				title: localize('selectFolderTitle', "Choose a folder to clone {0} into", url),
 				openLabel: localize('selectFolder', "Select Repository Location")
 			});
 
@@ -488,7 +551,7 @@ export class CommandCenter {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
@@ -508,7 +571,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
 			);
 
 			const config = workspace.getConfiguration('git');
@@ -537,7 +600,7 @@ export class CommandCenter {
 					choices.push(addToWorkspace);
 				}
 
-				const result = await window.showInformationMessage(message, ...choices);
+				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
 
 				action = result === open ? PostCloneAction.Open
 					: result === openNewWindow ? PostCloneAction.OpenNewWindow
@@ -547,8 +610,8 @@ export class CommandCenter {
 			/* __GDPR__
 				"clone" : {
 					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
@@ -567,7 +630,7 @@ export class CommandCenter {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
@@ -577,7 +640,7 @@ export class CommandCenter {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
@@ -588,8 +651,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath);
+	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+		await this.cloneRepository(url, parentPath, options);
 	}
 
 	@command('git.cloneRecursive')
@@ -885,14 +948,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannelLogger.logDebug(`git.stage ${resourceStates.length} `);
+		this.logger.debug(`git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannelLogger.logDebug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
+			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -935,7 +998,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannelLogger.logDebug(`git.stage.scmResources ${scmResources.length} `);
+		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -1086,31 +1149,106 @@ export class CommandCenter {
 	}
 
 	@command('git.acceptMerge')
-	async acceptMerge(uri: Uri | unknown): Promise<void> {
+	async acceptMerge(_uri: Uri | unknown): Promise<void> {
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (!activeTab) {
+			return;
+		}
+
+		if (!(activeTab.input instanceof TabInputTextMerge)) {
+			return;
+		}
+
+		const uri = activeTab.input.result;
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			console.log(`FAILED to complete merge because uri ${uri.toString()} doesn't belong to any repository`);
+			return;
+		}
+
+		const result = await commands.executeCommand('mergeEditor.acceptMerge') as { successful: boolean };
+		if (result.successful) {
+			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
+		}
+
+		/*
 		if (!(uri instanceof Uri)) {
 			return;
 		}
-		const repository = this.model.getRepository(uri);
-		if (!repository) {
-			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
-			return;
-		}
 
+
+
+
+		// make sure to save the merged document
 		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
 		if (!doc) {
-			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
+			console.log(`FAILED to complete merge because uri ${uri.toString()} doesn't match a document`);
+			return;
+		}
+		if (doc.isDirty) {
+			await doc.save();
+		}
+
+		// find the merge editor tabs for the resource in question and close them all
+		let didCloseTab = false;
+		const mergeEditorTabs = window.tabGroups.all.map(group => group.tabs.filter(tab => tab.input instanceof TabInputTextMerge && tab.input.result.toString() === uri.toString())).flat();
+		if (mergeEditorTabs.includes(activeTab)) {
+			didCloseTab = await window.tabGroups.close(mergeEditorTabs, true);
+		}
+
+		// Only stage if the merge editor has been successfully closed. That means all conflicts have been
+		// handled or unhandled conflicts are OK by the user.
+		if (didCloseTab) {
+			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
+		}*/
+	}
+
+	@command('git.runGitMerge')
+	async runGitMergeNoDiff3(): Promise<void> {
+		await this.runGitMerge(false);
+	}
+
+	@command('git.runGitMergeDiff3')
+	async runGitMergeDiff3(): Promise<void> {
+		await this.runGitMerge(true);
+	}
+
+	private async runGitMerge(diff3: boolean): Promise<void> {
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (!activeTab) {
 			return;
 		}
 
-		await doc.save();
-		await repository.add([uri]);
-
-		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
-		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
-		const { activeTab } = window.tabGroups.activeTabGroup;
-		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
-			await window.tabGroups.close(activeTab, true);
+		const input = activeTab.input;
+		if (!(input instanceof TabInputTextMerge)) {
+			return;
 		}
+
+		const result = await this.git.mergeFile({
+			basePath: input.base.fsPath,
+			input1Path: input.input1.fsPath,
+			input2Path: input.input2.fsPath,
+			diff3,
+		});
+
+		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === input.result.toString());
+		if (!doc) {
+			return;
+		}
+		const e = new WorkspaceEdit();
+
+		e.replace(
+			input.result,
+			new Range(
+				new Position(0, 0),
+				new Position(doc.lineCount, 0),
+			),
+			result
+		);
+		await workspace.applyEdit(e);
 	}
 
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
@@ -1432,7 +1570,7 @@ export class CommandCenter {
 	private async smartCommit(
 		repository: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
-		opts?: CommitOptions
+		opts: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
@@ -1478,14 +1616,8 @@ export class CommandCenter {
 			}
 		}
 
-		if (!opts) {
-			opts = { all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges && !opts.empty) {
-			opts = { ...opts, all: true };
-		}
-
 		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty) {
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty && !opts.all) {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
@@ -1509,11 +1641,25 @@ export class CommandCenter {
 			}
 		}
 
+		if (opts.all === undefined) {
+			opts = { ...opts, all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges && !opts.empty) {
+			opts = { ...opts, all: true };
+		}
+
 		// enable signing of commits if configured
 		opts.signCommit = enableCommitSigning;
 
 		if (config.get<boolean>('alwaysSignOff')) {
 			opts.signoff = true;
+		}
+
+		if (config.get<boolean>('useEditorAsCommitInput')) {
+			opts.useEditor = true;
+
+			if (config.get<boolean>('verboseCommit')) {
+				opts.verbose = true;
+			}
 		}
 
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
@@ -1530,6 +1676,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// rebase not in progress
+			&& repository.rebaseCommit === undefined
 		) {
 			const commitAnyway = localize('commit anyway', "Create Empty Commit");
 			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
@@ -1561,9 +1709,9 @@ export class CommandCenter {
 			}
 		}
 
-		let message = await getCommitMessage();
+		const message = await getCommitMessage();
 
-		if (!message && !opts.amend) {
+		if (!message && !opts.amend && !opts.useEditor) {
 			return false;
 		}
 
@@ -1576,11 +1724,8 @@ export class CommandCenter {
 		}
 
 		// Branch protection
-		const branchProtection = config.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
-		const branchIsProtected = branchProtection.some(bp => picomatch.isMatch(repository.HEAD?.name ?? '', bp));
-
-		if (branchIsProtected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
+		if (repository.isBranchProtected() && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
 			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
 
 			let pick: string | undefined = commitToNewBranch;
@@ -1607,27 +1752,19 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
-		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
-
-		switch (postCommitCommand) {
-			case 'push':
-				await this._push(repository, { pushType: PushType.Push, silent: true });
-				break;
-			case 'sync':
-				await this.sync(repository);
-				break;
-		}
-
 		return true;
 	}
 
-	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
+	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
+		const root = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', root);
+
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
 
-			if (!_message) {
-				let value: string | undefined = undefined;
+			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
+				const value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
 					return undefined;
@@ -1661,8 +1798,8 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { repository: true })
-	async commit(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository);
+	async commit(repository: Repository, postCommitCommand?: string): Promise<void> {
+		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
 	@command('git.commitStaged', { repository: true })
@@ -1695,13 +1832,58 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
 	}
 
+	@command('git.commitMessageAccept')
+	async commitMessageAccept(arg?: Uri): Promise<void> {
+		if (!arg) { return; }
+
+		// Close the tab
+		this._closeEditorTab(arg);
+	}
+
+	@command('git.commitMessageDiscard')
+	async commitMessageDiscard(arg?: Uri): Promise<void> {
+		if (!arg) { return; }
+
+		// Clear the contents of the editor
+		const editors = window.visibleTextEditors
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+
+		if (editors.length !== 1) { return; }
+
+		const commitMsgEditor = editors[0];
+		const commitMsgDocument = commitMsgEditor.document;
+
+		const editResult = await commitMsgEditor.edit(builder => {
+			const firstLine = commitMsgDocument.lineAt(0);
+			const lastLine = commitMsgDocument.lineAt(commitMsgDocument.lineCount - 1);
+
+			builder.delete(new Range(firstLine.range.start, lastLine.range.end));
+		});
+
+		if (!editResult) { return; }
+
+		// Save the document
+		const saveResult = await commitMsgDocument.save();
+		if (!saveResult) { return; }
+
+		// Close the tab
+		this._closeEditorTab(arg);
+	}
+
+	private _closeEditorTab(uri: Uri): void {
+		const tabToClose = window.tabGroups.all.map(g => g.tabs).flat()
+			.filter(t => t.input instanceof TabInputText && t.input.uri.toString() === uri.toString());
+
+		window.tabGroups.close(tabToClose);
+	}
+
 	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
 
 		if (shouldPrompt) {
-			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const message = localize('confirm empty commit', "Are you sure you want to create an empty commit?");
 			const yes = localize('yes', "Yes");
 			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -1848,7 +2030,7 @@ export class CommandCenter {
 			const item = choice as CheckoutItem;
 
 			try {
-				await item.run(repository, opts);
+				await item.run(opts);
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
 					throw err;
@@ -1860,10 +2042,10 @@ export class CommandCenter {
 
 				if (choice === force) {
 					await this.cleanAll(repository);
-					await item.run(repository, opts);
+					await item.run(opts);
 				} else if (choice === stash) {
 					await this.stash(repository);
-					await item.run(repository, opts);
+					await item.run(opts);
 					await this.stashPopLatest(repository);
 				}
 			}
@@ -1992,7 +2174,9 @@ export class CommandCenter {
 				return;
 			}
 
-			target = choice.label;
+			if (choice.refName) {
+				target = choice.refName;
+			}
 		}
 
 		await repository.branch(branchName, true, target);
@@ -2085,6 +2269,11 @@ export class CommandCenter {
 		await choice.run(repository);
 	}
 
+	@command('git.mergeAbort', { repository: true })
+	async abortMerge(repository: Repository): Promise<void> {
+		await repository.mergeAbort();
+	}
+
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
@@ -2172,7 +2361,40 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.fetchDefault();
+		if (repository.remotes.length === 1) {
+			await repository.fetchDefault();
+			return;
+		}
+
+		const remoteItems: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
+
+		if (repository.HEAD?.upstream?.remote) {
+			// Move default remote to the top
+			const defaultRemoteIndex = remoteItems
+				.findIndex(r => r.remoteName === repository.HEAD!.upstream!.remote);
+
+			if (defaultRemoteIndex !== -1) {
+				remoteItems.splice(0, 0, ...remoteItems.splice(defaultRemoteIndex, 1));
+			}
+		}
+
+		const quickpick = window.createQuickPick();
+		quickpick.placeholder = localize('select a remote to fetch', 'Select a remote to fetch');
+		quickpick.canSelectMany = false;
+		quickpick.items = [...remoteItems, { label: '', kind: QuickPickItemKind.Separator }, new FetchAllRemotesItem(repository)];
+
+		quickpick.show();
+		const remoteItem = await new Promise<RemoteItem | FetchAllRemotesItem | undefined>(resolve => {
+			quickpick.onDidAccept(() => resolve(quickpick.activeItems[0] as RemoteItem | FetchAllRemotesItem));
+			quickpick.onDidHide(() => resolve(undefined));
+		});
+		quickpick.hide();
+
+		if (!remoteItem) {
+			return;
+		}
+
+		await remoteItem.run();
 	}
 
 	@command('git.fetchPrune', { repository: true })
@@ -2504,17 +2726,16 @@ export class CommandCenter {
 			}
 		}
 
-		if (rebase) {
-			await repository.syncRebase(HEAD);
-		} else {
-			await repository.sync(HEAD);
-		}
+		await repository.sync(HEAD, rebase);
 	}
 
 	@command('git.sync', { repository: true })
 	async sync(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const rebase = config.get<boolean>('rebaseWhenSync', false) === true;
+
 		try {
-			await this._sync(repository, false);
+			await this._sync(repository, rebase);
 		} catch (err) {
 			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
 				return;
@@ -2527,13 +2748,16 @@ export class CommandCenter {
 	@command('git._syncAll')
 	async syncAll(): Promise<void> {
 		await Promise.all(this.model.repositories.map(async repository => {
+			const config = workspace.getConfiguration('git', Uri.file(repository.root));
+			const rebase = config.get<boolean>('rebaseWhenSync', false) === true;
+
 			const HEAD = repository.HEAD;
 
 			if (!HEAD || !HEAD.upstream) {
 				return;
 			}
 
-			await repository.sync(HEAD);
+			await repository.sync(HEAD, rebase);
 		}));
 	}
 
@@ -2959,13 +3183,7 @@ export class CommandCenter {
 
 	@command('git.closeAllDiffEditors', { repository: true })
 	closeDiffEditors(repository: Repository): void {
-		const resources = [
-			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
-			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
-			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
-		];
-
-		repository.closeDiffEditors(resources, resources, true);
+		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -2999,7 +3217,7 @@ export class CommandCenter {
 			/* __GDPR__
 				"git.command" : {
 					"owner": "lszomoru",
-					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The command id of the command being executed" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
@@ -3010,12 +3228,12 @@ export class CommandCenter {
 				};
 
 				let message: string;
-				let type: 'error' | 'warning' = 'error';
+				let type: 'error' | 'warning' | 'information' = 'error';
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const outputChannelLogger = this.outputChannelLogger;
-				choices.set(openOutputChannelChoice, () => outputChannelLogger.showOutputChannel());
+				const outputChannelLogger = this.logger;
+				choices.set(openOutputChannelChoice, () => outputChannelLogger.show());
 
 				const showCommandOutputChoice = localize('show command output', "Show Command Output");
 				if (err.stderr) {
@@ -3073,6 +3291,12 @@ export class CommandCenter {
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
+					case GitErrorCodes.EmptyCommitMessage:
+						message = localize('empty commit', "Commit operation was cancelled due to empty commit message.");
+						choices.clear();
+						type = 'information';
+						options.modal = false;
+						break;
 					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
@@ -3094,17 +3318,25 @@ export class CommandCenter {
 					return;
 				}
 
+				let result: string | undefined;
 				const allChoices = Array.from(choices.keys());
-				const result = type === 'error'
-					? await window.showErrorMessage(message, options, ...allChoices)
-					: await window.showWarningMessage(message, options, ...allChoices);
+
+				switch (type) {
+					case 'error':
+						result = await window.showErrorMessage(message, options, ...allChoices);
+						break;
+					case 'warning':
+						result = await window.showWarningMessage(message, options, ...allChoices);
+						break;
+					case 'information':
+						result = await window.showInformationMessage(message, options, ...allChoices);
+						break;
+				}
 
 				if (result) {
 					const resultFn = choices.get(result);
 
-					if (resultFn) {
-						resultFn();
-					}
+					resultFn?.();
 				}
 			});
 		};
@@ -3118,10 +3350,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannelLogger.logDebug(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.logger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannelLogger.logDebug(`repo root ${r}`);
+			this.logger.debug(`repo root ${r}`);
 		}
 
 		if (!uri) {
@@ -3142,7 +3374,8 @@ export class CommandCenter {
 			}
 
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 		return undefined;
 	}

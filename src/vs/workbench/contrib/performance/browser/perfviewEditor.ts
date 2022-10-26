@@ -95,9 +95,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
 			this._modelDisposables.push(langId.onDidChange(e => {
-				if (this._model) {
-					this._model.setMode(e);
-				}
+				this._model?.setMode(e);
 			}));
 			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
 
@@ -116,8 +114,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 
-				let stats = LoaderStats.get();
-				let md = new MarkdownBuilder();
+				const stats = LoaderStats.get();
+				const md = new MarkdownBuilder();
 				this._addSummary(md);
 				md.blank();
 				this._addSummaryTable(md, stats);
@@ -195,8 +193,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 		const eager: ({ toString(): string })[][] = [];
 		const normal: ({ toString(): string })[][] = [];
-		let extensionsStatus = this._extensionService.getExtensionsStatus();
-		for (let id in extensionsStatus) {
+		const extensionsStatus = this._extensionService.getExtensionsStatus();
+		for (const id in extensionsStatus) {
 			const { activationTimes: times } = extensionsStatus[id];
 			if (!times) {
 				continue;
@@ -220,14 +218,14 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
 
-		for (let [source, marks] of this._timerService.getPerformanceMarks()) {
+		for (const [source, marks] of this._timerService.getPerformanceMarks()) {
 			md.heading(2, `Raw Perf Marks: ${source}`);
 			md.value += '```\n';
 			md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 			let lastStartTime = -1;
 			let total = 0;
 			for (const { name, startTime } of marks) {
-				let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
+				const delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 				total += delta;
 				md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
 				lastStartTime = startTime;

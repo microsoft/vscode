@@ -219,7 +219,7 @@ function extractExtension(str?: string | null): string {
 
 function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {
 	// Check for differences
-	let result = collator.compare(one, other);
+	const result = collator.compare(one, other);
 	if (result !== 0) {
 		return result;
 	}

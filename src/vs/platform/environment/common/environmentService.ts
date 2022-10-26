@@ -14,6 +14,8 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ExtensionKind, IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 
+export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+):(.+)$/;
+
 export interface INativeEnvironmentPaths {
 
 	/**
@@ -60,10 +62,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get cacheHome(): URI { return URI.file(this.userDataPath); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	get stateResource(): URI { return joinPath(this.appSettingsHome, 'globalStorage', 'storage.json'); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
@@ -81,22 +83,22 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
+	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
+
+	@memoize
+	get remoteTunnelLogResource(): URI { return URI.file(join(this.logsPath, 'remoteTunnel.log')); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
 	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): URI { return joinPath(this.appSettingsHome, 'globalStorage'); }
-
-	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
 	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
-
-	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
@@ -110,9 +112,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
 	}
-
-	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this.args.extensionDevelopmentPath; }
@@ -133,13 +132,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 	}
 
-	get extensionsDownloadPath(): string {
+	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
-			return resolve(cliExtensionsDownloadDir);
+			return URI.file(resolve(cliExtensionsDownloadDir));
 		}
 
-		return join(this.userDataPath, 'CachedExtensionVSIXs');
+		return URI.file(join(this.userDataPath, 'CachedExtensionVSIXs'));
 	}
 
 	@memoize
@@ -222,7 +221,20 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this.args.verbose; }
-	get logLevel(): string | undefined { return this.args.log; }
+
+	@memoize
+	get logLevel(): string | undefined { return this.args.log?.find(entry => !EXTENSION_IDENTIFIER_WITH_LOG_REGEX.test(entry)); }
+	@memoize
+	get extensionLogLevel(): [string, string][] | undefined {
+		const result: [string, string][] = [];
+		for (const entry of this.args.log || []) {
+			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
+			if (matches && matches[1] && matches[2]) {
+				result.push([matches[1], matches[2]]);
+			}
+		}
+		return result.length ? result : undefined;
+	}
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
@@ -248,6 +260,16 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return joinPath(this.userHome, this.productService.dataFolderName, 'policy.json');
 		}
 		return undefined;
+	}
+
+	editSessionId: string | undefined = this.args['editSessionId'];
+
+	get continueOn(): string | undefined {
+		return this.args['continueOn'];
+	}
+
+	set continueOn(value: string | undefined) {
+		this.args['continueOn'] = value;
 	}
 
 	get args(): NativeParsedArgs { return this._args; }

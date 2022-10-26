@@ -100,7 +100,7 @@ export class CompletionModel {
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
 		const result = new Set<CompletionItemProvider>();
-		for (let [provider, incomplete] of this._providerInfo!) {
+		for (const [provider, incomplete] of this._providerInfo!) {
 			if (incomplete) {
 				result.add(provider);
 			}
@@ -109,7 +109,7 @@ export class CompletionModel {
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res: CompletionItem[] = [];
+		const res: CompletionItem[] = [];
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
@@ -212,7 +212,7 @@ export class CompletionModel {
 					// if it matches we check with the label to compute highlights
 					// and if that doesn't yield a result we have no highlights,
 					// despite having the match
-					let match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, this._fuzzyScoreOptions);
+					const match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, this._fuzzyScoreOptions);
 					if (!match) {
 						continue; // NO match
 					}
@@ -228,7 +228,7 @@ export class CompletionModel {
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
+					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match) {
 						continue; // NO match
 					}

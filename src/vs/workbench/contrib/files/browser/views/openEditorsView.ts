@@ -28,8 +28,7 @@ import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
@@ -69,7 +68,6 @@ export class OpenEditorsView extends ViewPane {
 	private structuralRefreshDelay: number;
 	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
 	private listLabels: ResourceLabels | undefined;
-	private contributedContextMenu!: IMenu;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
 	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
@@ -89,7 +87,6 @@ export class OpenEditorsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
@@ -243,9 +240,6 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.list);
 		this._register(this.listLabels);
 
-		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
-		this._register(this.contributedContextMenu);
-
 		this.updateSize();
 
 		// Bind context keys
@@ -320,9 +314,7 @@ export class OpenEditorsView extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 	}
 
 	private get showGroups(): boolean {
@@ -398,14 +390,13 @@ export class OpenEditorsView extends ViewPane {
 		}
 
 		const element = e.element;
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} }, actions);
 
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.OpenEditorsContext,
+			menuActionOptions: { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} },
+			contextKeyService: this.list.contextKeyService,
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
-			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.group.getIndexOfEditor(element.editor) } : { groupId: element.id },
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.group.getIndexOfEditor(element.editor) } : { groupId: element.id }
 		});
 	}
 
@@ -453,7 +444,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		let dirty = this.workingCopyService.dirtyCount;
+		const dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
@@ -500,8 +491,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
-		let parentNode = this.list.getHTMLElement();
-		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		const parentNode = this.list.getHTMLElement();
+		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -63,7 +61,7 @@ function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 		const timer = setTimeout(() => {
 			codeProc.kill();
 			reject(new Error('export-default-configuration process timed out'));
-		}, 30 * 1000);
+		}, 60 * 1000);
 
 		codeProc.on('error', err => {
 			clearTimeout(timer);

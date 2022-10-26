@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+.monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
 .monaco-editor .margin-view-overlays .codicon-folding-expanded,
 .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
 	cursor: pointer;
@@ -17,6 +18,7 @@
 
 .monaco-editor .margin-view-overlays:hover .codicon,
 .monaco-editor .margin-view-overlays .codicon.codicon-folding-collapsed,
+.monaco-editor .margin-view-overlays .codicon.codicon-folding-manual-collapsed,
 .monaco-editor .margin-view-overlays .codicon.alwaysShowFoldIcons {
 	opacity: 1;
 }
@@ -29,3 +31,4 @@
 	line-height: 1em;
 	cursor: pointer;
 }
+

@@ -199,9 +199,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
-		if (model) {
-			model.acceptModelChanged(event);
-		}
+		model?.acceptModelChanged(event);
 	}
 
 	public acceptRemovedModel(strURL: string): void {

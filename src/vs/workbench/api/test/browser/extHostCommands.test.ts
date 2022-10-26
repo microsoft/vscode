@@ -90,4 +90,28 @@ suite('ExtHostCommands', function () {
 		assert.strictEqual(result, 17);
 		assert.strictEqual(count, 2);
 	});
+
+	test('onCommand:abc activates extensions when executed from command palette, but not when executed programmatically with vscode.commands.executeCommand #150293', async function () {
+
+		const activationEvents: string[] = [];
+
+		const shape = new class extends mock<MainThreadCommandsShape>() {
+			override $registerCommand(id: string): void {
+				//
+			}
+			override $fireCommandActivationEvent(id: string): void {
+				activationEvents.push(id);
+			}
+		};
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
+
+		commands.registerCommand(true, 'extCmd', (args: any): any => args);
+
+		const result = await commands.executeCommand('extCmd', this);
+		assert.strictEqual(result, this);
+		assert.deepStrictEqual(activationEvents, ['extCmd']);
+	});
 });

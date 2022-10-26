@@ -6,14 +6,14 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -22,7 +22,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI; provides: string[] }[];
+	private readonly preloads: { uri: URI; provides: readonly string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
@@ -90,6 +90,10 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsExecutionOrder = data.supportsExecutionOrder;
 			event.hasExecutionOrder = true;
 		}
+		if (data.supportsInterrupt !== undefined) {
+			this.implementsInterrupt = data.supportsInterrupt;
+			event.hasInterruptHandler = true;
+		}
 		this._onDidChange.fire(event);
 	}
 
@@ -100,7 +104,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
 export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape {
 
-	private readonly _editors = new Map<INotebookEditor, IDisposable>();
+	private readonly _editors = new DisposableMap<INotebookEditor>();
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
@@ -136,9 +140,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	dispose(): void {
 		this._disposables.dispose();
-		for (let [, registration] of this._kernels.values()) {
+		for (const [, registration] of this._kernels.values()) {
 			registration.dispose();
 		}
+		this._editors.dispose();
 	}
 
 	// --- kernel ipc
@@ -153,7 +158,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!selected) {
 				return;
 			}
-			for (let [handle, candidate] of this._kernels) {
+			for (const [handle, candidate] of this._kernels) {
 				if (candidate[0] === selected) {
 					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
 					break;
@@ -164,8 +169,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	}
 
 	private _onEditorRemove(editor: INotebookEditor) {
-		this._editors.get(editor)?.dispose();
-		this._editors.delete(editor);
+		this._editors.deleteAndDispose(editor);
 	}
 
 	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {
@@ -266,9 +270,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const updates = data.value;
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
-			}
+			execution?.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
 		} catch (e) {
 			onUnexpectedError(e);
 		}
@@ -277,9 +279,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
-			}
+			execution?.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
 		} catch (e) {
 			onUnexpectedError(e);
 		} finally {

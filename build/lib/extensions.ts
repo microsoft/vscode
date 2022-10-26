@@ -25,9 +25,11 @@ import * as jsoncParser from 'jsonc-parser';
 import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import _ = require('underscore');
-const util = require('./util');
+import { getExtensionStream } from './builtInExtensions';
+import { getVersion } from './getVersion';
+
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {
@@ -285,8 +287,6 @@ const excludedExtensions = [
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
-	'vscode-notebook-tests',
-	'vscode-custom-editor-tests',
 ];
 
 const marketplaceWebExtensionsExclude = new Set([
@@ -382,7 +382,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	);
 }
 
-export function packageMarketplaceExtensionsStream(forWeb: boolean, galleryServiceUrl?: string): Stream {
+export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 	const marketplaceExtensionsDescriptions = [
 		...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
 		...(forWeb ? webBuiltInExtensions : [])
@@ -391,9 +391,8 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean, galleryServi
 		es.merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
-					const input = (galleryServiceUrl ? fromMarketplace(galleryServiceUrl, extension) : fromGithub(extension))
-						.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-					return updateExtensionPackageJSON(input, (data: any) => {
+					const src = getExtensionStream(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+					return updateExtensionPackageJSON(src, (data: any) => {
 						delete data.scripts;
 						delete data.dependencies;
 						delete data.devDependencies;
@@ -413,6 +412,7 @@ export interface IScannedBuiltinExtension {
 	extensionPath: string;
 	packageJSON: any;
 	packageNLS?: any;
+	browserNlsMetadataPath?: string;
 	readmePath?: string;
 	changelogPath?: string;
 }
@@ -430,13 +430,20 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 			if (!fs.existsSync(packageJSONPath)) {
 				continue;
 			}
-			let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
 			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
 			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
 			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
 			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
+			let browserNlsMetadataPath: string | undefined;
+			if (packageJSON.browser) {
+				const browserEntrypointFolderPath = path.join(extensionFolder, path.dirname(packageJSON.browser));
+				if (fs.existsSync(path.join(extensionsRoot, browserEntrypointFolderPath, 'nls.metadata.json'))) {
+					browserNlsMetadataPath = path.join(browserEntrypointFolderPath, 'nls.metadata.json');
+				}
+			}
 			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 
@@ -444,6 +451,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 				extensionPath: extensionFolder,
 				packageJSON,
 				packageNLS,
+				browserNlsMetadataPath,
 				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
 				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
 			});
@@ -461,7 +469,7 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 	const CharCode_PC = '%'.charCodeAt(0);
 	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
 	const translate = (obj: any) => {
-		for (let key in obj) {
+		for (const key in obj) {
 			const val = obj[key];
 			if (Array.isArray(val)) {
 				val.forEach(translate);
@@ -487,6 +495,7 @@ const esbuildMediaScripts = [
 	'markdown-language-features/esbuild-preview.js',
 	'markdown-math/esbuild.js',
 	'notebook-renderers/esbuild.js',
+	'ipynb/esbuild.js',
 	'simple-browser/esbuild-preview.js',
 ];
 
@@ -500,7 +509,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 		function addConfig(configOrFn: webpack.Configuration | Function) {
 			let config;
 			if (typeof configOrFn === 'function') {
-				config = configOrFn({}, {});
+				config = (configOrFn as Function)({}, {});
 				webpackConfigs.push(config);
 			} else {
 				config = configOrFn;

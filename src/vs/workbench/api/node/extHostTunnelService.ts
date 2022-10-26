@@ -16,27 +16,14 @@ import * as pfs from 'vs/base/node/pfs';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDtoConverter } from 'vs/workbench/api/common/extHostTunnelService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces } from 'vs/platform/tunnel/common/tunnel';
+import { Emitter } from 'vs/base/common/event';
+import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces, DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
 
-class ExtensionTunnel implements vscode.Tunnel {
-	private _onDispose: Emitter<void> = new Emitter();
-	onDidDispose: Event<void> = this._onDispose.event;
-
-	constructor(
-		public readonly remoteAddress: { port: number; host: string },
-		public readonly localAddress: { port: number; host: string } | string,
-		private readonly _dispose: () => Promise<void>) { }
-
-	dispose(): Promise<void> {
-		this._onDispose.fire();
-		return this._dispose();
-	}
-}
+class ExtensionTunnel extends DisposableTunnel implements vscode.Tunnel { }
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
 	const lines = stdout.trim().split('\n');
@@ -267,7 +254,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 		this._candidateFindingEnabled = enable;
 		// Regularly scan to see if the candidate ports have changed.
-		let movingAverage = new MovingAverage();
+		const movingAverage = new MovingAverage();
 		let oldPorts: { host: string; port: number; detail?: string }[] | undefined = undefined;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
@@ -402,7 +389,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		const processes: {
 			pid: number; cwd: string; cmd: string;
 		}[] = [];
-		for (let childName of procChildren) {
+		for (const childName of procChildren) {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);

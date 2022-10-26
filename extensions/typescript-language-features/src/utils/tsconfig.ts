@@ -26,7 +26,7 @@ const defaultProjectConfig = Object.freeze<Proto.ExternalProjectCompilerOptions>
 	module: 'ESNext' as Proto.ModuleKind,
 	moduleResolution: 'Node' as Proto.ModuleResolutionKind,
 	target: 'ES2020' as Proto.ScriptTarget,
-	jsx: 'preserve' as Proto.JsxEmit,
+	jsx: 'react' as Proto.JsxEmit,
 });
 
 export function inferredProjectCompilerOptions(
@@ -163,7 +163,7 @@ export async function openProjectConfigForFile(
 		return;
 	}
 
-	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
+	let res: ServerResponse.Response<Proto.ProjectInfoResponse> | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {

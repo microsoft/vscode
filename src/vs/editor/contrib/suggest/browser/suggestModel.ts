@@ -28,6 +28,8 @@ import { CompletionModel } from './completionModel';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { FuzzyScoreOptions } from 'vs/base/common/filters';
+import { assertType } from 'vs/base/common/types';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -44,11 +46,13 @@ export interface ISuggestEvent {
 	readonly isFrozen: boolean;
 	readonly auto: boolean;
 	readonly shy: boolean;
+	readonly noSelect: boolean;
 }
 
 export interface SuggestTriggerContext {
 	readonly auto: boolean;
 	readonly shy: boolean;
+	readonly noSelect: boolean;
 	readonly triggerKind?: CompletionTriggerKind;
 	readonly triggerCharacter?: string;
 }
@@ -82,14 +86,16 @@ export class LineContext {
 	readonly leadingWord: IWordAtPosition;
 	readonly auto: boolean;
 	readonly shy: boolean;
+	readonly noSelect: boolean;
 
-	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean) {
+	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean, noSelect: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.auto = auto;
 		this.shy = shy;
+		this.noSelect = noSelect;
 	}
 }
 
@@ -279,7 +285,7 @@ export class SuggestModel implements IDisposable {
 				const existing = this._completionModel
 					? { items: this._completionModel.adopt(supports), clipboardText: this._completionModel.clipboardText }
 					: undefined;
-				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, existing);
+				this.trigger({ auto: true, shy: false, noSelect: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, existing);
 			}
 		};
 
@@ -314,7 +320,7 @@ export class SuggestModel implements IDisposable {
 			if (!this._editor.hasModel() || !this._languageFeaturesService.completionProvider.has(this._editor.getModel())) {
 				this.cancel();
 			} else {
-				this.trigger({ auto: this._state === State.Auto, shy: false }, true);
+				this.trigger({ auto: this._state === State.Auto, shy: false, noSelect: false }, true);
 			}
 		}
 	}
@@ -413,29 +419,18 @@ export class SuggestModel implements IDisposable {
 			}
 
 			// we made it till here -> trigger now
-			this.trigger({ auto: true, shy: false });
+			this.trigger({ auto: true, shy: false, noSelect: false });
 
 		}, this._editor.getOption(EditorOption.quickSuggestionsDelay));
 	}
 
 	private _refilterCompletionItems(): void {
-		// Re-filter suggestions. This MUST run async because filtering/scoring
-		// uses the model content AND the cursor position. The latter is NOT
-		// updated when the document has changed (the event which drives this method)
-		// and therefore a little pause (next mirco task) is needed. See:
-		// https://stackoverflow.com/questions/25915634/difference-between-microtask-and-macrotask-within-an-event-loop-context#25933985
-		Promise.resolve().then(() => {
-			if (this._state === State.Idle) {
-				return;
-			}
-			if (!this._editor.hasModel()) {
-				return;
-			}
-			const model = this._editor.getModel();
-			const position = this._editor.getPosition();
-			const ctx = new LineContext(model, position, this._state === State.Auto, false);
-			this._onNewContext(ctx);
-		});
+		assertType(this._editor.hasModel());
+
+		const model = this._editor.getModel();
+		const position = this._editor.getPosition();
+		const ctx = new LineContext(model, position, this._state === State.Auto, false, false);
+		this._onNewContext(ctx);
 	}
 
 	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }, noFilter?: boolean): void {
@@ -445,7 +440,7 @@ export class SuggestModel implements IDisposable {
 
 		const model = this._editor.getModel();
 		const auto = context.auto;
-		const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
+		const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy, context.noSelect);
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
@@ -520,7 +515,11 @@ export class SuggestModel implements IDisposable {
 				items = items.concat(existing.items).sort(cmpFn);
 			}
 
-			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
+			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy, context.noSelect);
+			const fuzzySearchOptions = {
+				...FuzzyScoreOptions.default,
+				firstMatchCanBeWeak: !this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
+			};
 			this._completionModel = new CompletionModel(items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context!.column
@@ -528,7 +527,7 @@ export class SuggestModel implements IDisposable {
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
 				this._editor.getOption(EditorOption.snippetSuggestions),
-				undefined,
+				fuzzySearchOptions,
 				clipboardText
 			);
 
@@ -630,7 +629,7 @@ export class SuggestModel implements IDisposable {
 		if (ctx.column < this._context.column) {
 			// typed -> moved cursor LEFT -> retrigger if still on a word
 			if (ctx.leadingWord.word) {
-				this.trigger({ auto: this._context.auto, shy: false }, true);
+				this.trigger({ auto: this._context.auto, shy: false, noSelect: false }, true);
 			} else {
 				this.cancel();
 			}
@@ -648,11 +647,11 @@ export class SuggestModel implements IDisposable {
 			// Select those providers have not contributed to this completion model and re-trigger completions for
 			// them. Also adopt the existing items and merge them into the new completion model
 			const inactiveProvider = new Set(this._languageFeaturesService.completionProvider.all(this._editor.getModel()!));
-			for (let provider of this._completionModel.allProvider) {
+			for (const provider of this._completionModel.allProvider) {
 				inactiveProvider.delete(provider);
 			}
 			const items = this._completionModel.adopt(new Set());
-			this.trigger({ auto: this._context.auto, shy: false }, true, inactiveProvider, { items, clipboardText: this._completionModel.clipboardText });
+			this.trigger({ auto: this._context.auto, shy: false, noSelect: false }, true, inactiveProvider, { items, clipboardText: this._completionModel.clipboardText });
 			return;
 		}
 
@@ -660,11 +659,11 @@ export class SuggestModel implements IDisposable {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
 			const { incomplete } = this._completionModel;
 			const items = this._completionModel.adopt(incomplete);
-			this.trigger({ auto: this._state === State.Auto, shy: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, { items, clipboardText: this._completionModel.clipboardText });
+			this.trigger({ auto: this._state === State.Auto, shy: false, noSelect: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, { items, clipboardText: this._completionModel.clipboardText });
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
-			let oldLineContext = this._completionModel.lineContext;
+			const oldLineContext = this._completionModel.lineContext;
 			let isFrozen = false;
 
 			this._completionModel.lineContext = {
@@ -676,7 +675,7 @@ export class SuggestModel implements IDisposable {
 
 				if (LineContext.shouldAutoTrigger(this._editor) && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
 					// retrigger when heading into a new word
-					this.trigger({ auto: this._context.auto, shy: false }, true);
+					this.trigger({ auto: this._context.auto, shy: false, noSelect: false }, true);
 					return;
 				}
 
@@ -703,6 +702,7 @@ export class SuggestModel implements IDisposable {
 				completionModel: this._completionModel,
 				auto: this._context.auto,
 				shy: this._context.shy,
+				noSelect: this._context.noSelect,
 				isFrozen,
 			});
 		}

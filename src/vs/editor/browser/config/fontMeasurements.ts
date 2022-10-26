@@ -149,9 +149,7 @@ class FontMeasurementsImpl extends Disposable {
 	private _createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
 		const result = new CharWidthRequest(chr, type);
 		all.push(result);
-		if (monospace) {
-			monospace.push(result);
-		}
+		monospace?.push(result);
 		return result;
 	}
 

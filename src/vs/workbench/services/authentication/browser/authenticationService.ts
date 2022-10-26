@@ -16,7 +16,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -37,8 +37,9 @@ interface IAccountUsage {
 }
 
 const FIRST_PARTY_ALLOWED_EXTENSIONS = [
-	'github.vscode-pull-request-github',
 	'vscode.git',
+	'vscode.github',
+	'github.vscode-pull-request-github',
 	'github.remotehub',
 	'github.remotehub-insiders',
 	'github.codespaces',
@@ -47,7 +48,7 @@ const FIRST_PARTY_ALLOWED_EXTENSIONS = [
 
 export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
 	const accountKey = `${providerId}-${accountName}-usages`;
-	const storedUsages = storageService.get(accountKey, StorageScope.GLOBAL);
+	const storedUsages = storageService.get(accountKey, StorageScope.APPLICATION);
 	let usages: IAccountUsage[] = [];
 	if (storedUsages) {
 		try {
@@ -62,7 +63,7 @@ export function readAccountUsages(storageService: IStorageService, providerId: s
 
 export function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
 	const accountKey = `${providerId}-${accountName}-usages`;
-	storageService.remove(accountKey, StorageScope.GLOBAL);
+	storageService.remove(accountKey, StorageScope.APPLICATION);
 }
 
 export function addAccountUsage(storageService: IStorageService, providerId: string, accountName: string, extensionId: string, extensionName: string) {
@@ -84,20 +85,24 @@ export function addAccountUsage(storageService: IStorageService, providerId: str
 		});
 	}
 
-	storageService.store(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	storageService.store(accountKey, JSON.stringify(usages), StorageScope.APPLICATION, StorageTarget.MACHINE);
 }
 
 export type AuthenticationSessionInfo = { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean };
 export async function getCurrentAuthenticationSessionInfo(credentialsService: ICredentialsService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
 	const authenticationSessionValue = await credentialsService.getPassword(`${productService.urlProtocol}.login`, 'account');
 	if (authenticationSessionValue) {
-		const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
-		if (authenticationSessionInfo
-			&& isString(authenticationSessionInfo.id)
-			&& isString(authenticationSessionInfo.accessToken)
-			&& isString(authenticationSessionInfo.providerId)
-		) {
-			return authenticationSessionInfo;
+		try {
+			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
+			if (authenticationSessionInfo
+				&& isString(authenticationSessionInfo.id)
+				&& isString(authenticationSessionInfo.accessToken)
+				&& isString(authenticationSessionInfo.providerId)
+			) {
+				return authenticationSessionInfo;
+			}
+		} catch (e) {
+			// ignore as this is a best effort operation.
 		}
 	}
 	return undefined;
@@ -112,7 +117,7 @@ export interface AllowedExtension {
 export function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
 	let trustedExtensions: AllowedExtension[] = [];
 	try {
-		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.GLOBAL);
+		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
 		if (trustedExtensionSrc) {
 			trustedExtensions = JSON.parse(trustedExtensionSrc);
 		}
@@ -162,9 +167,16 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 	}
 });
 
+let placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+	command: {
+		id: 'noAuthenticationProviders',
+		title: nls.localize('authentication.Placeholder', "No accounts requested yet..."),
+		precondition: ContextKeyExpr.false()
+	},
+});
+
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
-	private _placeholderMenuItem: IDisposable | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
@@ -197,13 +209,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
-		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			command: {
-				id: 'noAuthenticationProviders',
-				title: nls.localize('authentication.Placeholder', "No accounts requested yet..."),
-				precondition: ContextKeyExpr.false()
-			},
-		});
 
 		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
 			added.forEach(point => {
@@ -254,9 +259,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
 
-		if (this._placeholderMenuItem) {
-			this._placeholderMenuItem.dispose();
-			this._placeholderMenuItem = undefined;
+		if (placeholderMenuItem) {
+			placeholderMenuItem.dispose();
+			placeholderMenuItem = undefined;
 		}
 	}
 
@@ -274,7 +279,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 
 		if (!this._authenticationProviders.size) {
-			this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				command: {
 					id: 'noAuthenticationProviders',
 					title: nls.localize('loading', "Loading..."),
@@ -410,7 +415,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			allowList[index].allowed = isAllowed;
 		}
 
-		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
+		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
@@ -475,7 +480,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
 
 				this.removeAccessRequest(providerId, extensionId);
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -615,7 +620,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
 
 				// And also set it as the preferred account for the extension
-				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		});
 
@@ -734,4 +739,4 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 }
 
-registerSingleton(IAuthenticationService, AuthenticationService);
+registerSingleton(IAuthenticationService, AuthenticationService, InstantiationType.Delayed);

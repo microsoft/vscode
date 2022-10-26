@@ -6,6 +6,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
 		}
@@ -41,11 +42,6 @@
 			}
 		}
 	],
-	"eslint.options": {
-		"rulePaths": [
-			"./build/lib/eslint"
-		]
-	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",
@@ -57,7 +53,7 @@
 			"fileMatch": [
 				"cgmanifest.json"
 			],
-			"url": "./.vscode/cgmanifest.schema.json"
+			"url": "https://json.schemastore.org/component-detection-manifest.json",
 		},
 		{
 			"fileMatch": [
@@ -69,10 +65,13 @@
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
 		"main",
+		"distro",
 		"release/*"
 	],
 	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
 	"git.branchRandomName.enable": true,
+	"git.pullBeforeCheckout": true,
+	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
@@ -89,6 +88,13 @@
 		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
 	},
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true,
+	},
+	"rust-analyzer.linkedProjects": [
+		"cli/Cargo.toml"
+	],
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [
@@ -101,11 +107,7 @@
 		"git",
 		"sash"
 	],
-	"editor.quickSuggestions": {
-		"other": "inline",
-		"comments": "inline",
-		"strings": "inline"
-	},
 	"githubPullRequests.assignCreated": "${user}",
-	"githubPullRequests.defaultMergeMethod": "squash"
+	"githubPullRequests.defaultMergeMethod": "squash",
+	"application.experimental.rendererProfiling": true
 }

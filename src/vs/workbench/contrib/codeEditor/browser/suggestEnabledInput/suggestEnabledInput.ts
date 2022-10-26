@@ -167,7 +167,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
 
-		let scopeHandle = uri.parse(resourceHandle);
+		const scopeHandle = uri.parse(resourceHandle);
 		this.inputModel = modelService.createModel('', null, scopeHandle, true);
 		this._register(this.inputModel);
 		this.inputWidget.setModel(this.inputModel);
@@ -191,7 +191,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		const inputWidgetModel = this.inputWidget.getModel();
 		if (inputWidgetModel) {
 			this._register(inputWidgetModel.onDidChangeContent(() => {
-				let content = this.getValue();
+				const content = this.getValue();
 				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 				if (preexistingContent.trim() === content.trim()) { return; }
 				this._onInputDidChange.fire(undefined);
@@ -199,7 +199,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			}));
 		}
 
-		let validatedSuggestProvider = {
+		const validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
 			sortKey: suggestionProvider.sortKey || (a => a),
 			triggerCharacters: suggestionProvider.triggerCharacters || []
@@ -210,12 +210,12 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
-				let query = model.getValue();
+				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
 
-				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				const zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+				const alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
 				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
@@ -418,43 +418,41 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 	}
 
 	protected override getScopedContextKeyService(contextKeyService: IContextKeyService) {
+		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.historyContext = this._register(registerAndCreateHistoryNavigationContext(
-			contextKeyService,
+			scopedContextKeyService,
 			this,
 		));
 
-		return this.historyContext.scopedContextKeyService;
+		return scopedContextKeyService;
 	}
 }
 
 // Override styles in selections.ts
 registerThemingParticipant((theme, collector) => {
-	let selectionColor = theme.getColor(selectionBackground);
-	if (selectionColor) {
-		selectionColor = selectionColor.transparent(0.4);
+	const selectionBackgroundColor = theme.getColor(selectionBackground);
+
+	if (selectionBackgroundColor) {
+		// Override inactive selection bg
+		const inputBackgroundColor = theme.getColor(inputBackground);
+		if (inputBackgroundColor) {
+			collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
+		}
+
+		// Override selected fg
+		const inputForegroundColor = theme.getColor(inputForeground);
+		if (inputForegroundColor) {
+			collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+		}
+
+		const backgroundColor = theme.getColor(inputBackground);
+		if (backgroundColor) {
+			collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		}
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
 	} else {
-		selectionColor = theme.getColor(editorSelectionBackground);
-	}
-
-	if (selectionColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionColor}; }`);
-	}
-
-	// Override inactive selection bg
-	const inputBackgroundColor = theme.getColor(inputBackground);
-	if (inputBackgroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
-	}
-
-	// Override selected fg
-	const inputForegroundColor = theme.getColor(inputForeground);
-	if (inputForegroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
-	}
-
-	const backgroundColor = theme.getColor(inputBackground);
-	if (backgroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		// Use editor selection color if theme has not set a selection background color
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${theme.getColor(editorSelectionBackground)}; }`);
 	}
 });
 

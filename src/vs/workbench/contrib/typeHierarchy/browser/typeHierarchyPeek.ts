@@ -45,11 +45,11 @@ const enum State {
 class LayoutInfo {
 
 	static store(info: LayoutInfo, storageService: IStorageService): void {
-		storageService.store('typeHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store('typeHierarchyPeekLayout', JSON.stringify(info), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	static retrieve(storageService: IStorageService): LayoutInfo {
-		const value = storageService.get('typeHierarchyPeekLayout', StorageScope.GLOBAL, '{}');
+		const value = storageService.get('typeHierarchyPeekLayout', StorageScope.PROFILE, '{}');
 		const defaultInfo: LayoutInfo = { ratio: 0.7, height: 17 };
 		try {
 			return { ...defaultInfo, ...JSON.parse(value) };
@@ -164,7 +164,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		const editorContainer = document.createElement('div');
 		editorContainer.classList.add('editor');
 		container.appendChild(editorContainer);
-		let editorOptions: IEditorOptions = {
+		const editorOptions: IEditorOptions = {
 			scrollBeyondLastLine: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
@@ -320,7 +320,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._editor.setModel(value.object.textEditorModel);
 
 		// set decorations for type ranges
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 		let fullRange: IRange | undefined;
 		const loc = { uri: element.item.uri, range: element.item.selectionRange };
 		if (loc.uri.toString() === previewUri.toString()) {

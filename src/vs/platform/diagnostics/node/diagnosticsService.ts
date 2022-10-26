@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
-import { Iterable } from 'vs/base/common/iterator';
 import { Promises } from 'vs/base/common/async';
 import { getNodeType, parse, ParseError } from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
@@ -14,9 +13,8 @@ import { URI } from 'vs/base/common/uri';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
 import { listProcesses } from 'vs/base/node/ps';
-import { IDiagnosticsService, IMachineInfo, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticsService, IMachineInfo, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -162,9 +160,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 }
 
 function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
-	return [
-		...Iterable.map(items.entries(), ([name, count]) => ({ name: name, count: count }))
-	].sort((a, b) => b.count - a.count);
+	return Array.from(items.entries(), ([name, count]) => ({ name: name, count: count }))
+		.sort((a, b) => b.count - a.count);
 }
 
 export function getMachineInfo(): IMachineInfo {
@@ -235,7 +232,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	private formatEnvironment(info: IMainProcessInfo): string {
+	private formatEnvironment(info: IMainProcessDiagnostics): string {
 		const output: string[] = [];
 		output.push(`Version:          ${this.productService.nameShort} ${this.productService.version} (${this.productService.commit || 'Commit unknown'}, ${this.productService.date || 'Date unknown'})`);
 		output.push(`OS Version:       ${osLib.type()} ${osLib.arch()} ${osLib.release()}`);
@@ -255,7 +252,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	public async getPerformanceInfo(info: IMainProcessInfo, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
+	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
 		return Promise.all([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info)]).then(async result => {
 			let [rootProcess, workspaceInfo] = result;
 			let processInfo = this.formatProcessList(info, rootProcess);
@@ -294,7 +291,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		});
 	}
 
-	public async getSystemInfo(info: IMainProcessInfo, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo> {
+	public async getSystemInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo> {
 		const { memory, vmHint, os, cpus } = getMachineInfo();
 		const systemInfo: SystemInfo = {
 			os,
@@ -323,7 +320,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return Promise.resolve(systemInfo);
 	}
 
-	public async getDiagnostics(info: IMainProcessInfo, remoteDiagnostics: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string> {
+	public async getDiagnostics(info: IMainProcessDiagnostics, remoteDiagnostics: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string> {
 		const output: string[] = [];
 		return listProcesses(info.mainPID).then(async rootProcess => {
 
@@ -399,7 +396,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// File Types
 		let line = '|      File types:';
 		const maxShown = 10;
-		let max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
+		const max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
 		for (let i = 0; i < max; i++) {
 			const item = workspaceStats.fileTypes[i];
 			appendAndWrap(item.name, item.count);
@@ -433,7 +430,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 	}
 
-	private formatWorkspaceMetadata(info: IMainProcessInfo): Promise<string> {
+	private formatWorkspaceMetadata(info: IMainProcessDiagnostics): Promise<string> {
 		const output: string[] = [];
 		const workspaceStatPromises: Promise<void>[] = [];
 
@@ -470,7 +467,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 			.catch(e => `Unable to collect workspace stats: ${e}`);
 	}
 
-	private formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
+	private formatProcessList(info: IMainProcessDiagnostics, rootProcess: ProcessItem): string {
 		const mapPidToWindowTitle = new Map<number, string>();
 		info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 

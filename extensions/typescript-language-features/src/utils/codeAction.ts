@@ -12,7 +12,7 @@ export function getEditForCodeAction(
 	client: ITypeScriptServiceClient,
 	action: Proto.CodeAction
 ): vscode.WorkspaceEdit | undefined {
-	return action.changes && action.changes.length
+	return action.changes?.length
 		? typeConverters.WorkspaceEdit.fromFileCodeEdits(client, action.changes)
 		: undefined;
 }
@@ -36,7 +36,7 @@ export async function applyCodeActionCommands(
 	commands: ReadonlyArray<{}> | undefined,
 	token: vscode.CancellationToken,
 ): Promise<boolean> {
-	if (commands && commands.length) {
+	if (commands?.length) {
 		for (const command of commands) {
 			await client.execute('applyCodeActionCommand', { command }, token);
 		}

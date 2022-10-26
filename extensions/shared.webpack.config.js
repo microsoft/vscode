@@ -13,11 +13,11 @@ const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
-const { DefinePlugin } = require('webpack');
+const { DefinePlugin, optimize } = require('webpack');
 
 function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	/** @type WebpackConfig */
-	let defaultConfig = {
+	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'node', // extensions run in a node context
 		node: {
@@ -70,6 +70,10 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	return merge(defaultConfig, extConfig);
 }
 
+/**
+ *
+ * @param {string} context
+ */
 function nodePlugins(context) {
 	// Need to find the top-most `package.json` file
 	const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
@@ -93,7 +97,7 @@ function nodePlugins(context) {
 
 function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type AdditionalBrowserConfig */ additionalOptions = {}) {
 	/** @type WebpackConfig */
-	let defaultConfig = {
+	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'webworker', // extensions run in a webworker context
 		resolve: {
@@ -108,17 +112,18 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 			rules: [{
 				test: /\.ts$/,
 				exclude: /node_modules/,
-				use: [{
-					// configure TypeScript loader:
-					// * enable sources maps for end-to-end source maps
-					loader: 'ts-loader',
-					options: {
-						compilerOptions: {
-							'sourceMap': true,
-						},
-						...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
-					}
-				}]
+				use: [
+					{
+						// configure TypeScript loader:
+						// * enable sources maps for end-to-end source maps
+						loader: 'ts-loader',
+						options: {
+							compilerOptions: {
+								'sourceMap': true,
+							},
+							...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
+						}
+					}]
 			}]
 		},
 		externals: {
@@ -138,27 +143,40 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 		},
 		// yes, really source maps
 		devtool: 'source-map',
-		plugins: browserPlugins
+		plugins: browserPlugins(extConfig.context)
 	};
 
 	return merge(defaultConfig, extConfig);
 }
 
-const browserPlugins = [
-	new CopyWebpackPlugin({
-		patterns: [
-			{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
-		]
-	}),
-	new DefinePlugin({
-		'process.platform': JSON.stringify('web'),
-		'process.env': JSON.stringify({}),
-		'process.env.BROWSER_ENV': JSON.stringify('true')
-	})
-];
-
-
-
+/**
+ *
+ * @param {string} context
+ */
+function browserPlugins(context) {
+	// Need to find the top-most `package.json` file
+	// const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
+	// const pkgPath = path.join(__dirname, folderName, 'package.json');
+	// const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+	// const id = `${pkg.publisher}.${pkg.name}`;
+	return [
+		new optimize.LimitChunkCountPlugin({
+			maxChunks: 1
+		}),
+		new CopyWebpackPlugin({
+			patterns: [
+				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+			]
+		}),
+		new DefinePlugin({
+			'process.platform': JSON.stringify('web'),
+			'process.env': JSON.stringify({}),
+			'process.env.BROWSER_ENV': JSON.stringify('true')
+		}),
+		// TODO: bring this back once vscode-nls-dev supports browser
+		// new NLSBundlePlugin(id)
+	];
+}
 
 module.exports = withNodeDefaults;
 module.exports.node = withNodeDefaults;

@@ -6,6 +6,7 @@
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
 import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -14,8 +15,10 @@ import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -23,6 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class BrowserWindow extends Disposable {
 
@@ -33,7 +37,8 @@ export class BrowserWindow extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -120,6 +125,9 @@ export class BrowserWindow extends Disposable {
 		// Label formatting
 		this.registerLabelFormatters();
 
+		// Commands
+		this.registerCommands();
+
 		// Smoke Test Driver
 		this.setupDriver();
 	}
@@ -197,28 +205,56 @@ export class BrowserWindow extends Disposable {
 
 					invokeProtocolHandler();
 
-					// We cannot know whether the protocol handler succeeded.
-					// Display guidance in case it did not, e.g. the app is not installed locally.
-					if (matchesScheme(href, this.productService.urlProtocol)) {
+					const showProtocolUrlOpenedDialog = async () => {
+						const { downloadUrl } = this.productService;
+						let detail = localize(
+							'openExternalDialogDetail.v2',
+							"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+							this.productService.nameLong,
+							this.productService.nameLong
+						);
+						const options = [
+							localize('openExternalDialogButtonClose', "Close tab"),
+							localize('openExternalDialogButtonRetry', "Try again"),
+							localize('openExternalDialogButtonInstall.v3', "Install"),
+							localize('openExternalDialogButtonCancel', "Cancel")
+						];
+						if (downloadUrl === undefined) {
+							options.splice(2, 1);
+							detail = localize(
+								'openExternalDialogDetailNoInstall',
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
+								this.productService.nameLong,
+								this.productService.nameLong
+							);
+						}
+
 						const showResult = await this.dialogService.show(
 							Severity.Info,
 							localize('openExternalDialogTitle', "All done. You can close this tab now."),
-							[
-								localize('openExternalDialogButtonRetry', "Try again"),
-								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong),
-								localize('openExternalDialogButtonContinue', "Continue here")
-							],
+							options,
 							{
-								cancelId: 2,
-								detail: localize('openExternalDialogDetail', "We tried opening {0} on your computer.", this.productService.nameLong)
+								cancelId: downloadUrl === undefined ? 2 : 3,
+								detail
 							},
 						);
 
 						if (showResult.choice === 0) {
-							invokeProtocolHandler();
+							this.hostService.close();
 						} else if (showResult.choice === 1) {
-							await this.openerService.open(URI.parse(`http://aka.ms/vscode-install`));
+							invokeProtocolHandler();
+						} else if (showResult.choice === 2 && downloadUrl !== undefined) {
+							await this.openerService.open(URI.parse(downloadUrl));
+
+							// Re-show the dialog so that the user can come back after installing and try again
+							showProtocolUrlOpenedDialog();
 						}
+					};
+
+					// We cannot know whether the protocol handler succeeded.
+					// Display guidance in case it did not, e.g. the app is not installed locally.
+					if (matchesScheme(href, this.productService.urlProtocol)) {
+						await showProtocolUrlOpenedDialog();
 					}
 				}
 
@@ -227,7 +263,7 @@ export class BrowserWindow extends Disposable {
 		});
 	}
 
-	private registerLabelFormatters() {
+	private registerLabelFormatters(): void {
 		this._register(this.labelService.registerFormatter({
 			scheme: Schemas.vscodeUserData,
 			priority: true,
@@ -236,5 +272,23 @@ export class BrowserWindow extends Disposable {
 				separator: '/',
 			}
 		}));
+	}
+
+	private registerCommands(): void {
+
+		// Allow extensions to request USB devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+			return requestUsbDevice(options);
+		});
+
+		// Allow extensions to request Serial devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestSerialPort', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> => {
+			return requestSerialPort(options);
+		});
+
+		// Allow extensions to request HID devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
+			return requestHidDevice(options);
+		});
 	}
 }

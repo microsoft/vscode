@@ -246,7 +246,12 @@ export class WordOperations {
 				return new Position(lineNumber, column);
 			}
 
-			if (strings.isLowerAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
+			if (left === CharCode.Dash && right !== CharCode.Dash) {
+				// kebab-case-variables
+				return new Position(lineNumber, column);
+			}
+
+			if ((strings.isLowerAsciiLetter(left) || strings.isAsciiDigit(left)) && strings.isUpperAsciiLetter(right)) {
 				// camelCaseVariables
 				return new Position(lineNumber, column);
 			}
@@ -255,7 +260,7 @@ export class WordOperations {
 				// thisIsACamelCaseWithOneLetterWords
 				if (column + 1 < maxColumn) {
 					const rightRight = lineContent.charCodeAt(column);
-					if (strings.isLowerAsciiLetter(rightRight)) {
+					if (strings.isLowerAsciiLetter(rightRight) || strings.isAsciiDigit(rightRight)) {
 						return new Position(lineNumber, column);
 					}
 				}
@@ -348,7 +353,12 @@ export class WordOperations {
 				return new Position(lineNumber, column);
 			}
 
-			if (strings.isLowerAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
+			if (left !== CharCode.Dash && right === CharCode.Dash) {
+				// kebab-case-variables
+				return new Position(lineNumber, column);
+			}
+
+			if ((strings.isLowerAsciiLetter(left) || strings.isAsciiDigit(left)) && strings.isUpperAsciiLetter(right)) {
 				// camelCaseVariables
 				return new Position(lineNumber, column);
 			}
@@ -357,7 +367,7 @@ export class WordOperations {
 				// thisIsACamelCaseWithOneLetterWords
 				if (column + 1 < maxColumn) {
 					const rightRight = lineContent.charCodeAt(column);
-					if (strings.isLowerAsciiLetter(rightRight)) {
+					if (strings.isLowerAsciiLetter(rightRight) || strings.isAsciiDigit(rightRight)) {
 						return new Position(lineNumber, column);
 					}
 				}

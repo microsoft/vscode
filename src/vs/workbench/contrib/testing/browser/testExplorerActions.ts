@@ -5,7 +5,6 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -40,8 +39,10 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-const category = CATEGORIES.Test;
+const category = Categories.Test;
 
 const enum ActionOrder {
 	// Navigation:
@@ -152,7 +153,7 @@ export class DebugAction extends Action2 {
 
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			tests: elements.flatMap(e => [...e.tests]),
 			group: TestRunProfileBitset.Debug,
 		});
 	}
@@ -214,7 +215,7 @@ export class RunAction extends Action2 {
 	 */
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			tests: elements.flatMap(e => [...e.tests]),
 			group: TestRunProfileBitset.Run,
 		});
 	}
@@ -249,7 +250,7 @@ export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ConfigureTestProfilesAction,
-			title: localize('testing.configureProfile', 'Configure Test Profiles'),
+			title: { value: localize('testing.configureProfile', 'Configure Test Profiles'), original: 'Configure Test Profiles' },
 			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,
@@ -406,7 +407,7 @@ export class CancelTestRunAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CancelTestRunAction,
-			title: localize('testing.cancelRun', "Cancel Test Run"),
+			title: { value: localize('testing.cancelRun', "Cancel Test Run"), original: 'Cancel Test Run' },
 			icon: icons.testingCancelIcon,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -443,7 +444,7 @@ export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.TestingViewAsListAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.viewAsList', "View as List"),
+			title: { value: localize('testing.viewAsList', "View as List"), original: 'View as List' },
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -467,7 +468,7 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.TestingViewAsTreeAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.viewAsTree', "View as Tree"),
+			title: { value: localize('testing.viewAsTree', "View as Tree"), original: 'View as Tree' },
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -492,7 +493,7 @@ export class TestingSortByStatusAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.TestingSortByStatusAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByStatus', "Sort by Status"),
+			title: { value: localize('testing.sortByStatus', "Sort by Status"), original: 'Sort by Status' },
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByStatus),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -516,7 +517,7 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 		super({
 			id: TestCommandId.TestingSortByLocationAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByLocation', "Sort by Location"),
+			title: { value: localize('testing.sortByLocation', "Sort by Location"), original: 'Sort by Location' },
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByLocation),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -540,7 +541,7 @@ export class TestingSortByDurationAction extends ViewAction<TestingExplorerView>
 		super({
 			id: TestCommandId.TestingSortByDurationAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByDuration', "Sort by Duration"),
+			title: { value: localize('testing.sortByDuration', "Sort by Duration"), original: 'Sort by Duration' },
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByDuration),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -563,7 +564,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ShowMostRecentOutputAction,
-			title: localize('testing.showMostRecentOutput', "Show Output"),
+			title: { value: localize('testing.showMostRecentOutput', "Show Output"), original: 'Show Output' },
 			category,
 			icon: Codicon.terminal,
 			keybinding: {
@@ -594,7 +595,7 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.CollapseAllAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.collapseAll', "Collapse All Tests"),
+			title: { value: localize('testing.collapseAll', "Collapse All Tests"), original: 'Collapse All Tests' },
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.ViewTitle,
@@ -617,7 +618,7 @@ export class ClearTestResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ClearTestResultsAction,
-			title: localize('testing.clearResults', "Clear All Results"),
+			title: { value: localize('testing.clearResults', "Clear All Results"), original: 'Clear All Results' },
 			category,
 			icon: Codicon.trash,
 			menu: [{
@@ -646,7 +647,7 @@ export class GoToTest extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.GoToTest,
-			title: localize('testing.editFocusedTest', "Go to Test"),
+			title: { value: localize('testing.editFocusedTest', "Go to Test"), original: 'Go to Test' },
 			icon: Codicon.goToFile,
 			menu: testItemInlineAndInContext(ActionOrder.GoToTest, TestingContextKeys.testItemHasUri.isEqualTo(true)),
 			keybinding: {
@@ -679,9 +680,15 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	 * @override
 	 */
 	public async run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
-		const position = control?.getPosition();
-		const model = control?.getModel();
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		const activeControl = editorService.activeTextEditorControl;
+		if (!activeEditorPane || !activeControl) {
+			return;
+		}
+
+		const position = activeControl?.getPosition();
+		const model = activeControl?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -689,12 +696,20 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const testService = accessor.get(ITestService);
 		const profileService = accessor.get(ITestProfileService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
+		const progressService = accessor.get(IProgressService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		let bestNodes: InternalTestItem[] = [];
 		let bestRange: Range | undefined;
 
 		let bestNodesBefore: InternalTestItem[] = [];
 		let bestRangeBefore: Range | undefined;
+
+		const saveBeforeTest = getTestingConfiguration(configurationService, TestingConfigKeys.SaveBeforeTest);
+		if (saveBeforeTest) {
+			await editorService.save({ editor: activeEditorPane.input, groupId: activeEditorPane.group.id });
+			await testService.syncTests();
+		}
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
@@ -703,8 +718,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		// If we don't find any test whose range contains the position, we pick
 		// the closest one before the position. Again, if we find several tests
 		// whose range is equal to the closest one, we run them all.
-		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
-			for await (const test of testsInFile(testService.collection, uriIdentityService, model.uri)) {
+		await showDiscoveringWhile(progressService, (async () => {
+			for await (const test of testsInFile(testService, uriIdentityService, model.uri)) {
 				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}
@@ -742,7 +757,7 @@ export class RunAtCursor extends ExecuteTestAtCursor {
 	constructor() {
 		super({
 			id: TestCommandId.RunAtCursor,
-			title: localize('testing.runAtCursor', "Run Test at Cursor"),
+			title: { value: localize('testing.runAtCursor', "Run Test at Cursor"), original: 'Run Test at Cursor' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -757,7 +772,7 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 	constructor() {
 		super({
 			id: TestCommandId.DebugAtCursor,
-			title: localize('testing.debugAtCursor', "Debug Test at Cursor"),
+			title: { value: localize('testing.debugAtCursor', "Debug Test at Cursor"), original: 'Debug Test at Cursor' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -824,7 +839,7 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 	constructor() {
 		super({
 			id: TestCommandId.RunCurrentFile,
-			title: localize('testing.runCurrentFile', "Run Tests in Current File"),
+			title: { value: localize('testing.runCurrentFile', "Run Tests in Current File"), original: 'Run Tests in Current File' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -840,7 +855,7 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 	constructor() {
 		super({
 			id: TestCommandId.DebugCurrentFile,
-			title: localize('testing.debugCurrentFile', "Debug Tests in Current File"),
+			title: { value: localize('testing.debugCurrentFile', "Debug Tests in Current File"), original: 'Debug Tests in Current File' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -948,7 +963,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 	constructor() {
 		super({
 			id: TestCommandId.ReRunFailedTests,
-			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
+			title: { value: localize('testing.reRunFailTests', "Rerun Failed Tests"), original: 'Rerun Failed Tests' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -969,7 +984,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 	constructor() {
 		super({
 			id: TestCommandId.DebugFailedTests,
-			title: localize('testing.debugFailTests', "Debug Failed Tests"),
+			title: { value: localize('testing.debugFailTests', "Debug Failed Tests"), original: 'Debug Failed Tests' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -990,7 +1005,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 	constructor() {
 		super({
 			id: TestCommandId.ReRunLastRun,
-			title: localize('testing.reRunLastRun', "Rerun Last Run"),
+			title: { value: localize('testing.reRunLastRun', "Rerun Last Run"), original: 'Rerun Last Run' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1011,7 +1026,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 	constructor() {
 		super({
 			id: TestCommandId.DebugLastRun,
-			title: localize('testing.debugLastRun', "Debug Last Run"),
+			title: { value: localize('testing.debugLastRun', "Debug Last Run"), original: 'Debug Last Run' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1032,7 +1047,7 @@ export class SearchForTestExtension extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.SearchForTestExtension,
-			title: localize('testing.searchForTestExtension', "Search for Test Extension"),
+			title: { value: localize('testing.searchForTestExtension', "Search for Test Extension"), original: 'Search for Test Extension' },
 		});
 	}
 
@@ -1048,7 +1063,7 @@ export class OpenOutputPeek extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.OpenOutputPeek,
-			title: localize('testing.openOutputPeek', "Peek Output"),
+			title: { value: localize('testing.openOutputPeek', "Peek Output"), original: 'Peek Output' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1070,7 +1085,7 @@ export class ToggleInlineTestOutput extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ToggleInlineTestOutput,
-			title: localize('testing.toggleInlineTestOutput', "Toggle Inline Test Output"),
+			title: { value: localize('testing.toggleInlineTestOutput', "Toggle Inline Test Output"), original: 'Toggle Inline Test Output' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1119,7 +1134,7 @@ export class RefreshTestsAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.RefreshTestsAction,
-			title: localize('testing.refreshTests', "Refresh Tests"),
+			title: { value: localize('testing.refreshTests', "Refresh Tests"), original: 'Refresh Tests' },
 			category,
 			icon: icons.testingRefreshTests,
 			keybinding: {
@@ -1155,7 +1170,7 @@ export class CancelTestRefreshAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CancelTestRefreshAction,
-			title: localize('testing.cancelTestRefresh', "Cancel Test Refresh"),
+			title: { value: localize('testing.cancelTestRefresh', "Cancel Test Refresh"), original: 'Cancel Test Refresh' },
 			category,
 			icon: icons.testingCancelRefreshTests,
 			menu: refreshMenus(true),
