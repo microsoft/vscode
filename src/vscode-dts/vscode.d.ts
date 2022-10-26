@@ -15638,9 +15638,13 @@ declare module 'vscode' {
 
 	/**
 	 * Namespace for localization-related functionality in the extension API. To use this properly,
-	 * you must have `l10n` defined in your `package.json` and have bundle.l10n.<language>.json files.
+	 * you must have `l10n` defined in your extension manifest and have bundle.l10n.<language>.json files.
 	 * For more information on how to generate bundle.l10n.<language>.json files, check out the
 	 * [vscode-l10n repo](https://github.com/microsoft/vscode-l10n).
+	 *
+	 * Note: Built-in extensions (for example, Git, TypeScript Language Features, GitHub Authentication)
+	 * are excluded from the `l10n` property requirement. In other words, they do not need to specify
+	 * a `l10n` in the extension manifest because their translated strings come from Language Packs.
 	 */
 	export namespace l10n {
 		/**
@@ -15652,7 +15656,7 @@ declare module 'vscode' {
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.localize('hello', 'Hello {0}!', 'World');`
+		 * @example `l10n.t('Hello {0}!', 'World');`
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 
