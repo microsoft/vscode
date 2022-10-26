@@ -298,6 +298,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-rows {
+	min-height: 175px; /* Avoid the hover being cut off. See #164602 */
 	overflow: visible !important; /* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
 }
 
