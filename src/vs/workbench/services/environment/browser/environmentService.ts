@@ -222,7 +222,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
-	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'xf'); }
+	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
 
 	@memoize
 	get disableTelemetry(): boolean { return false; }
