@@ -263,7 +263,7 @@ impl DevTunnels {
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
 		is_valid_name(name)?;
 
-		self.is_name_free(name).await?;
+		self.check_is_name_free(name).await?;
 
 		let mut tunnel = match self.launcher_tunnel.load() {
 			Some(t) => t,
@@ -308,7 +308,7 @@ impl DevTunnels {
 			Some(mut persisted) => {
 				if let Some(name) = preferred_name {
 					if persisted.name.ne(&name) {
-						self.is_name_free(&name).await?;
+						self.check_is_name_free(&name).await?;
 						let mut full_tunnel = spanf!(
 							self.log,
 							self.log.span("dev-tunnel.tag.get"),
@@ -525,7 +525,7 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
+	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
 		let existing = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.rename.search"),
