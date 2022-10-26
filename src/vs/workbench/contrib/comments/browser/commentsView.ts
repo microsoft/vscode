@@ -36,6 +36,9 @@ import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contri
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { CommentThreadState } from 'vs/editor/common/languages';
+import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
@@ -47,9 +50,11 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private messageBoxContainer!: HTMLElement;
 	private commentsModel!: CommentsModel;
 	private totalComments: number = 0;
+	private totalUnresolved = 0;
 	private readonly hasCommentsContextKey: IContextKey<boolean>;
 	private readonly filter: Filter;
 	readonly filters: CommentsFilters;
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
 	private currentHeight = 0;
 	private currentWidth = 0;
@@ -73,6 +78,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IActivityService readonly activityService: IActivityService,
 		@IStorageService readonly storageService: IStorageService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
@@ -99,11 +105,29 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 		this._register(this.commentService.onDidSetAllCommentThreads(e => {
 			this.totalComments = e.commentThreads.length;
+
+			let unresolved = 0;
+			for (const thread of e.commentThreads) {
+				if (thread.state === CommentThreadState.Unresolved) {
+					unresolved++;
+				}
+			}
+			this.updateBadge(unresolved);
 		}));
 
 		this._register(this.commentService.onDidUpdateCommentThreads(e => {
 			this.totalComments += e.added.length;
 			this.totalComments -= e.removed.length;
+
+			let unresolved = 0;
+			for (const resource of this.commentsModel.resourceCommentThreads) {
+				for (const thread of resource.commentThreads) {
+					if (thread.threadState === CommentThreadState.Unresolved) {
+						unresolved++;
+					}
+				}
+			}
+			this.updateBadge(unresolved);
 		}));
 
 		this._register(this.filters.onDidChange((event: CommentsFiltersChangeEvent) => {
@@ -112,6 +136,16 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			}
 		}));
 		this._register(this.filterWidget.onDidChangeFilterText(() => this.updateFilter()));
+	}
+
+	private updateBadge(unresolved: number) {
+		if (unresolved === this.totalUnresolved) {
+			return;
+		}
+
+		this.totalUnresolved = unresolved;
+		const message = nls.localize('totalUnresolvedComments','{0} Unresolved Comments', this.totalUnresolved);
+		this.activity.value = this.activityService.showViewActivity(this.id, { badge: new NumberBadge(this.totalUnresolved, () => message) });
 	}
 
 	override saveState(): void {
