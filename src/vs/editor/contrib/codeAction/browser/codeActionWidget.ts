@@ -46,12 +46,13 @@ enum CodeActionListItemKind {
 interface CodeActionListItemCodeAction extends ListMenuItem {
 	readonly kind: CodeActionListItemKind.CodeAction;
 	readonly item: CodeActionItem;
-	readonly group: CodeActionGroup;
+	readonly group: ActionGroup;
 }
+
 
 interface CodeActionListItemHeader extends ListMenuItem {
 	readonly kind: CodeActionListItemKind.Header;
-	readonly group: CodeActionGroup;
+	readonly group: ActionGroup;
 }
 type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
 
@@ -66,15 +67,15 @@ function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
 
-interface CodeActionGroup {
+export interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
 	readonly icon?: { readonly codicon: Codicon; readonly color?: string };
 }
 
-const uncategorizedCodeActionGroup = Object.freeze<CodeActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
+const uncategorizedCodeActionGroup = Object.freeze<ActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
 
-const codeActionGroups = Object.freeze<CodeActionGroup[]>([
+const codeActionGroups = Object.freeze<ActionGroup[]>([
 	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...') },
 	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: { codicon: Codicon.wrench } },
 	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: { codicon: Codicon.wrench } },
@@ -243,7 +244,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 
 	public static get INSTANCE(): CodeActionWidget | undefined { return this._instance; }
 
-	public static getOrCreateInstance(instantiationService: IInstantiationService): CodeActionWidget {
+	public static getOrCreateInstance(instantiationService: IInstantiationService): BaseActionWidget<CodeActionItem> {
 		if (!this._instance) {
 			this._instance = instantiationService.createInstance(CodeActionWidget);
 		}
@@ -271,14 +272,6 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 
 	get isVisible(): boolean {
 		return !!this.currentShowingContext;
-	}
-
-	public toMenuItems(actions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem[] {
-		const list = this.list.value;
-		if (!list) {
-			throw new Error('No list');
-		}
-		return list.toMenuItems(actions, showHeaders);
 	}
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {

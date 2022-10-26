@@ -30,19 +30,19 @@ export interface ListMenuItem {
 	kind?: any;
 }
 
-export interface IActionList extends Disposable {
+export interface IActionList<T extends ListItem> extends Disposable {
 	hide(): void;
 	focusPrevious(): void;
 	focusNext(): void;
 	layout(minWidth: number): number;
-	toMenuItems(items: readonly ListItem[], showHeaders: boolean): ListMenuItem[];
+	toMenuItems(items: readonly T[], showHeaders: boolean): ListMenuItem[];
 	acceptSelected(options?: { readonly preview?: boolean }): void;
 	domNode: HTMLElement;
 }
 
-export abstract class BaseActionWidget<ListItem> extends Disposable {
+export abstract class BaseActionWidget<T extends ListItem> extends Disposable {
 	public showDisabled = false;
-	public list = this._register(new MutableDisposable<IActionList>());
+	public list = this._register(new MutableDisposable<IActionList<T>>());
 	constructor() {
 		super();
 	}
@@ -69,5 +69,12 @@ export abstract class BaseActionWidget<ListItem> extends Disposable {
 	}
 
 	public abstract show(trigger: any, actions: any, anchor: IAnchor, container: HTMLElement | undefined, options: any, delegate: any): Promise<void>;
-	public abstract toMenuItems(items: readonly ListItem[], showHeaders: boolean): ListMenuItem[];
+
+	public toMenuItems(actions: readonly T[], showHeaders: boolean): ListMenuItem[] {
+		const list = this.list.value;
+		if (!list) {
+			throw new Error('No list');
+		}
+		return list.toMenuItems(actions, showHeaders);
+	}
 }

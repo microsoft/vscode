@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ListItem, ListMenuItem, IActionList } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListItem, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 
-export abstract class ActionList<T extends ListMenuItem> extends Disposable implements IActionList {
+export abstract class ActionList<T extends ListMenuItem> extends Disposable {
 
 	public readonly domNode: HTMLElement;
 	public list: List<T>;
