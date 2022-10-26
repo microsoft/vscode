@@ -167,9 +167,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
-		const resourceAssocations = this.editorResolverService.getAssociationsForResource(resource);
+		const resourceAssociations = this.editorResolverService.getAssociationsForResource(resource);
 		return new CustomEditorInfoCollection(
-			coalesce(resourceAssocations
+			coalesce(resourceAssociations
 				.map(association => this._contributedEditors.get(association.viewType))));
 	}
 

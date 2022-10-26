@@ -33,7 +33,7 @@ interface TabInfo {
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
 export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	// List of all groups and their corresponding tabs, this is **the** model
 	private _tabGroupModel: IEditorTabGroupDto[] = [];
@@ -52,12 +52,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Main listener which responds to events from the editor service
-		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
+		this._disposables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
 
 		// Structural group changes (add, remove, move, etc) are difficult to patch.
 		// Since they happen infrequently we just rebuild the entire model
-		this._dispoables.add(this._editorGroupsService.onDidAddGroup(() => this._createTabsModel()));
-		this._dispoables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
+		this._disposables.add(this._editorGroupsService.onDidAddGroup(() => this._createTabsModel()));
+		this._disposables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
 
 		// Once everything is read go ahead and initialize the model
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
@@ -66,7 +66,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	dispose(): void {
 		this._groupLookup.clear();
 		this._tabInfoLookup.clear();
-		this._dispoables.dispose();
+		this._disposables.dispose();
 	}
 
 	/**

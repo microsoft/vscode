@@ -33,7 +33,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
 	static readonly pinnedPanelsKey = 'workbench.auxiliarybar.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
+	static readonly placeholderViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
 
 	// Use the side bar dimensions
 	override readonly minimumWidth: number = 170;
@@ -72,7 +72,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			Parts.AUXILIARYBAR_PART,
 			AuxiliaryBarPart.activePanelSettingsKey,
 			AuxiliaryBarPart.pinnedPanelsKey,
-			AuxiliaryBarPart.placeholdeViewContainersKey,
+			AuxiliaryBarPart.placeholderViewContainersKey,
 			PaneCompositeExtensions.Auxiliary,
 			SIDE_BAR_BACKGROUND,
 			ViewContainerLocation.AuxiliaryBar,

@@ -1045,10 +1045,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		return this._placeholderViewContainersValue;
 	}
 
-	private set placeholderViewContainersValue(placeholderViewContainesValue: string) {
-		if (this.placeholderViewContainersValue !== placeholderViewContainesValue) {
-			this._placeholderViewContainersValue = placeholderViewContainesValue;
-			this.setStoredPlaceholderViewContainersValue(placeholderViewContainesValue);
+	private set placeholderViewContainersValue(placeholderViewContainersValue: string) {
+		if (this.placeholderViewContainersValue !== placeholderViewContainersValue) {
+			this._placeholderViewContainersValue = placeholderViewContainersValue;
+			this.setStoredPlaceholderViewContainersValue(placeholderViewContainersValue);
 		}
 	}
 

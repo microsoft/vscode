@@ -142,7 +142,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		private readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART,
 		activePanelSettingsKey: string,
 		protected readonly pinnedPanelsKey: string,
-		protected readonly placeholdeViewContainersKey: string,
+		protected readonly placeholderViewContainersKey: string,
 		panelRegistryId: string,
 		private readonly backgroundColor: string,
 		private readonly viewContainerLocation: ViewContainerLocation,
@@ -895,26 +895,26 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return this._placeholderViewContainersValue;
 	}
 
-	private set placeholderViewContainersValue(placeholderViewContainesValue: string) {
-		if (this.placeholderViewContainersValue !== placeholderViewContainesValue) {
-			this._placeholderViewContainersValue = placeholderViewContainesValue;
-			this.setStoredPlaceholderViewContainersValue(placeholderViewContainesValue);
+	private set placeholderViewContainersValue(placeholderViewContainersValue: string) {
+		if (this.placeholderViewContainersValue !== placeholderViewContainersValue) {
+			this._placeholderViewContainersValue = placeholderViewContainersValue;
+			this.setStoredPlaceholderViewContainersValue(placeholderViewContainersValue);
 		}
 	}
 
 	private getStoredPlaceholderViewContainersValue(): string {
-		return this.storageService.get(this.placeholdeViewContainersKey, StorageScope.WORKSPACE, '[]');
+		return this.storageService.get(this.placeholderViewContainersKey, StorageScope.WORKSPACE, '[]');
 	}
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(this.placeholdeViewContainersKey, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(this.placeholderViewContainersKey, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }
 
 export class PanelPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 	static readonly pinnedPanelsKey = 'workbench.panel.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
+	static readonly placeholderViewContainersKey = 'workbench.panel.placeholderPanels';
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -945,7 +945,7 @@ export class PanelPart extends BasePanelPart {
 			Parts.PANEL_PART,
 			PanelPart.activePanelSettingsKey,
 			PanelPart.pinnedPanelsKey,
-			PanelPart.placeholdeViewContainersKey,
+			PanelPart.placeholderViewContainersKey,
 			PaneCompositeExtensions.Panels,
 			PANEL_BACKGROUND,
 			ViewContainerLocation.Panel,

@@ -15,18 +15,18 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 class MarkerListProvider implements IMarkerListProvider {
 
-	private readonly _dispoables: IDisposable;
+	private readonly _disposables: IDisposable;
 
 	constructor(
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IMarkerNavigationService markerNavigation: IMarkerNavigationService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-		this._dispoables = markerNavigation.registerProvider(this);
+		this._disposables = markerNavigation.registerProvider(this);
 	}
 
 	dispose() {
-		this._dispoables.dispose();
+		this._disposables.dispose();
 	}
 
 	getMarkerList(resource: URI | undefined): MarkerList | undefined {

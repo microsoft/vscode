@@ -159,13 +159,13 @@ class DecorationStyles {
 
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	constructor(private readonly _themeService: IThemeService) {
 	}
 
 	dispose(): void {
-		this._dispoables.dispose();
+		this._disposables.dispose();
 		this._styleElement.remove();
 	}
 

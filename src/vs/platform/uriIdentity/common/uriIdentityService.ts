@@ -28,7 +28,7 @@ export class UriIdentityService implements IUriIdentityService {
 
 	readonly extUri: IExtUri;
 
-	private readonly _dispooables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private readonly _canonicalUris: SkipList<URI, Entry>;
 	private readonly _limit = 2 ** 16;
 
@@ -50,7 +50,7 @@ export class UriIdentityService implements IUriIdentityService {
 			}
 			return ignorePathCasing;
 		};
-		this._dispooables.add(Event.any<IFileSystemProviderCapabilitiesChangeEvent | IFileSystemProviderRegistrationEvent>(
+		this._disposables.add(Event.any<IFileSystemProviderCapabilitiesChangeEvent | IFileSystemProviderRegistrationEvent>(
 			_fileService.onDidChangeFileSystemProviderRegistrations,
 			_fileService.onDidChangeFileSystemProviderCapabilities
 		)(e => {
@@ -63,7 +63,7 @@ export class UriIdentityService implements IUriIdentityService {
 	}
 
 	dispose(): void {
-		this._dispooables.dispose();
+		this._disposables.dispose();
 		this._canonicalUris.clear();
 	}
 

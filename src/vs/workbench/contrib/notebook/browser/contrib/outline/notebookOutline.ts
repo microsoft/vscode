@@ -287,7 +287,7 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
 export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 
@@ -316,7 +316,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		const selectionListener = new MutableDisposable();
-		this._dispoables.add(selectionListener);
+		this._disposables.add(selectionListener);
 		const installSelectionListener = () => {
 			const notebookEditor = _editor.getControl();
 			if (!notebookEditor?.hasModel()) {
@@ -337,22 +337,22 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			}
 		};
 
-		this._dispoables.add(_editor.onDidChangeModel(() => {
+		this._disposables.add(_editor.onDidChangeModel(() => {
 			this._recomputeState();
 			installSelectionListener();
 		}));
 
-		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
+		this._disposables.add(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
 				this._recomputeState();
 			}
 		}));
 
-		this._dispoables.add(themeService.onDidFileIconThemeChange(() => {
+		this._disposables.add(themeService.onDidFileIconThemeChange(() => {
 			this._onDidChange.fire({});
 		}));
 
-		this._dispoables.add(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._disposables.add(_notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
@@ -398,7 +398,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._dispoables.dispose();
+		this._disposables.dispose();
 		this._entriesDisposables.dispose();
 	}
 

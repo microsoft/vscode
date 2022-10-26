@@ -31,7 +31,7 @@ export class MarkerList {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private readonly _resourceFilter?: (uri: URI) => boolean;
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	private _markers: IMarker[] = [];
 	private _nextIdx: number = -1;
@@ -73,7 +73,7 @@ export class MarkerList {
 
 		updateMarker();
 
-		this._dispoables.add(_markerService.onMarkerChanged(uris => {
+		this._disposables.add(_markerService.onMarkerChanged(uris => {
 			if (!this._resourceFilter || uris.some(uri => this._resourceFilter!(uri))) {
 				updateMarker();
 				this._nextIdx = -1;
@@ -83,7 +83,7 @@ export class MarkerList {
 	}
 
 	dispose(): void {
-		this._dispoables.dispose();
+		this._disposables.dispose();
 		this._onDidChange.dispose();
 	}
 

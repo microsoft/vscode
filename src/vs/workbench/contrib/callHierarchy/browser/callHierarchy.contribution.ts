@@ -50,7 +50,7 @@ class CallHierarchyController implements IEditorContribution {
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxIsVisible: IContextKey<boolean>;
 	private readonly _ctxDirection: IContextKey<string>;
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 
 	private _widget?: CallHierarchyTreePeekWidget;
@@ -65,16 +65,16 @@ class CallHierarchyController implements IEditorContribution {
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
 		this._ctxHasProvider = _ctxHasCallHierarchyProvider.bindTo(this._contextKeyService);
 		this._ctxDirection = _ctxCallHierarchyDirection.bindTo(this._contextKeyService);
-		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
+		this._disposables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
 			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
 		}));
-		this._dispoables.add(this._sessionDisposables);
+		this._disposables.add(this._sessionDisposables);
 	}
 
 	dispose(): void {
 		this._ctxHasProvider.reset();
 		this._ctxIsVisible.reset();
-		this._dispoables.dispose();
+		this._disposables.dispose();
 	}
 
 	async startCallHierarchyFromEditor(): Promise<void> {
