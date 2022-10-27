@@ -195,7 +195,6 @@ class CodeActionList extends ActionList<CodeActionItem> {
 				}
 			}
 		}
-
 		return allMenuItems;
 	}
 }
@@ -282,7 +281,11 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 			this._keybindingService,
 			this._contextViewService);
 
-		widget.appendChild(this.list.value.domNode);
+		if (this.list.value) {
+			widget.appendChild(this.list.value.domNode);
+		} else {
+			throw new Error('List has no value');
+		}
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -324,7 +327,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 			}
 		}
 
-		const width = this.list.value.layout(actionBarWidth);
+		const width = this.list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
