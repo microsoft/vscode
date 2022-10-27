@@ -182,13 +182,13 @@
         "command": "markdown.editor.insertLinkFromWorkspace",
         "title": "%markdown.editor.insertLinkFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId == markdown"
+        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
       },
       {
         "command": "markdown.editor.insertImageFromWorkspace",
         "title": "%markdown.editor.insertImageFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId == markdown"
+        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
       }
     ],
     "menus": {
