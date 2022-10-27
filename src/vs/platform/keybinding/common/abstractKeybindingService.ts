@@ -19,7 +19,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ipcRenderer } from 'electron';
+// import { ipcRenderer } from 'electron';
 
 interface CurrentChord {
 	keypress: string;
@@ -165,7 +165,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 
 		}, 500);
-		ipcRenderer.send('vscode:setImState', 0);
+		// ipcRenderer.send('vscode:setImState', 0);
 		this._commandService.executeCommand('keybindingChordMode', 0);
 	}
 
@@ -173,7 +173,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		if (this._currentChordStatusMessage) {
 			this._currentChordStatusMessage.dispose();
 			this._currentChordStatusMessage = null;
-			ipcRenderer.send('vscode:setImState', 1);
+			// ipcRenderer.send('vscode:setImState', 1);
 			this._commandService.executeCommand('keybindingChordMode', 1);
 		}
 		this._currentChordChecker.cancel();
