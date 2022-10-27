@@ -7,7 +7,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { basename } from 'vs/base/common/path';
+import { posix } from 'vs/base/common/path';
 import { hash } from 'vs/base/common/hash';
 
 class ResourcePerformanceMarks {
@@ -30,7 +30,7 @@ class ResourcePerformanceMarks {
 
 			try {
 				const url = new URL(item.name);
-				const name = basename(url.pathname);
+				const name = posix.basename(url.pathname);
 
 				telemetryService.publicLog2<Entry, EntryClassifify>('startup.resource.perf', {
 					hosthash: `H${hash(url.host).toString(16)}`,
