@@ -15,7 +15,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
-import { CodeAction } from 'vs/editor/common/languages';
 import { ActionList } from 'vs/editor/contrib/codeAction/browser/actionList';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
@@ -44,16 +43,6 @@ enum CodeActionListItemKind {
 	Header = 'header'
 }
 
-interface CodeActionListItemCodeAction extends ListMenuItem<CodeAction> {
-	readonly kind: CodeActionListItemKind.CodeAction;
-	readonly item: CodeAction;
-	readonly group: ActionGroup;
-}
-class Header { }
-interface CodeActionListItemHeader extends ListMenuItem<Header> {
-	readonly kind: CodeActionListItemKind.Header;
-	readonly group: ActionGroup;
-}
 type ICodeActionMenuItem = ListMenuItem<CodeActionItem>;
 
 interface ICodeActionMenuTemplateData {
@@ -86,7 +75,7 @@ const codeActionGroups = Object.freeze<ActionGroup[]>([
 	uncategorizedCodeActionGroup,
 ]);
 
-class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeAction, ICodeActionMenuTemplateData> {
+class CodeActionItemRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	constructor(
 		private readonly keybindingResolver: CodeActionKeybindingResolver,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -110,7 +99,7 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 		return { container, icon, text, keybinding };
 	}
 
-	renderElement(element: CodeActionListItemCodeAction, _index: number, data: ICodeActionMenuTemplateData): void {
+	renderElement(element: ICodeActionMenuItem, _index: number, data: ICodeActionMenuTemplateData): void {
 		if (element.group.icon) {
 			data.icon.className = element.group.icon.codicon.classNames;
 			data.icon.style.color = element.group.icon.color ?? '';
@@ -118,12 +107,11 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			data.icon.className = Codicon.lightBulb.classNames;
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
-		if (!element.item?.title) {
+		if (!element.item?.action.title) {
 			return;
 		}
-		data.text.textContent = stripNewlines(element.item.title);
-
-		const binding = this.keybindingResolver.getResolver()(element.item);
+		data.text.textContent = stripNewlines(element.item?.action.title);
+		const binding = this.keybindingResolver.getResolver()(element.item.action);
 		data.keybinding.set(binding);
 		if (!binding) {
 			dom.hide(data.keybinding.element);
@@ -131,8 +119,8 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			dom.show(data.keybinding.element);
 		}
 
-		if (element.item.disabled) {
-			data.container.title = element.item.disabled;
+		if (element.item.action.disabled) {
+			data.container.title = element.item.action.disabled;
 			data.container.classList.add('option-disabled');
 		} else {
 			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
@@ -150,7 +138,7 @@ interface HeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTemplateData> {
+class HeaderRenderer implements IListRenderer<ICodeActionMenuItem, HeaderTemplateData> {
 
 	get templateId(): string { return CodeActionListItemKind.Header; }
 
@@ -163,7 +151,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 		return { container, text };
 	}
 
-	renderElement(element: CodeActionListItemHeader, _index: number, templateData: HeaderTemplateData): void {
+	renderElement(element: ICodeActionMenuItem, _index: number, templateData: HeaderTemplateData): void {
 		templateData.text.textContent = element.group.title;
 	}
 

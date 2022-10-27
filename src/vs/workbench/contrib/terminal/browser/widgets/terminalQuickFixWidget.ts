@@ -211,7 +211,6 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 				run: () => this._toggleShowDisabled(true)
 			});
 		}
-
 		return actions;
 	}
 
