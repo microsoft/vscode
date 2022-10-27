@@ -24,10 +24,12 @@ import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } fro
 export class TerminalQuickFix extends Disposable {
 	action?: IAction;
 	disabled?: boolean;
-	constructor(action?: IAction, disabled?: boolean) {
+	title?: string;
+	constructor(action?: IAction, title?: string, disabled?: boolean) {
 		super();
 		this.action = action;
 		this.disabled = disabled;
+		this.title = title;
 	}
 }
 
@@ -105,7 +107,7 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
-		widget.classList.add('codeActionWidget');
+		widget.classList.add('terminalQuickFixWidget');
 		element.appendChild(widget);
 		const onDidSelect = (action: TerminalQuickFix, options: { readonly preview: boolean }) => {
 			this.hide();
@@ -181,7 +183,7 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 			return undefined;
 		}
 
-		const container = dom.$('.codeActionWidget-action-bar');
+		const container = dom.$('.quickFixActionWidget-action-bar');
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
@@ -218,7 +220,7 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 	}
 
 	/**
-	 * Toggles whether the disabled actions in the code action widget are visible or not.
+	 * Toggles whether the disabled actions in the quick fix widget are visible or not.
 	 */
 	private _toggleShowDisabled(newShowDisabled: boolean): void {
 		const previousCtx = this._currentShowingContext;
@@ -269,6 +271,14 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): TerminalQuickFixListItem[] {
 		const menuItems: TerminalQuickFixListItem[] = [];
+		menuItems.push({
+			kind: 'header',
+			group: {
+				kind: CodeActionKind.QuickFix,
+				title: 'Quick fix...',
+				icon: { codicon: Codicon.lightBulb, color: 'yellow' }
+			},
+		});
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
 				menuItems.push({
@@ -287,7 +297,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 }
 
 interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
-	readonly kind: 'terminal-quick-fix';
-	readonly item: TerminalQuickFix;
+	readonly kind: 'terminal-quick-fix' | 'header';
+	readonly item?: TerminalQuickFix;
 	readonly group: ActionGroup;
 }

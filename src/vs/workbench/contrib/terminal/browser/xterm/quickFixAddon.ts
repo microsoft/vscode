@@ -16,11 +16,9 @@ import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, TerminalQuickFixAction, TerminalQuickFixMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -72,8 +70,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
-
 	private _fixesShown: boolean = false;
 	private _expectedCommands: string[] | undefined;
 
@@ -82,7 +78,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService
@@ -98,7 +93,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._terminalDecorationHoverService = _instantiationService.createInstance(TerminalDecorationHoverManager);
 		for (const quickFix of this._terminalContributionService.quickFixes) {
 			this.registerCommandFinishedListener(convertToQuickFixOptions(quickFix));
 		}
@@ -213,8 +207,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		this._decoration = decoration;
-		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
-		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
 		const fixes = this._quickFixes;
 		if (!fixes) {
 			decoration.dispose();
@@ -236,13 +228,13 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					width: rect.width,
 					height: rect.height
 				};
-				//TODO
 				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
+				const actions = fixes.map(f => new TerminalQuickFix(f));
 				const actionSet = {
 					documentation,
-					allActions: fixes.map(f => new TerminalQuickFix(f)),
+					allActions: actions,
 					hasAutoFix: true,
-					validActions: fixes.map(f => new TerminalQuickFix(f)),
+					validActions: actions,
 					dispose: () => { widget.clear(); }
 				} as ActionSet<TerminalQuickFix>;
 				widget.show(
@@ -255,7 +247,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					}
 				});
 			}));
-			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
 	}
 }
