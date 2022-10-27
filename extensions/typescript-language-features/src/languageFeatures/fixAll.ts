@@ -133,7 +133,7 @@ class SourceFixAll extends SourceAction {
 	static readonly kind = vscode.CodeActionKind.SourceFixAll.append('ts');
 
 	constructor() {
-		super(localize('autoFix.label', 'Fix All'), SourceFixAll.kind);
+		super(localize('autoFix.label', 'Fix all fixable JS/TS issues'), SourceFixAll.kind);
 	}
 
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {

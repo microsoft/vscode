@@ -25,6 +25,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -104,9 +105,9 @@ export class NativeMenubarControl extends MenubarControl {
 	}
 
 	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
-		let groups = menu.getActions();
+		const groups = menu.getActions();
 
-		for (let group of groups) {
+		for (const group of groups) {
 			const [, actions] = group;
 
 			actions.forEach(menuItem => {
@@ -119,16 +120,11 @@ export class NativeMenubarControl extends MenubarControl {
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
-					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this._register(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
-						this._register(menu.onDidChange(() => this.updateMenubar()));
-					}
-
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
 					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
 					if (submenu.items.length > 0) {
-						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+						const menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 							id: menuItem.id,
 							label: title,
 							submenu: submenu
@@ -144,10 +140,14 @@ export class NativeMenubarControl extends MenubarControl {
 						menuToPopulate.items.push(...actions);
 					}
 
-					let menubarMenuItem: IMenubarMenuItemAction = {
+					const menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
 						label: title
 					};
+
+					if (isICommandActionToggleInfo(menuItem.item.toggled)) {
+						menubarMenuItem.label = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
+					}
 
 					if (menuItem.checked) {
 						menubarMenuItem.checked = true;

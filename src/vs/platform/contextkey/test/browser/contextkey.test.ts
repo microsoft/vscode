@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/base/test/common/mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService, setContext } from 'vs/platform/contextkey/browser/contextKeyService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 suite('ContextKeyService', () => {
 	test('updateParent', () => {
@@ -63,7 +66,12 @@ suite('ContextKeyService', () => {
 		const contextKeyService: IContextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const instantiationService = new TestInstantiationService(new ServiceCollection(
 			[IConfigurationService, configurationService],
-			[IContextKeyService, contextKeyService]
+			[IContextKeyService, contextKeyService],
+			[ITelemetryService, new class extends mock<ITelemetryService>() {
+				override async publicLog2() {
+					//
+				}
+			}]
 		));
 
 		const uri = URI.parse('test://abc');
@@ -72,5 +80,78 @@ suite('ContextKeyService', () => {
 
 		const expr = ContextKeyExpr.in('notebookCellResource', 'jupyter.runByLineCells');
 		assert.deepStrictEqual(contextKeyService.contextMatchesRules(expr), true);
+	});
+
+	test('suppress update event from parent when one key is overridden by child', () => {
+		const root = new ContextKeyService(new TestConfigurationService());
+		const child = root.createScoped(document.createElement('div'));
+
+		root.createKey('testA', 1);
+		child.createKey('testA', 4);
+
+		let fired = false;
+		const event = child.onDidChangeContext(e => fired = true);
+		root.setContext('testA', 10);
+		assert.strictEqual(fired, false, 'Should not fire event when overridden key is updated in parent');
+		event.dispose();
+	});
+
+	test('suppress update event from parent when all keys are overridden by child', () => {
+		const root = new ContextKeyService(new TestConfigurationService());
+		const child = root.createScoped(document.createElement('div'));
+
+		root.createKey('testA', 1);
+		root.createKey('testB', 2);
+		root.createKey('testC', 3);
+
+		child.createKey('testA', 4);
+		child.createKey('testB', 5);
+		child.createKey('testD', 6);
+
+		let fired = false;
+		const event = child.onDidChangeContext(e => fired = true);
+		root.bufferChangeEvents(() => {
+			root.setContext('testA', 10);
+			root.setContext('testB', 20);
+			root.setContext('testD', 30);
+		});
+
+		assert.strictEqual(fired, false, 'Should not fire event when overridden key is updated in parent');
+		event.dispose();
+	});
+
+	test('pass through update event from parent when one key is not overridden by child', () => {
+		const root = new ContextKeyService(new TestConfigurationService());
+		const child = root.createScoped(document.createElement('div'));
+
+		root.createKey('testA', 1);
+		root.createKey('testB', 2);
+		root.createKey('testC', 3);
+
+		child.createKey('testA', 4);
+		child.createKey('testB', 5);
+		child.createKey('testD', 6);
+
+		const def = new DeferredPromise();
+		child.onDidChangeContext(e => {
+			try {
+				assert.ok(e.affectsSome(new Set(['testA'])), 'testA changed');
+				assert.ok(e.affectsSome(new Set(['testB'])), 'testB changed');
+				assert.ok(e.affectsSome(new Set(['testC'])), 'testC changed');
+			} catch (err) {
+				def.error(err);
+				return;
+			}
+
+			def.complete(undefined);
+		});
+
+		root.bufferChangeEvents(() => {
+			root.setContext('testA', 10);
+			root.setContext('testB', 20);
+			root.setContext('testC', 30);
+		});
+
+		return def.p;
 	});
 });

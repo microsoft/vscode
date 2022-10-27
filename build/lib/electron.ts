@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
 import * as _ from 'underscore';
 import * as util from './util';
+import { getVersion } from './getVersion';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
@@ -28,7 +27,7 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
@@ -169,6 +168,7 @@ export const config = {
 			'F# script': ['fsx', 'fsscript'],
 			'SVG document': ['svg', 'svgz'],
 			'TOML document': 'toml',
+			'Swift source code': 'swift',
 		}, 'default'),
 		// Default icon with default name
 		darwinBundleDocumentType([

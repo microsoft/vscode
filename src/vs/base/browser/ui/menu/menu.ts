@@ -159,7 +159,7 @@ export class Menu extends ActionBar {
 		}
 
 		this._register(addDisposableListener(this.domNode, EventType.MOUSE_OUT, e => {
-			let relatedTarget = e.relatedTarget as HTMLElement;
+			const relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
 				this.updateFocus();
@@ -210,7 +210,7 @@ export class Menu extends ActionBar {
 		}));
 
 
-		let parentData: ISubMenuData = {
+		const parentData: ISubMenuData = {
 			parent: this
 		};
 
@@ -341,7 +341,7 @@ export class Menu extends ActionBar {
 
 	private setFocusedItem(element: HTMLElement): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
+			const elem = this.actionsList.children[i];
 			if (element === elem) {
 				this.focusedItem = i;
 				break;
@@ -446,9 +446,9 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 		// Set mnemonic
 		if (this.options.label && options.enableMnemonics) {
-			let label = this.getAction().label;
+			const label = this.action.label;
 			if (label) {
-				let matches = MENU_MNEMONIC_REGEX.exec(label);
+				const matches = MENU_MNEMONIC_REGEX.exec(label);
 				if (matches) {
 					this.mnemonic = (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase();
 				}
@@ -552,9 +552,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	override focus(): void {
 		super.focus();
 
-		if (this.item) {
-			this.item.focus();
-		}
+		this.item?.focus();
 
 		this.applyStyle();
 	}
@@ -574,7 +572,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.options.label) {
 			clearNode(this.label);
 
-			let label = stripIcons(this.getAction().label);
+			let label = stripIcons(this.action.label);
 			if (label) {
 				const cleanLabel = cleanMnemonic(label);
 				if (!this.options.enableMnemonics) {
@@ -609,9 +607,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 						this.label.innerText = replaceDoubleEscapes(label).trim();
 					}
 
-					if (this.item) {
-						this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
-					}
+					this.item?.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
 				} else {
 					this.label.innerText = label.replace(/&&/g, '&').trim();
 				}
@@ -628,7 +624,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			this.item.classList.remove(...this.cssClass.split(' '));
 		}
 		if (this.options.icon && this.label) {
-			this.cssClass = this.getAction().class || '';
+			this.cssClass = this.action.class || '';
 			this.label.classList.add('icon');
 			if (this.cssClass) {
 				this.label.classList.add(...this.cssClass.split(' '));
@@ -640,7 +636,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateEnabled(): void {
-		if (this.getAction().enabled) {
+		if (this.action.enabled) {
 			if (this.element) {
 				this.element.classList.remove('disabled');
 				this.element.removeAttribute('aria-disabled');
@@ -669,7 +665,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const checked = this.getAction().checked;
+		const checked = this.action.checked;
 		this.item.classList.toggle('checked', !!checked);
 		if (checked !== undefined) {
 			this.item.setAttribute('role', 'menuitemcheckbox');
@@ -765,7 +761,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 
@@ -774,7 +770,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 
 			if (getActiveElement() === this.item) {
 				if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
@@ -914,7 +910,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuContainer.style.top = `${top - viewBox.top}px`;
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
-				let event = new StandardKeyboardEvent(e);
+				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
 
@@ -925,7 +921,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}));
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
-				let event = new StandardKeyboardEvent(e);
+				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
 				}
@@ -966,9 +962,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuIndicator.style.color = fgColor ? `${fgColor}` : '';
 		}
 
-		if (this.parentData.submenu) {
-			this.parentData.submenu.style(this.menuStyle);
-		}
+		this.parentData.submenu?.style(this.menuStyle);
 	}
 
 	override dispose(): void {

@@ -15,6 +15,8 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 		const logger = await _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
 		if (donotUseFormatters) {
 			logger.clearFormatters();
+		} else {
+			logger.setPattern('%Y-%m-%d %H:%M:%S.%e [%l] %v');
 		}
 		return logger;
 	} catch (e) {
@@ -57,9 +59,7 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 		this.setLevel(level);
 		this._loggerCreationPromise = this._createSpdLogLogger(name, filepath, rotating, donotUseFormatters);
 		this._register(this.onDidChangeLogLevel(level => {
-			if (this._logger) {
-				this._logger.setLevel(level);
-			}
+			this._logger?.setLevel(level);
 		}));
 	}
 

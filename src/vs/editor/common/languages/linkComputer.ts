@@ -258,15 +258,19 @@ export class LinkComputer {
 						case CharCode.CloseCurlyBrace:
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
-						/* The following three rules make it that ' or " or ` are allowed inside links if the link began with a different one */
+
+						// The following three rules make it that ' or " or ` are allowed inside links
+						// only if the link is wrapped by some other quote character
 						case CharCode.SingleQuote:
-							chClass = (linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
 						case CharCode.DoubleQuote:
-							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
 						case CharCode.BackTick:
-							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
+							if (linkBeginChCode === chCode) {
+								chClass = CharacterClass.ForceTermination;
+							} else if (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) {
+								chClass = CharacterClass.None;
+							} else {
+								chClass = CharacterClass.ForceTermination;
+							}
 							break;
 						case CharCode.Asterisk:
 							// `*` terminates a link if the link began with `*`

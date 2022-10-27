@@ -15,6 +15,11 @@ export enum AccessibilitySupport {
 	Enabled = 2
 }
 
+export enum CodeActionTriggerType {
+	Invoke = 1,
+	Auto = 2
+}
+
 export enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -199,7 +204,7 @@ export enum EditorOption {
 	disableMonospaceOptimizations = 29,
 	domReadOnly = 30,
 	dragAndDrop = 31,
-	enableDropIntoEditor = 32,
+	dropIntoEditor = 32,
 	emptySelectionClipboard = 33,
 	extraEditorClassName = 34,
 	fastScrollSensitivity = 35,
@@ -272,35 +277,36 @@ export enum EditorOption {
 	snippetSuggestions = 102,
 	smartSelect = 103,
 	smoothScrolling = 104,
-	stickyTabStops = 105,
-	stopRenderingLineAfter = 106,
-	suggest = 107,
-	suggestFontSize = 108,
-	suggestLineHeight = 109,
-	suggestOnTriggerCharacters = 110,
-	suggestSelection = 111,
-	tabCompletion = 112,
-	tabIndex = 113,
-	unicodeHighlighting = 114,
-	unusualLineTerminators = 115,
-	useShadowDOM = 116,
-	useTabStops = 117,
-	wordSeparators = 118,
-	wordWrap = 119,
-	wordWrapBreakAfterCharacters = 120,
-	wordWrapBreakBeforeCharacters = 121,
-	wordWrapColumn = 122,
-	wordWrapOverride1 = 123,
-	wordWrapOverride2 = 124,
-	wrappingIndent = 125,
-	wrappingStrategy = 126,
-	showDeprecated = 127,
-	inlayHints = 128,
-	editorClassName = 129,
-	pixelRatio = 130,
-	tabFocusMode = 131,
-	layoutInfo = 132,
-	wrappingInfo = 133
+	stickyScroll = 105,
+	stickyTabStops = 106,
+	stopRenderingLineAfter = 107,
+	suggest = 108,
+	suggestFontSize = 109,
+	suggestLineHeight = 110,
+	suggestOnTriggerCharacters = 111,
+	suggestSelection = 112,
+	tabCompletion = 113,
+	tabIndex = 114,
+	unicodeHighlighting = 115,
+	unusualLineTerminators = 116,
+	useShadowDOM = 117,
+	useTabStops = 118,
+	wordSeparators = 119,
+	wordWrap = 120,
+	wordWrapBreakAfterCharacters = 121,
+	wordWrapBreakBeforeCharacters = 122,
+	wordWrapColumn = 123,
+	wordWrapOverride1 = 124,
+	wordWrapOverride2 = 125,
+	wrappingIndent = 126,
+	wrappingStrategy = 127,
+	showDeprecated = 128,
+	inlayHints = 129,
+	editorClassName = 130,
+	pixelRatio = 131,
+	tabFocusMode = 132,
+	layoutInfo = 133,
+	wrappingInfo = 134
 }
 
 /**

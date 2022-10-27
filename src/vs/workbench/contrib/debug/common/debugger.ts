@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -21,7 +21,7 @@ import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-export class Debugger implements IDebugger {
+export class Debugger implements IDebugger, IDebuggerMetadata {
 
 	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
@@ -99,20 +99,23 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
-		return this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-			const da = this.adapterManager.createDebugAdapter(session);
-			if (da) {
-				return Promise.resolve(da);
-			}
-			throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
-		});
+	async startDebugging(configuration: IConfig, parentSessionId: string): Promise<boolean> {
+		const parentSession = this.debugService.getModel().getSession(parentSessionId);
+		return await this.debugService.startDebugging(undefined, configuration, { parentSession }, undefined);
 	}
 
-	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
-		});
+	async createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
+		await this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type);
+		const da = this.adapterManager.createDebugAdapter(session);
+		if (da) {
+			return Promise.resolve(da);
+		}
+		throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
+	}
+
+	async substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
+		const substitutedConfig = await this.adapterManager.substituteVariables(this.type, folder, config);
+		return await this.configurationResolverService.resolveWithInteractionReplace(folder, substitutedConfig, 'launch', this.variables, substitutedConfig.__configurationTarget);
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
@@ -147,8 +150,12 @@ export class Debugger implements IDebugger {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
 	}
 
-	get uiMessages() {
-		return this.debuggerContribution.uiMessages;
+	get strings() {
+		return this.debuggerContribution.strings ?? (this.debuggerContribution as any).uiMessages;
+	}
+
+	interestedInLanguage(languageId: string): boolean {
+		return !!(this.languages && this.languages.indexOf(languageId) >= 0);
 	}
 
 	hasInitialConfiguration(): boolean {
@@ -232,7 +239,8 @@ export class Debugger implements IDebugger {
 				enumDescriptions: [this.label],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
-				deprecationMessage: this.enabled ? undefined : debuggerDisabledMessage(this.type),
+				deprecationMessage: this.debuggerContribution.deprecated || (this.enabled ? undefined : debuggerDisabledMessage(this.type)),
+				doNotSuggest: !!this.debuggerContribution.deprecated,
 				errorMessage: nls.localize('debugTypeNotRecognised', "The debug type is not recognized. Make sure that you have a corresponding debug extension installed and that it is enabled."),
 				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};

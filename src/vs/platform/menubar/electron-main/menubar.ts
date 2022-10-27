@@ -172,7 +172,7 @@ export class Menubar {
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
+		const enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
 			return true;
 		}
@@ -185,7 +185,7 @@ export class Menubar {
 			return false;
 		}
 
-		let enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
+		const enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
 			return false;
 		}
@@ -532,19 +532,19 @@ export class Menubar {
 
 		return new MenuItem(this.likeAction(commandId, {
 			label: item.label,
-			click: (menuItem, win, event) => {
+			click: async (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
-				const success = this.windowsMainService.open({
+				const success = (await this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentMainService.args,
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
 					gotoLineMode: false,
 					remoteAuthority: item.remoteAuthority
-				}).length > 0;
+				})).length > 0;
 
 				if (!success) {
-					this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
+					await this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
 				}
 			}
 		}, false));
@@ -816,9 +816,7 @@ export class Menubar {
 		const originalClick = options.click;
 		options.click = (item, window, event) => {
 			this.reportMenuActionTelemetry(commandId);
-			if (originalClick) {
-				originalClick(item, window, event);
-			}
+			originalClick?.(item, window, event);
 		};
 
 		return options;

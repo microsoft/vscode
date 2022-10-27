@@ -271,7 +271,7 @@ suite('Splitview', () => {
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
 
-		let sashes = getSashes(splitview);
+		const sashes = getSashes(splitview);
 		assert.strictEqual(sashes.length, 2, 'there are two sashes');
 		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');
 		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');

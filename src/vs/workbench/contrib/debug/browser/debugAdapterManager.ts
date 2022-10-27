@@ -23,7 +23,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
-import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, DebuggerUiMessage, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
@@ -43,8 +43,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debuggers: Debugger[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
-	private debuggersAvailable: IContextKey<boolean>;
-	private debugExtensionsAvailable: IContextKey<boolean>;
+	private debuggersAvailable!: IContextKey<boolean>;
+	private debugExtensionsAvailable!: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
 	private breakpointContributions: Breakpoints[] = [];
@@ -72,15 +72,16 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.registerListeners();
-		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+			this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
+		});
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this.debuggerWhenKeys)) {
 				this.debuggersAvailable.set(this.hasEnabledDebuggers());
 				this.updateDebugAdapterSchema();
 			}
 		}));
-		this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
-		this.debugExtensionsAvailable.set(true); // Avoid a flash of the default message before extensions load.
 		this._register(this.onDidDebuggersExtPointRead(() => {
 			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
 		}));
@@ -171,6 +172,11 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 					},
 					'presentation': presentationSchema,
 					'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+					'suppressMultipleSessionWarning': {
+						type: 'boolean',
+						description: nls.localize('suppressMultipleSessionWarning', "Disable the warning when trying to start the same debug configuration more than once."),
+						default: true
+					}
 				}
 			}
 		};
@@ -273,15 +279,6 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		return undefined;
 	}
 
-	getDebuggerUiMessages(type: string): { [key in DebuggerUiMessage]?: string } {
-		const dbgr = this.getDebugger(type);
-		if (dbgr) {
-			return dbgr.uiMessages || {};
-		}
-
-		return {};
-	}
-
 	get onDidRegisterDebugger(): Event<void> {
 		return this._onDidRegisterDebugger.event;
 	}
@@ -312,10 +309,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		return adapter && adapter.enabled ? adapter : undefined;
 	}
 
-	isDebuggerInterestedInLanguage(language: string): boolean {
+	someDebuggerInterestedInLanguage(languageId: string): boolean {
 		return !!this.debuggers
 			.filter(d => d.enabled)
-			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
+			.find(a => a.interestedInLanguage(languageId));
 	}
 
 	async guessDebugger(gettingConfigurations: boolean): Promise<Debugger | undefined> {
@@ -331,7 +328,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			}
 			const adapters = this.debuggers
 				.filter(a => a.enabled)
-				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
+				.filter(a => language && a.interestedInLanguage(language));
 			if (adapters.length === 1) {
 				return adapters[0];
 			}

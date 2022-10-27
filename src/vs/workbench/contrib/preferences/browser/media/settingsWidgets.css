@@ -30,7 +30,8 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
 	margin-top: 3px;
 }
-.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-value {
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-item-bool .setting-list-object-value {
+	width: 100%;
 	cursor: pointer;
 }
 

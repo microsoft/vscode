@@ -136,7 +136,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		await manager.resolve(resource);
 
 		let didResolve = false;
-		let onDidResolve = new Promise<void>(resolve => {
+		const onDidResolve = new Promise<void>(resolve => {
 			manager.onDidResolve(({ model }) => {
 				if (model.resource.toString() === resource.toString()) {
 					didResolve = true;
@@ -386,7 +386,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.updateTextEditorModel(createTextBufferFactory('make dirty'));
 
-		let canDisposePromise = manager.canDispose(model as TextFileEditorModel);
+		const canDisposePromise = manager.canDispose(model as TextFileEditorModel);
 		assert.ok(canDisposePromise instanceof Promise);
 
 		let canDispose = false;
@@ -401,7 +401,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.strictEqual(canDispose, true);
 
-		let canDispose2 = manager.canDispose(model as TextFileEditorModel);
+		const canDispose2 = manager.canDispose(model as TextFileEditorModel);
 		assert.strictEqual(canDispose2, true);
 
 		manager.dispose();
@@ -436,7 +436,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		await manager.resolve(resource);
 
 		let didResolve = false;
-		let onDidResolve = new Promise<void>(resolve => {
+		const onDidResolve = new Promise<void>(resolve => {
 			manager.onDidResolve(({ model }) => {
 				if (model.resource.toString() === resource.toString()) {
 					didResolve = true;
@@ -459,7 +459,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		let didResolve = false;
 		let resolvedCounter = 0;
-		let onDidResolve = new Promise<void>(resolve => {
+		const onDidResolve = new Promise<void>(resolve => {
 			manager.onDidResolve(({ model }) => {
 				if (model.resource.toString() === resource.toString()) {
 					resolvedCounter++;

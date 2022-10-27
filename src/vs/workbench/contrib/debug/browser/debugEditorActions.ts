@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, EditorAction, IActionOptions, EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { Action } from 'vs/base/common/actions';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { EditorAction, EditorAction2, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { Position } from 'vs/editor/common/core/position';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import * as nls from 'vs/nls';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action } from 'vs/base/common/actions';
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { registerAction2, MenuId, Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -244,7 +245,7 @@ export class SelectionToReplAction extends EditorAction {
 			id: SelectionToReplAction.ID,
 			label: SelectionToReplAction.LABEL,
 			alias: 'Debug: Evaluate in Console',
-			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 0
@@ -261,7 +262,14 @@ export class SelectionToReplAction extends EditorAction {
 			return;
 		}
 
-		const text = editor.getModel().getValueInRange(editor.getSelection());
+		const selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+		} else {
+			text = editor.getModel().getValueInRange(selection);
+		}
+
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
 		await viewsService.openView(REPL_VIEW_ID, false);
 	}
@@ -319,26 +327,23 @@ class ShowDebugHoverAction extends EditorAction {
 		if (!position || !editor.hasModel()) {
 			return;
 		}
-		const word = editor.getModel().getWordAtPosition(position);
-		if (!word) {
-			return;
-		}
 
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID)?.showHover(range, true);
+		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID)?.showHover(position, true);
 	}
 }
+
+const NO_TARGETS_MESSAGE = nls.localize('editor.debug.action.stepIntoTargets.notAvailable', "Step targets are not available here");
 
 class StepIntoTargetsAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.stepIntoTargets';
-	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Targets...");
+	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Target");
 
 	constructor() {
 		super({
 			id: StepIntoTargetsAction.ID,
 			label: StepIntoTargetsAction.LABEL,
-			alias: 'Debug: Step Into Targets...',
+			alias: 'Debug: Step Into Target',
 			precondition: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
@@ -353,26 +358,63 @@ class StepIntoTargetsAction extends EditorAction {
 		const uriIdentityService = accessor.get(IUriIdentityService);
 		const session = debugService.getViewModel().focusedSession;
 		const frame = debugService.getViewModel().focusedStackFrame;
+		const selection = editor.getSelection();
 
-		if (session && frame && editor.hasModel() && uriIdentityService.extUri.isEqual(editor.getModel().uri, frame.source.uri)) {
-			const targets = await session.stepInTargets(frame.frameId);
-			if (!targets) {
-				return;
+		const targetPosition = selection?.getPosition() || (frame && { lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
+
+		if (!session || !frame || !editor.hasModel() || !uriIdentityService.extUri.isEqual(editor.getModel().uri, frame.source.uri)) {
+			if (targetPosition) {
+				MessageController.get(editor)?.showMessage(NO_TARGETS_MESSAGE, targetPosition);
+			}
+			return;
+		}
+
+
+		const targets = await session.stepInTargets(frame.frameId);
+		if (!targets?.length) {
+			MessageController.get(editor)?.showMessage(NO_TARGETS_MESSAGE, targetPosition!);
+			return;
+		}
+
+		// If there is a selection, try to find the best target with a position to step into.
+		if (selection) {
+			const positionalTargets: { start: Position; end?: Position; target: DebugProtocol.StepInTarget }[] = [];
+			for (const target of targets) {
+				if (target.line) {
+					positionalTargets.push({
+						start: new Position(target.line, target.column || 1),
+						end: target.endLine ? new Position(target.endLine, target.endColumn || 1) : undefined,
+						target
+					});
+				}
 			}
 
-			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
-			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
-			const editorCoords = getDomNodePagePosition(editor.getDomNode());
-			const x = editorCoords.left + cursorCoords.left;
-			const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+			positionalTargets.sort((a, b) => b.start.lineNumber - a.start.lineNumber || b.start.column - a.start.column);
 
-			contextMenuService.showContextMenu({
-				getAnchor: () => ({ x, y }),
-				getActions: () => {
-					return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
-				}
-			});
+			const needle = selection.getPosition();
+
+			// Try to find a target with a start and end that is around the cursor
+			// position. Or, if none, whatever is before the cursor.
+			const best = positionalTargets.find(t => t.end && needle.isBefore(t.end) && t.start.isBeforeOrEqual(needle)) || positionalTargets.find(t => t.end === undefined && t.start.isBeforeOrEqual(needle));
+			if (best) {
+				session.stepIn(frame.thread.threadId, best.target.id);
+				return;
+			}
 		}
+
+		// Otherwise, show a context menu and have the user pick a target
+		editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
+		const cursorCoords = editor.getScrolledVisiblePosition(targetPosition!);
+		const editorCoords = getDomNodePagePosition(editor.getDomNode());
+		const x = editorCoords.left + cursorCoords.left;
+		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+		contextMenuService.showContextMenu({
+			getAnchor: () => ({ x, y }),
+			getActions: () => {
+				return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+			}
+		});
 	}
 }
 

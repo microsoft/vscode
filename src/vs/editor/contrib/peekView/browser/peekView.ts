@@ -23,7 +23,7 @@ import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/brow
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
@@ -53,7 +53,7 @@ registerSingleton(IPeekViewService, class implements IPeekViewService {
 		};
 		this._widgets.set(editor, { widget, listener: widget.onDidClose(remove) });
 	}
-});
+}, InstantiationType.Delayed);
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true, nls.localize('inReferenceSearchEditor', "Whether the current code editor is embedded inside peek"));
@@ -79,7 +79,7 @@ class PeekContextController implements IEditorContribution {
 registerEditorContribution(PeekContextController.ID, PeekContextController);
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -135,7 +135,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	override style(styles: IPeekViewStyles): void {
-		let options = <IPeekViewOptions>this.options;
+		const options = <IPeekViewOptions>this.options;
 		if (styles.headerBackgroundColor) {
 			options.headerBackgroundColor = styles.headerBackgroundColor;
 		}
@@ -150,7 +150,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected override _applyStyles(): void {
 		super._applyStyles();
-		let options = <IPeekViewOptions>this.options;
+		const options = <IPeekViewOptions>this.options;
 		if (this._headElement && options.headerBackgroundColor) {
 			this._headElement.style.backgroundColor = options.headerBackgroundColor.toString();
 		}

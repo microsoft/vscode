@@ -41,6 +41,7 @@ export type OpenExternalOptions = {
 	readonly openExternal?: boolean;
 	readonly allowTunneling?: boolean;
 	readonly allowContributedOpeners?: boolean | string;
+	readonly fromWorkspace?: boolean;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
@@ -61,7 +62,7 @@ export interface IExternalOpener {
 }
 
 export interface IValidator {
-	shouldOpen(resource: URI | string): Promise<boolean>;
+	shouldOpen(resource: URI | string, openOptions?: OpenOptions): Promise<boolean>;
 }
 
 export interface IExternalUriResolver {

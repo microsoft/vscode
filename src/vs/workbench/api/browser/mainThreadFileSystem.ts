@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, IFileOverwriteOptions, IFileDeleteOptions, IFileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -14,14 +14,17 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
+import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
+import { GLOBSTAR } from 'vs/base/common/glob';
+import { rtrim } from 'vs/base/common/strings';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
-	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _fileProvider = new DisposableMap<number, RemoteFileSystemProvider>();
 	private readonly _disposables = new DisposableStore();
-	private readonly _watches = new Map<number, IDisposable>();
+	private readonly _watches = new DisposableMap<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -34,7 +37,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
 
-		for (let entry of _fileService.listCapabilities()) {
+		for (const entry of _fileService.listCapabilities()) {
 			infoProxy.$acceptProviderInfos(URI.from({ scheme: entry.scheme, path: '/dummy' }), entry.capabilities);
 		}
 		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider?.capabilities ?? null)));
@@ -43,9 +46,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	dispose(): void {
 		this._disposables.dispose();
-		dispose(this._fileProvider.values());
-		dispose(this._watches.values());
-		this._fileProvider.clear();
+		this._fileProvider.dispose();
+		this._watches.dispose();
 	}
 
 	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
@@ -53,8 +55,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$unregisterProvider(handle: number): void {
-		this._fileProvider.get(handle)?.dispose();
-		this._fileProvider.delete(handle);
+		this._fileProvider.deleteAndDispose(handle);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
@@ -163,17 +164,34 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return this._fileService.activateProvider(scheme);
 	}
 
-	$watch(extensionId: string, session: number, resource: UriComponents, opts: IWatchOptions): void {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
 		const uri = URI.revive(resource);
-		const isInsideWorkspace = this._contextService.isInsideWorkspace(uri);
+		const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
+
+		const opts = { ...unvalidatedOpts };
+
+		// Convert a recursive watcher to a flat watcher if the path
+		// turns out to not be a folder. Recursive watching is only
+		// possible on folders, so we help all file watchers by checking
+		// early.
+		if (opts.recursive) {
+			try {
+				const stat = await this._fileService.stat(uri);
+				if (!stat.isDirectory) {
+					opts.recursive = false;
+				}
+			} catch (error) {
+				this._logService.error(`MainThreadFileSystem#$watch(): failed to stat a resource for file watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}): ${error}`);
+			}
+		}
 
 		// Refuse to watch anything that is already watched via
 		// our workspace watchers in case the request is a
 		// recursive file watcher.
 		// Still allow for non-recursive watch requests as a way
-		// to bypass configured exlcude rules though
+		// to bypass configured exclude rules though
 		// (see https://github.com/microsoft/vscode/issues/146066)
-		if (isInsideWorkspace && opts.recursive) {
+		if (workspaceFolder && opts.recursive) {
 			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 			return;
 		}
@@ -200,7 +218,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		// excluded via `files.watcherExclude`. As such, we configure
 		// to include each configured exclude pattern so that only those
 		// events are reported that are otherwise excluded.
-		else if (isInsideWorkspace) {
+		// However, we cannot just use the pattern as is, because a pattern
+		// such as `bar` for a exclude, will work to exclude any of
+		// `<workspace path>/bar` but will not work as include for files within
+		// `bar` unless a suffix of `/**` if added.
+		// (https://github.com/microsoft/vscode/issues/148245)
+		else if (workspaceFolder) {
 			const config = this._configurationService.getValue<IFilesConfiguration>();
 			if (config.files?.watcherExclude) {
 				for (const key in config.files.watcherExclude) {
@@ -209,7 +232,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 							opts.includes = [];
 						}
 
-						opts.includes.push(key);
+						const includePattern = `${rtrim(key, '/')}/${GLOBSTAR}`;
+						opts.includes.push(normalizeWatcherPattern(workspaceFolder.uri.fsPath, includePattern));
 					}
 				}
 			}
@@ -228,12 +252,9 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$unwatch(session: number): void {
-		const subscription = this._watches.get(session);
-		if (subscription) {
+		if (this._watches.has(session)) {
 			this._logService.trace(`MainThreadFileSystem#$unwatch(): request to stop watching (session: ${session})`);
-
-			subscription.dispose();
-			this._watches.delete(session);
+			this._watches.deleteAndDispose(session);
 		}
 	}
 }

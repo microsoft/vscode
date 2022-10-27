@@ -48,6 +48,11 @@ native-watchdog/build/**
 native-watchdog/src/**
 !native-watchdog/build/Release/*.node
 
+node-vsce-sign/**
+!node-vsce-sign/src/main.js
+!node-vsce-sign/package.json
+!node-vsce-sign/bin/**
+
 spdlog/binding.gyp
 spdlog/build/**
 spdlog/deps/**
@@ -121,10 +126,6 @@ vscode-windows-ca-certs/**/*
 
 node-addon-api/**/*
 prebuild-install/**/*
-
-@microsoft/applicationinsights*/**
-@microsoft/dynamicproto-js/**
-!@microsoft/applicationinsights-web/dist/applicationinsights-web.min.js
 
 # other node modules
 

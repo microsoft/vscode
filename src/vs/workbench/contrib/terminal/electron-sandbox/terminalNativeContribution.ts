@@ -27,7 +27,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
+		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => { this._onOpenFileRequest(request); });
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
 		this._terminalService.setNativeDelegate({
@@ -43,7 +43,9 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		this._terminalService.instances.forEach(instance => instance.xterm?.forceRedraw());
+		for (const instance of this._terminalService.instances) {
+			instance.xterm?.forceRedraw();
+		}
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {

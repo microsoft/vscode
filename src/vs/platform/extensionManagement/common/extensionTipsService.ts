@@ -5,7 +5,6 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { forEach } from 'vs/base/common/collections';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
 import { joinPath } from 'vs/base/common/resources';
@@ -31,7 +30,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	) {
 		super();
 		if (this.productService.configBasedExtensionTips) {
-			forEach(this.productService.configBasedExtensionTips, ({ value }) => this.allConfigBasedTips.set(value.configPath, value));
+			Object.entries(this.productService.configBasedExtensionTips).forEach(([, value]) => this.allConfigBasedTips.set(value.configPath, value));
 		}
 	}
 
@@ -60,7 +59,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			try {
 				const content = await this.fileService.readFile(joinPath(folder, configPath));
 				const recommendationByRemote: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
-				forEach(tip.recommendations, ({ key, value }) => {
+				Object.entries(tip.recommendations).forEach(([key, value]) => {
 					if (isNonEmptyArray(value.remotes)) {
 						for (const remote of value.remotes) {
 							recommendationByRemote.set(remote, {

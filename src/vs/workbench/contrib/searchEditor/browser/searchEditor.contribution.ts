@@ -18,7 +18,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
@@ -41,6 +40,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 const OpenInEditorCommandId = 'search.action.openInEditor';
 const OpenNewEditorToSideCommandId = 'search.action.openNewEditorToSide';
 const FocusQueryEditorWidgetCommandId = 'search.action.focusQueryEditorWidget';
+const FocusQueryEditorFilesToIncludeCommandId = 'search.action.focusFilesToInclude';
+const FocusQueryEditorFilesToExcludeCommandId = 'search.action.focusFilesToExclude';
 
 const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
 const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
@@ -70,13 +71,10 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
 	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ITelemetryService protected readonly telemetryService: ITelemetryService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-
-		this.editorResolverService.registerEditor(
+		editorResolverService.registerEditor(
 			'*' + SEARCH_EDITOR_EXT,
 			{
 				id: SearchEditorInput.ID,
@@ -86,11 +84,12 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			},
 			{
 				singlePerResource: true,
-				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
-			({ resource }) => {
-				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+			{
+				createEditorInput: ({ resource }) => {
+					return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+				}
 			}
 		);
 	}
@@ -370,6 +369,44 @@ registerAction2(class extends Action2 {
 		const input = editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			(editorService.activeEditorPane as SearchEditor).focusSearchInput();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FocusQueryEditorFilesToIncludeCommandId,
+			title: { value: localize('search.action.focusFilesToInclude', "Focus Search Editor Files to Include"), original: 'Focus Search Editor Files to Include' },
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const input = editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(editorService.activeEditorPane as SearchEditor).focusFilesToIncludeInput();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FocusQueryEditorFilesToExcludeCommandId,
+			title: { value: localize('search.action.focusFilesToExclude', "Focus Search Editor Files to Exclude"), original: 'Focus Search Editor Files to Exclude' },
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const input = editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(editorService.activeEditorPane as SearchEditor).focusFilesToExcludeInput();
 		}
 	}
 });

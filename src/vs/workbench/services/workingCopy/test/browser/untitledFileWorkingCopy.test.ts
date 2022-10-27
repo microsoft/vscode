@@ -91,7 +91,7 @@ suite('UntitledFileWorkingCopy', () => {
 	const factory = new TestUntitledFileWorkingCopyModelFactory();
 
 	let disposables: DisposableStore;
-	let resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+	const resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>;

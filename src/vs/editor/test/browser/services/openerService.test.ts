@@ -279,7 +279,7 @@ suite('OpenerService', function () {
 	test('vscode.open command can\'t open HTTP URL with hash (#) in it [extension development] #140907', async function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
-		let actual: string[] = [];
+		const actual: string[] = [];
 
 		openerService.setDefaultExternalOpener({
 			async openExternal(href) {

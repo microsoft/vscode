@@ -7,11 +7,11 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
-import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
+// eslint-disable-next-line local/code-import-patterns
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -60,6 +60,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
+	private __isCommandStorageDisabled: boolean = false;
+	private _handleCommandStartOptions?: IHandleCommandOptions;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -71,6 +73,23 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return undefined;
 	}
 	get cwd(): string | undefined { return this._cwd; }
+	private get _isInputting(): boolean {
+		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
+	}
+
+	get hasInput(): boolean | undefined {
+		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
+			return undefined;
+		}
+		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
+			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
+			if (line === undefined) {
+				return undefined;
+			}
+			return line.length > 0;
+		}
+		return true;
+	}
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -78,9 +97,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onCommandExecuted = new Emitter<void>();
+	readonly onCommandExecuted = this._onCommandExecuted.event;
 	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
-	private readonly _onCurrentCommandInvalidated = new Emitter<void>();
+	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
@@ -120,7 +141,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();
 				this._currentCommand.isInvalid = true;
-				this._onCurrentCommandInvalidated.fire();
+				this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 			}
 		}
 	}
@@ -137,7 +158,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 					this._clearCommandsInViewport();
 					this._currentCommand.isInvalid = true;
-					this._onCurrentCommandInvalidated.fire();
+					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 				}
 			}
 		});
@@ -248,6 +269,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._isWindowsPty = value;
 	}
 
+	setIsCommandStorageDisabled(): void {
+		this.__isCommandStorageDisabled = true;
+	}
+
 	getCwdForLine(line: number): string | undefined {
 		// Handle the current partial command first, anything below it's prompt is considered part
 		// of the current command
@@ -260,8 +285,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
 	}
 
-	handlePromptStart(): void {
-		this._currentCommand.promptStartMarker = this._terminal.registerMarker(0);
+	handlePromptStart(options?: IHandleCommandOptions): void {
+		this._currentCommand.promptStartMarker = options?.marker || this._terminal.registerMarker(0);
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
@@ -296,14 +321,32 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(): void {
+	handleCommandStart(options?: IHandleCommandOptions): void {
+		this._handleCommandStartOptions = options;
+		// Only update the column if the line has already been set
+		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
+		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
+			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+			return;
+		}
 		if (this._isWindowsPty) {
 			this._handleCommandStartWindows();
 			return;
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
+
+		// Clear executed as it must happen after command start
+		this._currentCommand.commandExecutedMarker?.dispose();
+		this._currentCommand.commandExecutedMarker = undefined;
+		this._currentCommand.commandExecutedX = undefined;
+		for (const m of this._commandMarkers) {
+			m.dispose();
+		}
+		this._commandMarkers.length = 0;
+
+		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -338,13 +381,23 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		});
 	}
 
-	handleCommandExecuted(): void {
+	handleGenericCommand(options?: IHandleCommandOptions): void {
+		if (options?.markProperties?.disableCommandStorage) {
+			this.setIsCommandStorageDisabled();
+		}
+		this.handlePromptStart(options);
+		this.handleCommandStart(options);
+		this.handleCommandExecuted(options);
+		this.handleCommandFinished(undefined, options);
+	}
+
+	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
 			this._handleCommandExecutedWindows();
 			return;
 		}
 
-		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
+		this._currentCommand.commandExecutedMarker = options?.marker || this._terminal.registerMarker(0);
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 
@@ -354,7 +407,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		// Calculate the command
-		this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
+		this._currentCommand.command = this.__isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
 		let y = this._currentCommand.commandStartMarker.line + 1;
 		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
 		for (; y < commandExecutedLine; y++) {
@@ -371,6 +424,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (y === commandExecutedLine) {
 			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
 		}
+		this._onCommandExecuted.fire();
 	}
 
 	private _handleCommandExecutedWindows(): void {
@@ -380,16 +434,22 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._onCursorMoveListener = undefined;
 		this._evaluateCommandMarkersWindows();
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._onCommandExecuted.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 	}
 
-	handleCommandFinished(exitCode: number | undefined): void {
+	invalidateCurrentCommand(request: ICommandInvalidationRequest): void {
+		this._currentCommand.isInvalid = true;
+		this._onCurrentCommandInvalidated.fire(request);
+	}
+
+	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();
 		}
 
-		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
-		const command = this._currentCommand.command;
+		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
+		let command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
 
@@ -409,13 +469,18 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			return;
 		}
 
-		if (command !== undefined && !command.startsWith('\\')) {
+		// When the command finishes and executed never fires the placeholder selector should be used.
+		if (this._exitCode === undefined && command === undefined) {
+			command = '';
+		}
+
+		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
 			const timestamp = Date.now();
 			const executedMarker = this._currentCommand.commandExecutedMarker;
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
-				command,
+				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -423,8 +488,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: this._cwd,
 				exitCode: this._exitCode,
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -436,6 +503,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
+		this._handleCommandStartOptions = undefined;
 	}
 
 	private _preHandleCommandFinishedWindows(): void {
@@ -486,11 +554,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
-				command: e.command,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp
+				timestamp: e.timestamp,
+				markProperties: e.markProperties
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -504,6 +573,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: undefined,
 				commandStartLineContent: undefined,
 				timestamp: 0,
+				markProperties: undefined
 			});
 		}
 		return {
@@ -535,7 +605,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const newCommand = {
-				command: e.command,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
 				marker,
 				endMarker,
 				executedMarker,
@@ -543,8 +613,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: e.cwd,
 				commandStartLineContent: e.commandStartLineContent,
 				exitCode: e.exitCode,
-				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -564,8 +636,94 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 		return undefined;
 	}
 	let output = '';
+	let line: IBufferLine | undefined;
 	for (let i = startLine; i < endLine; i++) {
-		output += buffer.getLine(i)?.translateToString() + '\n';
+		line = buffer.getLine(i);
+		if (!line) {
+			continue;
+		}
+		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
 	}
 	return output === '' ? undefined : output;
+}
+
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
+
+	const matcher = outputMatcher.lineMatcher;
+	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
+	const lines: string[] = [];
+	if (outputMatcher.anchor === 'bottom') {
+		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
+			let wrappedLineStart = i;
+			const wrappedLineEnd = i;
+			while (wrappedLineStart >= startLine && buffer.getLine(wrappedLineStart)?.isWrapped) {
+				wrappedLineStart--;
+			}
+			i = wrappedLineStart;
+			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (lines.length > linesToCheck) {
+				lines.pop();
+			}
+			const match = lines.join('\n').match(matcher);
+			if (match) {
+				return match;
+			}
+		}
+	} else {
+		for (let i = startLine + (outputMatcher.offset || 0); i < endLine; i++) {
+			const wrappedLineStart = i;
+			let wrappedLineEnd = i;
+			while (wrappedLineEnd + 1 < endLine && buffer.getLine(wrappedLineEnd + 1)?.isWrapped) {
+				wrappedLineEnd++;
+			}
+			i = wrappedLineEnd;
+			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (lines.length === linesToCheck) {
+				lines.shift();
+			}
+			if (outputMatcher) {
+				const match = lines.join('\n').match(matcher);
+				if (match) {
+					return match;
+				}
+			}
+		}
+	}
+	return undefined;
+}
+
+function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
+	let content = '';
+	for (let i = lineStart; i <= lineEnd; i++) {
+		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
+		// retain buffer data outside of the terminal width as reflow is disabled.
+		const line = buffer.getLine(i);
+		if (line) {
+			content += line.translateToString(true, 0, cols);
+		}
+	}
+	return content;
+}
+
+function countNewLines(regex: RegExp): number {
+	if (!regex.multiline) {
+		return 1;
+	}
+	const source = regex.source;
+	let count = 1;
+	let i = source.indexOf('\\n');
+	while (i !== -1) {
+		count++;
+		i = source.indexOf('\\n', i + 1);
+	}
+	return count;
 }

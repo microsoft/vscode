@@ -121,9 +121,7 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		this.disposables.add(this.model.onDidChangeRoots(() => {
-			if (this.view) {
-				this.view.setTreeInput();
-			}
+			this.view?.setTreeInput();
 		}));
 
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
@@ -149,17 +147,23 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
 
 		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		items.forEach(item => {
-			if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
-				for (const child of item.nestedChildren) {
-					items.add(child);
+			try {
+				if (respectMultiSelection && !ignoreNestedChildren && this.view?.isItemCollapsed(item) && item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
 				}
+			} catch {
+				// We will error out trying to resolve collapsed nodes that have not yet been resolved.
+				// So we catch and ignore them in the multiSelect context
+				return;
 			}
 		});
 
@@ -421,7 +425,7 @@ export class ExplorerService implements IExplorerService {
 }
 
 function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
-	for (let [_name, child] of item.children) {
+	for (const [_name, child] of item.children) {
 		if (view.isItemVisible(child)) {
 			if (events.some(e => e.contains(child.resource, ...types))) {
 				return true;

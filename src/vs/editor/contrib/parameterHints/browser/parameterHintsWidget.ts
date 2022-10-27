@@ -17,9 +17,8 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
+import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -40,7 +39,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
-	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 
@@ -60,25 +58,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService languageService: ILanguageService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
+
 		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
-		this.model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
+
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
-
-		this._register(this.model.onChangedHints(newParameterHints => {
-			if (newParameterHints) {
-				this.show();
-				this.render(newParameterHints);
-			} else {
-				this.hide();
-			}
-		}));
 	}
 
 	private createParameterHintDOMNodes() {
@@ -102,7 +92,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}));
 
 		const body = $('.body');
-		const scrollbar = new DomScrollableElement(body, {});
+		const scrollbar = new DomScrollableElement(body, {
+			alwaysConsumeMouseWheel: true,
+		});
 		this._register(scrollbar);
 		wrapper.appendChild(scrollbar.getDomNode());
 
@@ -147,7 +139,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.updateMaxHeight();
 	}
 
-	private show(): void {
+	public show(): void {
 		if (this.visible) {
 			return;
 		}
@@ -159,14 +151,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.keyVisible.set(true);
 		this.visible = true;
 		setTimeout(() => {
-			if (this.domNodes) {
-				this.domNodes.element.classList.add('visible');
-			}
+			this.domNodes?.element.classList.add('visible');
 		}, 100);
 		this.editor.layoutContentWidget(this);
 	}
 
-	private hide(): void {
+	public hide(): void {
 		this.renderDisposeables.clear();
 
 		if (!this.visible) {
@@ -176,9 +166,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.keyVisible.reset();
 		this.visible = false;
 		this.announcedLabel = null;
-		if (this.domNodes) {
-			this.domNodes.element.classList.remove('visible');
-		}
+		this.domNodes?.element.classList.remove('visible');
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -192,7 +180,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private render(hints: languages.SignatureHelp): void {
+	public render(hints: languages.SignatureHelp): void {
 		this.renderDisposeables.clear();
 
 		if (!this.domNodes) {
@@ -353,10 +341,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.model.previous();
 	}
 
-	cancel(): void {
-		this.model.cancel();
-	}
-
 	getDomNode(): HTMLElement {
 		if (!this.domNodes) {
 			this.createParameterHintDOMNodes();
@@ -366,10 +350,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	getId(): string {
 		return ParameterHintsWidget.ID;
-	}
-
-	trigger(context: TriggerContext): void {
-		this.model.trigger(context, 0);
 	}
 
 	private updateMaxHeight(): void {

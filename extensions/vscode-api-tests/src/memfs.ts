@@ -65,7 +65,7 @@ export class TestFS implements vscode.FileSystemProvider {
 
 	readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
 		const entry = this._lookupAsDirectory(uri, false);
-		let result: [string, vscode.FileType][] = [];
+		const result: [string, vscode.FileType][] = [];
 		for (const [name, child] of entry.entries) {
 			result.push([name, child.type]);
 		}
@@ -83,8 +83,8 @@ export class TestFS implements vscode.FileSystemProvider {
 	}
 
 	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean; overwrite: boolean }): void {
-		let basename = path.posix.basename(uri.path);
-		let parent = this._lookupParentDirectory(uri);
+		const basename = path.posix.basename(uri.path);
+		const parent = this._lookupParentDirectory(uri);
 		let entry = parent.entries.get(basename);
 		if (entry instanceof Directory) {
 			throw vscode.FileSystemError.FileIsADirectory(uri);
@@ -115,11 +115,11 @@ export class TestFS implements vscode.FileSystemProvider {
 			throw vscode.FileSystemError.FileExists(newUri);
 		}
 
-		let entry = this._lookup(oldUri, false);
-		let oldParent = this._lookupParentDirectory(oldUri);
+		const entry = this._lookup(oldUri, false);
+		const oldParent = this._lookupParentDirectory(oldUri);
 
-		let newParent = this._lookupParentDirectory(newUri);
-		let newName = path.posix.basename(newUri.path);
+		const newParent = this._lookupParentDirectory(newUri);
+		const newName = path.posix.basename(newUri.path);
 
 		oldParent.entries.delete(entry.name);
 		entry.name = newName;
@@ -132,9 +132,9 @@ export class TestFS implements vscode.FileSystemProvider {
 	}
 
 	delete(uri: vscode.Uri): void {
-		let dirname = uri.with({ path: path.posix.dirname(uri.path) });
-		let basename = path.posix.basename(uri.path);
-		let parent = this._lookupAsDirectory(dirname, false);
+		const dirname = uri.with({ path: path.posix.dirname(uri.path) });
+		const basename = path.posix.basename(uri.path);
+		const parent = this._lookupAsDirectory(dirname, false);
 		if (!parent.entries.has(basename)) {
 			throw vscode.FileSystemError.FileNotFound(uri);
 		}
@@ -145,11 +145,11 @@ export class TestFS implements vscode.FileSystemProvider {
 	}
 
 	createDirectory(uri: vscode.Uri): void {
-		let basename = path.posix.basename(uri.path);
-		let dirname = uri.with({ path: path.posix.dirname(uri.path) });
-		let parent = this._lookupAsDirectory(dirname, false);
+		const basename = path.posix.basename(uri.path);
+		const dirname = uri.with({ path: path.posix.dirname(uri.path) });
+		const parent = this._lookupAsDirectory(dirname, false);
 
-		let entry = new Directory(basename);
+		const entry = new Directory(basename);
 		parent.entries.set(entry.name, entry);
 		parent.mtime = Date.now();
 		parent.size += 1;
@@ -161,7 +161,7 @@ export class TestFS implements vscode.FileSystemProvider {
 	private _lookup(uri: vscode.Uri, silent: false): Entry;
 	private _lookup(uri: vscode.Uri, silent: boolean): Entry | undefined;
 	private _lookup(uri: vscode.Uri, silent: boolean): Entry | undefined {
-		let parts = uri.path.split('/');
+		const parts = uri.path.split('/');
 		let entry: Entry = this.root;
 		for (const part of parts) {
 			const partLow = part.toLowerCase();
@@ -173,7 +173,7 @@ export class TestFS implements vscode.FileSystemProvider {
 				if (this.isCaseSensitive) {
 					child = entry.entries.get(part);
 				} else {
-					for (let [key, value] of entry.entries) {
+					for (const [key, value] of entry.entries) {
 						if (key.toLowerCase() === partLow) {
 							child = value;
 							break;
@@ -194,7 +194,7 @@ export class TestFS implements vscode.FileSystemProvider {
 	}
 
 	private _lookupAsDirectory(uri: vscode.Uri, silent: boolean): Directory {
-		let entry = this._lookup(uri, silent);
+		const entry = this._lookup(uri, silent);
 		if (entry instanceof Directory) {
 			return entry;
 		}
@@ -202,7 +202,7 @@ export class TestFS implements vscode.FileSystemProvider {
 	}
 
 	private _lookupAsFile(uri: vscode.Uri, silent: boolean): File {
-		let entry = this._lookup(uri, silent);
+		const entry = this._lookup(uri, silent);
 		if (entry instanceof File) {
 			return entry;
 		}

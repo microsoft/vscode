@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
@@ -149,9 +149,12 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory, supportedLangs);
 	}
 
+	// TODO: explore using the history service or something similar to provide this list of opened editors
+	// so this service can support delayed instantiation. This may be tricky since it seems the IHistoryService
+	// only gives history for a workspace... where this takes advantage of history at a global level as well.
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.GLOBAL, '[]'));
+			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
 			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
 		} catch (e) { console.error(e); }
 
@@ -166,7 +169,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				this.sessionOpenedLanguageIds.add(activeLanguage);
 				this.historicalGlobalOpenedLanguageIds.set(activeLanguage, true);
 				this.historicalWorkspaceOpenedLanguageIds.set(activeLanguage, true);
-				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.PROFILE, StorageTarget.MACHINE);
 				storageService.store(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, JSON.stringify(this.historicalWorkspaceOpenedLanguageIds.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				this.dirtyBiases = true;
 			}
@@ -204,9 +207,10 @@ export class LanguageDetectionWorkerHost {
 		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
 			owner: 'TylerLeonhardt';
-			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Helps understand how effective language detection is via confidences and how long it takes to run';
+			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages that are guessed' };
+			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each language guessed' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
 		};
 
 		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
@@ -339,8 +343,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		type LanguageDetectionPerfClassification = {
 			owner: 'TylerLeonhardt';
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Helps understand how effective language detection and how long it takes to run';
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time it took to run language detection' };
+			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language that was detected' };
 		};
 
 		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
@@ -352,4 +357,5 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	}
 }
 
-registerSingleton(ILanguageDetectionService, LanguageDetectionService);
+// For now we use Eager until we handle keeping track of history better.
+registerSingleton(ILanguageDetectionService, LanguageDetectionService, InstantiationType.Eager);

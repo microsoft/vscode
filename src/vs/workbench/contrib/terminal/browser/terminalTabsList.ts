@@ -71,7 +71,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -103,7 +102,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			listService,
 			themeService,
 			_configurationService,
-			keybindingService,
+			instantiationService,
 		);
 
 		const instanceDisposables: IDisposable[] = [
@@ -262,7 +261,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			element,
 			label,
 			actionBar,
-			context
+			context,
+			elementDisposables: new DisposableStore(),
 		};
 	}
 
@@ -308,8 +308,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		const shellIntegrationString = getShellIntegrationTooltip(instance, true, this._configurationService);
-		const iconId = getIconId(instance);
+		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
+		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -332,10 +332,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		if (!hasActionbar) {
 			template.actionBar.clear();
-		}
-
-		if (!template.elementDisposables) {
-			template.elementDisposables = new DisposableStore();
 		}
 
 		// Kill terminal on middle click
@@ -457,14 +453,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDisposables?.dispose();
-		templateData.elementDisposables = undefined;
+		templateData.elementDisposables.clear();
+		templateData.actionBar.clear();
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDisposables?.dispose();
-		templateData.elementDisposables = undefined;
+		templateData.elementDisposables.dispose();
 		templateData.label.dispose();
+		templateData.actionBar.dispose();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
@@ -503,13 +499,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 }
 
 interface ITerminalTabEntryTemplate {
-	element: HTMLElement;
-	label: IResourceLabel;
-	actionBar: ActionBar;
+	readonly element: HTMLElement;
+	readonly label: IResourceLabel;
+	readonly actionBar: ActionBar;
 	context: {
 		hoverActions?: IHoverAction[];
 	};
-	elementDisposables?: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 
@@ -625,7 +621,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		let promises: Promise<IProcessDetails | undefined>[] = [];
+		const promises: Promise<IProcessDetails | undefined>[] = [];
 		const resources = getTerminalResourcesFromDragEvent(originalEvent);
 		if (resources) {
 			for (const uri of resources) {
@@ -676,6 +672,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		if (!targetInstance) {
 			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+			this._terminalService.setActiveInstance(sourceInstances[0]);
 			return;
 		}
 

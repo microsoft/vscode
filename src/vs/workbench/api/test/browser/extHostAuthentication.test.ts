@@ -474,14 +474,14 @@ suite('ExtHostAuthentication', () => {
 	});
 
 	test('Can get multiple sessions (from different providers) in one extension at the same time', async () => {
-		let sessionP: Promise<AuthenticationSession | undefined> = extHostAuthentication.getSession(
+		const sessionP: Promise<AuthenticationSession | undefined> = extHostAuthentication.getSession(
 			extensionDescription,
 			'test',
 			['foo'],
 			{
 				createIfNone: true
 			});
-		let session2P: Promise<AuthenticationSession | undefined> = extHostAuthentication.getSession(
+		const session2P: Promise<AuthenticationSession | undefined> = extHostAuthentication.getSession(
 			extensionDescription,
 			'test-multiple',
 			['foo'],

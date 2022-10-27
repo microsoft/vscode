@@ -127,7 +127,7 @@ class FileReferencesTemplate extends Disposable {
 	}
 
 	set(element: FileReferences, matches: IMatch[]) {
-		let parent = dirname(element.uri);
+		const parent = dirname(element.uri);
 		this.file.setLabel(
 			this._labelService.getUriBasenameLabel(element.uri),
 			this._labelService.getUriLabel(parent, { relative: true }),

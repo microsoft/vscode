@@ -5,23 +5,12 @@
 
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isWeb } from 'vs/base/common/platform';
-
-const restart = localize('restart', "&&Restart");
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 export class ConfigureDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -40,13 +29,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 	public async run(accessor: ServicesAccessor): Promise<void> {
 		const languagePackService: ILanguagePackService = accessor.get(ILanguagePackService);
 		const quickInputService: IQuickInputService = accessor.get(IQuickInputService);
-		const hostService: IHostService = accessor.get(IHostService);
-		const dialogService: IDialogService = accessor.get(IDialogService);
-		const productService: IProductService = accessor.get(IProductService);
 		const localeService: ILocaleService = accessor.get(ILocaleService);
-		const extensionManagementService: IExtensionManagementService = accessor.get(IExtensionManagementService);
-		const paneCompositePartService: IPaneCompositePartService = accessor.get(IPaneCompositePartService);
-		const notificationService: INotificationService = accessor.get(INotificationService);
 
 		const installedLanguages = await languagePackService.getInstalledLanguages();
 
@@ -54,7 +37,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		qp.placeholder = localize('chooseLocale', "Select Display Language");
 
 		if (installedLanguages?.length) {
-			const items: Array<ILanguagePackItem | IQuickPickSeparator> = [{ type: 'separator', label: localize('installed', "Installed languages") }];
+			const items: Array<ILanguagePackItem | IQuickPickSeparator> = [{ type: 'separator', label: localize('installed', "Installed") }];
 			qp.items = items.concat(installedLanguages);
 		}
 
@@ -71,7 +54,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 			if (newLanguages.length) {
 				qp.items = [
 					...qp.items,
-					{ type: 'separator', label: localize('available', "Available languages") },
+					{ type: 'separator', label: localize('available', "Available") },
 					...newLanguages
 				];
 			}
@@ -81,39 +64,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		disposables.add(qp.onDidAccept(async () => {
 			const selectedLanguage = qp.activeItems[0];
 			qp.hide();
-
-			// Only Desktop has the concept of installing language packs so we only do this for Desktop
-			// and only if the language pack is not installed
-			if (!isWeb && !installedSet.has(selectedLanguage.id!)) {
-				try {
-					// Show the view so the user can see the language pack to be installed
-					let viewlet = await paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
-					(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${selectedLanguage.extensionId}`);
-
-					// Only actually install a language pack from Microsoft
-					if (selectedLanguage.galleryExtension?.publisher.toLowerCase() !== 'ms-ceintl') {
-						return;
-					}
-
-					await extensionManagementService.installFromGallery(selectedLanguage.galleryExtension);
-				} catch (err) {
-					notificationService.error(err);
-					return;
-				}
-			}
-
-			if (await localeService.setLocale(selectedLanguage.id!)) {
-				const restartDialog = await dialogService.confirm({
-					type: 'info',
-					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", productService.nameLong),
-					primaryButton: restart
-				});
-
-				if (restartDialog.confirmed) {
-					hostService.restart();
-				}
-			}
+			await localeService.setLocale(selectedLanguage);
 		}));
 
 		qp.show();
@@ -137,21 +88,6 @@ export class ClearDisplayLanguageAction extends Action2 {
 
 	public async run(accessor: ServicesAccessor): Promise<void> {
 		const localeService: ILocaleService = accessor.get(ILocaleService);
-		const dialogService: IDialogService = accessor.get(IDialogService);
-		const productService: IProductService = accessor.get(IProductService);
-		const hostService: IHostService = accessor.get(IHostService);
-
-		if (await localeService.setLocale(undefined)) {
-			const restartDialog = await dialogService.confirm({
-				type: 'info',
-				message: localize('relaunchAfterClearDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-				detail: localize('relaunchAfterClearDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", productService.nameLong),
-				primaryButton: restart
-			});
-
-			if (restartDialog.confirmed) {
-				hostService.restart();
-			}
-		}
+		await localeService.clearLocalePreference();
 	}
 }

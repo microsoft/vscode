@@ -16,7 +16,7 @@ declare module 'vscode' {
 	}
 
 	export interface InlineCompletionItemProviderNew {
-		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItemNew): void;
 	}
 
@@ -29,7 +29,7 @@ declare module 'vscode' {
 	}
 
 	export interface InlineCompletionItemProvider {
-		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItem): void;
 	}
 

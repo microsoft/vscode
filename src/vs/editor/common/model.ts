@@ -91,6 +91,12 @@ export interface IModelDecorationOptions {
 	 * CSS class name describing the decoration.
 	 */
 	className?: string | null;
+	blockClassName?: string | null;
+	/**
+	 * Indicates if this block should be rendered after the last line.
+	 * In this case, the range must be empty and set to the last line.
+	 */
+	blockIsAfterEnd?: boolean | null;
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
@@ -105,7 +111,6 @@ export interface IModelDecorationOptions {
 	isWholeLine?: boolean;
 	/**
 	 * Always render the decoration (even when the range it encompasses is collapsed).
-	 * @internal
 	 */
 	showIfCollapsed?: boolean;
 	/**
@@ -527,11 +532,16 @@ export const enum TrackedRangeStickiness {
  * Text snapshot that works like an iterator.
  * Will try to return chunks of roughly ~64KB size.
  * Will return null when finished.
- *
- * @internal
  */
 export interface ITextSnapshot {
 	read(): string | null;
+}
+
+/**
+ * @internal
+ */
+export function isITextSnapshot(obj: any): obj is ITextSnapshot {
+	return (obj && typeof obj.read === 'function');
 }
 
 /**
@@ -609,7 +619,7 @@ export interface ITextModel {
 	/**
 	 * Replace the entire text buffer value contained in this model.
 	 */
-	setValue(newValue: string): void;
+	setValue(newValue: string | ITextSnapshot): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -623,7 +633,6 @@ export interface ITextModel {
 	 * Get the text stored in this model.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
 	 * @return The text snapshot (it is safe to consume it asynchronously).
-	 * @internal
 	 */
 	createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 
@@ -657,13 +666,13 @@ export interface ITextModel {
 	 * @param range The range describing what text length to get.
 	 * @return The text length.
 	 */
-	getValueLengthInRange(range: IRange): number;
+	getValueLengthInRange(range: IRange, eol?: EndOfLinePreference): number;
 
 	/**
 	 * Get the character count of text in a certain range.
 	 * @param range The range describing what text length to get.
 	 */
-	getCharacterCountInRange(range: IRange): number;
+	getCharacterCountInRange(range: IRange, eol?: EndOfLinePreference): number;
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
@@ -845,9 +854,11 @@ export interface ITextModel {
 
 	/**
 	 * Set the current language mode associated with the model.
+	 * @param languageId The new language.
+	 * @param source The source of the call that set the language.
 	 * @internal
 	 */
-	setMode(languageId: string): void;
+	setMode(languageId: string, source?: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.
@@ -940,7 +951,7 @@ export interface ITextModel {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 * @return An array with the decorations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations as an array.

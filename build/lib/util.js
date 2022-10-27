@@ -1,10 +1,10 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -13,7 +13,6 @@ const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
 const VinylFile = require("vinyl");
-const git = require("./git");
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
@@ -240,7 +239,7 @@ function _rreaddir(dirPath, prepend, result) {
     }
 }
 function rreddir(dirPath) {
-    let result = [];
+    const result = [];
     _rreaddir(dirPath, '', result);
     return result;
 }
@@ -253,14 +252,6 @@ function ensureDir(dirPath) {
     fs.mkdirSync(dirPath);
 }
 exports.ensureDir = ensureDir;
-function getVersion(root) {
-    let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-    if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
-        version = git.getVersion(root);
-    }
-    return version;
-}
-exports.getVersion = getVersion;
 function rebase(count) {
     return rename(f => {
         const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
@@ -336,6 +327,13 @@ function acquireWebNodePaths() {
         }
         nodePaths[key] = entryPoint;
     }
+    // @TODO lramos15 can we make this dynamic like the rest of the node paths
+    // Add these paths as well for 1DS SDK dependencies.
+    // Not sure why given the 1DS entrypoint then requires these modules
+    // they are not fetched from the right location and instead are fetched from out/
+    nodePaths['@microsoft/dynamicproto-js'] = 'lib/dist/umd/dynamicproto-js.min.js';
+    nodePaths['@microsoft/applicationinsights-shims'] = 'dist/umd/applicationinsights-shims.min.js';
+    nodePaths['@microsoft/applicationinsights-core-js'] = 'browser/applicationinsights-core-js.min.js';
     return nodePaths;
 }
 exports.acquireWebNodePaths = acquireWebNodePaths;
@@ -344,7 +342,7 @@ function createExternalLoaderConfig(webEndpoint, commit, quality) {
         return undefined;
     }
     webEndpoint = webEndpoint + `/${quality}/${commit}`;
-    let nodePaths = acquireWebNodePaths();
+    const nodePaths = acquireWebNodePaths();
     Object.keys(nodePaths).map(function (key, _) {
         nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
     });

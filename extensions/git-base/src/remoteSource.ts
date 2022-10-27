@@ -49,10 +49,11 @@ class RemoteSourceProviderQuickPick {
 	@throttle
 	private async query(): Promise<void> {
 		try {
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick?.value) || [];
-
 			this.ensureQuickPick();
+			this.quickpick!.busy = true;
 			this.quickpick!.show();
+
+			const remoteSources = await this.provider.getRemoteSources(this.quickpick?.value) || [];
 
 			if (remoteSources.length === 0) {
 				this.quickpick!.items = [{
@@ -69,7 +70,7 @@ class RemoteSourceProviderQuickPick {
 				}));
 			}
 		} catch (err) {
-			this.quickpick!.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
+			this.quickpick!.items = [{ label: localize('error', "{0} Error: {1}", '$(error)', err.message), alwaysShow: true }];
 			console.error(err);
 		} finally {
 			this.quickpick!.busy = false;

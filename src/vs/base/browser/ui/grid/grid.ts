@@ -528,6 +528,16 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	/**
+	 * Returns whether all other {@link IView views} are at their minimum size.
+	 *
+	 * @param view The reference {@link IView view}.
+	 */
+	isViewSizeMaximized(view: T): boolean {
+		const location = this.getViewLocation(view);
+		return this.gridview.isViewSizeMaximized(location);
+	}
+
+	/**
 	 * Get the size of a {@link IView view}.
 	 *
 	 * @param view The {@link IView view}. Provide `undefined` to get the size

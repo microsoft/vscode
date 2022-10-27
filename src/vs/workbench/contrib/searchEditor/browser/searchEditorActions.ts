@@ -10,7 +10,6 @@ import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,6 +23,7 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -99,6 +99,7 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 export const openNewSearchEditor =
 	async (accessor: ServicesAccessor, _args: OpenSearchEditorArgs = {}, toSide = false) => {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -139,7 +140,12 @@ export const openNewSearchEditor =
 			}
 		}
 
-		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/openNewSearchEditor');
+		telemetryService.publicLog2<{},
+			{
+				owner: 'roblourens';
+				comment: 'Fired when a search editor is opened';
+			}>
+			('searchEditor/openNewSearchEditor');
 
 		const seedSearchStringFromSelection = _args.location === 'new' || configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		const args: OpenSearchEditorArgs = { query: seedSearchStringFromSelection ? selected : undefined };
@@ -153,13 +159,18 @@ export const openNewSearchEditor =
 		const existing = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(id => id.editor.typeId === SearchEditorInput.ID);
 		let editor: SearchEditor;
 		if (existing && args.location === 'reuse') {
+			const group = editorGroupsService.getGroup(existing.groupId);
+			if (!group) {
+				throw new Error('Invalid group id for search editor');
+			}
 			const input = existing.editor as SearchEditorInput;
-			editor = (await editorService.openEditor(input, { override: EditorResolution.DISABLED }, existing.groupId)) as SearchEditor;
+			editor = (await group.openEditor(input)) as SearchEditor;
 			if (selected) { editor.setQuery(selected); }
 			else { editor.selectQuery(); }
 			editor.setSearchConfig(args);
 		} else {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, resultsContents: '', from: 'rawData' });
+			// TODO @roblourens make this use the editor resolver service if possible
 			editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
 		}
 
@@ -188,8 +199,13 @@ export const createEditorFromSearchResult =
 		const configurationService = accessor.get(IConfigurationService);
 		const sortOrder = configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 
-
-		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/createEditorFromSearchResult');
+		telemetryService.publicLog2<
+			{},
+			{
+				owner: 'roblourens';
+				comment: 'Fired when a search editor is opened from the search view';
+			}>
+			('searchEditor/createEditorFromSearchResult');
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 

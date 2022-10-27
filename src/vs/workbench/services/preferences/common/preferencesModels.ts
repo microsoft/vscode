@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined, isArray } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
@@ -640,9 +640,7 @@ export class DefaultSettings extends Disposable {
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
-		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
-		}
+		config.allOf?.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		return result;
 	}
 
@@ -672,17 +670,17 @@ export class DefaultSettings extends Disposable {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				let description = (prop.description || prop.markdownDescription || '');
+				let description = (prop.markdownDescription || prop.description || '');
 				if (typeof description !== 'string') {
 					description = '';
 				}
 				const descriptionLines = description.split('\n');
 				const overrides = OVERRIDE_PROPERTY_REGEX.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				let listItemType: string | undefined;
-				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
+				if (prop.type === 'array' && prop.items && !Array.isArray(prop.items) && prop.items.type) {
 					if (prop.items.enum) {
 						listItemType = 'enum';
-					} else if (!isArray(prop.items.type)) {
+					} else if (!Array.isArray(prop.items.type)) {
 						listItemType = prop.items.type;
 					}
 				}
@@ -692,12 +690,12 @@ export class DefaultSettings extends Disposable {
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
 
 				let enumToUse = prop.enum;
-				let enumDescriptions = prop.enumDescriptions ?? prop.markdownEnumDescriptions;
-				let enumDescriptionsAreMarkdown = !prop.enumDescriptions;
-				if (listItemType === 'enum' && !isArray(prop.items)) {
+				let enumDescriptions = prop.markdownEnumDescriptions ?? prop.enumDescriptions;
+				let enumDescriptionsAreMarkdown = !!prop.markdownEnumDescriptions;
+				if (listItemType === 'enum' && !Array.isArray(prop.items)) {
 					enumToUse = prop.items!.enum;
-					enumDescriptions = prop.items!.enumDescriptions ?? prop.items!.markdownEnumDescriptions;
-					enumDescriptionsAreMarkdown = enumDescriptionsAreMarkdown && !prop.items!.enumDescriptions;
+					enumDescriptions = prop.items!.markdownEnumDescriptions ?? prop.items!.enumDescriptions;
+					enumDescriptionsAreMarkdown = !!prop.items!.markdownEnumDescriptions;
 				}
 
 				let allKeysAreBoolean = false;
@@ -724,7 +722,7 @@ export class DefaultSettings extends Disposable {
 					key,
 					value,
 					description: descriptionLines,
-					descriptionIsMarkdown: !prop.description,
+					descriptionIsMarkdown: !!prop.markdownDescription,
 					range: nullRange,
 					keyRange: nullRange,
 					valueRange: nullRange,

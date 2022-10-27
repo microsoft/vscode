@@ -143,7 +143,7 @@ export class SCMViewService implements ISCMViewService {
 				}
 
 				return { added, removed };
-			}, 0)
+			}, 0, undefined, undefined, this.disposables)
 	);
 
 	get focusedRepository(): ISCMRepository | undefined {

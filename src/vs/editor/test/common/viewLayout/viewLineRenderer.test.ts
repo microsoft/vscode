@@ -30,7 +30,7 @@ function inflateRenderLineOutput(renderLineOutput: RenderLineOutput2) {
 		html = html.replace(/^<span>/, '');
 	}
 	html = html.replace(/<\/span>$/, '');
-	let spans: string[] = [];
+	const spans: string[] = [];
 	let lastIndex = 0;
 	do {
 		const newIndex = html.indexOf('<span', lastIndex + 1);
@@ -191,7 +191,7 @@ suite('viewLineRenderer.renderLine', () => {
 				'<span class="mtk3">l</span>',
 				'<span class="mtk4">o</span>',
 				'<span class="mtk5">\u00a0</span>',
-				'<span>&hellip;</span>'
+				'<span class="mtkoverflow">Show more (6 chars)</span>'
 			],
 			mapping: [
 				[0, 0, 0],

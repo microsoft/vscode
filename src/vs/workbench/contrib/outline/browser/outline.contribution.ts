@@ -40,22 +40,36 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		[OutlineConfigKeys.icons]: {
-			'description': localize('outline.showIcons', "Render Outline Elements with Icons."),
+			'description': localize('outline.showIcons', "Render outline elements with icons."),
 			'type': 'boolean',
 			'default': true
 		},
+		[OutlineConfigKeys.collapseItems]: {
+			'description': localize('outline.initialState', "Controls whether outline items are collapsed or expanded."),
+			'type': 'string',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			'enum': [
+				'alwaysCollapse',
+				'alwaysExpand'
+			],
+			'enumDescriptions': [
+				localize('outline.initialState.collapsed', "Collapse all items."),
+				localize('outline.initialState.expanded', "Expand all items.")
+			],
+			'default': 'alwaysExpand'
+		},
 		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
+			'description': localize('outline.showProblem', "Show errors and warnings on outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsColors]: {
-			'description': localize('outline.problem.colors', "Use colors for Errors & Warnings."),
+			'description': localize('outline.problem.colors', "Use colors for errors and warnings on outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsBadges]: {
-			'description': localize('outline.problems.badges', "Use badges for Errors & Warnings."),
+			'description': localize('outline.problems.badges', "Use badges for errors and warnings on outline elements."),
 			'type': 'boolean',
 			'default': true
 		},

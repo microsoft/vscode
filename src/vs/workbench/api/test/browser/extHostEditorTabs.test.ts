@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import assert = require('assert');
+import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TextTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { TextMergeTabInput, TextTabInput } from 'vs/workbench/api/common/extHostTypes';
 
 suite('ExtHostEditorTabs', function () {
 
@@ -209,6 +209,37 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, first);
 	});
 
+	test('TextMergeTabInput surfaces in the UI', function () {
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const tab: IEditorTabDto = createTabDto({
+			input: {
+				kind: TabInputKind.TextMergeInput,
+				base: URI.from({ scheme: 'test', path: 'base' }),
+				input1: URI.from({ scheme: 'test', path: 'input1' }),
+				input2: URI.from({ scheme: 'test', path: 'input2' }),
+				result: URI.from({ scheme: 'test', path: 'result' }),
+			}
+		});
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tab]
+		}]);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
+		assert.ok(first.activeTab);
+		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
+		assert.ok(first.activeTab.input instanceof TextMergeTabInput);
+	});
+
 	test('Ensure reference stability', function () {
 
 		const extHostEditorTabs = new ExtHostEditorTabs(
@@ -293,7 +324,7 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDtoAAA, tabDtoBBB]
 		}]);
 
-		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
+		const all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
@@ -346,7 +377,7 @@ suite('ExtHostEditorTabs', function () {
 	});
 
 	test('Ensure close is called with all tab ids', function () {
-		let closedTabIds: string[][] = [];
+		const closedTabIds: string[][] = [];
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
 				// override/implement $moveTab or $closeTab
@@ -384,7 +415,7 @@ suite('ExtHostEditorTabs', function () {
 	});
 
 	test('Update tab only sends tab change event', async function () {
-		let closedTabIds: string[][] = [];
+		const closedTabIds: string[][] = [];
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
 				// override/implement $moveTab or $closeTab

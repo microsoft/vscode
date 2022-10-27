@@ -31,10 +31,6 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string | string[]> = new NotificationType('json/schemaContent');
 }
 
-namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
-}
-
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
@@ -69,7 +65,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
 		const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-		for (let protocol of handledSchemas) {
+		for (const protocol of handledSchemas) {
 			if (protocol === 'file') {
 				builtInHandlers[protocol] = runtime.file;
 			} else if (protocol === 'http' || protocol === 'https') {
@@ -110,8 +106,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let hierarchicalDocumentSymbolSupport = false;
 
 	let foldingRangeLimitDefault = Number.MAX_VALUE;
-	let foldingRangeLimit = Number.MAX_VALUE;
 	let resultLimit = Number.MAX_VALUE;
+	let jsonFoldingRangeLimit = Number.MAX_VALUE;
+	let jsoncFoldingRangeLimit = Number.MAX_VALUE;
 	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
 	let diagnosticsSupport: DiagnosticsSupport | undefined;
@@ -188,8 +185,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		json?: {
 			schemas?: JSONSchemaSettings[];
 			format?: { enable?: boolean };
+			keepLines?: { enable?: boolean };
 			validate?: { enable?: boolean };
 			resultLimit?: number;
+			jsonFoldingLimit?: number;
+			jsoncFoldingLimit?: number;
 		};
 		http?: {
 			proxy?: string;
@@ -204,62 +204,26 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}
 
 
-	const limitExceededWarnings = function () {
-		const pendingWarnings: { [uri: string]: { features: { [name: string]: string }; timeout?: Disposable } } = {};
-
-		const showLimitedNotification = (uri: string, resultLimit: number) => {
-			const warning = pendingWarnings[uri];
-			connection.sendNotification(ResultLimitReachedNotification.type, `${Utils.basename(URI.parse(uri))}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
-			warning.timeout = undefined;
-		};
-
-		return {
-			cancel(uri: string) {
-				const warning = pendingWarnings[uri];
-				if (warning && warning.timeout) {
-					warning.timeout.dispose();
-					delete pendingWarnings[uri];
-				}
-			},
-
-			onResultLimitExceeded(uri: string, resultLimit: number, name: string) {
-				return () => {
-					let warning = pendingWarnings[uri];
-					if (warning) {
-						if (!warning.timeout) {
-							// already shown
-							return;
-						}
-						warning.features[name] = name;
-						warning.timeout.dispose();
-						warning.timeout = runtime.timer.setTimeout(() => showLimitedNotification(uri, resultLimit), 2000);
-					} else {
-						warning = { features: { [name]: name } };
-						warning.timeout = runtime.timer.setTimeout(() => showLimitedNotification(uri, resultLimit), 2000);
-						pendingWarnings[uri] = warning;
-					}
-				};
-			}
-		};
-	}();
 
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
 	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
 	let formatterRegistrations: Thenable<Disposable>[] | null = null;
 	let validateEnabled = true;
+	let keepLinesEnabled = false;
 
-	// The settings have changed. Is send on server activation as well.
+	// The settings have changed. Is sent on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
-		let settings = <Settings>change.settings;
-		if (runtime.configureHttpRequests) {
-			runtime.configureHttpRequests(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
-		}
+		const settings = <Settings>change.settings;
+		runtime.configureHttpRequests?.(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
 		jsonConfigurationSettings = settings.json?.schemas;
 		validateEnabled = !!settings.json?.validate?.enable;
+		keepLinesEnabled = settings.json?.keepLines?.enable || false;
 		updateConfiguration();
 
-		foldingRangeLimit = Math.trunc(Math.max(settings.json?.resultLimit || foldingRangeLimitDefault, 0));
-		resultLimit = Math.trunc(Math.max(settings.json?.resultLimit || Number.MAX_VALUE, 0));
+		const sanitizeLimitSetting = (settingValue: any) => Math.trunc(Math.max(settingValue, 0));
+		resultLimit = sanitizeLimitSetting(settings.json?.resultLimit || Number.MAX_VALUE);
+		jsonFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsonFoldingLimit || foldingRangeLimitDefault);
+		jsoncFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsoncFoldingLimit || foldingRangeLimitDefault);
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
@@ -419,11 +383,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const document = documents.get(documentSymbolParams.textDocument.uri);
 			if (document) {
 				const jsonDocument = getJSONDocument(document);
-				const onResultLimitExceeded = limitExceededWarnings.onResultLimitExceeded(document.uri, resultLimit, 'document symbols');
 				if (hierarchicalDocumentSymbolSupport) {
-					return languageService.findDocumentSymbols2(document, jsonDocument, { resultLimit, onResultLimitExceeded });
+					return languageService.findDocumentSymbols2(document, jsonDocument, { resultLimit });
 				} else {
-					return languageService.findDocumentSymbols(document, jsonDocument, { resultLimit, onResultLimitExceeded });
+					return languageService.findDocumentSymbols(document, jsonDocument, { resultLimit });
 				}
 			}
 			return [];
@@ -431,6 +394,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
+		options.keepLines = keepLinesEnabled;
 		const document = documents.get(textDocument.uri);
 		if (document) {
 			const edits = languageService.format(document, range ?? getFullRange(document), options);
@@ -455,9 +419,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
-				const onResultLimitExceeded = limitExceededWarnings.onResultLimitExceeded(document.uri, resultLimit, 'document colors');
+
 				const jsonDocument = getJSONDocument(document);
-				return languageService.findDocumentColors(document, jsonDocument, { resultLimit, onResultLimitExceeded });
+				return languageService.findDocumentColors(document, jsonDocument, { resultLimit });
 			}
 			return [];
 		}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
@@ -478,8 +442,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafe(runtime, () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
-				const onRangeLimitExceeded = limitExceededWarnings.onResultLimitExceeded(document.uri, foldingRangeLimit, 'folding ranges');
-				return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit, onRangeLimitExceeded });
+				const rangeLimit = document.languageId === 'jsonc' ? jsoncFoldingRangeLimit : jsonFoldingRangeLimit;
+				return languageService.getFoldingRanges(document, { rangeLimit });
 			}
 			return null;
 		}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);

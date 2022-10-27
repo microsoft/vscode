@@ -114,7 +114,7 @@
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-body .comment-body-plainstring {
-	white-space: pre;
+	white-space: pre-wrap;
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-body {
@@ -326,6 +326,9 @@
 	font-size: 13px;
 	margin-left: 20px;
 	cursor: default;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .review-widget .head .review-title .dirname:not(:empty) {
@@ -355,7 +358,6 @@
 }
 
 .review-widget .head .review-actions > .monaco-action-bar .action-label {
-	width: 16px;
 	margin: 0;
 	line-height: inherit;
 	background-repeat: no-repeat;
@@ -372,7 +374,7 @@
 }
 
 .monaco-editor .comment-range-glyph {
-	margin-left: 5px;
+	margin-left: 10px;
 	width: 4px !important;
 	cursor: pointer;
 	z-index: 10;
@@ -382,25 +384,25 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	display: none !important;
 }
 
-.monaco-editor .comment-range-glyph:before {
-	position: absolute;
-	content: "";
-	height: 100%;
-	width: 0;
-	left: -2px;
-	transition: width 80ms linear, left 80ms linear;
+.monaco-editor .comment-diff-added {
+	border-left-width: 3px;
+	border-left-style: solid;
+}
+
+.monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread {
+	margin-left: 13px;
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.multiline-add:before,
+.monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
 	height: 100%;
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: black;
+	color: var(--vscode-editor-foreground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;
@@ -408,9 +410,21 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	justify-content: center;
 }
 
+.monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
+	border-left-width: 3px;
+	border-left-style: dotted;
+	height: 16px;
+	margin-top: 2px;
+}
+
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before {
-	content: "+";
+.monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
+	content: "\ea60";
+	font-family: "codicon";
+	border-radius: 3px;
+	width: 18px !important;
+	margin-left: -5px;
+	padding-left: 1px;
 }
 
 .monaco-editor .comment-range-glyph.comment-thread {
@@ -418,16 +432,23 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
-	content: "◆";
-	font-size: 10px;
+	content: "\ea6b";
+	font-family: "codicon";
+	font-size: 13px;
+	width: 18px !important;
 	line-height: 100%;
+	border-radius: 3px;
 	z-index: 20;
+	margin-left: -5px;
+	padding-top: 1px;
+	padding-left: 1px;
 }
 
-.monaco-editor.inline-comment .margin-view-overlays .folding {
-	margin-left: 7px;
+.monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
+.monaco-editor.inline-comment .margin-view-overlays .codicon-folding-collapsed {
+	margin-left: 11px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
-	margin-left: 14px;
+	margin-left: 25px;
 }

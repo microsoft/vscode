@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -12,31 +11,49 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { acceptSelectedCodeActionCommand, applyCodeAction, ApplyCodeActionReason, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, previewSelectedCodeActionCommand, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
+import { CodeActionWidget, Context } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
 		SUPPORTED_CODE_ACTIONS.keys()[0],
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
+}
+
+function refactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean, codeActionFrom: CodeActionTriggerSource) {
+	const args = CodeActionCommandArgs.fromUser(userArgs, {
+		kind: CodeActionKind.Refactor,
+		apply: CodeActionAutoApply.Never
+	});
+	return triggerCodeActionsForEditorSelection(editor,
+		typeof userArgs?.kind === 'string'
+			? args.preferred
+				? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
+				: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
+			: args.preferred
+				? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
+				: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+		{
+			include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
+			onlyIncludePreferredActions: args.preferred
+		},
+		args.apply, preview, codeActionFrom);
 }
 
 const argsSchema: IJSONSchema = {
@@ -66,12 +83,12 @@ const argsSchema: IJSONSchema = {
 	}
 };
 
-export class QuickFixController extends Disposable implements IEditorContribution {
+export class CodeActionController extends Disposable implements IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.quickFixController';
+	public static readonly ID = 'editor.contrib.codeActionController';
 
-	public static get(editor: ICodeEditor): QuickFixController | null {
-		return editor.getContribution<QuickFixController>(QuickFixController.ID);
+	public static get(editor: ICodeEditor): CodeActionController | null {
+		return editor.getContribution<CodeActionController>(CodeActionController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
@@ -93,17 +110,17 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._ui = new Lazy(() =>
-			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
-				applyCodeAction: async (action, retrigger) => {
+			this._register(_instantiationService.createInstance(CodeActionUi, editor, QuickFixAction.Id, AutoFixAction.Id, {
+				applyCodeAction: async (action, retrigger, preview) => {
 					try {
-						await this._applyCodeAction(action);
+						await this._applyCodeAction(action, preview);
 					} finally {
 						if (retrigger) {
-							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
+							this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 						}
 					}
 				}
-			}, this._instantiationService))
+			}))
 		);
 	}
 
@@ -112,13 +129,15 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false });
+		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
+		triggerAction: CodeActionTriggerSource,
 		filter?: CodeActionFilter,
-		autoApply?: CodeActionAutoApply
+		autoApply?: CodeActionAutoApply,
+		preview?: boolean,
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -126,79 +145,15 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
 		return this._model.trigger(trigger);
 	}
 
-	private _applyCodeAction(action: CodeActionItem): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, this._editor);
-	}
-}
-
-export async function applyCodeAction(
-	accessor: ServicesAccessor,
-	item: CodeActionItem,
-	editor?: ICodeEditor,
-): Promise<void> {
-	const bulkEditService = accessor.get(IBulkEditService);
-	const commandService = accessor.get(ICommandService);
-	const telemetryService = accessor.get(ITelemetryService);
-	const notificationService = accessor.get(INotificationService);
-
-	type ApplyCodeActionEvent = {
-		codeActionTitle: string;
-		codeActionKind: string | undefined;
-		codeActionIsPreferred: boolean;
-	};
-	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The display label of the applied code action' };
-		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
-		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
-		owner: 'mjbvz';
-		comment: 'Event used to gain insights into which code actions are being triggered';
-	};
-
-	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		codeActionTitle: item.action.title,
-		codeActionKind: item.action.kind,
-		codeActionIsPreferred: !!item.action.isPreferred,
-	});
-
-	await item.resolve(CancellationToken.None);
-
-	if (item.action.edit) {
-		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), {
-			editor,
-			label: item.action.title,
-			quotableLabel: item.action.title,
-			code: 'undoredo.codeAction',
-			respectAutoSaveConfig: true
-		});
-	}
-
-	if (item.action.command) {
-		try {
-			await commandService.executeCommand(item.action.command.id, ...(item.action.command.arguments || []));
-		} catch (err) {
-			const message = asMessage(err);
-			notificationService.error(
-				typeof message === 'string'
-					? message
-					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
-		}
-	}
-}
-
-function asMessage(err: any): string | undefined {
-	if (typeof err === 'string') {
-		return err;
-	} else if (err instanceof Error && typeof err.message === 'string') {
-		return err.message;
-	} else {
-		return undefined;
+	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
+		return this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
 	}
 }
 
@@ -206,13 +161,13 @@ function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
 	notAvailableMessage: string,
 	filter: CodeActionFilter | undefined,
-	autoApply: CodeActionAutoApply | undefined
+	autoApply: CodeActionAutoApply | undefined,
+	preview: boolean = false,
+	triggerAction: CodeActionTriggerSource = CodeActionTriggerSource.Default
 ): void {
 	if (editor.hasModel()) {
-		const controller = QuickFixController.get(editor);
-		if (controller) {
-			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply);
-		}
+		const controller = CodeActionController.get(editor);
+		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, triggerAction, filter, autoApply, preview);
 	}
 }
 
@@ -235,7 +190,7 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined);
+		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, false, CodeActionTriggerSource.QuickFix);
 	}
 }
 
@@ -306,23 +261,27 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Refactor,
-			apply: CodeActionAutoApply.Never
+		return refactorTrigger(editor, userArgs, false, CodeActionTriggerSource.Refactor);
+	}
+}
+
+export class RefactorPreview extends EditorAction {
+
+	constructor() {
+		super({
+			id: refactorPreviewCommandId,
+			label: nls.localize('refactor.preview.label', "Refactor with Preview..."),
+			alias: 'Refactor Preview...',
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			description: {
+				description: 'Refactor Preview...',
+				args: [{ name: 'args', schema: argsSchema }]
+			}
 		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
-					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{
-				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-				onlyIncludePreferredActions: args.preferred,
-			},
-			args.apply);
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+		return refactorTrigger(editor, userArgs, true, CodeActionTriggerSource.RefactorPreview);
 	}
 }
 
@@ -366,7 +325,7 @@ export class SourceAction extends EditorAction {
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},
-			args.apply);
+			args.apply, undefined, CodeActionTriggerSource.SourceAction);
 	}
 }
 
@@ -392,7 +351,7 @@ export class OrganizeImportsAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
 			{ include: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle);
+			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.OrganizeImports);
 	}
 }
 
@@ -413,7 +372,7 @@ export class FixAllAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('fixAll.noneMessage', "No fix all action available"),
 			{ include: CodeActionKind.SourceFixAll, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle);
+			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.FixAll);
 	}
 }
 
@@ -447,6 +406,120 @@ export class AutoFixAction extends EditorAction {
 				include: CodeActionKind.QuickFix,
 				onlyIncludePreferredActions: true
 			},
-			CodeActionAutoApply.IfSingle);
+			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.AutoFix);
 	}
 }
+
+const weight = KeybindingWeight.EditorContrib + 1000;
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'hideCodeActionWidget',
+			title: {
+				value: nls.localize('hideCodeActionWidget.title', "Hide code action widget"),
+				original: 'Hide code action widget'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			},
+		});
+	}
+
+	run(): void {
+		CodeActionWidget.INSTANCE?.hide();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectPrevCodeAction',
+			title: {
+				value: nls.localize('selectPrevCodeAction.title', "Select previous code action"),
+				original: 'Select previous code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.UpArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
+			}
+		});
+	}
+
+	run(): void {
+		CodeActionWidget.INSTANCE?.focusPrevious();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectNextCodeAction',
+			title: {
+				value: nls.localize('selectNextCodeAction.title', "Select next code action"),
+				original: 'Select next code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.DownArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+			}
+		});
+	}
+
+	run(): void {
+		CodeActionWidget.INSTANCE?.focusNext();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: acceptSelectedCodeActionCommand,
+			title: {
+				value: nls.localize('acceptSelected.title', "Accept selected code action"),
+				original: 'Accept selected code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+			}
+		});
+	}
+
+	run(): void {
+		CodeActionWidget.INSTANCE?.acceptSelected();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: previewSelectedCodeActionCommand,
+			title: {
+				value: nls.localize('previewSelected.title', "Preview selected code action"),
+				original: 'Preview selected code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			}
+		});
+	}
+
+	run(): void {
+		CodeActionWidget.INSTANCE?.acceptSelected({ preview: true });
+	}
+});
+

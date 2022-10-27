@@ -8,14 +8,15 @@ import { localize } from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem, ProfilesActivityActionViewItem, IProfileActivity } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType, isAncestor } from 'vs/base/browser/dom';
@@ -43,7 +44,9 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
+import { IUserDataProfileService, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -107,6 +110,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	private readonly globalActivity: ICompositeActivity[] = [];
 
 	private accountsActivityAction: ActivityAction | undefined;
+	private profilesActivityAction: ActivityAction | undefined;
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
@@ -131,6 +135,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -190,6 +196,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				// Accounts
 				actions.push(new Separator());
 				actions.push(toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference }));
+				if (this.userDataProfilesService.isEnabled()) {
+					actions.push(toAction({ id: 'toggleProfilesVisibility', label: PROFILES_TTILE.value, checked: this.profilesVisibilityPreference, run: () => this.profilesVisibilityPreference = !this.profilesVisibilityPreference }));
+				}
 				actions.push(new Separator());
 
 				// Toggle Sidebar
@@ -250,7 +259,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false));
 
 		// Extension registration
-		let disposables = this._register(new DisposableStore());
+		const disposables = this._register(new DisposableStore());
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			disposables.clear();
 			this.onDidRegisterExtensions();
@@ -268,6 +277,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				}
 			}
 		}));
+
+		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.toggleProfilesActivityAction()));
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.updateProfilesActivityAction()));
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -483,9 +495,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.menuBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus();
-					}
+					this.compositeBar?.focus();
 				}
 			}));
 		}
@@ -495,13 +505,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.compositeBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.globalActivityActionBar) {
-						this.globalActivityActionBar.focus(true);
-					}
+					this.globalActivityActionBar?.focus(true);
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.menuBar) {
-						this.menuBar.toggleFocus();
-					}
+					this.menuBar?.toggleFocus();
 				}
 			}));
 		}
@@ -511,9 +517,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.globalActivitiesContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus(this.getVisiblePaneCompositeIds().length - 1);
-					}
+					this.compositeBar?.focus(this.getVisiblePaneCompositeIds().length - 1);
 				}
 			}));
 		}
@@ -528,6 +532,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 				if (action.id === 'workbench.actions.accounts') {
 					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), this.getActivityHoverOptions());
+				}
+
+				if (action.id === 'workbench.actions.profiles') {
+					return this.instantiationService.createInstance(ProfilesActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getSettingsProfileItemColors(theme), this.getActivityHoverOptions());
 				}
 
 				throw new Error(`No view item for action '${action.id}'`);
@@ -555,9 +563,16 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
+
+		if (this.profilesVisibilityPreference) {
+			this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(this.createProfilesActivity()));
+		}
 	}
 
 	private toggleAccountsActivity() {
+		if (!!this.accountsActivityAction === this.accountsVisibilityPreference) {
+			return;
+		}
 		if (this.globalActivityActionBar) {
 			if (this.accountsActivityAction) {
 				this.globalActivityActionBar.pull(ActivitybarPart.ACCOUNTS_ACTION_INDEX);
@@ -573,6 +588,49 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}
 
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
+	}
+
+	private toggleProfilesActivityAction() {
+		if (!!this.profilesActivityAction === this.profilesVisibilityPreference) {
+			return;
+		}
+		if (this.globalActivityActionBar) {
+			if (this.profilesActivityAction) {
+				this.globalActivityActionBar.pull(this.globalActivityActionBar.length() - 1);
+				this.profilesActivityAction = undefined;
+			} else {
+				this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(this.createProfilesActivity()));
+			}
+		}
+	}
+
+	private updateProfilesActivityAction() {
+		if (!!this.profilesActivityAction !== this.profilesVisibilityPreference) {
+			this.toggleProfilesActivityAction();
+			return;
+		}
+		if (this.profilesActivityAction) {
+			const activity = this.createProfilesActivity();
+			if ((<IProfileActivity>this.profilesActivityAction.activity).icon === activity.icon) {
+				this.profilesActivityAction.activity = activity;
+			}
+			// the icon has changed, so we need to recreate the action
+			else if (this.globalActivityActionBar) {
+				this.globalActivityActionBar.pull(this.globalActivityActionBar.length() - 1);
+				this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(activity));
+			}
+		}
+	}
+
+	private createProfilesActivity(): IProfileActivity {
+		const shortName = this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile);
+		const icon = ThemeIcon.fromString(shortName);
+		return {
+			id: 'workbench.actions.profiles',
+			name: icon ? this.userDataProfileService.currentProfile.name : shortName,
+			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
+			icon: !!icon
+		};
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {
@@ -629,9 +687,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
 		const disposable = this.viewContainerDisposables.get(viewContainer.id);
-		if (disposable) {
-			disposable.dispose();
-		}
+		disposable?.dispose();
 
 		this.viewContainerDisposables.delete(viewContainer.id);
 		this.removeComposite(viewContainer.id);
@@ -723,7 +779,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private addComposite(viewContainer: ViewContainer): void {
-		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+		this.compositeBar.addComposite({ id: viewContainer.id, name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
 
 	private hideComposite(compositeId: string): void {
@@ -791,6 +847,14 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		};
 	}
 
+	private getSettingsProfileItemColors(theme: IColorTheme): ICompositeBarColors {
+		return {
+			...this.getActivitybarItemColors(theme),
+			activeForegroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND),
+			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND),
+		};
+	}
+
 	override layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			return;
@@ -820,7 +884,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.GLOBAL
+		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.PROFILE
 			&& this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
 			this._pinnedViewContainersValue = undefined;
 			this._cachedViewContainers = undefined;
@@ -841,15 +905,24 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			for (let index = 0; index < compositeItems.length; index++) {
 				// Add items currently exists but does not exist in new.
 				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					newCompositeItems.splice(index, 0, compositeItems[index]);
+					const viewContainer = this.viewDescriptorService.getViewContainerById(compositeItems[index].id);
+					newCompositeItems.splice(index, 0, {
+						...compositeItems[index],
+						pinned: true,
+						visible: true,
+						order: viewContainer?.order,
+					});
 				}
 			}
 
 			this.compositeBar.setCompositeBarItems(newCompositeItems);
 		}
 
-		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.GLOBAL) {
+		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.PROFILE) {
 			this.toggleAccountsActivity();
+		}
+		if (e.key === ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.PROFILE) {
+			this.toggleProfilesActivityAction();
 		}
 	}
 
@@ -868,7 +941,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache uri icons in desktop with remote connection */
+					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, /* Donot cache uri icons with remote connection */
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
@@ -893,6 +966,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					cachedViewContainer.name = placeholderViewContainer.name;
 					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? placeholderViewContainer.themeIcon :
 						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
+					if (URI.isUri(cachedViewContainer.icon) && this.environmentService.remoteAuthority) {
+						cachedViewContainer.icon = undefined; /* Donot cache uri icons with remote connection */
+					}
 					cachedViewContainer.views = placeholderViewContainer.views;
 					cachedViewContainer.isBuiltin = placeholderViewContainer.isBuiltin;
 				}
@@ -945,11 +1021,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private getStoredPinnedViewContainersValue(): string {
-		return this.storageService.get(ActivitybarPart.PINNED_VIEW_CONTAINERS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ActivitybarPart.PINNED_VIEW_CONTAINERS, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredPinnedViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
@@ -977,19 +1053,27 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private getStoredPlaceholderViewContainersValue(): string {
-		return this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private get accountsVisibilityPreference(): boolean {
-		return this.storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.GLOBAL, true);
+		return this.storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
 	}
 
 	private set accountsVisibilityPreference(value: boolean) {
-		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private get profilesVisibilityPreference(): boolean {
+		return this.userDataProfilesService.isEnabled() && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, this.userDataProfilesService.profiles.length > 1);
+	}
+
+	private set profilesVisibilityPreference(value: boolean) {
+		this.storageService.store(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	toJSON(): object {

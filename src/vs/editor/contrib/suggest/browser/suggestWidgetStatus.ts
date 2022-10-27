@@ -68,7 +68,7 @@ export class SuggestWidgetStatus {
 		const renderMenu = () => {
 			const left: IAction[] = [];
 			const right: IAction[] = [];
-			for (let [group, actions] of menu.getActions()) {
+			for (const [group, actions] of menu.getActions()) {
 				if (group === 'left') {
 					left.push(...actions);
 				} else {

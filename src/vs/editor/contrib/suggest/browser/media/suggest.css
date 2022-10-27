@@ -95,7 +95,6 @@
 .monaco-editor .suggest-widget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 }
 
 /** Styles for each row in the list element **/

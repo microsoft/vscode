@@ -11,7 +11,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -25,6 +25,11 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { NativeLocaleService } from 'vs/workbench/contrib/localization/electron-sandbox/localeService';
+
+registerSingleton(ILocaleService, NativeLocaleService, InstantiationType.Delayed);
 
 // Register action to configure locale and related settings
 registerAction2(ConfigureDisplayLanguageAction);
@@ -72,7 +77,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						}],
 						{
 							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
 						}
 					);
 				}
@@ -83,7 +88,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.GLOBAL, '[]'));
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
 			return;
@@ -118,11 +123,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] : {};
+							const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
 							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
 							const useEnglish = !translationsFromPack[promptMessageKey];
 
-							const translations: any = {};
+							const translations: { [key: string]: string } = {};
 							Object.keys(minimumTranslatedStrings).forEach(key => {
 								if (!translationsFromPack[key] || useEnglish) {
 									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
@@ -177,7 +182,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL,
+											StorageScope.APPLICATION,
 											StorageTarget.USER
 										);
 										logUserReaction('neverShowAgain');

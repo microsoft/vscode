@@ -5,10 +5,12 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
+import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
@@ -19,7 +21,8 @@ export interface IEditorWorkerService {
 	canComputeUnicodeHighlights(uri: URI): boolean;
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
-	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
+	/** Implementation in {@link EditorSimpleWorker.computeDiff} */
+	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions): Promise<IDiffComputationResult | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
@@ -32,6 +35,32 @@ export interface IEditorWorkerService {
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
 }
+
+export interface IDiffComputationResult {
+	quitEarly: boolean;
+	changes: ILineChange[];
+	identical: boolean;
+}
+
+export type ILineChange = [
+	originalStartLine: number,
+	originalEndLine: number,
+	modifiedStartLine: number,
+	modifiedEndLine: number,
+	charChanges: ICharChange[] | undefined,
+];
+
+export type ICharChange = [
+	originalStartLine: number,
+	originalStartColumn: number,
+	originalEndLine: number,
+	originalEndColumn: number,
+
+	modifiedStartLine: number,
+	modifiedStartColumn: number,
+	modifiedEndLine: number,
+	modifiedEndColumn: number,
+];
 
 export interface IUnicodeHighlightsResult {
 	ranges: IRange[];

@@ -109,13 +109,21 @@
 	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item.focused {
+	outline-offset: -1.5px;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
-	padding-bottom: 7px;
+	padding-bottom: 6.5px;
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label .dropdown-icon {
+	padding-top: 2px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
@@ -162,6 +170,10 @@
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents,
 .settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
 	padding-left: 33px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row {
+	outline: none !important;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-twistie {
@@ -286,6 +298,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-rows {
+	min-height: 175px; /* Avoid the hover being cut off. See #164602 */
 	overflow: visible !important; /* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
 }
 
@@ -343,14 +356,19 @@
 	font-style: italic;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden .codicon {
-	vertical-align: text-top;
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-overrides.with-custom-hover:hover,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-ignored:hover,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-default-overridden:hover {
+	text-decoration: underline;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .codicon {
+	vertical-align: middle;
 	padding-left: 1px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-label .codicon {
-	vertical-align: text-top;
+	vertical-align: middle;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {
@@ -413,14 +431,6 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span,
 .settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span {
 	padding-right: 5px;
-}
-
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span.codicon.codicon-workspace-untrusted {
-	color: var(--workspace-trust-state-untrusted-color) !important;
-}
-
-.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span.codicon.codicon-lock {
-	color: var(--organization-policy-icon-color) !important;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message {
@@ -548,7 +558,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
-	padding: 2px 8px;
+	padding: 2px 6px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-new-extensions {
@@ -602,6 +612,6 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .codicon,
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row.focused .codicon,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .codicon {
 	color: inherit !important;
 }

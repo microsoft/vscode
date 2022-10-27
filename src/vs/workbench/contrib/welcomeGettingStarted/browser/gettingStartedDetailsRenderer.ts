@@ -72,9 +72,11 @@ export class GettingStartedDetailsRenderer {
 						margin: 5px;
 						cursor: pointer;
 					}
+					checkbox > img {
+						margin-bottom: 4px;
+					}
 					checkbox.checked > img {
 						box-sizing: border-box;
-						margin-bottom: 4px;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);
@@ -246,7 +248,7 @@ export class GettingStartedDetailsRenderer {
 
 const transformUri = (src: string, base: URI) => {
 	const path = joinPath(base, src);
-	return asWebviewUri(path).toString();
+	return asWebviewUri(path).toString(true);
 };
 
 const transformUris = (content: string, base: URI): string => content
