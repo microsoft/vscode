@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ListMenuItem, BaseActionWidget, ActionShowOptions, ListItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListMenuItem, BaseActionWidget, ActionShowOptions } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -15,6 +15,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
+import { CodeAction } from 'vs/editor/common/languages';
 import { ActionList } from 'vs/editor/contrib/codeAction/browser/actionList';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
@@ -43,18 +44,17 @@ enum CodeActionListItemKind {
 	Header = 'header'
 }
 
-interface CodeActionListItemCodeAction extends ListMenuItem {
+interface CodeActionListItemCodeAction extends ListMenuItem<CodeAction> {
 	readonly kind: CodeActionListItemKind.CodeAction;
-	readonly item: CodeActionItem;
+	readonly item: CodeAction;
 	readonly group: ActionGroup;
 }
-
-
-interface CodeActionListItemHeader extends ListMenuItem {
+class Header { }
+interface CodeActionListItemHeader extends ListMenuItem<Header> {
 	readonly kind: CodeActionListItemKind.Header;
 	readonly group: ActionGroup;
 }
-type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
+type ICodeActionMenuItem = ListMenuItem<CodeActionItem>;
 
 interface ICodeActionMenuTemplateData {
 	readonly container: HTMLElement;
@@ -118,10 +118,12 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			data.icon.className = Codicon.lightBulb.classNames;
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
+		if (!element.item?.title) {
+			return;
+		}
+		data.text.textContent = stripNewlines(element.item.title);
 
-		data.text.textContent = stripNewlines(element.item.action.title);
-
-		const binding = this.keybindingResolver.getResolver()(element.item.action);
+		const binding = this.keybindingResolver.getResolver()(element.item);
 		data.keybinding.set(binding);
 		if (!binding) {
 			dom.hide(data.keybinding.element);
@@ -129,8 +131,8 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			dom.show(data.keybinding.element);
 		}
 
-		if (element.item.action.disabled) {
-			data.container.title = element.item.action.disabled;
+		if (element.item.disabled) {
+			data.container.title = element.item.disabled;
 			data.container.classList.add('option-disabled');
 		} else {
 			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
@@ -170,12 +172,12 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
-class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActionListItemHeader> {
+class CodeActionList extends ActionList<CodeActionItem> {
 
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		onDidSelect: (action: ListItem, options: { readonly preview: boolean }) => void,
+		onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
@@ -203,12 +205,18 @@ class CodeActionList extends ActionList<CodeActionListItemCodeAction | CodeActio
 					getWidgetRole: () => 'code-action-widget'
 				},
 			}
-		}, codeActions, showHeaders, acceptSelectedCodeActionCommand, (element: CodeActionListItemCodeAction | CodeActionListItemHeader) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item.action.disabled; }, onDidSelect, contextViewService);
+		}, codeActions, showHeaders, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item?.action.disabled; }, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, item: action, group: uncategorizedCodeActionGroup }));
+			return inputCodeActions.map((action): ICodeActionMenuItem => {
+				return {
+					kind: CodeActionListItemKind.CodeAction,
+					item: action,
+					group: uncategorizedCodeActionGroup
+				};
+			});
 		}
 
 		// Group code actions
@@ -309,7 +317,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
-		const onDidSelect = (action: ListItem, options: { readonly preview: boolean }) => {
+		const onDidSelect = (action: CodeActionItem, options: { readonly preview: boolean }) => {
 			this.hide();
 			delegate.onSelectCodeAction(action as CodeActionItem, trigger, options);
 		};

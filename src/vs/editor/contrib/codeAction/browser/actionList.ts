@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ListItem, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 
-export abstract class ActionList<T extends ListMenuItem> extends Disposable {
+export abstract class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
-	public list: List<T>;
+	public list: List<ListMenuItem<T>>;
 
 	readonly actionLineHeight = 24;
 	readonly headerLineHeight = 26;
 
-	private readonly allMenuItems: T[];
+	private readonly allMenuItems: ListMenuItem<T>[];
 
 	constructor(
 		listCtor: { user: string; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
-		items: readonly ListItem[],
+		items: readonly T[],
 		showHeaders: boolean,
 		private readonly acceptSelectedActionCommand: string,
-		private readonly focusCondition: (element: T) => boolean,
-		private readonly onDidSelect: (action: ListItem, options: { readonly preview: boolean }) => void,
+		private readonly focusCondition: (element: ListMenuItem<T>) => boolean,
+		private readonly onDidSelect: (action: T, options: { readonly preview: boolean }) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 
-		const virtualDelegate: IListVirtualDelegate<T> = {
+		const virtualDelegate: IListVirtualDelegate<ListMenuItem<T>> = {
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
@@ -108,7 +108,7 @@ export abstract class ActionList<T extends ListMenuItem> extends Disposable {
 		this.list.setSelection([focusIndex], event);
 	}
 
-	private onListSelection(e: IListEvent<T>): void {
+	private onListSelection(e: IListEvent<ListMenuItem<T>>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -121,15 +121,15 @@ export abstract class ActionList<T extends ListMenuItem> extends Disposable {
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<T>): void {
+	private onListHover(e: IListMouseEvent<ListMenuItem<T>>): void {
 		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
-	private onListClick(e: IListMouseEvent<T>): void {
+	private onListClick(e: IListMouseEvent<ListMenuItem<T>>): void {
 		if (e.element && this.focusCondition(e.element)) {
 			this.list.setFocus([]);
 		}
 	}
 
-	public abstract toMenuItems(inputActions: readonly ListItem[], showHeaders: boolean): T[];
+	public abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
 }

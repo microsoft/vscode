@@ -20,7 +20,7 @@ import { CodeActionAutoApply, CodeActionItem, CodeActionTrigger } from '../commo
 import { CodeActionsState } from './codeActionModel';
 import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-export interface CodeActionSet extends ActionSet {
+export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 }

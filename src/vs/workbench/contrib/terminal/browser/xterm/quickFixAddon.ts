@@ -11,7 +11,6 @@ import { asArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -32,6 +31,8 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { TerminalQuickFix, TerminalQuickFixWidget } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
+import { ActionSet } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	id: string;
@@ -77,10 +78,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _expectedCommands: string[] | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -98,7 +98,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
+		this._terminalDecorationHoverService = _instantiationService.createInstance(TerminalDecorationHoverManager);
 		for (const quickFix of this._terminalContributionService.quickFixes) {
 			this.registerCommandFinishedListener(convertToQuickFixOptions(quickFix));
 		}
@@ -228,7 +228,30 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => fixes, autoSelectFirstItem: true });
+				const widget = this._instantiationService.createInstance(TerminalQuickFixWidget);
+				const rect = e.getBoundingClientRect();
+				const anchor = {
+					x: rect.x,
+					y: rect.y,
+					width: rect.width,
+					height: rect.height
+				};
+				//TODO
+				const documentation = [{ id: '', title: '' }];
+				const actionSet = {
+					documentation,
+					allActions: fixes.map(f => new TerminalQuickFix(f)),
+					hasAutoFix: true,
+					validActions: fixes.map(f => new TerminalQuickFix(f)),
+					dispose: () => { widget.clear(); }
+				} as ActionSet<TerminalQuickFix>;
+				widget.show(
+					'click',
+					actionSet,
+					anchor, e, { includeDisabledActions: false, fromLightbulb: false, showHeaders: false }, {
+					onHide: () => widget.dispose(),
+					onSelectQuickFix: async (fix, trigger, options) => { fix.action?.run(); }
+				});
 			}));
 			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
