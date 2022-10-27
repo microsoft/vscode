@@ -8,14 +8,12 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ListMenuItem, BaseActionWidget, ActionShowOptions } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
-import { ActionList } from 'vs/editor/contrib/codeAction/browser/actionList';
+import { ActionItemRenderer, ActionList, IActionMenuTemplateData } from 'vs/editor/contrib/codeAction/browser/actionList';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
@@ -45,13 +43,6 @@ enum CodeActionListItemKind {
 
 type ICodeActionMenuItem = ListMenuItem<CodeActionItem>;
 
-interface ICodeActionMenuTemplateData {
-	readonly container: HTMLElement;
-	readonly icon: HTMLElement;
-	readonly text: HTMLElement;
-	readonly keybinding: KeybindingLabel;
-}
-
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
@@ -75,31 +66,16 @@ const codeActionGroups = Object.freeze<ActionGroup[]>([
 	uncategorizedCodeActionGroup,
 ]);
 
-class CodeActionItemRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
+class CodeActionItemRenderer extends ActionItemRenderer<ICodeActionMenuItem> {
+	get templateId(): string { return CodeActionListItemKind.CodeAction; }
 	constructor(
 		private readonly keybindingResolver: CodeActionKeybindingResolver,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) { }
-
-	get templateId(): string { return CodeActionListItemKind.CodeAction; }
-
-	renderTemplate(container: HTMLElement): ICodeActionMenuTemplateData {
-		container.classList.add('code-action');
-
-		const icon = document.createElement('div');
-		icon.className = 'icon';
-		container.append(icon);
-
-		const text = document.createElement('span');
-		text.className = 'title';
-		container.append(text);
-
-		const keybinding = new KeybindingLabel(container, OS);
-
-		return { container, icon, text, keybinding };
+	) {
+		super();
 	}
 
-	renderElement(element: ICodeActionMenuItem, _index: number, data: ICodeActionMenuTemplateData): void {
+	renderElement(element: ICodeActionMenuItem, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group.icon) {
 			data.icon.className = element.group.icon.codicon.classNames;
 			data.icon.style.color = element.group.icon.color ?? '';
@@ -126,10 +102,6 @@ class CodeActionItemRenderer implements IListRenderer<ICodeActionMenuItem, ICode
 			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
 			data.container.classList.remove('option-disabled');
 		}
-	}
-
-	disposeTemplate(_templateData: ICodeActionMenuTemplateData): void {
-		// noop
 	}
 }
 

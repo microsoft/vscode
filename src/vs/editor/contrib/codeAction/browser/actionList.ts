@@ -4,11 +4,72 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { OS } from 'vs/base/common/platform';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
+export interface IActionMenuTemplateData {
+	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly text: HTMLElement;
+	readonly keybinding: KeybindingLabel;
+}
+
+export abstract class ActionItemRenderer<T> implements IListRenderer<T, IActionMenuTemplateData> {
+
+	abstract get templateId(): string;
+
+	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
+		container.classList.add(this.templateId);
+
+		const icon = document.createElement('div');
+		icon.className = 'icon';
+		container.append(icon);
+
+		const text = document.createElement('span');
+		text.className = 'title';
+		container.append(text);
+
+		const keybinding = new KeybindingLabel(container, OS);
+
+		return { container, icon, text, keybinding };
+	}
+
+	abstract renderElement(element: T, _index: number, data: IActionMenuTemplateData): void;
+	disposeTemplate(_templateData: IActionMenuTemplateData): void {
+		// noop
+	}
+}
+
+interface HeaderTemplateData {
+	readonly container: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+export class HeaderRenderer<T> implements IListRenderer<ListMenuItem<T>, HeaderTemplateData> {
+
+	get templateId(): string { return 'header'; }
+
+	renderTemplate(container: HTMLElement): HeaderTemplateData {
+		container.classList.add('group-header');
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return { container, text };
+	}
+
+	renderElement(element: ListMenuItem<T>, _index: number, templateData: HeaderTemplateData): void {
+		templateData.text.textContent = element.group.title;
+	}
+
+	disposeTemplate(_templateData: HeaderTemplateData): void {
+		// noop
+	}
+}
 
 export abstract class ActionList<T> extends Disposable {
 
