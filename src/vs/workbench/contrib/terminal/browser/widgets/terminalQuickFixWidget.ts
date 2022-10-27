@@ -124,11 +124,6 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 			this._keybindingService,
 			this._contextViewService);
 
-		if (this.list.value) {
-			widget.appendChild(this.list.value.domNode);
-		} else {
-			throw new Error('List has no value');
-		}
 
 		widget.appendChild(this.list.value.domNode);
 
