@@ -18,7 +18,7 @@ import { AbstractFileSynchroniser, AbstractInitializer, IAcceptResult, IFileReso
 import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ITasksSyncContent {
-	tasks: string;
+	tasks?: string;
 }
 
 interface ITasksResourcePreview extends IFileResourcePreview {
@@ -28,7 +28,7 @@ interface ITasksResourcePreview extends IFileResourcePreview {
 export function getTasksContentFromSyncContent(syncContent: string, logService: ILogService): string | null {
 	try {
 		const parsed = <ITasksSyncContent>JSON.parse(syncContent);
-		return parsed.tasks;
+		return parsed.tasks ?? null;
 	} catch (e) {
 		logService.error(e);
 		return null;
@@ -76,7 +76,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
 
-		if (remoteContent) {
+		if (remoteUserData.syncData) {
 			const localContent = fileContent ? fileContent.value.toString() : null;
 			if (!lastSyncContent // First time sync
 				|| lastSyncContent !== localContent // Local has forwarded
@@ -196,13 +196,17 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			if (fileContent) {
 				await this.backupLocal(JSON.stringify(this.toTasksSyncContent(fileContent.value.toString())));
 			}
-			await this.updateLocalFileContent(content || '{}', fileContent, force);
+			if (content) {
+				await this.updateLocalFileContent(content, fileContent, force);
+			} else {
+				await this.deleteLocalFile();
+			}
 			this.logService.info(`${this.syncResourceLogLabel}: Updated local tasks`);
 		}
 
 		if (remoteChange !== Change.None) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote tasks...`);
-			const remoteContents = JSON.stringify(this.toTasksSyncContent(content || '{}'));
+			const remoteContents = JSON.stringify(this.toTasksSyncContent(content));
 			remoteUserData = await this.updateRemoteUserData(remoteContents, force ? null : remoteUserData.ref);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote tasks`);
 		}
@@ -235,8 +239,8 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		return null;
 	}
 
-	private toTasksSyncContent(tasks: string): ITasksSyncContent {
-		return { tasks };
+	private toTasksSyncContent(tasks: string | null): ITasksSyncContent {
+		return tasks ? { tasks } : {};
 	}
 
 }

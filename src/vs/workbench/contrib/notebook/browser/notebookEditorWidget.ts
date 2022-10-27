@@ -1143,6 +1143,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.focusElement(cell);
 				const selection = cellOptions.options?.selection;
 				if (selection) {
+					cell.updateEditState(CellEditState.Editing, 'setOptions');
+					cell.focusMode = CellFocusMode.Editor;
 					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
 				} else if (options?.cellRevealType === CellRevealType.NearTopIfOutsideViewport) {
 					await this.revealNearTopIfOutsideViewportAync(cell);
