@@ -1259,10 +1259,22 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
-		const clearInputBox = async () => {
+		const getOptimisticResourceGroups = async (): Promise<GitResourceGroups> => {
 			if (message) {
 				this.inputBox.value = await this.getInputTemplate();
 			}
+
+			let untrackedGroup: Resource[] | undefined = undefined,
+				workingTreeGroup: Resource[] | undefined = undefined;
+
+			if (opts.all === 'tracked') {
+				workingTreeGroup = this.workingTreeGroup.resourceStates
+					.filter(r => r.type === Status.UNTRACKED);
+			} else if (opts.all) {
+				untrackedGroup = workingTreeGroup = [];
+			}
+
+			return { indexGroup: [], mergeGroup: [], untrackedGroup, workingTreeGroup };
 		};
 
 		if (this.rebaseCommit) {
@@ -1277,10 +1289,7 @@ export class Repository implements Disposable {
 					await this.repository.rebaseContinue();
 					this.closeDiffEditors(indexResources, workingGroupResources);
 				},
-				async () => {
-					await clearInputBox();
-					return undefined;
-				});
+				getOptimisticResourceGroups);
 		} else {
 			await this.run(
 				Operation.Commit,
@@ -1300,21 +1309,7 @@ export class Repository implements Disposable {
 					await this.repository.commit(message, opts);
 					this.closeDiffEditors(indexResources, workingGroupResources);
 				},
-				async () => {
-					await clearInputBox();
-
-					let untrackedGroup: Resource[] | undefined = undefined,
-						workingTreeGroup: Resource[] | undefined = undefined;
-
-					if (opts.all === 'tracked') {
-						workingTreeGroup = this.workingTreeGroup.resourceStates
-							.filter(r => r.type === Status.UNTRACKED);
-					} else if (opts.all) {
-						untrackedGroup = workingTreeGroup = [];
-					}
-
-					return { indexGroup: [], untrackedGroup, workingTreeGroup };
-				});
+				getOptimisticResourceGroups);
 
 			// Execute post-commit command
 			if (opts.postCommitCommand !== null) {
