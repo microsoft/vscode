@@ -78,3 +78,7 @@ export abstract class BaseActionWidget<T> extends Disposable {
 		return list.toMenuItems(actions, showHeaders);
 	}
 }
+
+export function stripNewlines(str: string): string {
+	return str.replace(/\r\n|\r|\n/g, ' ');
+}

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ListMenuItem, BaseActionWidget, ActionShowOptions } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListMenuItem, BaseActionWidget, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -41,12 +41,6 @@ enum CodeActionListItemKind {
 	Header = 'header'
 }
 
-type ICodeActionMenuItem = ListMenuItem<CodeActionItem>;
-
-function stripNewlines(str: string): string {
-	return str.replace(/\r\n|\r|\n/g, ' ');
-}
-
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
@@ -66,7 +60,7 @@ const codeActionGroups = Object.freeze<ActionGroup[]>([
 	uncategorizedCodeActionGroup,
 ]);
 
-class CodeActionItemRenderer extends ActionItemRenderer<ICodeActionMenuItem> {
+class CodeActionItemRenderer extends ActionItemRenderer<ListMenuItem<CodeActionItem>> {
 	get templateId(): string { return CodeActionListItemKind.CodeAction; }
 	constructor(
 		private readonly keybindingResolver: CodeActionKeybindingResolver,
@@ -75,7 +69,7 @@ class CodeActionItemRenderer extends ActionItemRenderer<ICodeActionMenuItem> {
 		super();
 	}
 
-	renderElement(element: ICodeActionMenuItem, _index: number, data: IActionMenuTemplateData): void {
+	renderElement(element: ListMenuItem<CodeActionItem>, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group.icon) {
 			data.icon.className = element.group.icon.codicon.classNames;
 			data.icon.style.color = element.group.icon.color ?? '';
@@ -110,7 +104,7 @@ interface HeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-class HeaderRenderer implements IListRenderer<ICodeActionMenuItem, HeaderTemplateData> {
+class HeaderRenderer implements IListRenderer<ListMenuItem<CodeActionItem>, HeaderTemplateData> {
 
 	get templateId(): string { return CodeActionListItemKind.Header; }
 
@@ -123,7 +117,7 @@ class HeaderRenderer implements IListRenderer<ICodeActionMenuItem, HeaderTemplat
 		return { container, text };
 	}
 
-	renderElement(element: ICodeActionMenuItem, _index: number, templateData: HeaderTemplateData): void {
+	renderElement(element: ListMenuItem<CodeActionItem>, _index: number, templateData: HeaderTemplateData): void {
 		templateData.text.textContent = element.group.title;
 	}
 
@@ -168,9 +162,9 @@ class CodeActionList extends ActionList<CodeActionItem> {
 		}, codeActions, showHeaders, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item?.action.disabled; }, onDidSelect, contextViewService);
 	}
 
-	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
+	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action): ICodeActionMenuItem => {
+			return inputCodeActions.map((action): ListMenuItem<CodeActionItem> => {
 				return {
 					kind: CodeActionListItemKind.CodeAction,
 					item: action,
@@ -192,7 +186,7 @@ class CodeActionList extends ActionList<CodeActionItem> {
 			}
 		}
 
-		const allMenuItems: ICodeActionMenuItem[] = [];
+		const allMenuItems: ListMenuItem<CodeActionItem>[] = [];
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.actions.length) {
 				allMenuItems.push({ kind: CodeActionListItemKind.Header, group: menuEntry.group });

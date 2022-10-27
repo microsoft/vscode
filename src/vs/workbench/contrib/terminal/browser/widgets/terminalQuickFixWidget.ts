@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionSet, ActionShowOptions, BaseActionWidget, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionSet, ActionShowOptions, BaseActionWidget, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionList } from 'vs/editor/contrib/codeAction/browser/actionList';
+import { ActionItemRenderer, ActionList, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/codeAction/browser/actionList';
 import { ActionGroup } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -18,11 +18,13 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 
 export class TerminalQuickFix extends Disposable {
 	action?: IAction;
 	disabled?: boolean;
-	constructor(action: IAction, disabled?: boolean) {
+	constructor(action?: IAction, disabled?: boolean) {
 		super();
 		this.action = action;
 		this.disabled = disabled;
@@ -43,7 +45,8 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -111,7 +114,7 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 		const focusCondition = (element: ListMenuItem<TerminalQuickFix>) => { return !element?.item?.disabled; };
 		this.list.value = new QuickFixList({
 			user: 'terminalQuickFix',
-			renderers: [],
+			renderers: [new HeaderRenderer(), new QuickFixItemRenderer(this._keybindingService)],
 		},
 			showingActions,
 			options.showHeaders ?? true,
@@ -230,17 +233,50 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 	}
 }
 
+export class QuickFixItemRenderer extends ActionItemRenderer<ListMenuItem<TerminalQuickFix>> {
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super();
+	}
+	get templateId(): string {
+		return 'terminal-quick-fix';
+	}
+	renderElement(element: ListMenuItem<TerminalQuickFix>, _index: number, data: IActionMenuTemplateData): void {
+		if (element.group.icon) {
+			data.icon.className = element.group.icon.codicon.classNames;
+			data.icon.style.color = element.group.icon.color ?? '';
+		} else {
+			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
+		}
+		if (!element.item?.action?.label) {
+			return;
+		}
+		data.text.textContent = stripNewlines(element.item?.action?.label);
+
+		if (element.item.disabled) {
+			data.container.title = element.item.action.label;
+			data.container.classList.add('option-disabled');
+		} else {
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
+			data.container.classList.remove('option-disabled');
+		}
+	}
+}
+
 class QuickFixList extends ActionList<TerminalQuickFix> {
+
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): TerminalQuickFixListItem[] {
 		const menuItems: TerminalQuickFixListItem[] = [];
-		for (const action of inputActions) {
+		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
 				menuItems.push({
 					kind: 'terminal-quick-fix',
 					item: action,
 					group: {
 						kind: CodeActionKind.QuickFix,
-						icon: { codicon: Codicon.terminal, color: 'red' },
+						icon: { codicon: action.action.id === 'quickFix.opener' ? Codicon.link : Codicon.run },
 						title: action.action!.label
 					}
 				} as TerminalQuickFixListItem);

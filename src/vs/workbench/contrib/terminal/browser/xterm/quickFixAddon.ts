@@ -237,7 +237,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					height: rect.height
 				};
 				//TODO
-				const documentation = [{ id: '', title: '' }];
+				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
 				const actionSet = {
 					documentation,
 					allActions: fixes.map(f => new TerminalQuickFix(f)),
@@ -248,9 +248,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				widget.show(
 					'click',
 					actionSet,
-					anchor, e, { includeDisabledActions: false, fromLightbulb: false, showHeaders: false }, {
-					onHide: () => widget.dispose(),
-					onSelectQuickFix: async (fix, trigger, options) => { fix.action?.run(); }
+					anchor, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: true }, {
+					onHide: () => { },
+					onSelectQuickFix: async (fix, trigger, options) => {
+						fix.action?.run();
+					}
 				});
 			}));
 			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
