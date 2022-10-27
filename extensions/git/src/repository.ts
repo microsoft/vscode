@@ -448,6 +448,13 @@ export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
 }
 
+interface GitResourceGroups {
+	index?: Resource[];
+	merge?: Resource[];
+	untracked?: Resource[];
+	workingTree?: Resource[];
+}
+
 export interface OperationResult {
 	operation: Operation;
 	error: any;
@@ -975,7 +982,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
-		)(this.updateModelState, this, this.disposables);
+		)(() => this.updateModelState(), this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1252,33 +1259,51 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
+		const clearInputBox = async () => {
+			if (message) {
+				this.inputBox.value = await this.getInputTemplate();
+			}
+		};
+
 		if (this.rebaseCommit) {
-			await this.run(Operation.RebaseContinue, async () => {
-				if (opts.all) {
-					const addOpts = opts.all === 'tracked' ? { update: true } : {};
-					await this.repository.add([], addOpts);
-				}
+			await this.run(
+				Operation.RebaseContinue,
+				async () => {
+					if (opts.all) {
+						const addOpts = opts.all === 'tracked' ? { update: true } : {};
+						await this.repository.add([], addOpts);
+					}
 
-				await this.repository.rebaseContinue();
-				this.closeDiffEditors(indexResources, workingGroupResources);
-			});
+					await this.repository.rebaseContinue();
+					this.closeDiffEditors(indexResources, workingGroupResources);
+				},
+				async () => {
+					await clearInputBox();
+					return undefined;
+				});
 		} else {
-			await this.run(Operation.Commit, async () => {
-				if (opts.all) {
-					const addOpts = opts.all === 'tracked' ? { update: true } : {};
-					await this.repository.add([], addOpts);
-				}
+			await this.run(
+				Operation.Commit,
+				async () => {
+					if (opts.all) {
+						const addOpts = opts.all === 'tracked' ? { update: true } : {};
+						await this.repository.add([], addOpts);
+					}
 
-				delete opts.all;
+					delete opts.all;
 
-				if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
-					const config = workspace.getConfiguration('git', Uri.file(this.root));
-					opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
-				}
+					if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
+						const config = workspace.getConfiguration('git', Uri.file(this.root));
+						opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
+					}
 
-				await this.repository.commit(message, opts);
-				this.closeDiffEditors(indexResources, workingGroupResources);
-			});
+					await this.repository.commit(message, opts);
+					this.closeDiffEditors(indexResources, workingGroupResources);
+				},
+				async () => {
+					await clearInputBox();
+					return undefined;
+				});
 
 			// Execute post-commit command
 			if (opts.postCommitCommand !== null) {
@@ -1867,7 +1892,10 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+	private async run<T>(
+		operation: Operation,
+		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
+		optimisticResourceGroups: () => Promise<GitResourceGroups | undefined> | GitResourceGroups | undefined = () => undefined): Promise<T> {
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
@@ -1881,7 +1909,7 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
-				await this.updateModelState();
+				await this.updateModelState(await optimisticResourceGroups());
 			}
 
 			return result;
@@ -1940,18 +1968,14 @@ export class Repository implements Disposable {
 		return folderPaths.filter(p => !ignored.has(p));
 	}
 
-	private async updateModelState() {
+	private async updateModelState(optimisticResourcesGroups?: GitResourceGroups) {
 		this.updateModelStateCancellationTokenSource?.cancel();
 
 		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
-		await this._updateModelState(this.updateModelStateCancellationTokenSource.token);
+		await this._updateModelState(optimisticResourcesGroups, this.updateModelStateCancellationTokenSource.token);
 	}
 
-	private async _updateModelState(cancellationToken?: CancellationToken): Promise<void> {
-		if (cancellationToken && cancellationToken.isCancellationRequested) {
-			return;
-		}
-
+	private async _updateModelState(optimisticResourcesGroups?: GitResourceGroups, cancellationToken?: CancellationToken): Promise<void> {
 		try {
 			const config = workspace.getConfiguration('git');
 			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
@@ -1959,13 +1983,12 @@ export class Repository implements Disposable {
 				sort = 'alphabetically';
 			}
 
-			const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
+			const [HEAD, refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
 				await Promise.all([
 					this.repository.getHEADBranch(),
 					this.repository.getRefs({ sort }),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
-					this.getStatus(cancellationToken),
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.getInputTemplate()]);
@@ -1977,18 +2000,28 @@ export class Repository implements Disposable {
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
 
-			// set resource groups
-			this.mergeGroup.resourceStates = status.merge;
-			this.indexGroup.resourceStates = status.index;
-			this.workingTreeGroup.resourceStates = status.workingTree;
-			this.untrackedGroup.resourceStates = status.untracked;
-
-			// set count badge
-			this.setCountBadge();
-
-			this._onDidChangeStatus.fire();
-
 			this._sourceControl.commitTemplate = commitTemplate;
+
+			const updateResourceStates = (resourcesGroups: GitResourceGroups) => {
+				// set resource groups
+				if (resourcesGroups.index) { this.indexGroup.resourceStates = resourcesGroups.index; }
+				if (resourcesGroups.merge) { this.mergeGroup.resourceStates = resourcesGroups.merge; }
+				if (resourcesGroups.untracked) { this.untrackedGroup.resourceStates = resourcesGroups.untracked; }
+				if (resourcesGroups.workingTree) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTree; }
+
+				// set count badge
+				this.setCountBadge();
+
+				this._onDidChangeStatus.fire();
+			};
+
+			// Optimistically update the resource states
+			if (optimisticResourcesGroups) {
+				updateResourceStates(optimisticResourcesGroups);
+			}
+
+			// Update resource states based on status information
+			updateResourceStates(await this.getStatus(cancellationToken));
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -1999,7 +2032,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async getStatus(cancellationToken?: CancellationToken): Promise<{ index: Resource[]; workingTree: Resource[]; merge: Resource[]; untracked: Resource[] }> {
+	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {
 		if (cancellationToken && cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2134,7 +2167,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		return { index, workingTree, merge, untracked };
+		return { index, merge, untracked, workingTree };
 	}
 
 	private setCountBadge(): void {

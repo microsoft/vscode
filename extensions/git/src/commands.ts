@@ -1790,11 +1790,7 @@ export class CommandCenter {
 			return _message;
 		};
 
-		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
-
-		if (message && didCommit) {
-			repository.inputBox.value = await repository.getInputTemplate();
-		}
+		await this.smartCommit(repository, getCommitMessage, opts);
 	}
 
 	@command('git.commit', { repository: true })
