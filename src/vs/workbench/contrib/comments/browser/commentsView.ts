@@ -144,7 +144,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 
 		this.totalUnresolved = unresolved;
-		const message = nls.localize('totalUnresolvedComments','{0} Unresolved Comments', this.totalUnresolved);
+		const message = nls.localize('totalUnresolvedComments', '{0} Unresolved Comments', this.totalUnresolved);
 		this.activity.value = this.activityService.showViewActivity(this.id, { badge: new NumberBadge(this.totalUnresolved, () => message) });
 	}
 
