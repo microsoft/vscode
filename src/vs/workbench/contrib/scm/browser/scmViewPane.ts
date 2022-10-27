@@ -1514,7 +1514,7 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 			title: localize('setListViewMode', "View as List"),
 			viewId: VIEW_PANE_ID,
 			f1: false,
-			icon: Codicon.listFlat,
+			icon: Codicon.listTree,
 			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
 			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
 		});
@@ -1543,7 +1543,7 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 			title: localize('setTreeViewMode', "View as Tree"),
 			viewId: VIEW_PANE_ID,
 			f1: false,
-			icon: Codicon.listTree,
+			icon: Codicon.listFlat,
 			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree),
 			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
 		});
