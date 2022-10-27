@@ -196,7 +196,7 @@ export class Button extends Disposable implements IButton {
 	}
 
 	set label(value: string) {
-		this._element.classList.add('monaco-text-button');
+		this._element.classList.add('monaco-secondary-button');
 		if (this.options.supportIcons) {
 			const content: HTMLSpanElement[] = [];
 			for (let segment of renderLabelWithIcons(value)) {
