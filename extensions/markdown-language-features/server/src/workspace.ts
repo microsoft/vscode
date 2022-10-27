@@ -176,7 +176,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			// Check that if file has been deleted on disk.
 			// This can happen when directories are renamed / moved. VS Code's file system watcher does not
 			// notify us when this happens.
-			if (await this.stat(uri) === undefined) {
+			if (await this.statBypassingCache(uri) === undefined) {
 				if (this._documentCache.get(uri) === doc && !doc.hasInMemoryDoc()) {
 					this.doDeleteDocument(uri);
 					return;
@@ -344,10 +344,18 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
 		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: stat', `${resource}`);
-		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
+		if (this._documentCache.has(resource)) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.fs_stat, { uri: resource.toString() });
+		return this.statBypassingCache(resource);
+	}
+
+	private async statBypassingCache(resource: URI): Promise<md.FileStat | undefined> {
+		const uri = resource.toString();
+		if (this.documents.get(uri)) {
+			return { isDirectory: false };
+		}
+		return this.connection.sendRequest(protocol.fs_stat, { uri });
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
