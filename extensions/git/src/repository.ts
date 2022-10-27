@@ -1915,7 +1915,10 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
-				await this.updateModelState(await optimisticResourceGroups());
+				const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const optimisticUpdate = scopedConfig.get<boolean>('experimental.optimisticUpdate') === true;
+
+				await this.updateModelState(optimisticUpdate ? await optimisticResourceGroups() : undefined);
 			}
 
 			return result;
