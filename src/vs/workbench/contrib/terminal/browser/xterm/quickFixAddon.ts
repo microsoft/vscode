@@ -31,6 +31,8 @@ import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFix, TerminalQuickFixWidget } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
 import { ActionSet } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	id: string;
@@ -80,7 +82,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -220,7 +223,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-				const widget = this._instantiationService.createInstance(TerminalQuickFixWidget);
 				const rect = e.getBoundingClientRect();
 				const anchor = {
 					x: rect.x,
@@ -235,16 +237,19 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					allActions: actions,
 					hasAutoFix: true,
 					validActions: actions,
-					dispose: () => { widget.clear(); }
+					dispose: () => { }
 				} as ActionSet<TerminalQuickFix>;
-				widget.show(
-					'click',
-					actionSet,
-					anchor, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: true }, {
-					onHide: () => { },
-					onSelectQuickFix: async (fix, trigger, options) => {
-						fix.action?.run();
-					}
+				TerminalQuickFixWidget.getOrCreateInstance(this._instantiationService).show('click', actionSet, anchor, e, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
+					onSelectQuickFix: async (action: TerminalQuickFix, trigger: string, options: { preview: any }) => {
+						if (options.preview) {
+							this._commandService.executeCommand(previewSelectedCodeActionCommand);
+						} else {
+							action.action?.run();
+						}
+					},
+					onHide: () => {
+						this._terminal?.focus();
+					},
 				});
 			}));
 		});

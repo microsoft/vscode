@@ -7,19 +7,24 @@ import { ActionSet, ActionShowOptions, BaseActionWidget, ListMenuItem, stripNewl
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/codeAction/browser/actionList';
-import { ActionGroup } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
+import { ActionItemRenderer, ActionList, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionList/browser/actionList';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as dom from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ActionGroup } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
+
+const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
+const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
+const weight = KeybindingWeight.EditorContrib + 1000;
 
 export class TerminalQuickFix extends Disposable {
 	action?: IAction;
@@ -47,7 +52,6 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
@@ -66,7 +70,7 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 
 	public static get INSTANCE(): TerminalQuickFixWidget | undefined { return this._instance; }
 
-	public static getOrCreateInstance(instantiationService: IInstantiationService): BaseActionWidget<TerminalQuickFix> {
+	public static getOrCreateInstance(instantiationService: IInstantiationService): TerminalQuickFixWidget {
 		if (!this._instance) {
 			this._instance = instantiationService.createInstance(TerminalQuickFixWidget);
 		}
@@ -109,21 +113,22 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 		const widget = document.createElement('div');
 		widget.classList.add('terminalQuickFixWidget');
 		element.appendChild(widget);
-		const onDidSelect = (action: TerminalQuickFix, options: { readonly preview: boolean }) => {
+		const onDidSelect = async (action: TerminalQuickFix, options: { readonly preview: boolean }) => {
+			await delegate.onSelectQuickFix(action, trigger, options);
 			this.hide();
-			delegate.onSelectQuickFix(action as TerminalQuickFix, trigger, options);
 		};
-		const focusCondition = (element: ListMenuItem<TerminalQuickFix>) => { return !element?.item?.disabled; };
-		this.list.value = new QuickFixList({
-			user: 'terminalQuickFix',
-			renderers: [new HeaderRenderer(), new QuickFixItemRenderer(this._keybindingService)],
-		},
+		this.list.value = new QuickFixList(
 			showingActions,
 			options.showHeaders ?? true,
-			'acceptTerminalQuickFixAction',
-			focusCondition,
 			onDidSelect,
+			this._keybindingService,
 			this._contextViewService);
+
+		if (this.list.value) {
+			widget.appendChild(this.list.value.domNode);
+		} else {
+			throw new Error('List has no value');
+		}
 
 		widget.appendChild(this.list.value.domNode);
 
@@ -190,15 +195,7 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 	}
 
 	private _getActionBarActions(inputActions: ActionSet<TerminalQuickFix>, options: ActionShowOptions): IAction[] {
-		const actions = inputActions.documentation.map((command): IAction => ({
-			id: command.id,
-			label: command.title,
-			tooltip: command.tooltip ?? '',
-			class: undefined,
-			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
-		}));
-
+		const actions = [];
 		if (options.includeDisabledActions && inputActions.validActions.length > 0 && inputActions.allActions.length !== inputActions.validActions.length) {
 			actions.push(this.showDisabled ? {
 				id: 'hideMoreactions',
@@ -242,7 +239,7 @@ export class QuickFixItemRenderer extends ActionItemRenderer<ListMenuItem<Termin
 		super();
 	}
 	get templateId(): string {
-		return 'terminal-quick-fix';
+		return 'quickfix';
 	}
 	renderElement(element: ListMenuItem<TerminalQuickFix>, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group.icon) {
@@ -261,13 +258,46 @@ export class QuickFixItemRenderer extends ActionItemRenderer<ListMenuItem<Termin
 			data.container.title = element.item.action.label;
 			data.container.classList.add('option-disabled');
 		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedTerminalQuickFixCommand)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedTerminalQuickFixCommand)?.getLabel());
 			data.container.classList.remove('option-disabled');
 		}
 	}
 }
 
 class QuickFixList extends ActionList<TerminalQuickFix> {
+	constructor(
+		fixes: readonly TerminalQuickFix[],
+		showHeaders: boolean,
+		onDidSelect: (fix: TerminalQuickFix, options: { readonly preview: boolean }) => void,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextViewService contextViewService: IContextViewService
+	) {
+		super({
+			user: 'quickFixWidget',
+			renderers: [
+				new QuickFixItemRenderer(keybindingService),
+				new HeaderRenderer(),
+			],
+			options: {
+				keyboardSupport: false,
+				accessibilityProvider: {
+					getAriaLabel: element => {
+						if (element.kind === 'quickfix') {
+							let label = stripNewlines(element.item.action.label);
+							if (element.item.action.disabled) {
+								label = localize({ key: 'customQuickFixWidget.labels', comment: ['terminal quick fix labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.disabled);
+							}
+							return label;
+						}
+						return null;
+					},
+					getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: ['A terminal quick fix Option'] }, "Terminal Quick Fix Widget"),
+					getRole: () => 'option',
+					getWidgetRole: () => 'terminal-quickfix-widget'
+				},
+			}
+		}, fixes, showHeaders, previewSelectedTerminalQuickFixCommand, acceptSelectedTerminalQuickFixCommand, (element: ListMenuItem<TerminalQuickFix>) => { return element.kind !== 'header' && !element.item?.disabled; }, onDidSelect, contextViewService);
+	}
 
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): TerminalQuickFixListItem[] {
 		const menuItems: TerminalQuickFixListItem[] = [];
@@ -276,20 +306,20 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 			group: {
 				kind: CodeActionKind.QuickFix,
 				title: 'Quick fix...',
-				icon: { codicon: Codicon.lightBulb, color: 'yellow' }
+				icon: { codicon: Codicon.lightBulb }
 			},
 		});
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
 				menuItems.push({
-					kind: 'terminal-quick-fix',
+					kind: 'quickfix',
 					item: action,
 					group: {
 						kind: CodeActionKind.QuickFix,
 						icon: { codicon: action.action.id === 'quickFix.opener' ? Codicon.link : Codicon.run },
 						title: action.action!.label
 					}
-				} as TerminalQuickFixListItem);
+				});
 			}
 		}
 		return menuItems;
@@ -297,7 +327,119 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 }
 
 interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
-	readonly kind: 'terminal-quick-fix' | 'header';
+	readonly kind: 'quickfix' | 'header';
 	readonly item?: TerminalQuickFix;
 	readonly group: ActionGroup;
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'hideTerminalQuickFixWidget',
+			title: {
+				value: localize('hideTerminalQuickFixWidget.title', "Hide terminal quick fix widget"),
+				original: 'Hide terminal quick fix widget'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			},
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.hide();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectPrevTerminalQuickFix',
+			title: {
+				value: localize('selectPrevTerminalQuickFix.title', "Select previous terminal quick fix"),
+				original: 'Select previous terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.UpArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.focusPrevious();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectNextTerminalQuickFix',
+			title: {
+				value: localize('selectNextTerminalQuickFix.title', "Select next terminal quick fix"),
+				original: 'Select next terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.DownArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.focusNext();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: acceptSelectedTerminalQuickFixCommand,
+			title: {
+				value: localize('acceptSelected.title', "Accept selected terminal quick fix"),
+				original: 'Accept selected terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.acceptSelected();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: previewSelectedTerminalQuickFixCommand,
+			title: {
+				value: localize('previewSelected.title', "Preview selected terminal quick fix"),
+				original: 'Preview selected terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.acceptSelected();
+	}
+});
+

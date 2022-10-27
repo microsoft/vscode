@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { IActionList, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
@@ -71,7 +71,7 @@ export class HeaderRenderer<T> implements IListRenderer<ListMenuItem<T>, HeaderT
 	}
 }
 
-export abstract class ActionList<T> extends Disposable {
+export abstract class ActionList<T> extends Disposable implements IActionList<T> {
 
 	public readonly domNode: HTMLElement;
 	public list: List<ListMenuItem<T>>;
@@ -85,6 +85,7 @@ export abstract class ActionList<T> extends Disposable {
 		listCtor: { user: string; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
 		items: readonly T[],
 		showHeaders: boolean,
+		private readonly previewSelectedActionCommand: string,
 		private readonly acceptSelectedActionCommand: string,
 		private readonly focusCondition: (element: ListMenuItem<T>) => boolean,
 		private readonly onDidSelect: (action: T, options: { readonly preview: boolean }) => void,
@@ -93,7 +94,6 @@ export abstract class ActionList<T> extends Disposable {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-
 		const virtualDelegate: IListVirtualDelegate<ListMenuItem<T>> = {
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
@@ -164,8 +164,10 @@ export abstract class ActionList<T> extends Disposable {
 		if (this.focusCondition(element)) {
 			return;
 		}
+		console.log('accept selected', element);
 
-		const event = new UIEvent(options?.preview ? 'previewSelectedEventType' : this.acceptSelectedActionCommand);
+		const event = new UIEvent(options?.preview ? this.previewSelectedActionCommand : this.acceptSelectedActionCommand);
+		console.log(event);
 		this.list.setSelection([focusIndex], event);
 	}
 
@@ -176,6 +178,7 @@ export abstract class ActionList<T> extends Disposable {
 
 		const element = e.elements[0];
 		if (element.item && this.focusCondition(element)) {
+			console.log('on did select', element.item);
 			this.onDidSelect(element.item, { preview: e.browserEvent?.type === 'previewSelectedEventType' });
 		} else {
 			this.list.setSelection([]);

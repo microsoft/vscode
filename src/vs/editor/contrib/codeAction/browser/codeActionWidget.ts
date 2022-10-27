@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, IActionMenuTemplateData } from 'vs/editor/contrib/codeAction/browser/actionList';
+import { ActionItemRenderer, ActionList, IActionMenuTemplateData } from 'vs/editor/contrib/actionList/browser/actionList';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
@@ -159,7 +159,7 @@ class CodeActionList extends ActionList<CodeActionItem> {
 					getWidgetRole: () => 'code-action-widget'
 				},
 			}
-		}, codeActions, showHeaders, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item?.action.disabled; }, onDidSelect, contextViewService);
+		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item?.action.disabled; }, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {
@@ -260,10 +260,6 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		}, container, false);
 	}
 
-	public acceptSelected(options?: { readonly preview?: boolean }) {
-		this.list.value?.acceptSelected(options);
-	}
-
 	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
@@ -272,7 +268,7 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		element.appendChild(widget);
 		const onDidSelect = (action: CodeActionItem, options: { readonly preview: boolean }) => {
 			this.hide();
-			delegate.onSelectCodeAction(action as CodeActionItem, trigger, options);
+			delegate.onSelectCodeAction(action, trigger, options);
 		};
 		this.list.value = new CodeActionList(
 			showingCodeActions,

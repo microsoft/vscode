@@ -30,7 +30,7 @@ export interface ListMenuItem<T> {
 	group?: any;
 }
 
-export interface IActionList<T> extends Disposable {
+export interface IActionList<T> extends IDisposable {
 	hide(): void;
 	focusPrevious(): void;
 	focusNext(): void;
@@ -45,6 +45,10 @@ export abstract class BaseActionWidget<T> extends Disposable {
 	public list = this._register(new MutableDisposable<IActionList<T>>());
 	constructor() {
 		super();
+	}
+
+	public acceptSelected(options?: { readonly preview?: boolean }) {
+		this.list.value?.acceptSelected(options);
 	}
 
 	public focusPrevious() {
