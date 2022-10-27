@@ -440,7 +440,6 @@ export class CodeApplication extends Disposable {
 
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
-
 		//#endregion
 	}
 
