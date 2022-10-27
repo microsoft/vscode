@@ -11,6 +11,7 @@ import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { assertNever } from 'vs/base/common/assert';
 
 export interface IKeybindingItem {
 	keybinding: (SimpleKeybinding | ScanCodeBinding)[] | null;
@@ -93,18 +94,24 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
 	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
-		if (OS === OperatingSystem.Windows) {
-			if (kb && kb.win) {
-				return kb.win;
-			}
-		} else if (OS === OperatingSystem.Macintosh) {
-			if (kb && kb.mac) {
-				return kb.mac;
-			}
-		} else {
-			if (kb && kb.linux) {
-				return kb.linux;
-			}
+		switch (OS) {
+			case OperatingSystem.Windows:
+				if (kb?.win) {
+					return kb.win;
+				}
+				break;
+			case OperatingSystem.Macintosh:
+				if (kb?.mac) {
+					return kb.mac;
+				}
+				break;
+			case OperatingSystem.Linux:
+				if (kb?.linux) {
+					return kb.linux;
+				}
+				break;
+			default:
+				assertNever(OS);
 		}
 
 		return kb;

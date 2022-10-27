@@ -681,7 +681,7 @@ class Listener<T> {
 		}
 	}
  */
-export class Emitter<T> {
+export class Emitter<T> implements IDisposable {
 
 	private readonly _options?: EmitterOptions;
 	private readonly _leakageMon?: LeakageMonitor;
