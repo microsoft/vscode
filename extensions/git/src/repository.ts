@@ -716,25 +716,25 @@ class ResourceCommandResolver {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
-				return l10n.t('git.title.index', '{0} (Index)', basename);
+				return l10n.t('{0} (Index)', basename);
 
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return l10n.t('git.title.workingTree', '{0} (Working Tree)', basename);
+				return l10n.t('{0} (Working Tree)', basename);
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return l10n.t('git.title.deleted', '{0} (Deleted)', basename);
+				return l10n.t('{0} (Deleted)', basename);
 
 			case Status.DELETED_BY_US:
-				return l10n.t('git.title.theirs', '{0} (Theirs)', basename);
+				return l10n.t('{0} (Theirs)', basename);
 
 			case Status.DELETED_BY_THEM:
-				return l10n.t('git.title.ours', '{0} (Ours)', basename);
+				return l10n.t('{0} (Ours)', basename);
 
 			case Status.UNTRACKED:
-				return l10n.t('git.title.untracked', '{0} (Untracked)', basename);
+				return l10n.t('{0} (Untracked)', basename);
 
 			default:
 				return '';
