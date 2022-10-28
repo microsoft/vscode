@@ -578,23 +578,17 @@ class LeakageMonitor {
 	private _warnCountdown: number = 0;
 
 	constructor(
-		readonly customThreshold?: number,
+		readonly threshold: number,
 		readonly name: string = Math.random().toString(18).slice(2, 5),
 	) { }
 
 	dispose(): void {
-		if (this._stacks) {
-			this._stacks.clear();
-		}
+		this._stacks?.clear();
 	}
 
 	check(stack: Stacktrace, listenerCount: number): undefined | (() => void) {
 
-		let threshold = _globalLeakWarningThreshold;
-		if (typeof this.customThreshold === 'number') {
-			threshold = this.customThreshold;
-		}
-
+		const threshold = this.threshold;
 		if (threshold <= 0 || listenerCount < threshold) {
 			return undefined;
 		}
@@ -693,7 +687,7 @@ export class Emitter<T> {
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
-		this._leakageMon = _globalLeakWarningThreshold > 0 ? new LeakageMonitor(this._options && this._options.leakWarningThreshold) : undefined;
+		this._leakageMon = _globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold ? new LeakageMonitor(this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) : undefined;
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
 		this._deliveryQueue = this._options?.deliveryQueue;
 	}
@@ -744,6 +738,11 @@ export class Emitter<T> {
 					this._listeners = new LinkedList();
 				}
 
+				if (this._leakageMon && this._listeners.size > this._leakageMon.threshold * 3) {
+					console.warn(`[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far`);
+					return Disposable.None;
+				}
+
 				const firstListener = this._listeners.isEmpty();
 
 				if (firstListener && this._options?.onFirstListenerAdd) {
@@ -752,7 +751,7 @@ export class Emitter<T> {
 
 				let removeMonitor: Function | undefined;
 				let stack: Stacktrace | undefined;
-				if (this._leakageMon && this._listeners.size >= 30) {
+				if (this._leakageMon && this._listeners.size >= Math.ceil(this._leakageMon.threshold * 0.2)) {
 					// check and record this emitter for potential leakage
 					stack = Stacktrace.create();
 					removeMonitor = this._leakageMon.check(stack, this._listeners.size + 1);
