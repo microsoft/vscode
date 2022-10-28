@@ -1795,7 +1795,7 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { repository: true })
-	async commit(repository: Repository, postCommitCommand?: string): Promise<void> {
+	async commit(repository: Repository, postCommitCommand?: string | null): Promise<void> {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 

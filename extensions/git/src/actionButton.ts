@@ -137,10 +137,13 @@ export class ActionButtonCommand {
 		// Branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
 		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
+		// Button icon
+		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
+
 		return {
 			command: {
 				command: 'git.publish',
-				title: l10n.t({ message: '{0} Publish Branch', args: ['$(cloud-upload)'], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
+				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
 				tooltip: this.state.isSyncInProgress ?
 					l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
 					l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
@@ -179,6 +182,7 @@ export class ActionButtonCommand {
 	private onDidChangeOperations(): void {
 		const isCommitInProgress =
 			this.repository.operations.isRunning(Operation.Commit) ||
+			this.repository.operations.isRunning(Operation.PostCommitCommand) ||
 			this.repository.operations.isRunning(Operation.RebaseContinue);
 
 		const isSyncInProgress =

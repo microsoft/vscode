@@ -311,6 +311,7 @@ export const enum Operation {
 	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
+	PostCommitCommand = 'PostCommitCommand',
 	Clean = 'Clean',
 	Branch = 'Branch',
 	GetBranch = 'GetBranch',
@@ -1261,6 +1262,9 @@ export class Repository implements Disposable {
 				this.closeDiffEditors(indexResources, workingGroupResources);
 			});
 		} else {
+			// Set post-commit command to render the correct action button
+			this.commitCommandCenter.postCommitCommand = opts.postCommitCommand;
+
 			await this.run(Operation.Commit, async () => {
 				if (opts.all) {
 					const addOpts = opts.all === 'tracked' ? { update: true } : {};
@@ -1279,9 +1283,9 @@ export class Repository implements Disposable {
 			});
 
 			// Execute post-commit command
-			if (opts.postCommitCommand !== null) {
+			await this.run(Operation.PostCommitCommand, async () => {
 				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
-			}
+			});
 		}
 	}
 
