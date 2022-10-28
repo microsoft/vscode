@@ -292,13 +292,20 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
-				if (uri === undefined) { return; }
-
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
 					ref = await that.storeEditSession(false);
+				}
+
+				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
+				if (uri === undefined) {
+					// If the user didn't end up picking a Continue On destination
+					// and we stored an edit session, clean up the stored edit session
+					if (ref !== undefined) {
+						void that.editSessionsStorageService.delete(ref);
+					}
+					return;
 				}
 
 				// Append the ref to the URI
