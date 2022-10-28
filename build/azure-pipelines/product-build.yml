@@ -142,6 +142,8 @@ variables:
   - name: Codeql.SkipTaskAutoInjection
     value: true
 
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+
 resources:
   containers:
     - container: vscode-bionic-x64

@@ -182,13 +182,13 @@
         "command": "markdown.editor.insertLinkFromWorkspace",
         "title": "%markdown.editor.insertLinkFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId == markdown"
+        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
       },
       {
         "command": "markdown.editor.insertImageFromWorkspace",
         "title": "%markdown.editor.insertImageFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId == markdown"
+        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
       }
     ],
     "menus": {
@@ -544,19 +544,26 @@
           ],
           "default": "never",
           "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
-          "scope": "resource"
+          "scope": "window"
         },
-        "markdown.updateLinksOnFileMove.externalFileGlobs": {
-          "type": "string",
-          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}",
-          "description": "%configuration.markdown.updateLinksOnFileMove.fileGlobs%",
-          "scope": "resource"
+        "markdown.updateLinksOnFileMove.include": {
+          "type": "array",
+          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.include%",
+          "scope": "window",
+          "items": {
+            "type": "string",
+            "description": "%configuration.markdown.updateLinksOnFileMove.include.property%"
+          },
+          "default": [
+            "**/*.{md,mkd,mdwn,mdown,markdown,markdn,mdtxt,mdtext,workbook}",
+            "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}"
+          ]
         },
         "markdown.updateLinksOnFileMove.enableForDirectories": {
           "type": "boolean",
           "default": true,
           "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
-          "scope": "resource"
+          "scope": "window"
         },
         "markdown.occurrencesHighlight.enabled": {
           "type": "boolean",
