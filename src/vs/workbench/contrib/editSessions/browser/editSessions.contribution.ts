@@ -298,7 +298,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					ref = await that.progressService.withProgress({
 						location: ProgressLocation.Notification,
 						type: 'syncing',
-						title: localize('store edit session', 'Storing your edit session...')
+						title: localize('store your edit session', 'Storing your edit session...')
 					}, async () => that.storeEditSession(false));
 				}
 
