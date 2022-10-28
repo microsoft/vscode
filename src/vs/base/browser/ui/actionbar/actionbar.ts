@@ -89,7 +89,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
+	private _onDidCancel = this._register(new Emitter<void>({ onWillAddFirstListener: () => this.cancelHasListener = true }));
 	readonly onDidCancel = this._onDidCancel.event;
 	private cancelHasListener = false;
 
