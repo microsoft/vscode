@@ -145,7 +145,7 @@ declare namespace UtilityProcessProposedApi {
 		stdout: (NodeJS.ReadableStream) | (null);
 	}
 }
-const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).UtilityProcess);
+const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).utilityProcess);
 const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
