@@ -98,7 +98,6 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-
 		this.list = new List(listCtor.user, this.domNode, virtualDelegate, listCtor.renderers, listCtor.options);
 
 		this._register(this.list.onMouseClick(e => this.onListClick(e)));
@@ -108,7 +107,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 		this.allMenuItems = this.toMenuItems(items, showHeaders);
 		this.list.splice(0, this.list.length, this.allMenuItems);
-
+		console.log('length', this.list.length);
 		this.focusNext();
 	}
 
@@ -164,10 +163,8 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		if (this.focusCondition(element)) {
 			return;
 		}
-		console.log('accept selected', element);
 
 		const event = new UIEvent(options?.preview ? this.previewSelectedActionCommand : this.acceptSelectedActionCommand);
-		console.log(event);
 		this.list.setSelection([focusIndex], event);
 	}
 
@@ -178,7 +175,6 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 		const element = e.elements[0];
 		if (element.item && this.focusCondition(element)) {
-			console.log('on did select', element.item);
 			this.onDidSelect(element.item, { preview: e.browserEvent?.type === 'previewSelectedEventType' });
 		} else {
 			this.list.setSelection([]);

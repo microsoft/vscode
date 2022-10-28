@@ -163,8 +163,8 @@ export class CodeActionUi extends Disposable {
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
 		CodeActionWidget.getOrCreateInstance(this._instantiationService).show(trigger, actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
-			onSelectCodeAction: async (action: CodeActionItem, trigger: { preview: any }, options: { preview: any }) => {
-				this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(options.preview || trigger.preview));
+			onSelectCodeAction: async (action: CodeActionItem, trigger: CodeActionTrigger, options: { preview: any }) => {
+				this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(options.preview));
 			},
 			onHide: () => {
 				this._editor?.focus();

@@ -234,7 +234,7 @@ export class QuickFixItemRenderer extends ActionItemRenderer<ListMenuItem<Termin
 		super();
 	}
 	get templateId(): string {
-		return 'quickfix';
+		return 'action';
 	}
 	renderElement(element: ListMenuItem<TerminalQuickFix>, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group.icon) {
@@ -277,7 +277,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 				keyboardSupport: false,
 				accessibilityProvider: {
 					getAriaLabel: element => {
-						if (element.kind === 'quickfix') {
+						if (element.kind === 'action') {
 							let label = stripNewlines(element.item.action.label);
 							if (element.item.action.disabled) {
 								label = localize({ key: 'customQuickFixWidget.labels', comment: ['terminal quick fix labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.disabled);
@@ -294,7 +294,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 		}, fixes, showHeaders, previewSelectedTerminalQuickFixCommand, acceptSelectedTerminalQuickFixCommand, (element: ListMenuItem<TerminalQuickFix>) => { return element.kind !== 'header' && !element.item?.disabled; }, onDidSelect, contextViewService);
 	}
 
-	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): TerminalQuickFixListItem[] {
+	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): ListMenuItem<TerminalQuickFix>[] {
 		const menuItems: TerminalQuickFixListItem[] = [];
 		menuItems.push({
 			kind: 'header',
@@ -307,7 +307,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
 				menuItems.push({
-					kind: 'quickfix',
+					kind: 'action',
 					item: action,
 					group: {
 						kind: CodeActionKind.QuickFix,
@@ -322,7 +322,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 }
 
 interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
-	readonly kind: 'quickfix' | 'header';
+	readonly kind: 'action' | 'header';
 	readonly item?: TerminalQuickFix;
 	readonly group: ActionGroup;
 }
