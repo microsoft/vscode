@@ -2479,7 +2479,7 @@ export class CommandCenter {
 				return;
 			}
 
-			const addRemote = l10n.t('addremote', 'Add Remote');
+			const addRemote = l10n.t('Add Remote');
 			const result = await window.showWarningMessage(l10n.t('Your repository has no remotes configured to push to.'), addRemote);
 
 			if (result === addRemote) {
