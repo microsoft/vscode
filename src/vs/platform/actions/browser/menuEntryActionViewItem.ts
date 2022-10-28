@@ -119,7 +119,7 @@ export interface IMenuEntryActionViewItemOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
-export class MenuEntryActionViewItem extends ActionViewItem {
+export class MenuEntryActionViewItem extends ActionViewItem<MenuItemAction> {
 
 	private _wantsAltCommand: boolean = false;
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
@@ -139,7 +139,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 
 	protected get _menuItemAction(): MenuItemAction {
-		return <MenuItemAction>this._action;
+		return this._action;
 	}
 
 	protected get _commandAction(): MenuItemAction {

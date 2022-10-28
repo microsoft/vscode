@@ -26,12 +26,12 @@ export interface IBaseActionViewItemOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
-export class BaseActionViewItem extends Disposable implements IActionViewItem {
+export class BaseActionViewItem<ActionType extends IAction = IAction> extends Disposable implements IActionViewItem {
 
 	element: HTMLElement | undefined;
 
 	_context: unknown;
-	readonly _action: IAction;
+	readonly _action: ActionType;
 
 	private customHover?: ICustomHover;
 
@@ -41,7 +41,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	private _actionRunner: IActionRunner | undefined;
 
-	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
+	constructor(context: unknown, action: ActionType, protected options: IBaseActionViewItemOptions = {}) {
 		super();
 
 		this._context = context || this;
@@ -263,14 +263,14 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	keybinding?: string | null;
 }
 
-export class ActionViewItem extends BaseActionViewItem {
+export class ActionViewItem<ActionType extends IAction = IAction> extends BaseActionViewItem<ActionType> {
 
 	protected label: HTMLElement | undefined;
 	protected override options: IActionViewItemOptions;
 
 	private cssClass?: string;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
+	constructor(context: unknown, action: ActionType, options: IActionViewItemOptions = {}) {
 		super(context, action, options);
 
 		this.options = options;

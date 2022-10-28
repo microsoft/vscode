@@ -153,7 +153,7 @@ class NotebookFindInput extends FindInput {
 	private _filterButtonContainer: HTMLElement;
 	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;
-	private _filtersAction: IAction;
+	private _filtersAction: Action;
 
 	constructor(
 		readonly filters: NotebookFindFilters,

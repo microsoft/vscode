@@ -39,7 +39,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CONTEXT_SETTINGS_EDITOR_IN_USER_TAB } from 'vs/workbench/contrib/preferences/common/preferences';
 
-export class FolderSettingsActionViewItem extends BaseActionViewItem {
+export class FolderSettingsActionViewItem extends BaseActionViewItem<Action> {
 
 	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
@@ -51,7 +51,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	private dropDownElement!: HTMLElement;
 
 	constructor(
-		action: IAction,
+		action: Action,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,

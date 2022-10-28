@@ -6,7 +6,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -39,11 +39,11 @@ const defaultOpts = {
 	inputActiveOptionBackground: Color.fromHex('#0E639C50')
 };
 
-export class ToggleActionViewItem extends BaseActionViewItem {
+export class ToggleActionViewItem extends BaseActionViewItem<Action> {
 
 	protected readonly toggle: Toggle;
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions | undefined) {
+	constructor(context: any, action: Action, options: IActionViewItemOptions | undefined) {
 		super(context, action, options);
 		this.toggle = this._register(new Toggle({
 			actionClassName: this._action.class,

@@ -54,7 +54,7 @@ const $ = DOM.$;
 
 class ThemableToggleActionViewItem extends ToggleActionViewItem {
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions, private readonly themeService: IThemeService) {
+	constructor(context: any, action: Action, options: IActionViewItemOptions, private readonly themeService: IThemeService) {
 		super(context, action, options);
 	}
 
@@ -364,7 +364,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
-					return new ThemableToggleActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
+					return new ThemableToggleActionViewItem(null, action as Action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
 				}
 				return undefined;
 			},

@@ -1702,10 +1702,16 @@ export class QuickInputController extends Disposable {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
 			for (const item of this.getUI().leftActionBar.viewItems) {
-				(item as ActionViewItem).action.enabled = enabled;
+				const action = (item as ActionViewItem).action;
+				if (action instanceof Action) {
+					action.enabled = enabled;
+				}
 			}
 			for (const item of this.getUI().rightActionBar.viewItems) {
-				(item as ActionViewItem).action.enabled = enabled;
+				const action = (item as ActionViewItem).action;
+				if (action instanceof Action) {
+					action.enabled = enabled;
+				}
 			}
 			this.getUI().checkAll.disabled = !enabled;
 			this.getUI().inputBox.enabled = enabled;

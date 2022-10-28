@@ -557,28 +557,28 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				return new Action('update.check', localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
+				return new Action('update.check', mnemonicMenuLabel(localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates...")), undefined, true, () =>
 					this.updateService.checkForUpdates(true));
 
 			case StateType.CheckingForUpdates:
-				return new Action('update.checking', localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
+				return new Action('update.checking', mnemonicMenuLabel(localize('checkingForUpdates', "Checking for Updates...")), undefined, false);
 
 			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), undefined, true, () =>
+				return new Action('update.downloadNow', mnemonicMenuLabel(localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update")), undefined, true, () =>
 					this.updateService.downloadUpdate());
 
 			case StateType.Downloading:
-				return new Action('update.downloading', localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
+				return new Action('update.downloading', mnemonicMenuLabel(localize('DownloadingUpdate', "Downloading Update...")), undefined, false);
 
 			case StateType.Downloaded:
-				return new Action('update.install', localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), undefined, true, () =>
+				return new Action('update.install', mnemonicMenuLabel(localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update...")), undefined, true, () =>
 					this.updateService.applyUpdate());
 
 			case StateType.Updating:
-				return new Action('update.updating', localize('installingUpdate', "Installing Update..."), undefined, false);
+				return new Action('update.updating', mnemonicMenuLabel(localize('installingUpdate', "Installing Update...")), undefined, false);
 
 			case StateType.Ready:
-				return new Action('update.restart', localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), undefined, true, () =>
+				return new Action('update.restart', mnemonicMenuLabel(localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update")), undefined, true, () =>
 					this.updateService.quitAndInstall());
 		}
 	}
@@ -608,7 +608,6 @@ export class CustomMenubarControl extends MenubarControl {
 				if (!isMacintosh && !isWeb) {
 					const updateAction = this.getUpdateAction();
 					if (updateAction) {
-						updateAction.label = mnemonicMenuLabel(updateAction.label);
 						target.push(updateAction);
 						target.push(new Separator());
 					}

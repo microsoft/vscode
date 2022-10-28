@@ -25,13 +25,17 @@ export type WorkbenchActionExecutedEvent = {
 	from: string;
 };
 
+/**
+ * An action that can be shown in the UI.
+ */
 export interface IAction {
 	readonly id: string;
-	label: string;
-	tooltip: string;
-	class: string | undefined;
-	enabled: boolean;
-	checked?: boolean;
+	readonly label: string;
+	readonly tooltip: string;
+	readonly class: string | undefined;
+	readonly enabled: boolean;
+	readonly checked?: boolean;
+
 	run(event?: unknown): unknown;
 }
 
@@ -50,6 +54,11 @@ export interface IActionChangeEvent {
 	readonly checked?: boolean;
 }
 
+/**
+ * A generic, mutable action that can be shown in the UI.
+ *
+ * Note that unlike {@linkcode IAction}, this class is disposable and must be disposed of once it is no longer needed.
+ */
 export class Action extends Disposable implements IAction {
 
 	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());

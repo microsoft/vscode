@@ -15,7 +15,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-export class NotebooKernelActionViewItem extends ActionViewItem {
+export class NotebooKernelActionViewItem extends ActionViewItem<Action> {
 
 	private _kernelLabel?: HTMLAnchorElement;
 

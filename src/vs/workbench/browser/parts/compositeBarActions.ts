@@ -496,7 +496,6 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	private getActions(): IAction[] {
 		return this.getOverflowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
-			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
 			let suffix: string | number | undefined;
@@ -506,13 +505,14 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 				suffix = badge.text;
 			}
 
+			let label: string;
 			if (suffix) {
-				action.label = localize('numberBadge', "{0} ({1})", composite.name, suffix);
+				label = localize('numberBadge', "{0} ({1})", composite.name, suffix);
 			} else {
-				action.label = composite.name || '';
+				label = composite.name || '';
 			}
 
-			return action;
+			return { ...action, checked: this.getActiveCompositeId() === action.id, label };
 		});
 	}
 
@@ -657,7 +657,16 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	private showContextMenu(container: HTMLElement): void {
-		const actions: IAction[] = [this.toggleCompositePinnedAction];
+		const isPinned = this.compositeBar.isPinned(this.activity.id);
+		const toggleCompositePinnedAction = { ...this.toggleCompositePinnedAction };
+		if (isPinned) {
+			toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.activity.name);
+			toggleCompositePinnedAction.checked = false;
+		} else {
+			toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
+		}
+
+		const actions: IAction[] = [toggleCompositePinnedAction];
 
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
 		if (compositeContextMenuActions.length) {
@@ -667,14 +676,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		if ((<any>this.compositeActivityAction.activity).extensionId) {
 			actions.push(new Separator());
 			actions.push(CompositeActionViewItem.manageExtensionAction);
-		}
-
-		const isPinned = this.compositeBar.isPinned(this.activity.id);
-		if (isPinned) {
-			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.activity.name);
-			this.toggleCompositePinnedAction.checked = false;
-		} else {
-			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
 		}
 
 		const otherActions = this.contextMenuActionsProvider();
