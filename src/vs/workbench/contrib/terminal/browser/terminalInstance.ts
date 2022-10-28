@@ -90,6 +90,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 const enum Constants {
 	/**
@@ -2467,6 +2468,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
+
+	collector.addRule(`.terminalQuickFixWidget .actionList { background-color: ${theme.getColor(TERMINAL_BACKGROUND_COLOR)} !important}`);
 
 	// Scrollbar
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);

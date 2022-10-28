@@ -231,7 +231,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					height: rect.height
 				};
 				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
-				const actions = fixes.map(f => new TerminalQuickFix(f));
+				const actions = fixes.map(f => new TerminalQuickFix(f, f.label, false));
 				const actionSet = {
 					documentation,
 					allActions: actions,
@@ -239,7 +239,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					validActions: actions,
 					dispose: () => { }
 				} as ActionSet<TerminalQuickFix>;
-				TerminalQuickFixWidget.getOrCreateInstance(this._instantiationService).show('click', actionSet, anchor, e, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
+				const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
+				if (!parentElement) {
+					return;
+				}
+				TerminalQuickFixWidget.getOrCreateInstance(this._instantiationService).show('click', actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
 					onSelectQuickFix: async (action: TerminalQuickFix, trigger: string, options: { preview: any }) => {
 						if (options.preview) {
 							this._commandService.executeCommand(previewSelectedCodeActionCommand);
