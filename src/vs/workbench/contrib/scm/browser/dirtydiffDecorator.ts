@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -52,7 +52,6 @@ import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys'
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
-import { editorGutter } from 'vs/editor/common/core/editorColorRegistry';
 import { Iterable } from 'vs/base/common/iterator';
 
 class DiffActionRunner extends ActionRunner {
@@ -1508,81 +1507,3 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 }
 
 registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const editorGutterBackgroundColor = theme.getColor(editorGutter);
-	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
-
-	const getLinearGradient = (color: Color): string => {
-		return `-45deg, ${color} 25%, ${editorGutterBackgroundColor} 25%, ${editorGutterBackgroundColor} 50%, ${color} 50%, ${color} 75%, ${editorGutterBackgroundColor} 75%, ${editorGutterBackgroundColor}`;
-	};
-
-	if (editorGutterBackgroundColor && editorGutterModifiedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-modified {
-				border-left-color: ${editorGutterModifiedBackgroundColor};
-				border-left-style: solid;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-modified:before {
-				background: ${editorGutterModifiedBackgroundColor};
-			}
-			.monaco-editor .dirty-diff-modified-pattern {
-				background-image: linear-gradient(${getLinearGradient(editorGutterModifiedBackgroundColor)});
-				background-repeat: repeat-y;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-modified-pattern:before {
-				background-image: linear-gradient(${getLinearGradient(editorGutterModifiedBackgroundColor)});
-				transform: translateX(3px);
-			}
-			.monaco-editor .margin:hover .dirty-diff-modified,
-			.monaco-editor .margin:hover .dirty-diff-modified-pattern {
-				opacity: 1;
-			}
-		`);
-	}
-
-	const editorGutterAddedBackgroundColor = theme.getColor(editorGutterAddedBackground);
-	if (editorGutterBackgroundColor && editorGutterAddedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-added {
-				border-left-color: ${editorGutterAddedBackgroundColor};
-				border-left-style: solid;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-added:before {
-				background: ${editorGutterAddedBackgroundColor};
-			}
-			.monaco-editor .dirty-diff-added-pattern {
-				background-image: linear-gradient(${getLinearGradient(editorGutterAddedBackgroundColor)});
-				background-repeat: repeat-y;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-added-pattern:before {
-				background-image: linear-gradient(${getLinearGradient(editorGutterAddedBackgroundColor)});
-				transform: translateX(3px);
-			}
-			.monaco-editor .margin:hover .dirty-diff-added,
-			.monaco-editor .margin:hover .dirty-diff-added-pattern {
-				opacity: 1;
-			}
-		`);
-	}
-
-	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
-	if (editorGutteDeletedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-deleted:after {
-				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-deleted:before {
-				background: ${editorGutteDeletedBackgroundColor};
-			}
-			.monaco-editor .margin:hover .dirty-diff-added {
-				opacity: 1;
-			}
-		`);
-	}
-});
