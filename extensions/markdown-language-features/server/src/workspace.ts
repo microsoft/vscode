@@ -178,7 +178,6 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			// notify us when this happens.
 			if (!(await this.statBypassingCache(uri))) {
 				if (this._documentCache.get(uri) === doc && !doc.hasInMemoryDoc()) {
-					console.log('state close 4 real');
 					this.doDeleteDocument(uri);
 					return;
 				}
