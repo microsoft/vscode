@@ -684,7 +684,7 @@ function createI18nFile(name, messages) {
 const i18nPackVersion = '1.0.0';
 function getRecordFromL10nJsonFormat(l10nJsonFormat) {
     const record = {};
-    for (const key of Object.keys(l10nJsonFormat)) {
+    for (const key of Object.keys(l10nJsonFormat).sort()) {
         const value = l10nJsonFormat[key];
         record[key] = typeof value === 'string' ? value : value.message;
     }
