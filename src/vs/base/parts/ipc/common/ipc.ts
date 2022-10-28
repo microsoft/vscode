@@ -610,7 +610,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		let uninitializedPromise: CancelablePromise<void> | null = null;
 
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
@@ -618,7 +618,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest(request);
 				});
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				if (uninitializedPromise) {
 					uninitializedPromise.cancel();
 					uninitializedPromise = null;
@@ -846,7 +846,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		// disconnects from all clients as soon as the last listener
 		// is removed.
 		const emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				disposables = new DisposableStore();
 
 				// The event multiplexer is useful since the active
@@ -881,7 +881,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				disposables.add(eventMultiplexer);
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				disposables.dispose();
 			}
 		});

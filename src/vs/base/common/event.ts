@@ -40,10 +40,10 @@ export namespace Event {
 
 	function _addLeakageTraceLogic(options: EmitterOptions) {
 		if (_enableSnapshotPotentialLeakWarning) {
-			const { onListenerDidAdd: origListenerDidAdd } = options;
+			const { onDidAddListener: origListenerDidAdd } = options;
 			const stack = Stacktrace.create();
 			let count = 0;
-			options.onListenerDidAdd = () => {
+			options.onDidAddListener = () => {
 				if (++count === 2) {
 					console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
 					stack.print();
@@ -180,10 +180,10 @@ export namespace Event {
 		let listener: IDisposable | undefined;
 
 		const options: EmitterOptions | undefined = {
-			onFirstListenerAdd() {
+			onWillAddFirstListener() {
 				listener = event(emitter.fire, emitter);
 			},
-			onLastListenerRemove() {
+			onDidRemoveLastListener() {
 				listener?.dispose();
 			}
 		};
@@ -221,7 +221,7 @@ export namespace Event {
 
 		const options: EmitterOptions | undefined = {
 			leakWarningThreshold,
-			onFirstListenerAdd() {
+			onWillAddFirstListener() {
 				subscription = event(cur => {
 					numDebouncedCalls++;
 					output = merge(output, cur);
@@ -244,7 +244,7 @@ export namespace Event {
 					}, delay);
 				});
 			},
-			onLastListenerRemove() {
+			onDidRemoveLastListener() {
 				subscription.dispose();
 			}
 		};
@@ -311,13 +311,13 @@ export namespace Event {
 		};
 
 		const emitter = new Emitter<T>({
-			onFirstListenerAdd() {
+			onWillAddFirstListener() {
 				if (!listener) {
 					listener = event(e => emitter.fire(e));
 				}
 			},
 
-			onFirstListenerDidAdd() {
+			onDidAddFirstListener() {
 				if (buffer) {
 					if (flushAfterTimeout) {
 						setTimeout(flush);
@@ -327,7 +327,7 @@ export namespace Event {
 				}
 			},
 
-			onLastListenerRemove() {
+			onDidRemoveLastListener() {
 				if (listener) {
 					listener.dispose();
 				}
@@ -413,7 +413,7 @@ export namespace Event {
 		const fn = (...args: any[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.on(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
-		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
 
 		return result.event;
 	}
@@ -427,7 +427,7 @@ export namespace Event {
 		const fn = (...args: any[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
-		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
 
 		return result.event;
 	}
@@ -466,11 +466,11 @@ export namespace Event {
 		private _hasChanged = false;
 
 		constructor(readonly obs: IObservable<T, any>, store: DisposableStore | undefined) {
-			const options = {
-				onFirstListenerAdd: () => {
+			const options: EmitterOptions = {
+				onWillAddFirstListener: () => {
 					obs.addObserver(this);
 				},
-				onLastListenerRemove: () => {
+				onDidRemoveLastListener: () => {
 					obs.removeObserver(this);
 				}
 			};
@@ -509,12 +509,29 @@ export namespace Event {
 }
 
 export interface EmitterOptions {
-	onFirstListenerAdd?: Function;
-	onFirstListenerDidAdd?: Function;
-	onListenerDidAdd?: Function;
-	onLastListenerRemove?: Function;
+	/**
+	 * Optional function that's called *before* the very first listener is added
+	 */
+	onWillAddFirstListener?: Function;
+	/**
+	 * Optional function that's called *after* the very first listener is added
+	 */
+	onDidAddFirstListener?: Function;
+	/**
+	 * Optional function that's called after a listener is added
+	 */
+	onDidAddListener?: Function;
+	/**
+	 * Optional function that's called *after* remove the very last listener
+	 */
+	onDidRemoveLastListener?: Function;
+	/**
+	 * Number of listeners that are allowed before assuming a leak. Default to
+	 * a globally configured value
+	 *
+	 * @see setGlobalLeakWarningThreshold
+	 */
 	leakWarningThreshold?: number;
-
 	/**
 	 * Pass in a delivery queue, which is useful for ensuring
 	 * in order event delivery across multiple emitters.
@@ -722,7 +739,7 @@ export class Emitter<T> {
 				this._listeners.clear();
 			}
 			this._deliveryQueue?.clear(this);
-			this._options?.onLastListenerRemove?.();
+			this._options?.onDidRemoveLastListener?.();
 			this._leakageMon?.dispose();
 		}
 	}
@@ -745,8 +762,8 @@ export class Emitter<T> {
 
 				const firstListener = this._listeners.isEmpty();
 
-				if (firstListener && this._options?.onFirstListenerAdd) {
-					this._options.onFirstListenerAdd(this);
+				if (firstListener && this._options?.onWillAddFirstListener) {
+					this._options.onWillAddFirstListener(this);
 				}
 
 				let removeMonitor: Function | undefined;
@@ -764,22 +781,22 @@ export class Emitter<T> {
 				const listener = new Listener(callback, thisArgs, stack);
 				const removeListener = this._listeners.push(listener);
 
-				if (firstListener && this._options?.onFirstListenerDidAdd) {
-					this._options.onFirstListenerDidAdd(this);
+				if (firstListener && this._options?.onDidAddFirstListener) {
+					this._options.onDidAddFirstListener(this);
 				}
 
-				if (this._options?.onListenerDidAdd) {
-					this._options.onListenerDidAdd(this, callback, thisArgs);
+				if (this._options?.onDidAddListener) {
+					this._options.onDidAddListener(this, callback, thisArgs);
 				}
 
 				const result = listener.subscription.set(() => {
 					removeMonitor?.();
 					if (!this._disposed) {
 						removeListener();
-						if (this._options && this._options.onLastListenerRemove) {
+						if (this._options && this._options.onDidRemoveLastListener) {
 							const hasListeners = (this._listeners && !this._listeners.isEmpty());
 							if (!hasListeners) {
-								this._options.onLastListenerRemove(this);
+								this._options.onDidRemoveLastListener(this);
 							}
 						}
 					}
@@ -1059,8 +1076,8 @@ export class EventMultiplexer<T> implements IDisposable {
 
 	constructor() {
 		this.emitter = new Emitter<T>({
-			onFirstListenerAdd: () => this.onFirstListenerAdd(),
-			onLastListenerRemove: () => this.onLastListenerRemove()
+			onWillAddFirstListener: () => this.onFirstListenerAdd(),
+			onDidRemoveLastListener: () => this.onLastListenerRemove()
 		});
 	}
 
@@ -1175,11 +1192,11 @@ export class Relay<T> implements IDisposable {
 	private inputEventListener: IDisposable = Disposable.None;
 
 	private readonly emitter = new Emitter<T>({
-		onFirstListenerDidAdd: () => {
+		onDidAddFirstListener: () => {
 			this.listening = true;
 			this.inputEventListener = this.inputEvent(this.emitter.fire, this.emitter);
 		},
-		onLastListenerRemove: () => {
+		onDidRemoveLastListener: () => {
 			this.listening = false;
 			this.inputEventListener.dispose();
 		}
