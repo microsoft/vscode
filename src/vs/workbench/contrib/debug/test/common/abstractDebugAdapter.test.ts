@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { timeout } from 'vs/base/common/async';
+import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - AbstractDebugAdapter', () => {
 	suite('event ordering', () => {
