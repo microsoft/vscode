@@ -39,9 +39,10 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 			new Action('redo', localize('redo', "Redo"), undefined, true, async () => document.execCommand('redo')),
 			new Separator(),
 
-			// Cut / Copy / Paste
+			// Cut / Copy / Select All / Paste
 			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => document.execCommand('cut')),
 			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => document.execCommand('copy')),
+			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => document.execCommand('selectAll')),
 			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
 
 				// Native: paste is supported
@@ -64,11 +65,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 						element.selectionEnd = element.selectionStart;
 					}
 				}
-			}),
-			new Separator(),
-
-			// Select All
-			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => document.execCommand('selectAll'))
+			})
 		);
 	}
 
