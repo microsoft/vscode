@@ -65,7 +65,7 @@ class VsCodeDocument implements md.ITextDocument {
 	}
 
 	hasInMemoryDoc(): boolean {
-		return !this.inMemoryDoc;
+		return !!this.inMemoryDoc;
 	}
 
 	isDetached(): boolean {
@@ -176,7 +176,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			// Check that if file has been deleted on disk.
 			// This can happen when directories are renamed / moved. VS Code's file system watcher does not
 			// notify us when this happens.
-			if (await this.statBypassingCache(uri) === undefined) {
+			if (!(await this.statBypassingCache(uri))) {
 				if (this._documentCache.get(uri) === doc && !doc.hasInMemoryDoc()) {
 					this.doDeleteDocument(uri);
 					return;
@@ -355,7 +355,8 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		if (this.documents.get(uri)) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.fs_stat, { uri });
+		const fsResult = await this.connection.sendRequest(protocol.fs_stat, { uri });
+		return fsResult ?? undefined; // Force convert null to undefined
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
