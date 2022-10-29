@@ -25,6 +25,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
 
+const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopyselectallpaste';
+
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
@@ -626,9 +628,19 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
 		order: 1
 	}, {
+		menuId: MenuId.EditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('selectAll', "Select All"),
+		order: 3
+	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
 		title: nls.localize('selectAll', "Select All"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('selectAll', "Select All"),
+		order: 3
 	}]
 }));
