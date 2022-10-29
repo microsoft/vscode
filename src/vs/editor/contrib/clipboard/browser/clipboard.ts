@@ -19,7 +19,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
+const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopyselectallpaste';
 
 const supportsCut = (platform.isNative || document.queryCommandSupported('cut'));
 const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));

@@ -1182,7 +1182,7 @@ declare namespace monaco.editor {
 		 * The context menu of the editor has these default:
 		 *   navigation - The navigation group comes first in all cases.
 		 *   1_modification - This group comes next and contains commands that modify your code.
-		 *   9_cutcopypaste - The last default group with the basic editing commands.
+		 *   9_cutcopyselectallpaste - The last default group with the basic editing commands.
 		 * You can also create your own group.
 		 * Defaults to null (don't show in context menu).
 		 */
