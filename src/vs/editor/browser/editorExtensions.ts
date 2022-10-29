@@ -27,7 +27,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopyselectallpaste';
 
-
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
 export type IDiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
