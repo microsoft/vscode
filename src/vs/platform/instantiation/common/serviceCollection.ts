@@ -16,10 +16,8 @@ export class ServiceCollection {
 		}
 	}
 
-	set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
-		const result = this._entries.get(id);
+	set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>) {
 		this._entries.set(id, instanceOrDescriptor);
-		return result;
 	}
 
 	has(id: ServiceIdentifier<any>): boolean {
