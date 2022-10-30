@@ -26,7 +26,7 @@ function Global:__VSCode-Get-LastExitCode {
 }
 
 function Global:Prompt() {
-	$LastExitCode = $(__VSCode-Get-LastExitCode);
+	$Success = $(__VSCode-Get-LastExitCode);
 	$LastHistoryEntry = $(Get-History -Count 1)
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {
@@ -50,7 +50,7 @@ function Global:Prompt() {
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
-			$Result += "`e]633;D;$LastExitCode`a"
+			$Result += "`e]633;D;$Success`a"
 		}
 	}
 	# Prompt started
