@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
@@ -29,13 +29,13 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
-registerSingleton(ILoggerService, ExtHostLoggerService, true);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
+registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
 
-registerSingleton(IExtHostDebugService, ExtHostDebugService, false);
-registerSingleton(IExtHostSearch, NativeExtHostSearch, false);
-registerSingleton(IExtHostTask, ExtHostTask, false);
-registerSingleton(IExtHostTerminalService, ExtHostTerminalService, false);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService, false);
-registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, false);
+registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);
+registerSingleton(IExtHostSearch, NativeExtHostSearch, InstantiationType.Eager);
+registerSingleton(IExtHostTask, ExtHostTask, InstantiationType.Eager);
+registerSingleton(IExtHostTerminalService, ExtHostTerminalService, InstantiationType.Eager);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
+registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);

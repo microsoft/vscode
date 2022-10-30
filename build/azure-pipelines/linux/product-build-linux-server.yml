@@ -8,59 +8,69 @@ steps:
       versionSpec: "16.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: AzureKeyVault@1
-      displayName: "Azure Key Vault: Get Secrets"
-      inputs:
-        azureSubscription: "vscode-builds-subscription"
-        KeyVaultName: vscode
-        SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      - task: AzureKeyVault@1
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: "vscode-builds-subscription"
+          KeyVaultName: vscode
+          SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: Docker@1
-      displayName: "Pull Docker image"
-      inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
-        azureContainerRegistry: vscodehub.azurecr.io
-        command: "Run an image"
-        imageName: "vscode-linux-build-agent:centos7-devtoolset8-arm64"
-        containerCommand: uname
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+      - task: Docker@1
+        displayName: "Pull Docker image"
+        inputs:
+          azureSubscriptionEndpoint: "vscode-builds-subscription"
+          azureContainerRegistry: vscodehub.azurecr.io
+          command: "Run an image"
+          imageName: "vscode-linux-build-agent:centos7-devtoolset8-arm64"
+          containerCommand: uname
+        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        cat << EOF > ~/.netrc
-        machine github.com
-        login vscode
-        password $(github-distro-mixin-password)
-        EOF
+      - script: |
+          set -e
+          cat << EOF > ~/.netrc
+          machine github.com
+          login vscode
+          password $(github-distro-mixin-password)
+          EOF
 
-        git config user.email "vscode@microsoft.com"
-        git config user.name "VSCode"
-      displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-        git checkout FETCH_HEAD
-      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-      displayName: Checkout override commit
+          git config user.email "vscode@microsoft.com"
+          git config user.name "VSCode"
+        displayName: Prepare tooling
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-      displayName: Merge distro
+      - script: |
+          set -e
+          git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+          echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+          git checkout FETCH_HEAD
+        condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+        displayName: Checkout override commit
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - script: |
+          set -e
+          git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+        displayName: Merge distro
 
   - script: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+      npm config set registry "$NPM_REGISTRY" --location=project
+      npm config set always-auth=true --location=project
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
 
   - script: |
       set -e
@@ -71,18 +81,18 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-      displayName: Register Docker QEMU
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+      - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+        displayName: Register Docker QEMU
+        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        docker run -e VSCODE_QUALITY -e GITHUB_TOKEN -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-arm64 /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
-      displayName: Install dependencies via qemu
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+      - script: |
+          set -e
+          docker run -e VSCODE_QUALITY -e GITHUB_TOKEN -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-arm64 /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
+        displayName: Install dependencies via qemu
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e

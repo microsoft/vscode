@@ -11,7 +11,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -44,15 +44,15 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
 
-registerSingleton(ITestService, TestService, true);
-registerSingleton(ITestResultStorage, TestResultStorage, true);
-registerSingleton(ITestProfileService, TestProfileService, true);
-registerSingleton(ITestResultService, TestResultService, true);
-registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, true);
-registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
-registerSingleton(ITestingPeekOpener, TestingPeekOpener, true);
-registerSingleton(ITestingProgressUiService, TestingProgressUiService, true);
-registerSingleton(ITestingDecorationsService, TestingDecorationService, true);
+registerSingleton(ITestService, TestService, InstantiationType.Delayed);
+registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
+registerSingleton(ITestProfileService, TestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
+registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
+registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, InstantiationType.Delayed);
+registerSingleton(ITestingPeekOpener, TestingPeekOpener, InstantiationType.Delayed);
+registerSingleton(ITestingProgressUiService, TestingProgressUiService, InstantiationType.Delayed);
+registerSingleton(ITestingDecorationsService, TestingDecorationService, InstantiationType.Delayed);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,

@@ -18,12 +18,13 @@ import { localize } from 'vs/nls';
 import { ConfirmResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { conflictMarkers } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -65,6 +66,7 @@ export interface IMergeEditorInputModel extends IDisposable, IEditorModel {
 
 export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFactory {
 	constructor(
+		private readonly _mergeEditorTelemetry: MergeEditorTelemetry,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
@@ -112,7 +114,8 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
 				resetResult: true,
-			}
+			},
+			this._mergeEditorTelemetry,
 		);
 		store.add(model);
 
@@ -263,11 +266,14 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 
 export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFactory {
 	constructor(
+		private readonly _mergeEditorTelemetry: MergeEditorTelemetry,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 	}
+
+	private static readonly FILE_SAVED_SOURCE = SaveSourceRegistry.registerSource('merge-editor.source', localize('merge-editor.source', "Before Resolving Conflicts In Merge Editor"));
 
 	public async createInputModel(args: MergeEditorArgs): Promise<IMergeEditorInputModel> {
 		const store = new DisposableStore();
@@ -302,7 +308,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			throw new BugIndicatingError();
 		}
 		// So that "Don't save" does revert the file
-		await resultTextFileModel.save();
+		await resultTextFileModel.save({ source: WorkspaceMergeEditorModeFactory.FILE_SAVED_SOURCE });
 
 		const lines = resultTextFileModel.textEditorModel!.getLinesContent();
 		const hasConflictMarkers = lines.some(l => l.startsWith(conflictMarkers.start));
@@ -319,11 +325,14 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
 				resetResult
-			}
+			},
+			this._mergeEditorTelemetry,
 		);
 		store.add(model);
 
-		return this._instantiationService.createInstance(WorkspaceMergeEditorInputModel, model, store, resultTextFileModel);
+		await model.onInitialized;
+
+		return this._instantiationService.createInstance(WorkspaceMergeEditorInputModel, model, store, resultTextFileModel, this._mergeEditorTelemetry);
 	}
 }
 
@@ -333,10 +342,14 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 		() => /** @description isDirty */ this.resultTextFileModel.isDirty()
 	);
 
+	private reported = false;
+	private readonly dateTimeOpened = new Date();
+
 	constructor(
 		public readonly model: MergeEditorModel,
 		private readonly disposableStore: DisposableStore,
 		private readonly resultTextFileModel: ITextFileEditorModel,
+		private readonly telemetry: MergeEditorTelemetry,
 		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
@@ -345,9 +358,44 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 	public override dispose(): void {
 		this.disposableStore.dispose();
 		super.dispose();
+
+		this.reportClose(false);
+	}
+
+	private reportClose(accepted: boolean): void {
+		if (!this.reported) {
+			const remainingConflictCount = this.model.unhandledConflictsCount.get();
+			const durationOpenedMs = new Date().getTime() - this.dateTimeOpened.getTime();
+			this.telemetry.reportMergeEditorClosed({
+				durationOpenedSecs: durationOpenedMs / 1000,
+				remainingConflictCount,
+				accepted,
+
+				conflictCount: this.model.conflictCount,
+				combinableConflictCount: this.model.combinableConflictCount,
+
+				conflictsResolvedWithBase: this.model.conflictsResolvedWithBase,
+				conflictsResolvedWithInput1: this.model.conflictsResolvedWithInput1,
+				conflictsResolvedWithInput2: this.model.conflictsResolvedWithInput2,
+				conflictsResolvedWithSmartCombination: this.model.conflictsResolvedWithSmartCombination,
+
+				manuallySolvedConflictCountThatEqualNone: this.model.manuallySolvedConflictCountThatEqualNone,
+				manuallySolvedConflictCountThatEqualSmartCombine: this.model.manuallySolvedConflictCountThatEqualSmartCombine,
+				manuallySolvedConflictCountThatEqualInput1: this.model.manuallySolvedConflictCountThatEqualInput1,
+				manuallySolvedConflictCountThatEqualInput2: this.model.manuallySolvedConflictCountThatEqualInput2,
+
+				manuallySolvedConflictCountThatEqualNoneAndStartedWithBase: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithBase,
+				manuallySolvedConflictCountThatEqualNoneAndStartedWithInput1: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithInput1,
+				manuallySolvedConflictCountThatEqualNoneAndStartedWithInput2: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithInput2,
+				manuallySolvedConflictCountThatEqualNoneAndStartedWithBothNonSmart: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithBothNonSmart,
+				manuallySolvedConflictCountThatEqualNoneAndStartedWithBothSmart: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithBothSmart,
+			});
+			this.reported = true;
+		}
 	}
 
 	public async accept(): Promise<void> {
+		this.reportClose(true);
 		await this.resultTextFileModel.save();
 	}
 
@@ -369,7 +417,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 	shouldConfirmClose(): boolean {
 		// Always confirm
 		return true;
-		//return this.resultTextFileModel.isDirty();
 	}
 
 	async confirmClose(inputModels: IMergeEditorInputModel[]): Promise<ConfirmResult> {
@@ -398,7 +445,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 					ConfirmResult.SAVE,
 				],
 				[localize('workspace.doNotSave', "Don't Save"), ConfirmResult.DONT_SAVE],
-				// TODO [localize('workspace.discard', "Discard changes"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 
@@ -424,7 +470,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 						: localize('workspace.close', 'Close'),
 					ConfirmResult.SAVE,
 				],
-				// TODO [localize('workspace.discard', "Discard changes"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 

@@ -5,14 +5,49 @@
 
 declare module 'vscode' {
 
+	export enum LogLevel {
+		Trace = 0,
+		Debug = 1,
+		Info = 2,
+		Warning = 3,
+		Error = 4,
+		Critical = 5,
+		Off = 6
+	}
+
+	export namespace env {
+
+		/**
+		 * The current log level of the application.
+		 */
+		export const logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the application changes.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
+
+	}
+
 	/**
 	 * A channel for containing log output.
 	 */
 	export interface LogOutputChannel extends OutputChannel {
+
+		/**
+		 * The current log level of the channel. Defaults to application {@link env.logLevel application log level}.
+		 */
+		readonly logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the channel changes.
+		 */
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+
 		/**
 		 * Log the given trace message to the channel.
 		 *
-		 * Messages are only printed when the user has enabled trace logging.
+		 * Messages are only logged when the {@link LogOutputChannel.logLevel log level} is {@link LogLevel.Trace trace}.
 		 *
 		 * @param message trace message to log
 		 */
@@ -20,7 +55,7 @@ declare module 'vscode' {
 		/**
 		 * Log the given debug message to the channel.
 		 *
-		 * Messages are only printed when the user has enabled debug logging.
+		 * Messages are only logged when the {@link LogOutputChannel.logLevel log level} is {@link LogLevel.Debug debug} or lower.
 		 *
 		 * @param message debug message to log
 		 */
@@ -28,7 +63,7 @@ declare module 'vscode' {
 		/**
 		 * Log the given info message to the channel.
 		 *
-		 * Messages are only printed when the user has enabled info logging.
+		 * Messages are only logged when the {@link LogOutputChannel.logLevel log level} is {@link LogLevel.Info info} or lower.
 		 *
 		 * @param message info message to log
 		 */
@@ -36,7 +71,7 @@ declare module 'vscode' {
 		/**
 		 * Log the given warning message to the channel.
 		 *
-		 * Messages are only printed when the user has enabled warn logging.
+		 * Messages are only logged when the {@link LogOutputChannel.logLevel log level} is {@link LogLevel.Warn warn} or lower.
 		 *
 		 * @param message warning message to log
 		 */
@@ -44,7 +79,7 @@ declare module 'vscode' {
 		/**
 		 * Log the given error or error message to the channel.
 		 *
-		 * Messages are only printed when the user has enabled error logging.
+		 * Messages are only logged when the {@link LogOutputChannel.logLevel log level} is {@link LogLevel.Error error} or lower.
 		 *
 		 * @param error Error or error message to log
 		 */

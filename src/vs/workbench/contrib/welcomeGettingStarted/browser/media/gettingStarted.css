@@ -66,7 +66,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer h2 {
-	font-weight: 200;
+	font-weight: 400;
 	margin-top: 0;
 	margin-bottom: 5px;
 	font-size: 1.5em;
@@ -333,7 +333,7 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
 	top: -30px;
 	left: 4px;
-	font-size: 12pt;
+	font-size: 14px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
@@ -751,6 +751,8 @@
 	text-align: center;
 	display: flex;
 	justify-content: center;
+	align-items: center;
+	gap: 8px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {

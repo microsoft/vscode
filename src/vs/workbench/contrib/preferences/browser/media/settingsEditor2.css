@@ -172,6 +172,10 @@
 	padding-left: 33px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row {
+	outline: none !important;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -294,6 +298,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-rows {
+	min-height: 175px; /* Avoid the hover being cut off. See #164602 */
 	overflow: visible !important; /* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
 }
 
@@ -428,14 +433,6 @@
 	padding-right: 5px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span.codicon.codicon-workspace-untrusted {
-	color: var(--workspace-trust-state-untrusted-color) !important;
-}
-
-.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span.codicon.codicon-lock {
-	color: var(--organization-policy-icon-color) !important;
-}
-
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message {
 	display: none;
 }
@@ -561,7 +558,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
-	padding: 2px 8px;
+	padding: 2px 6px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-new-extensions {
@@ -615,6 +612,6 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .codicon,
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row.focused .codicon,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .codicon {
 	color: inherit !important;
 }

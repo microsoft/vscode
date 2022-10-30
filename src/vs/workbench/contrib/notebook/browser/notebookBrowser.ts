@@ -25,8 +25,9 @@ import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/co
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -428,6 +429,7 @@ export interface INotebookEditor {
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
+	readonly scopedContextKeyService: IContextKeyService;
 	//#endregion
 
 	getLength(): number;
@@ -441,7 +443,7 @@ export interface INotebookEditor {
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
-	getInnerWebview(): IWebview | undefined;
+	getInnerWebview(): IWebviewElement | undefined;
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**

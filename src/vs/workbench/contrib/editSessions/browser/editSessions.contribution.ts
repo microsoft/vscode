@@ -20,7 +20,7 @@ import { encodeBase64 } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/browser/editSessionsStorageService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -49,7 +49,7 @@ import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
-import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
@@ -57,8 +57,8 @@ import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
@@ -144,21 +144,32 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			};
 			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
 
+			const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload';
+
 			if (this.environmentService.editSessionId !== undefined) {
 				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
-			} else if (
-				this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload' &&
-				this.editSessionsStorageService.isSignedIn
-			) {
+			} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
 				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
 				await this.resumeEditSession(undefined, true);
-			} else {
+			} else if (shouldAutoResumeOnReload) {
 				// The application has previously launched via a protocol URL Continue On flow
 				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+
+				const handlePendingEditSessions = () => {
+					// display a badge in the accounts menu but do not prompt the user to sign in again
+					this.updateAccountsMenuBadge();
+					// attempt a resume if we are in a pending state and the user just signed in
+					const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
+						disposable.dispose();
+						this.resumeEditSession(undefined, true);
+						this.storageService.remove(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION);
+						this.environmentService.continueOn = undefined;
+					});
+				};
 
 				if ((this.environmentService.continueOn !== undefined) &&
 					!this.editSessionsStorageService.isSignedIn &&
@@ -170,17 +181,14 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					if (this.editSessionsStorageService.isSignedIn) {
 						await this.resumeEditSession(undefined, true);
 					} else {
-						this.updateAccountsMenuBadge();
+						handlePendingEditSessions();
 					}
 					// store the fact that we prompted the user
 				} else if (!this.editSessionsStorageService.isSignedIn &&
 					// and user has been prompted to sign in on this machine
 					hasApplicationLaunchedFromContinueOnFlow === true
 				) {
-					// display a badge in the accounts menu but do not prompt the user to sign in again
-					this.updateAccountsMenuBadge();
-					// attempt a resume if we are in a pending state and the user just signed in
-					this._register(this.editSessionsStorageService.onDidSignIn(async () => this.resumeEditSession(undefined, true)));
+					handlePendingEditSessions();
 				}
 			}
 
@@ -284,13 +292,20 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
-				if (uri === undefined) { return; }
-
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
 					ref = await that.storeEditSession(false);
+				}
+
+				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
+				if (uri === undefined) {
+					// If the user didn't end up picking a Continue On destination
+					// and we stored an edit session, clean up the stored edit session
+					if (ref !== undefined) {
+						void that.editSessionsStorageService.delete(ref);
+					}
+					return;
 				}
 
 				// Append the ref to the URI
@@ -369,7 +384,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean): Promise<void> {
 		// Edit sessions are not currently supported in empty workspaces
 		// https://github.com/microsoft/vscode/issues/159220
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -401,7 +416,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		try {
-			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, force);
 			if (changes.length === 0) {
 				return;
 			}
@@ -445,7 +460,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private async generateChanges(editSession: EditSession, ref: string) {
+	private async generateChanges(editSession: EditSession, ref: string, force = false) {
 		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 		const conflictingChanges = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
@@ -459,9 +474,32 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				for (const f of workspaceFolders) {
 					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
+
 					if (equals(identity, folder.canonicalIdentity)) {
 						folderRoot = f;
 						break;
+					}
+
+					if (identity !== undefined) {
+						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource);
+						if (match === EditSessionIdentityMatch.Complete) {
+							folderRoot = f;
+							break;
+						} else if (match === EditSessionIdentityMatch.Partial &&
+							this.configurationService.getValue('workbench.experimental.editSessions.partialMatches.enabled') === true
+						) {
+							if (!force) {
+								// Surface partially matching edit session
+								this.notificationService.prompt(
+									Severity.Info,
+									localize('editSessionPartialMatch', 'You have a pending edit session for this workspace. Would you like to resume it?'),
+									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, true) }]
+								);
+							} else {
+								folderRoot = f;
+								break;
+							}
+						}
 					}
 				}
 			} else {
@@ -867,5 +905,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'onReload',
 			'markdownDeprecationMessage': localize('autoResumeDeprecated', "This setting is deprecated in favor of {0}.", '`#workbench.editSessions.autoResume#`')
 		},
+		'workbench.experimental.editSessions.partialMatches.enabled': {
+			'type': 'boolean',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': false,
+			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
+		}
 	}
 });

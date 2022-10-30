@@ -48,6 +48,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerConfiguration();
 
 		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
+		PROFILES_ENABLEMENT_CONTEXT.bindTo(contextKeyService).set(this.userDataProfilesService.isEnabled());
 		this.isCurrentProfileTransientContext = IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.bindTo(contextKeyService);
 
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
@@ -289,7 +290,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const profile = await userDataProfileImportExportService.exportProfile({ skipComments: true });
 				await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
 
-				notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY));
+				notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY.value));
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {

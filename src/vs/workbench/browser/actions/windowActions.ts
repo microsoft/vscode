@@ -10,7 +10,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -289,7 +289,7 @@ class ToggleFullScreenAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 				original: 'Toggle Full Screen'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -323,7 +323,7 @@ export class ReloadWindowAction extends Action2 {
 		super({
 			id: ReloadWindowAction.ID,
 			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -350,7 +350,7 @@ class ShowAboutDialogAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
 				original: 'About'
 			},
-			category: CATEGORIES.Help,
+			category: Categories.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,

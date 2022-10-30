@@ -12,8 +12,8 @@ import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/bro
 import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -108,7 +108,6 @@ export abstract class TitleControl extends Themable {
 
 	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
-	private contextMenu: IMenu;
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
@@ -140,7 +139,6 @@ export abstract class TitleControl extends Themable {
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
 
-		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 		this.renderDropdownAsChildElement = false;
 
 		this.create(parent);
@@ -374,14 +372,12 @@ export abstract class TitleControl extends Themable {
 			anchor = { x: event.posx, y: event.posy };
 		}
 
-		// Fill in contributed actions
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
-
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => actions,
+			menuId: MenuId.EditorTitleContext,
+			menuActionOptions: { shouldForwardArgs: true, arg: this.resourceContext.get() },
+			contextKeyService: this.contextKeyService,
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
 			getKeyBinding: action => this.getKeybinding(action),
 			onHide: () => {

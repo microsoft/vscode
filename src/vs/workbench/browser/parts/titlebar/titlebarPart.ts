@@ -7,11 +7,10 @@ import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { getZoomFactor, isWCOVisible } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -25,8 +24,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
@@ -35,7 +34,7 @@ import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -49,7 +48,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	get minimumHeight(): number {
-		const value = this.isCommandCenterVisible ? 35 : 30;
+		const value = this.isCommandCenterVisible || (isWeb && isWCOVisible()) ? 35 : 30;
 		return value / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
 
@@ -65,6 +64,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
+	protected dragRegion: HTMLElement | undefined;
 	protected title!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -92,7 +92,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IHoverService hoverService: IHoverService,
@@ -233,6 +232,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
 
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
+
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh || isWeb) {
 			this.appIcon = prepend(this.rootContainer, $('a.window-appicon'));
@@ -322,7 +324,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				super({
 					id: `workbench.action.focusTitleBar`,
 					title: { value: localize('focusTitleBar', "Focus Title Bar"), original: 'Focus Title Bar' },
-					category: CATEGORIES.View,
+					category: Categories.View,
 					f1: true,
 				});
 			}
@@ -382,16 +384,11 @@ export class TitlebarPart extends Part implements ITitleService {
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
 
-		// Fill in contributed actions
-		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(menu, undefined, actions);
-		menu.dispose();
-
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => actions,
+			menuId,
+			contextKeyService: this.contextKeyService,
 			domForShadowRoot: isMacintosh && isNative ? event.target : undefined
 		});
 	}

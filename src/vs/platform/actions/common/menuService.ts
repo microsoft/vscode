@@ -10,7 +10,7 @@ import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuI
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
+import { Separator, toAction } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
@@ -217,12 +217,9 @@ class MenuInfo {
 
 	createActionGroups(options: IMenuActionOptions | undefined): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
-		const allToggleActions: IAction[][] = [];
 
 		for (const group of this._menuGroups) {
 			const [id, items] = group;
-
-			const toggleActions: IAction[] = [];
 
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
@@ -231,8 +228,7 @@ class MenuInfo {
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
-						const actualMenuHide = item.command._isFakeAction ? undefined : menuHide;
-						activeActions.push(new MenuItemAction(item.command, item.alt, options, actualMenuHide, this._contextKeyService, this._commandService));
+						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
 
 					} else {
 						// SubmenuItemAction
@@ -246,9 +242,6 @@ class MenuInfo {
 			}
 			if (activeActions.length > 0) {
 				result.push([id, activeActions]);
-			}
-			if (toggleActions.length > 0) {
-				allToggleActions.push(toggleActions);
 			}
 		}
 		return result;
@@ -385,8 +378,8 @@ class MenuImpl implements IMenu {
 
 		this._onDidChange = new DebounceEmitter({
 			// start/stop context key listener
-			onFirstListenerAdd: startLazyListener,
-			onLastListenerRemove: lazyListener.clear.bind(lazyListener),
+			onWillAddFirstListener: startLazyListener,
+			onDidRemoveLastListener: lazyListener.clear.bind(lazyListener),
 			delay: options.eventDebounceDelay,
 			merge
 		});

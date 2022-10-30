@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
@@ -260,12 +261,11 @@ export class ShowHideBase extends Action2 {
 			menu: [
 				{
 					id: MenuId.EditorTitle,
-					when: ctxIsMergeEditor,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('columns')),
 					group: '2_merge',
 					order: 9,
 				},
-			],
-			precondition: ctxIsMergeEditor,
+			]
 		});
 	}
 
@@ -277,31 +277,58 @@ export class ShowHideBase extends Action2 {
 	}
 }
 
-export class ShowHideAtTopBase extends Action2 {
+export class ShowHideTopBase extends Action2 {
 	constructor() {
 		super({
-			id: 'merge.showBaseAtTop',
+			id: 'merge.showBaseTop',
 			title: {
-				value: localize('layout.showBaseAtTop', 'Show Base At Top'),
-				original: 'Show Base At Top',
+				value: localize('layout.showBaseTop', 'Show Base Top'),
+				original: 'Show Base Top',
 			},
-			toggled: ctxMergeEditorShowBaseAtTop.isEqualTo(true),
+			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop),
 			menu: [
 				{
 					id: MenuId.EditorTitle,
-					when: ctxIsMergeEditor,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('mixed')),
 					group: '2_merge',
 					order: 10,
 				},
 			],
-			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase, ctxMergeEditorLayout.isEqualTo('mixed')),
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.toggleShowBaseAtTop();
+			activeEditorPane.toggleShowBaseTop();
+		}
+	}
+}
+
+export class ShowHideCenterBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showBaseCenter',
+			title: {
+				value: localize('layout.showBaseCenter', 'Show Base Center'),
+				original: 'Show Base Center',
+			},
+			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop.negate()),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('mixed')),
+					group: '2_merge',
+					order: 11,
+				},
+			],
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowBaseCenter();
 		}
 	}
 }
@@ -361,6 +388,7 @@ export class GoToNextUnhandledConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.model.telemetry.reportNavigationToNextConflict();
 		viewModel.goToNextModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
@@ -392,6 +420,7 @@ export class GoToPreviousUnhandledConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.model.telemetry.reportNavigationToPreviousConflict();
 		viewModel.goToPreviousModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
@@ -616,9 +645,9 @@ export class AcceptMerge extends MergeEditorAction2 {
 			title: {
 				value: localize(
 					'mergeEditor.acceptMerge',
-					'Accept Merge'
+					'Complete Merge'
 				),
-				original: 'Accept Merge',
+				original: 'Complete Merge',
 			},
 			f1: false,
 			precondition: ctxIsMergeEditor
@@ -632,8 +661,9 @@ export class AcceptMerge extends MergeEditorAction2 {
 		if (viewModel.model.unhandledConflictsCount.get() > 0) {
 			const confirmResult = await dialogService.confirm({
 				type: 'info',
-				message: localize('mergeEditor.acceptMerge.unhandledConflicts', "There are still unhandled conflicts. Are you sure you want to accept the merge?"),
-				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Accept merge with unhandled conflicts"),
+				message: localize('mergeEditor.acceptMerge.unhandledConflicts.message', "Do you want to complete the merge of {0}?", basename(inputModel.resultUri)),
+				detail: localize('mergeEditor.acceptMerge.unhandledConflicts.detail', "The file contains unhandled conflicts."),
+				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Complete with Conflicts"),
 				secondaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.cancel', "Cancel"),
 			});
 

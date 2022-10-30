@@ -10,6 +10,8 @@ import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Constants } from 'vs/base/common/uint';
@@ -39,7 +41,7 @@ import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/work
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -48,7 +50,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
-import { stripIcons } from 'vs/base/common/iconLabels';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -79,7 +81,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		rangeUpdateVersionId?: number;
 		/** Counter for the results rendered in the document */
 		generation: number;
-		value: TestDecorations<ITestDecoration>;
+		value: readonly ITestDecoration[];
+		map: ReadonlyMap<string, ITestDecoration>;
 	}>();
 
 	/**
@@ -150,15 +153,15 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	}
 
 	/** @inheritdoc */
-	public syncDecorations(resource: URI): TestDecorations {
+	public syncDecorations(resource: URI): ReadonlyMap<string, ITestDecoration> {
 		const model = this.modelService.getModel(resource);
 		if (!model) {
-			return new TestDecorations();
+			return new Map();
 		}
 
 		const cached = this.decorationCache.get(resource);
 		if (cached && cached.generation === this.generation && (cached.rangeUpdateVersionId === undefined || cached.rangeUpdateVersionId !== model.getVersionId())) {
-			return cached.value;
+			return cached.map;
 		}
 
 		return this.applyDecorations(model);
@@ -171,7 +174,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			return undefined;
 		}
 
-		const decoration = this.syncDecorations(resource).value.find(v => v instanceof RunTestDecoration && v.isForTest(testId));
+		const decoration = Iterable.find(this.syncDecorations(resource).values(), v => v instanceof RunTestDecoration && v.isForTest(testId));
 		if (!decoration) {
 			return undefined;
 		}
@@ -192,10 +195,10 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const uriStr = model.uri.toString();
 		const cached = this.decorationCache.get(model.uri);
 		const testRangesUpdated = cached?.rangeUpdateVersionId === model.getVersionId();
-		const lastDecorations = cached?.value ?? new TestDecorations<ITestDecoration>();
-		const newDecorations = new TestDecorations<ITestDecoration>();
+		const lastDecorations = cached?.value ?? [];
 
-		model.changeDecorations(accessor => {
+		const map = model.changeDecorations(accessor => {
+			const newDecorations: ITestDecoration[] = [];
 			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem; resultItem: TestResultItem | undefined }>();
 			for (const test of this.testService.collection.all) {
 				if (!test.item.range || test.item.uri?.toString() !== uriStr) {
@@ -209,7 +212,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			for (const [line, tests] of runDecorations.lines()) {
 				const multi = tests.length > 1;
-				let existing = lastDecorations.value.find(d => d instanceof RunTestDecoration && d.exactlyContainsTests(tests)) as RunTestDecoration | undefined;
+				let existing = lastDecorations.find(d => d instanceof RunTestDecoration && d.exactlyContainsTests(tests)) as RunTestDecoration | undefined;
 
 				// see comment in the constructor for what's going on here
 				if (existing && testRangesUpdated && model.getDecorationRange(existing.id)?.startLineNumber !== line) {
@@ -233,14 +236,14 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				for (const task of lastResult.tasks) {
 					for (const m of task.otherMessages) {
 						if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
-							const decoration = lastDecorations.findOnLine(m.location.range.startLineNumber, l => l instanceof TestMessageDecoration && l.testMessage === m)
+							const decoration = lastDecorations.find(l => l instanceof TestMessageDecoration && l.testMessage === m)
 								|| this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
 							newDecorations.push(decoration);
 						}
 					}
 				}
 
-				const messageLines = new Set<number>();
+				const messageLines = new Map</* line number */ number, /* index in newDecorations */ number>();
 				for (const test of lastResult.tests) {
 					for (let taskId = 0; taskId < test.tasks.length; taskId++) {
 						const state = test.tasks[taskId];
@@ -253,14 +256,17 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 							// Only add one message per line number. Overlapping messages
 							// don't appear well, and the peek will show all of them (#134129)
 							const line = m.location.range.startLineNumber;
+							let index: number;
 							if (messageLines.has(line)) {
-								continue;
+								index = messageLines.get(line)!;
+							} else {
+								index = newDecorations.length;
+								messageLines.set(line, index);
 							}
-							messageLines.add(line);
 
-							const previous = lastDecorations.findOnLine(line, l => l instanceof TestMessageDecoration && l.testMessage === m);
+							const previous = lastDecorations.find(l => l instanceof TestMessageDecoration && l.testMessage === m);
 							if (previous) {
-								newDecorations.push(previous);
+								newDecorations[index] = previous;
 								continue;
 							}
 
@@ -279,7 +285,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			}
 
 			const saveFromRemoval = new Set<string>();
-			for (const decoration of newDecorations.value) {
+			for (const decoration of newDecorations) {
 				if (decoration.id === '') {
 					decoration.id = accessor.addDecoration(decoration.editorDecoration.range, decoration.editorDecoration.options);
 				} else {
@@ -287,20 +293,24 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 
-			for (const decoration of lastDecorations.value) {
+			for (const decoration of lastDecorations) {
 				if (!saveFromRemoval.has(decoration.id)) {
 					accessor.removeDecoration(decoration.id);
 				}
 			}
 
+			const map = new Map(newDecorations.map(d => [d.id, d]));
 			this.decorationCache.set(model.uri, {
 				generation: this.generation,
 				rangeUpdateVersionId: cached?.rangeUpdateVersionId,
 				value: newDecorations,
+				map,
 			});
+
+			return map;
 		});
 
-		return newDecorations;
+		return map || new Map();
 	}
 }
 
@@ -338,8 +348,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			if (e.target.position && this.currentUri) {
 				const modelDecorations = editor.getModel()?.getDecorationsInRange(Range.fromPositions(e.target.position)) ?? [];
 				for (const { id } of modelDecorations) {
-					const cache = decorations.syncDecorations(this.currentUri) as TestDecorations<ITestDecoration>;
-					if (cache.get(id)?.click(e)) {
+					const cache = decorations.syncDecorations(this.currentUri);
+					if ((cache.get(id) as ITestDecoration | undefined)?.click(e)) {
 						e.event.stopPropagation();
 						return;
 					}
@@ -404,7 +414,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService.collection, this.uriIdentityService, uri)) {
+			for await (const _test of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.
@@ -840,7 +850,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		const testItems = this.tests.map(testItem => ({
 			currentLabel: testItem.test.item.label,
 			testItem,
-			parent: testItem.test.parent,
+			parent: TestId.fromString(testItem.test.item.extId).parentId,
 		}));
 
 		const getLabelConflicts = (tests: typeof testItems) => {
@@ -856,9 +866,9 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		while ((conflicts = getLabelConflicts(testItems)).length && hasParent) {
 			for (const conflict of conflicts) {
 				if (conflict.parent) {
-					const parent = this.testService.collection.getNodeById(conflict.parent);
+					const parent = this.testService.collection.getNodeById(conflict.parent.toString());
 					conflict.currentLabel = parent?.item.label + ' > ' + conflict.currentLabel;
-					conflict.parent = parent?.parent ? parent.parent : null;
+					conflict.parent = conflict.parent.parentId;
 				} else {
 					hasParent = false;
 				}

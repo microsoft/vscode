@@ -25,6 +25,7 @@ import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { MessagePortMain } from 'electron';
 import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import type { EventEmitter } from 'events';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -33,6 +34,24 @@ interface ParsedExtHostArgs {
 	transformURIs?: boolean;
 	skipWorkspaceStorageLock?: boolean;
 	useHostProxy?: 'true' | 'false'; // use a string, as undefined is also a valid value
+}
+
+interface ParentPort extends EventEmitter {
+
+	// Docs: https://electronjs.org/docs/api/parent-port
+
+	/**
+	 * Emitted when the process receives a message. Messages received on this port will
+	 * be queued up until a handler is registered for this event.
+	 */
+	on(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	once(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	addListener(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	removeListener(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	/**
+	 * Sends a message from the process to its parent.
+	 */
+	postMessage(message: any): void;
 }
 
 // workaround for https://github.com/microsoft/vscode/issues/85490
@@ -132,14 +151,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			if ((<any>global).vscodePorts) {
-				const ports = (<any>global).vscodePorts;
-				delete (<any>global).vscodePorts;
-				withPorts(ports);
-			} else {
-				(<any>global).vscodePortsCallback = withPorts;
-			}
-
+			(process as NodeJS.Process & { parentPort: ParentPort })?.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {

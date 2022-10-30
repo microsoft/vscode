@@ -8,6 +8,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/languages';
 import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { FoldingLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
 
 interface IndentRange {
 	start: number;
@@ -74,14 +75,18 @@ suite('Syntax folding', () => {
 		const providers = [new TestFoldingRangeProvider(model, ranges)];
 
 		async function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			const indentRanges = await new SyntaxRangeProvider(model, providers, () => { }, maxEntries).compute(CancellationToken.None);
+			let reported: number | false = false;
+			const foldingRangesLimit: FoldingLimitReporter = { limit: maxEntries, report: r => reported = r.limited };
+			const indentRanges = await new SyntaxRangeProvider(model, providers, () => { }, foldingRangesLimit).compute(CancellationToken.None);
 			const actual: IndentRange[] = [];
 			if (indentRanges) {
 				for (let i = 0; i < indentRanges.length; i++) {
 					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 				}
+				assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
 			}
 			assert.deepStrictEqual(actual, expectedRanges, message);
+
 		}
 
 		await assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');

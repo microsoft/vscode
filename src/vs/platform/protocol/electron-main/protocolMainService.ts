@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { COI, FileAccess, Schemas } from 'vs/base/common/network';
 import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';

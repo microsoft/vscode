@@ -42,10 +42,10 @@ vscode-languageserver@^8.0.2:
   dependencies:
     vscode-languageserver-protocol "3.17.2"
 
-vscode-markdown-languageservice@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.1.0.tgz#6027e15094da005b66318e8edb099644c7557b25"
-  integrity sha512-fMUFjM7AZo7Mto7NS8PEDNJ5IpJQUvVemhlnLs3AP2jC59pOHwpeciuTEINF0ymjWQwu94OIbilBn7OB/Z1sUg==
+vscode-markdown-languageservice@^0.2.0-alpha.8:
+  version "0.2.0-alpha.8"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.2.0-alpha.8.tgz#f77c20adea2ddafdad88b99b09be1778c358ca42"
+  integrity sha512-kydgGkSarjFk71culFover7lBym82wmJdvuqCzS3IPZV+fhW1l0poca/Dt4bDku3ioda0kNH9xdmi0fiHkIDUQ==
   dependencies:
     picomatch "^2.3.1"
     vscode-languageserver-textdocument "^1.0.5"

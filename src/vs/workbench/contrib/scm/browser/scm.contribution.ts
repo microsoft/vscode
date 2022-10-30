@@ -16,7 +16,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
@@ -383,5 +383,5 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
 });
 
-registerSingleton(ISCMService, SCMService, true);
-registerSingleton(ISCMViewService, SCMViewService, true);
+registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
+registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
