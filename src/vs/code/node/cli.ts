@@ -50,7 +50,7 @@ export async function main(argv: string[]): Promise<any> {
 	}
 
 	if (args.tunnel) {
-		if (!product.tunnelApplicationName) {
+		if (!product.tunnelApplicationName || !product.tunnelApplicationConfig) {
 			console.error(`'tunnel' command not supported in ${product.applicationName}`);
 			return;
 		}
