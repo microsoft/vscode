@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
 import { attachBadgeStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -87,7 +87,7 @@ import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewS
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { buttonBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -2502,11 +2502,6 @@ export class SCMViewPane extends ViewPane {
 }
 
 export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
-
-registerThemingParticipant((theme, collector) => {
-	const buttonBorderColor = theme.getColor(buttonBorder);
-	collector.addRule(`.scm-view .button-container .monaco-description-button { height: ${buttonBorderColor ? '32px' : '30px'}; }`);
-});
 
 export class SCMActionButton implements IDisposable {
 	private button: Button | ButtonWithDescription | ButtonWithDropdown | undefined;
