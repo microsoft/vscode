@@ -36,7 +36,7 @@ export interface IServerChannel<TContext = string> {
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
 
-export const enum RequestType {
+const enum RequestType {
 	Promise = 100,
 	PromiseCancel = 101,
 	EventListen = 102,
@@ -62,7 +62,7 @@ type IRawEventListenRequest = { type: RequestType.EventListen; id: number; chann
 type IRawEventDisposeRequest = { type: RequestType.EventDispose; id: number };
 type IRawRequest = IRawPromiseRequest | IRawPromiseCancelRequest | IRawEventListenRequest | IRawEventDisposeRequest;
 
-export const enum ResponseType {
+const enum ResponseType {
 	Initialize = 200,
 	PromiseSuccess = 201,
 	PromiseError = 202,
@@ -1186,7 +1186,7 @@ function pretty(data: any): any {
 	return prettyWithoutArrays(data);
 }
 
-export function logWithColors(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+function logWithColors(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 	data = pretty(data);
 
 	const colorTable = colorTables[initiator];

@@ -44,15 +44,15 @@ export interface MarkdownContentProviderOutput {
 
 export class MdDocumentRenderer {
 	constructor(
-		private readonly engine: MarkdownItEngine,
-		private readonly context: vscode.ExtensionContext,
-		private readonly cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly contributionProvider: MarkdownContributionProvider,
-		private readonly logger: ILogger
+		private readonly _engine: MarkdownItEngine,
+		private readonly _context: vscode.ExtensionContext,
+		private readonly _cspArbiter: ContentSecurityPolicyArbiter,
+		private readonly _contributionProvider: MarkdownContributionProvider,
+		private readonly _logger: ILogger
 	) {
 		this.iconPath = {
-			dark: vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview-dark.svg'),
-			light: vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview-light.svg'),
+			dark: vscode.Uri.joinPath(this._context.extensionUri, 'media', 'preview-dark.svg'),
+			light: vscode.Uri.joinPath(this._context.extensionUri, 'media', 'preview-light.svg'),
 		};
 	}
 
@@ -77,15 +77,15 @@ export class MdDocumentRenderer {
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
-			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings(),
+			disableSecurityWarnings: this._cspArbiter.shouldDisableSecurityWarnings(),
 			webviewResourceRoot: resourceProvider.asWebviewUri(markdownDocument.uri).toString(),
 		};
 
-		this.logger.verbose('DocumentRenderer', `provideTextDocumentContent - ${markdownDocument.uri}`, initialData);
+		this._logger.verbose('DocumentRenderer', `provideTextDocumentContent - ${markdownDocument.uri}`, initialData);
 
 		// Content Security Policy
 		const nonce = getNonce();
-		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
+		const csp = this._getCsp(resourceProvider, sourceUri, nonce);
 
 		const body = await this.renderBody(markdownDocument, resourceProvider);
 		if (token.isCancellationRequested) {
@@ -93,7 +93,7 @@ export class MdDocumentRenderer {
 		}
 
 		const html = `<!DOCTYPE html>
-			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
+			<html style="${escapeAttribute(this._getSettingsOverrideStyles(config))}">
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
@@ -101,13 +101,13 @@ export class MdDocumentRenderer {
 					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
 					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
 					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
-				<script src="${this.extensionResourcePath(resourceProvider, 'pre.js')}" nonce="${nonce}"></script>
-				${this.getStyles(resourceProvider, sourceUri, config, state)}
+				<script src="${this._extensionResourcePath(resourceProvider, 'pre.js')}" nonce="${nonce}"></script>
+				${this._getStyles(resourceProvider, sourceUri, config, state)}
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body.html}
-				${this.getScripts(resourceProvider, nonce)}
+				${this._getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;
 		return {
@@ -120,7 +120,7 @@ export class MdDocumentRenderer {
 		markdownDocument: vscode.TextDocument,
 		resourceProvider: WebviewResourceProvider,
 	): Promise<MarkdownContentProviderOutput> {
-		const rendered = await this.engine.render(markdownDocument, resourceProvider);
+		const rendered = await this._engine.render(markdownDocument, resourceProvider);
 		const html = `<div class="markdown-body" dir="auto">${rendered.html}<div class="code-line" data-line="${markdownDocument.lineCount}"></div></div>`;
 		return {
 			html,
@@ -139,13 +139,13 @@ export class MdDocumentRenderer {
 			</html>`;
 	}
 
-	private extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
+	private _extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
 		const webviewResource = resourceProvider.asWebviewUri(
-			vscode.Uri.joinPath(this.context.extensionUri, 'media', mediaFile));
+			vscode.Uri.joinPath(this._context.extensionUri, 'media', mediaFile));
 		return webviewResource.toString();
 	}
 
-	private fixHref(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, href: string): string {
+	private _fixHref(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, href: string): string {
 		if (!href) {
 			return href;
 		}
@@ -169,18 +169,18 @@ export class MdDocumentRenderer {
 		return resourceProvider.asWebviewUri(vscode.Uri.joinPath(uri.Utils.dirname(resource), href)).toString();
 	}
 
-	private computeCustomStyleSheetIncludes(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
+	private _computeCustomStyleSheetIncludes(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
 		if (!Array.isArray(config.styles)) {
 			return '';
 		}
 		const out: string[] = [];
 		for (const style of config.styles) {
-			out.push(`<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this.fixHref(resourceProvider, resource, style))}" type="text/css" media="screen">`);
+			out.push(`<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this._fixHref(resourceProvider, resource, style))}" type="text/css" media="screen">`);
 		}
 		return out.join('\n');
 	}
 
-	private getSettingsOverrideStyles(config: MarkdownPreviewConfiguration): string {
+	private _getSettingsOverrideStyles(config: MarkdownPreviewConfiguration): string {
 		return [
 			config.fontFamily ? `--markdown-font-family: ${config.fontFamily};` : '',
 			isNaN(config.fontSize) ? '' : `--markdown-font-size: ${config.fontSize}px;`,
@@ -188,7 +188,7 @@ export class MdDocumentRenderer {
 		].join(' ');
 	}
 
-	private getImageStabilizerStyles(state?: any) {
+	private _getImageStabilizerStyles(state?: any) {
 		let ret = '<style>\n';
 		if (state && state.imageInfo) {
 			state.imageInfo.forEach((imgInfo: any) => {
@@ -203,20 +203,20 @@ export class MdDocumentRenderer {
 		return ret;
 	}
 
-	private getStyles(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration, state?: any): string {
+	private _getStyles(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration, state?: any): string {
 		const baseStyles: string[] = [];
-		for (const resource of this.contributionProvider.contributions.previewStyles) {
+		for (const resource of this._contributionProvider.contributions.previewStyles) {
 			baseStyles.push(`<link rel="stylesheet" type="text/css" href="${escapeAttribute(resourceProvider.asWebviewUri(resource))}">`);
 		}
 
 		return `${baseStyles.join('\n')}
-			${this.computeCustomStyleSheetIncludes(resourceProvider, resource, config)}
-			${this.getImageStabilizerStyles(state)}`;
+			${this._computeCustomStyleSheetIncludes(resourceProvider, resource, config)}
+			${this._getImageStabilizerStyles(state)}`;
 	}
 
-	private getScripts(resourceProvider: WebviewResourceProvider, nonce: string): string {
+	private _getScripts(resourceProvider: WebviewResourceProvider, nonce: string): string {
 		const out: string[] = [];
-		for (const resource of this.contributionProvider.contributions.previewScripts) {
+		for (const resource of this._contributionProvider.contributions.previewScripts) {
 			out.push(`<script async
 				src="${escapeAttribute(resourceProvider.asWebviewUri(resource))}"
 				nonce="${nonce}"
@@ -225,13 +225,13 @@ export class MdDocumentRenderer {
 		return out.join('\n');
 	}
 
-	private getCsp(
+	private _getCsp(
 		provider: WebviewResourceProvider,
 		resource: vscode.Uri,
 		nonce: string
 	): string {
 		const rule = provider.cspSource;
-		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
+		switch (this._cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
 				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} http: https: data:; media-src 'self' ${rule} http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' http: https: data:; font-src 'self' ${rule} http: https: data:;">`;
 

@@ -100,7 +100,7 @@ export interface IWebviewWorkbenchService {
 /**
  * Handles filling in the content of webview before it can be shown to the user.
  */
-export interface WebviewResolver {
+interface WebviewResolver {
 	/**
 	 * Returns true if the resolver can resolve the given webview.
 	 */

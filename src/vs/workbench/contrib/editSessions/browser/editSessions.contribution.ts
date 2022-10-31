@@ -295,7 +295,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
-					ref = await that.storeEditSession(false);
+					ref = await that.progressService.withProgress({
+						location: ProgressLocation.Notification,
+						type: 'syncing',
+						title: localize('store your edit session', 'Storing your edit session...')
+					}, async () => that.storeEditSession(false));
 				}
 
 				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
