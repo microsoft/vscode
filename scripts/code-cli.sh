@@ -2,20 +2,20 @@
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	root=$(dirname "$(dirname "$(realpath "$0")")")
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	root=$(dirname "$(dirname "$(readlink -f "$0")")")
 fi
 
 function code() {
-	cd $ROOT
+	cd "$root" || exit
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
-		NAME=`node -p "require('./product.json').nameLong"`
-		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+		name=$(node -p "require('./product.json').nameLong")
+		code="./.build/electron/$name.app/Contents/MacOS/Electron"
 	else
-		NAME=`node -p "require('./product.json').applicationName"`
-		CODE=".build/electron/$NAME"
+		name=$(node -p "require('./product.json').applicationName")
+		code=".build/electron/$name"
 	fi
 
 	# Get electron, compile, built-in extensions
@@ -25,7 +25,7 @@ function code() {
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
-		exec "$CODE" build/builtin
+		exec "$code" build/builtin
 		return
 	fi
 
@@ -34,7 +34,7 @@ function code() {
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --inspect=5874 "$ROOT/out/cli.js" --ms-enable-electron-run-as-node . "$@"
+	"$code" --inspect=5874 "$root/out/cli.js" --ms-enable-electron-run-as-node . "$@"
 }
 
 code "$@"

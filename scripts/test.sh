@@ -2,26 +2,26 @@
 set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	realpath() { [[ "$1" = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
+	root=$(dirname "$(dirname "$(realpath "$0")")")
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	root=$(dirname "$(dirname "$(readlink -f "$0")")")
 	# --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
 	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage"
+	linux_extra_args="--disable-dev-shm-usage"
 fi
 
-cd $ROOT
+cd "$root" || exit
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	NAME=`node -p "require('./product.json').nameLong"`
-	CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+	name=$(node -p "require('./product.json').nameLong")
+	code="./.build/electron/$name.app/Contents/MacOS/Electron"
 else
-	NAME=`node -p "require('./product.json').applicationName"`
-	CODE=".build/electron/$NAME"
+	name=$(node -p "require('./product.json').applicationName")
+	code=".build/electron/$name"
 fi
 
-VSCODECRASHDIR=$ROOT/.build/crashes
+vscodecrashdir="$root"/.build/crashes
 
 # Node modules
 test -d node_modules || yarn
@@ -31,13 +31,17 @@ yarn electron
 
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	cd $ROOT ; ulimit -n 4096 ; \
+	cd "$root" ; ulimit -n 4096 ; \
 		ELECTRON_ENABLE_LOGGING=1 \
-		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
+		"$code" \
+		test/unit/electron/index.js \
+                --crash-reporter-directory="$vscodecrashdir" \
+                "$@"
 else
-	cd $ROOT ; \
+	cd "$root" ; \
 		ELECTRON_ENABLE_LOGGING=1 \
-		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
+		"$code" \
+		test/unit/electron/index.js \
+                --crash-reporter-directory="$vscodecrashdir" \
+                $linux_extra_args "$@"
 fi

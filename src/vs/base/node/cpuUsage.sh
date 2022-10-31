@@ -2,63 +2,59 @@
 
 function get_total_cpu_time() {
   # Read the first line of /proc/stat and remove the cpu prefix
-  CPU=(`sed -n 's/^cpu\s//p' /proc/stat`)
+  cpu=($(sed -n 's/^cpu\s//p' /proc/stat))
 
-  # Sum all of the values in CPU to get total time
-  for VALUE in "${CPU[@]}"; do
-    let $1=$1+$VALUE
+  # Sum all of the values in cpu to get total time
+  for value in "${cpu[@]}"; do
+    let $1=$1+$value
   done
 }
 
-TOTAL_TIME_BEFORE=0
-get_total_cpu_time TOTAL_TIME_BEFORE
+total_time_before=0
+get_total_cpu_time total_time_before
 
 # Loop over the arguments, which are a list of PIDs
 # The 13th and 14th words in /proc/<PID>/stat are the user and system time
 # the process has used, so sum these to get total process run time
-declare -a PROCESS_BEFORE_TIMES
-ITER=0
-for PID in "$@"; do
-  if [ -f /proc/$PID/stat ]
+declare -a process_before_times
+iter=0
+for pid in "$@"; do
+  if [ -f /proc/"$pid"/stat ]
   then
-    PROCESS_STATS=`cat /proc/$PID/stat`
-    PROCESS_STAT_ARRAY=($PROCESS_STATS)
-
-    let PROCESS_TIME_BEFORE="${PROCESS_STAT_ARRAY[13]}+${PROCESS_STAT_ARRAY[14]}"
+    process_stat_array=($(cat /proc/"$pid"/stat))
+    process_time_before=$((${process_stat_array[13]}+${process_stat_array[14]}))
   else
-    let PROCESS_TIME_BEFORE=0
+    process_time_before=0
   fi
 
-  PROCESS_BEFORE_TIMES[$ITER]=$PROCESS_TIME_BEFORE
-  ((++ITER))
+  process_before_times[$iter]=$process_time_before
+  ((++iter))
 done
 
 # Wait for a second
 sleep 1
 
-TOTAL_TIME_AFTER=0
-get_total_cpu_time TOTAL_TIME_AFTER
+total_time_after=0
+get_total_cpu_time total_time_after
 
 # Check the user and system time sum of each process again and compute the change
 # in process time used over total system time
-ITER=0
-for PID in "$@"; do
-  if [ -f /proc/$PID/stat ]
+iter=0
+for pid in "$@"; do
+  if [ -f /proc/"$pid"/stat ]
   then
-    PROCESS_STATS=`cat /proc/$PID/stat`
-    PROCESS_STAT_ARRAY=($PROCESS_STATS)
-
-    let PROCESS_TIME_AFTER="${PROCESS_STAT_ARRAY[13]}+${PROCESS_STAT_ARRAY[14]}"
+    process_stat_array=($(cat /proc/"$pid"/stat))
+    process_time_after=$((${process_stat_array[13]}+${process_stat_array[14]}))
   else
-    let PROCESS_TIME_AFTER=${PROCESS_BEFORE_TIMES[$ITER]}
+    process_time_after=${process_before_times[$iter]}
   fi
 
-  PROCESS_TIME_BEFORE=${PROCESS_BEFORE_TIMES[$ITER]}
-  let PROCESS_DELTA=$PROCESS_TIME_AFTER-$PROCESS_TIME_BEFORE
-  let TOTAL_DELTA=$TOTAL_TIME_AFTER-$TOTAL_TIME_BEFORE
-  CPU_USAGE=`echo "$((100*$PROCESS_DELTA/$TOTAL_DELTA))"`
+  process_time_before=${process_before_times[$iter]}
+  process_delta=$((process_time_after-process_time_before))
+  total_delta=$((total_time_after-total_time_before))
+  cpu_usage=$((100*process_delta/total_delta))
 
   # Parent script reads from stdout, so echo result to be read
-  echo $CPU_USAGE
-  ((++ITER))
+  echo "$cpu_usage"
+  ((++iter))
 done

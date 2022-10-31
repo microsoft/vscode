@@ -1,17 +1,17 @@
 #!/bin/sh
-PAGESIZE=`getconf PAGESIZE`;
-TOTAL_MEMORY=`cat /proc/meminfo | head -n 1 | awk '{print $2}'`;
+PAGESIZE=$(getconf pagesize)
+total_memory=$(awk '{print $2; exit}' /proc/meminfo)
 
 # Mimic the output of ps -ax -o pid=,ppid=,pcpu=,pmem=,command=
 # Read all numeric subdirectories in /proc
-for pid in `cd /proc && ls -d [0-9]*`
+for pid in $(cd /proc && ls -d [0-9]*)
 	do {
-		if [ -e /proc/$pid/stat ]
+		if [ -e /proc/"$pid"/stat ]
 		then
-			echo $pid;
+			echo "$pid"
 
 			# ppid is the word at index 4 in the stat file for the process
-			awk '{print $4}' /proc/$pid/stat;
+			awk '{print $4}' /proc/"$pid"/stat
 
 			# pcpu - calculation will be done later, this is a placeholder value
 			echo "0.0"
@@ -20,20 +20,23 @@ for pid in `cd /proc && ls -d [0-9]*`
 			# use the page size to convert to bytes, total memory is in KB
 			# multiplied by 100 to get percentage, extra 10 to be able to move
 			# the decimal over by one place
-			RESIDENT_SET_SIZE=`awk '{print $24}' /proc/$pid/stat`;
-			PERCENT_MEMORY=$(((1000 * $PAGESIZE * $RESIDENT_SET_SIZE) / ($TOTAL_MEMORY * 1024)));
-			if [ $PERCENT_MEMORY -lt 10 ]
+			resident_set_size=$(awk '{print $24}' /proc/"$pid"/stat)
+			percent_memory=$(((1000 * $pagesize * $resident_set_size) / ($total_memory * 1024)))
+			if [ $percent_memory -lt 10 ]
 			then
 				# replace the last character with 0. the last character
-				echo $PERCENT_MEMORY | sed 's/.$/0.&/'; #pmem
+				echo "$percent_memory" | sed 's/.$/0.&/' #pmem
 			else
 				# insert . before the last character
-				echo $PERCENT_MEMORY | sed 's/.$/.&/';
+				echo "$percent_memory" | sed 's/.$/.&/'
 			fi
 
 			# cmdline
-			xargs -0 < /proc/$pid/cmdline;
+			xargs -0 < /proc/"$pid"/cmdline
 		fi
-	} | tr "\n" "\t"; # Replace newlines with tab so that all info for a process is shown on one line
-	echo; # But add new lines between processes
+	} |
+	# Replace newlines with tab so that all info for a process is shown on one line
+	tr "\n" "\t"
+	# But add new lines between processes
+	echo
 done

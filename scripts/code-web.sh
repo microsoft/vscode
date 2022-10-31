@@ -2,26 +2,26 @@
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	root=$(dirname "$(dirname "$(realpath "$0")")")
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	root=$(dirname "$(dirname "$(readlink -f "$0")")")
 fi
 
 function code() {
-	cd $ROOT
+	cd "$root" || exit
 
 	# Sync built-in extensions
 	yarn download-builtin-extensions
 
-	NODE=$(node build/lib/node.js)
-	if [ ! -e $NODE ];then
+	node=$(node build/lib/node.js)
+	if [ ! -e "$node" ];then
 		# Load remote node
 		yarn gulp node
 	fi
 
-	NODE=$(node build/lib/node.js)
+	node=$(node build/lib/node.js)
 
-	$NODE ./scripts/code-web.js "$@"
+	"$node" ./scripts/code-web.js "$@"
 }
 
 code "$@"

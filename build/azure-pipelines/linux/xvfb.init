@@ -25,12 +25,12 @@ PROG_OUTPUT="/tmp/Xvfb.out"
 case "$1" in
 	start)
 		echo "Starting : X Virtual Frame Buffer "
-		$PROG $PROG_OPTIONS>>$PROG_OUTPUT 2>&1 &
+		"$PROG" "$PROG_OPTIONS">>$PROG_OUTPUT 2>&1 &
 		disown -ar
 	;;
 	stop)
 		echo "Shutting down : X Virtual Frame Buffer"
-		killproc $PROG
+		killproc "$PROG"
 		RETVAL=$?
 		[ $RETVAL -eq 0 ] && /bin/rm -f /var/lock/subsys/Xvfb
 		/var/run/Xvfb.pid

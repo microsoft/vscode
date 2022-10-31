@@ -2,20 +2,20 @@
 set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	realpath() { [[ "$1" = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
+	root=$(dirname "$(dirname "$(realpath "$0")")")
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	root=$(dirname "$(dirname "$(readlink -f "$0")")")
 	# --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
 	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage"
+	linux_extra_args="--disable-dev-shm-usage"
 fi
 
-VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
-VSCODECRASHDIR=$ROOT/.build/crashes
-VSCODELOGSDIR=$ROOT/.build/logs/integration-tests
+vscodeuserdatadir=$(mktemp -d 2>/dev/null)
+vscodecrashdir=$root/.build/crashes
+vscodelogsdir=$root/.build/logs/integration-tests
 
-cd $ROOT
+cd "$root" || exit
 
 # Figure out which Electron to use for running tests
 if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]
@@ -30,8 +30,8 @@ else
 	echo "Running integration tests with '$INTEGRATION_TEST_ELECTRON_PATH' as build."
 fi
 
-echo "Storing crash reports into '$VSCODECRASHDIR'."
-echo "Storing log files into '$VSCODELOGSDIR'."
+echo "Storing crash reports into '$vscodecrashdir'."
+echo "Storing log files into '$vscodelogsdir'."
 
 
 # Tests standalone (AMD)
@@ -39,72 +39,99 @@ echo "Storing log files into '$VSCODELOGSDIR'."
 echo
 echo "### node.js integration tests"
 echo
-./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
+./scripts/test.sh --runGlob ./**/*.integrationTest.js "$@"
 
 
 # Tests in the extension host
 
-API_TESTS_EXTRA_ARGS="--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
-
 if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
 	kill_app() { true; }
 else
-	kill_app() { killall $INTEGRATION_TEST_APP_NAME || true; }
+	kill_app() { killall "$INTEGRATION_TEST_APP_NAME" || true; }
 fi
+
+run_test () {
+	"$INTEGRATION_TEST_ELECTRON_PATH" $linux_extra_args "$@" \
+		--disable-telemetry --skip-welcome --skip-release-notes \
+		--crash-reporter-directory="$vscodecrashdir" \
+		--logsPath="$vscodelogsdir" \
+		--no-cached-data --disable-updates --disable-keytar \
+		--disable-extensions --disable-workspace-trust \
+		--user-data-dir="$vscodeuserdatadir"
+	kill_app
+}
+
 
 echo
 echo "### API tests (folder)"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-api-tests/testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests $API_TESTS_EXTRA_ARGS
-kill_app
+run_test \
+	"$root"/extensions/vscode-api-tests/testWorkspace \
+	--enable-proposed-api=vscode.vscode-api-tests \
+	--extensionDevelopmentPath="$root"/extensions/vscode-api-tests \
+	--extensionTestsPath="$root"/extensions/vscode-api-tests/out/singlefolder-tests
 
 echo
 echo "### API tests (workspace)"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests $API_TESTS_EXTRA_ARGS
-kill_app
+run_test \
+	"$root"/extensions/vscode-api-tests/testworkspace.code-workspace \
+	--enable-proposed-api=vscode.vscode-api-tests \
+	--extensionDevelopmentPath="$root"/extensions/vscode-api-tests \
+	--extensionTestsPath="$root"/extensions/vscode-api-tests/out/workspace-tests
 
 echo
 echo "### Colorize tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out $API_TESTS_EXTRA_ARGS
-kill_app
+run_test \
+	"$root"/extensions/vscode-colorize-tests/test \
+	--extensionDevelopmentPath="$root"/extensions/vscode-colorize-tests \
+	--extensionTestsPath="$root"/extensions/vscode-colorize-tests/out
 
 echo
 echo "### TypeScript tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/typescript-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS
-kill_app
+run_test \
+	"$root"/extensions/typescript-language-features/test-workspace \
+	--extensionDevelopmentPath="$root"/extensions/typescript-language-features \
+	--extensionTestsPath="$root"/extensions/typescript-language-features/out/test/unit
 
 echo
 echo "### Markdown tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/markdown-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/markdown-language-features --extensionTestsPath=$ROOT/extensions/markdown-language-features/out/test $API_TESTS_EXTRA_ARGS
-kill_app
+run_test \
+	"$root"/extensions/markdown-language-features/test-workspace \
+	--extensionDevelopmentPath="$root"/extensions/markdown-language-features \
+	--extensionTestsPath="$root"/extensions/markdown-language-features/out/test
 
 echo
 echo "### Emmet tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/emmet/test-workspace --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test $API_TESTS_EXTRA_ARGS
-kill_app
+run_test \
+	"$root"/extensions/emmet/test-workspace \
+	--extensionDevelopmentPath="$root"/extensions/emmet \
+	--extensionTestsPath="$root"/extensions/emmet/out/test
 
 echo
 echo "### Git tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
-kill_app
+run_test "$(mktemp -d 2>/dev/null)" \
+	--extensionDevelopmentPath="$root"/extensions/git \
+	--extensionTestsPath="$root"/extensions/git/out/test
 
 echo
 echo "### Ipynb tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $API_TESTS_EXTRA_ARGS
-kill_app
+run_test "$(mktemp -d 2>/dev/null)" \
+	--extensionDevelopmentPath="$root"/extensions/ipynb \
+	--extensionTestsPath="$root"/extensions/ipynb/out/test
 
 echo
 echo "### Configuration editing tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS
-kill_app
+run_test "$(mktemp -d 2>/dev/null)" \
+	--extensionDevelopmentPath="$root"/extensions/configuration-editing \
+	--extensionTestsPath="$root"/extensions/configuration-editing/out/test
 
 
 # Tests standalone (CommonJS)
@@ -112,14 +139,16 @@ kill_app
 echo
 echo "### CSS tests"
 echo
-cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd "$root"/extensions/css-language-features/server &&
+"$root"/scripts/node-electron.sh test/index.js
 
 echo
 echo "### HTML tests"
 echo
-cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd "$root"/extensions/html-language-features/server &&
+"$root"/scripts/node-electron.sh test/index.js
 
 
 # Cleanup
 
-rm -rf $VSCODEUSERDATADIR
+rm -rf "$vscodeuserdatadir"
