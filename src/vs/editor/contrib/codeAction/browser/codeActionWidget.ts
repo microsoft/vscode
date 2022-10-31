@@ -37,7 +37,7 @@ interface CodeActionWidgetDelegate {
 }
 
 enum CodeActionListItemKind {
-	CodeAction = 'action',
+	CodeAction = 'code-action',
 	Header = 'header'
 }
 

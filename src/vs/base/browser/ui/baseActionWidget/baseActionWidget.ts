@@ -28,7 +28,6 @@ export interface ListMenuItem<T> {
 	item?: T;
 	kind?: any;
 	group?: any;
-	disabled?: boolean;
 }
 
 export interface IActionList<T> extends IDisposable {
