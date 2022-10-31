@@ -534,6 +534,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	setVisibility(isVisible: boolean): void {
+		// Throughout setVisibility we need to check if the tree view's data provider still exists.
+		// This can happen because the `getChildren` call to the extension can return
+		// after the tree has been disposed.
+
 		this.initialize();
 		isVisible = !!isVisible;
 		if (this.isVisible === isVisible) {
@@ -549,13 +553,17 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				DOM.hide(this.tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 			}
 
-			if (this.isVisible && this.elementsToRefresh.length) {
+			if (this.isVisible && this.elementsToRefresh.length && this.dataProvider) {
 				this.doRefresh(this.elementsToRefresh);
 				this.elementsToRefresh = [];
 			}
 		}
 
-		this._onDidChangeVisibility.fire(this.isVisible);
+		setImmediate(() => {
+			if (this.dataProvider) {
+				this._onDidChangeVisibility.fire(this.isVisible);
+			}
+		});
 
 		if (this.visible) {
 			this.activate();
@@ -1438,6 +1446,11 @@ class TreeMenus extends Disposable implements IDisposable {
 			menu.dispose();
 		}
 		return result;
+	}
+
+	override dispose() {
+		this.contextKeyService = undefined;
+		super.dispose();
 	}
 }
 
