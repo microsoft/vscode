@@ -3099,7 +3099,7 @@ export const cellEditorBackground = registerColor('notebook.cellEditorBackground
 	hcLight: null
 }, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
 
-export const notebookEditorBackground = registerColor('notebook.editorBackground', {
+const notebookEditorBackground = registerColor('notebook.editorBackground', {
 	light: EDITOR_PANE_BACKGROUND,
 	dark: EDITOR_PANE_BACKGROUND,
 	hcDark: null,
