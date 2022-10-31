@@ -25,7 +25,7 @@ import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
-export type TriggeredCodeAction = undefined | {
+type TriggeredCodeAction = undefined | {
 	readonly selection: Selection;
 	readonly trigger: CodeActionTrigger;
 	readonly position: Position;
