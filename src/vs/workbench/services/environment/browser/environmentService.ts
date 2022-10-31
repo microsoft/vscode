@@ -112,6 +112,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
 
 	@memoize
+	get remoteTunnelLogResource(): URI { return joinPath(this.logsHome, 'remoteTunnel.log'); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize
@@ -128,7 +131,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'telemetry.log');
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
 	}
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;

@@ -53,8 +53,8 @@ export class TelemetryService implements ITelemetryService {
 		this._piiPaths = config.piiPaths || [];
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
 
-		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
+		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
+		this._cleanupPatterns = [/(vscode-)?file:\/\/\/.*?\/resources\/app\//gi];
 
 		for (const piiPath of this._piiPaths) {
 			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
@@ -110,14 +110,14 @@ export class TelemetryService implements ITelemetryService {
 
 		return this._commonProperties.then(values => {
 
-			// (first) add common properties
-			data = mixin(data, values);
-
-			// (next) add experiment properties
+			// add experiment properties
 			data = mixin(data, this._experimentProperties);
 
-			// (last) remove all PII from data
+			// remove all PII from data
 			data = cleanData(data as Record<string, any>, this._cleanupPatterns);
+
+			// add common properties
+			data = mixin(data, values);
 
 			// Log to the appenders of sufficient level
 			this._appenders.forEach(a => a.log(eventName, data));

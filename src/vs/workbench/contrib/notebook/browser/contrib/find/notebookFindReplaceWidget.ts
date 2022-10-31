@@ -181,7 +181,7 @@ class NotebookFindInput extends FindInput {
 			}
 		}));
 
-		this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() + this.getFilterWidth();
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
 	}
 
 	private getFilterWidth() {
@@ -203,22 +203,24 @@ class NotebookFindInput extends FindInput {
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
 		if (enabled && !this._filterChecked) {
-			this.regex.enable();
+			this.regex?.enable();
 		} else {
-			this.regex.disable();
+			this.regex?.disable();
 		}
 	}
 
 	updateFilterState(changed: boolean) {
 		this._filterChecked = changed;
-		if (this._filterChecked) {
-			this.regex.disable();
-			this.regex.domNode.tabIndex = -1;
-			this.regex.domNode.classList.toggle('disabled', true);
-		} else {
-			this.regex.enable();
-			this.regex.domNode.tabIndex = 0;
-			this.regex.domNode.classList.toggle('disabled', false);
+		if (this.regex) {
+			if (this._filterChecked) {
+				this.regex.disable();
+				this.regex.domNode.tabIndex = -1;
+				this.regex.domNode.classList.toggle('disabled', true);
+			} else {
+				this.regex.enable();
+				this.regex.domNode.tabIndex = 0;
+				this.regex.domNode.classList.toggle('disabled', false);
+			}
 		}
 		this.applyStyles();
 	}
@@ -302,22 +304,26 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
 		this._domNode.appendChild(progressContainer);
 
+		const isInteractiveWindow = contextKeyService.getContextKeyValue('notebookType') === 'interactive';
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
 			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
 			className: 'codicon toggle left',
-			onTrigger: () => {
-				this._isReplaceVisible = !this._isReplaceVisible;
-				this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-				if (this._isReplaceVisible) {
-					this._innerReplaceDomNode.style.display = 'flex';
-				} else {
-					this._innerReplaceDomNode.style.display = 'none';
+			onTrigger: isInteractiveWindow ? () => { } :
+				() => {
+					this._isReplaceVisible = !this._isReplaceVisible;
+					this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
+					if (this._isReplaceVisible) {
+						this._innerReplaceDomNode.style.display = 'flex';
+					} else {
+						this._innerReplaceDomNode.style.display = 'none';
+					}
 				}
-			}
 		}));
+		this._toggleReplaceBtn.setEnabled(!isInteractiveWindow);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
+
 
 
 		this._innerFindDomNode = document.createElement('div');

@@ -86,6 +86,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
 
 	@memoize
+	get remoteTunnelLogResource(): URI { return URI.file(join(this.logsPath, 'remoteTunnel.log')); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
@@ -129,13 +132,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 	}
 
-	get extensionsDownloadPath(): string {
+	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
-			return resolve(cliExtensionsDownloadDir);
+			return URI.file(resolve(cliExtensionsDownloadDir));
 		}
 
-		return join(this.userDataPath, 'CachedExtensionVSIXs');
+		return URI.file(join(this.userDataPath, 'CachedExtensionVSIXs'));
 	}
 
 	@memoize

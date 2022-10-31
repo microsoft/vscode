@@ -9,10 +9,12 @@ import { compareFileExtensions, compareFileNames, comparePaths } from 'vs/base/c
 import { memoize } from 'vs/base/common/decorators';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { lcut } from 'vs/base/common/strings';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -207,6 +209,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
 	private _selectedMatch: Match | null = null;
+	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
@@ -225,14 +228,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IModelService private readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ILabelService private readonly labelService: ILabelService,
+		@ILabelService readonly labelService: ILabelService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
 		this._matches = new Map<string, Match>();
 		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
-
+		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 		this.createMatches();
 	}
 
@@ -425,7 +428,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	name(): string {
-		return this.labelService.getUriBasenameLabel(this.resource);
+		return this._name.getValue();
 	}
 
 	addContext(results: ITextSearchResult[] | undefined) {
@@ -493,6 +496,7 @@ export class FolderMatch extends Disposable {
 	protected _unDisposedFileMatches: ResourceMap<FileMatch>;
 	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResource>;
 	private _replacingAll: boolean = false;
+	private _name: Lazy<string>;
 
 	// if this is compressed in a node with other FolderMatches, then this is set to the parent where compression starts
 	public compressionStartParent: FolderMatch | undefined;
@@ -507,7 +511,7 @@ export class FolderMatch extends Disposable {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ILabelService private readonly labelService: ILabelService,
+		@ILabelService readonly labelService: ILabelService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
@@ -516,6 +520,7 @@ export class FolderMatch extends Disposable {
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFolderMatches = new ResourceMap<FolderMatchWithResource>();
+		this._name = new Lazy(() => this.resource ? labelService.getUriBasenameLabel(this.resource) : '');
 	}
 
 	get searchModel(): SearchModel {
@@ -547,7 +552,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return this.resource ? this.labelService.getUriBasenameLabel(this.resource) : '';
+		return this._name.getValue();
 	}
 
 	parent(): SearchResult | FolderMatch {
@@ -560,10 +565,9 @@ export class FolderMatch extends Disposable {
 		if (fileMatch) {
 			fileMatch.bindModel(model);
 		} else {
-			const folderMatches = this.folderMatchesIterator();
-			for (const elem of folderMatches) {
-				elem.bindModel(model);
-			}
+			const folderMatch = this.getFolderMatch(model.uri);
+			const match = folderMatch?.getDownstreamFileMatch(model.uri);
+			match?.bindModel(model);
 		}
 	}
 
@@ -580,7 +584,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	clear(clearingAll = false): void {
-		const changed: FileMatch[] = this.downstreamFileMatches();
+		const changed: FileMatch[] = this.allDownstreamFileMatches();
 		this.disposeMatches();
 		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
 	}
@@ -620,27 +624,26 @@ export class FolderMatch extends Disposable {
 		return (this.fileCount() + this.folderCount()) === 0;
 	}
 
-	hasFileUriDownstream(uri: URI): FileMatch | null {
+	getDownstreamFileMatch(uri: URI): FileMatch | null {
 		const directChildFileMatch = this._fileMatches.get(uri);
 		if (directChildFileMatch) {
 			return directChildFileMatch;
 		}
 
-		const folderMatches = this.folderMatchesIterator();
-		for (const elem of folderMatches) {
-			const match = elem.hasFileUriDownstream(uri);
-			if (match) {
-				return match;
-			}
+		const folderMatch = this.getFolderMatch(uri);
+		const match = folderMatch?.getDownstreamFileMatch(uri);
+		if (match) {
+			return match;
 		}
+
 		return null;
 	}
 
-	downstreamFileMatches(): FileMatch[] {
+	allDownstreamFileMatches(): FileMatch[] {
 		let recursiveChildren: FileMatch[] = [];
 		const iterator = this.folderMatchesIterator();
 		for (const elem of iterator) {
-			recursiveChildren = recursiveChildren.concat(elem.downstreamFileMatches());
+			recursiveChildren = recursiveChildren.concat(elem.allDownstreamFileMatches());
 		}
 
 		return [...this.fileMatchesIterator(), ...recursiveChildren];
@@ -659,11 +662,11 @@ export class FolderMatch extends Disposable {
 	}
 
 	recursiveFileCount(): number {
-		return this.downstreamFileMatches().length;
+		return this.allDownstreamFileMatches().length;
 	}
 
 	recursiveMatchCount(): number {
-		return this.downstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
+		return this.allDownstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
 	get query(): ITextQuery | null {
@@ -676,7 +679,7 @@ export class FolderMatch extends Disposable {
 		const updated: FileMatch[] = [];
 
 		raw.forEach(rawFileMatch => {
-			const existingFileMatch = this.hasFileUriDownstream(rawFileMatch.resource);
+			const existingFileMatch = this.getDownstreamFileMatch(rawFileMatch.resource);
 			if (existingFileMatch) {
 				rawFileMatch
 					.results!
@@ -1258,7 +1261,7 @@ export class SearchResult extends Disposable {
 	matches(): FileMatch[] {
 		const matches: FileMatch[][] = [];
 		this.folderMatches().forEach(folderMatch => {
-			matches.push(folderMatch.downstreamFileMatches());
+			matches.push(folderMatch.allDownstreamFileMatches());
 		});
 
 		return (<FileMatch[]>[]).concat(...matches);
@@ -1710,5 +1713,5 @@ function getFileMatches(matches: (FileMatch | FolderMatchWithResource)[]): FileM
 		}
 	});
 
-	return fileMatches.concat(folderMatches.map(e => e.downstreamFileMatches()).flat());
+	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }

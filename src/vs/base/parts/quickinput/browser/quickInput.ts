@@ -1357,7 +1357,9 @@ export class QuickInputController extends Disposable {
 			switch (event.keyCode) {
 				case KeyCode.Enter:
 					dom.EventHelper.stop(e, true);
-					this.onDidAcceptEmitter.fire();
+					if (this.enabled) {
+						this.onDidAcceptEmitter.fire();
+					}
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
@@ -1706,9 +1708,12 @@ export class QuickInputController extends Disposable {
 				(item as ActionViewItem).action.enabled = enabled;
 			}
 			this.getUI().checkAll.disabled = !enabled;
-			// this.getUI().inputBox.enabled = enabled; Avoid loosing focus.
+			this.getUI().inputBox.enabled = enabled;
 			this.getUI().ok.enabled = enabled;
 			this.getUI().list.enabled = enabled;
+			if (!enabled) {
+				this.getUI().container.focus();
+			}
 		}
 	}
 
@@ -1787,13 +1792,12 @@ export class QuickInputController extends Disposable {
 	}
 
 	private updateLayout() {
-		if (this.ui) {
+		if (this.ui && this.isDisplayed()) {
 			this.ui.container.style.top = `${this.titleBarOffset}px`;
 
 			const style = this.ui.container.style;
 			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
-			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);

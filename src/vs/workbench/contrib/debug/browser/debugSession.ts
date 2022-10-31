@@ -288,7 +288,7 @@ export class DebugSession implements IDebugSession {
 
 		try {
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = this.instantiationService.createInstance(RawDebugSession, debugAdapter, dbgr, this.id);
+			this.raw = this.instantiationService.createInstance(RawDebugSession, debugAdapter, dbgr, this.id, this.configuration.name);
 
 			await this.raw.start();
 			this.registerListeners();

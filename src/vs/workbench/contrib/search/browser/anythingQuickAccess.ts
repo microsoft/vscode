@@ -56,6 +56,7 @@ import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuic
 import { CommandsQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
+import { Lazy } from 'vs/base/common/lazy';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -969,35 +970,40 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
+
+		const iconClassesValue = new Lazy(() => getIconClasses(this.modelService, this.languageService, resource).concat(extraClasses));
+
+		const buttonsValue = new Lazy(() => {
+			const openSideBySideDirection = configuration.openSideBySideDirection;
+			const buttons: IQuickInputButton[] = [];
+
+			// Open to side / below
+			buttons.push({
+				iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+				tooltip: openSideBySideDirection === 'right' ?
+					localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
+					localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
+			});
+
+			// Remove from History
+			if (isEditorHistoryEntry) {
+				buttons.push({
+					iconClass: isDirty ? ('dirty-anything ' + Codicon.circleFilled.classNames) : Codicon.close.classNames,
+					tooltip: localize('closeEditor', "Remove from Recently Opened"),
+					alwaysVisible: isDirty
+				});
+			}
+
+			return buttons;
+		});
+
 		return {
 			resource,
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
-			iconClasses: getIconClasses(this.modelService, this.languageService, resource).concat(extraClasses),
-			buttons: (() => {
-				const openSideBySideDirection = configuration.openSideBySideDirection;
-				const buttons: IQuickInputButton[] = [];
-
-				// Open to side / below
-				buttons.push({
-					iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-					tooltip: openSideBySideDirection === 'right' ?
-						localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
-						localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
-				});
-
-				// Remove from History
-				if (isEditorHistoryEntry) {
-					buttons.push({
-						iconClass: isDirty ? ('dirty-anything ' + Codicon.circleFilled.classNames) : Codicon.close.classNames,
-						tooltip: localize('closeEditor', "Remove from Recently Opened"),
-						alwaysVisible: isDirty
-					});
-				}
-
-				return buttons;
-			})(),
+			get iconClasses() { return iconClassesValue.getValue(); },
+			get buttons() { return buttonsValue.getValue(); },
 			trigger: (buttonIndex, keyMods) => {
 				switch (buttonIndex) {
 

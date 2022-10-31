@@ -6,11 +6,11 @@
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { cloneAndChange, distinct } from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -117,7 +117,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener = this._configurationService.onDidChangeConfiguration(event => {
 			if (event.source === ConfigurationTarget.DEFAULT) {
 				// new setting, reset everything
-				const allKeys = Array.from(Iterable.map(this._values, ([k]) => k));
+				const allKeys = Array.from(this._values, ([k]) => k);
 				this._values.clear();
 				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
