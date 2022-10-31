@@ -230,9 +230,8 @@ export class TerminalService implements ITerminalService {
 				}
 			});
 			if (this._storageService.getBoolean(reconnectToTaskKey, StorageScope.WORKSPACE)) {
-				this._viewsService.openView(TERMINAL_VIEW_ID).then(() => {
-					this._storageService.store(reconnectToTaskKey, false, StorageScope.WORKSPACE, StorageTarget.USER);
-				});
+				this._viewsService.getViewWithId(TERMINAL_VIEW_ID)?.setExpanded(true);
+				this._storageService.store(reconnectToTaskKey, false, StorageScope.WORKSPACE, StorageTarget.USER);
 			}
 		}
 

@@ -167,23 +167,24 @@ export class TerminalViewPane extends ViewPane {
 				const hadTerminals = !!this._terminalGroupService.groups.length;
 				// Ensure the primary backend is registered as it's important to do before
 				// initializeTerminals is called.
-				await this._terminalService.primaryBackendRegistered;
-				if (this._terminalService.isProcessSupportRegistered) {
-					if (this._terminalsInitialized) {
-						if (!hadTerminals) {
-							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+				this._terminalService.primaryBackendRegistered.then(async () => {
+					if (this._terminalService.isProcessSupportRegistered) {
+						if (this._terminalsInitialized) {
+							if (!hadTerminals) {
+								this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+							}
+						} else {
+							this._terminalsInitialized = true;
+							this._terminalService.initializeTerminals();
 						}
 					} else {
-						this._terminalsInitialized = true;
-						this._terminalService.initializeTerminals();
+						this._onDidChangeViewWelcomeState.fire();
 					}
-				} else {
-					this._onDidChangeViewWelcomeState.fire();
-				}
-				// we don't know here whether or not it should be focused, so
-				// defer focusing the panel to the focus() call
-				// to prevent overriding preserveFocus for extensions
-				this._terminalGroupService.showPanel(false);
+					// we don't know here whether or not it should be focused, so
+					// defer focusing the panel to the focus() call
+					// to prevent overriding preserveFocus for extensions
+					this._terminalGroupService.showPanel(false);
+				});
 			} else {
 				for (const instance of this._terminalGroupService.instances) {
 					instance.resetFocusContextKey();
