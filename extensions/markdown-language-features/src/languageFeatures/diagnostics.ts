@@ -22,14 +22,14 @@ class AddToIgnoreLinksQuickFixProvider implements vscode.CodeActionProvider {
 
 	private static readonly _addToIgnoreLinksCommandId = '_markdown.addToIgnoreLinks';
 
-	private static readonly metadata: vscode.CodeActionProviderMetadata = {
+	private static readonly _metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [
 			vscode.CodeActionKind.QuickFix
 		],
 	};
 
 	public static register(selector: vscode.DocumentSelector, commandManager: CommandManager): vscode.Disposable {
-		const reg = vscode.languages.registerCodeActionsProvider(selector, new AddToIgnoreLinksQuickFixProvider(), AddToIgnoreLinksQuickFixProvider.metadata);
+		const reg = vscode.languages.registerCodeActionsProvider(selector, new AddToIgnoreLinksQuickFixProvider(), AddToIgnoreLinksQuickFixProvider._metadata);
 		const commandReg = commandManager.register({
 			id: AddToIgnoreLinksQuickFixProvider._addToIgnoreLinksCommandId,
 			execute(resource: vscode.Uri, path: string) {

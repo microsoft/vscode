@@ -11,12 +11,12 @@ export class RefreshPreviewCommand implements Command {
 	public readonly id = 'markdown.preview.refresh';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly engine: MarkdownItEngine
+		private readonly _webviewManager: MarkdownPreviewManager,
+		private readonly _engine: MarkdownItEngine
 	) { }
 
 	public execute() {
-		this.engine.cleanCache();
-		this.webviewManager.refresh();
+		this._engine.cleanCache();
+		this._webviewManager.refresh();
 	}
 }
