@@ -29,7 +29,7 @@ export const IKeybindingEditingService = createDecorator<IKeybindingEditingServi
 
 export interface IKeybindingEditingService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	addKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
 
@@ -42,7 +42,7 @@ export interface IKeybindingEditingService {
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	private queue: Queue<void>;
 
 	constructor(

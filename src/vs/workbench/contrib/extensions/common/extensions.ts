@@ -90,7 +90,7 @@ export const SERVICE_ID = 'extensionsWorkbenchService';
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
 
 export interface IExtensionsWorkbenchService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
 	readonly onReset: Event<void>;
 	readonly preferPreReleases: boolean;

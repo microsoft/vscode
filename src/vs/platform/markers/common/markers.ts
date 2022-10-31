@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IMarkerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getStatistics(): MarkerStatistics;
 

@@ -24,7 +24,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
 	readonly onDidChangeRecentlyOpened = this._onRecentlyOpenedChange.event;

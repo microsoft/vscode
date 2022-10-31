@@ -62,7 +62,7 @@ export interface ICommentController {
 }
 
 export interface ICommentService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
@@ -99,7 +99,7 @@ export interface ICommentService {
 }
 
 export class CommentService extends Disposable implements ICommentService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;

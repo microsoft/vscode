@@ -328,7 +328,7 @@ export interface IExtensionQueryOptions {
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 export interface IExtensionGalleryService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
@@ -426,7 +426,7 @@ export interface IExtensionManagementParticipant {
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
@@ -458,7 +458,7 @@ export const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
 export const IGlobalExtensionEnablementService = createDecorator<IGlobalExtensionEnablementService>('IGlobalExtensionEnablementService');
 
 export interface IGlobalExtensionEnablementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }>;
 
 	getDisabledExtensions(): IExtensionIdentifier[];
@@ -490,7 +490,7 @@ export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommenda
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('IExtensionTipsService');
 export interface IExtensionTipsService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]>;
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;

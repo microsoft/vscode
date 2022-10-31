@@ -131,7 +131,7 @@ export class UndoRedoSource {
 }
 
 export interface IUndoRedoService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Register an URI -> string hasher.

@@ -19,7 +19,7 @@ export interface ISharedProcessTunnel {
  * A service that creates tunnels on the shared process
  */
 export interface ISharedProcessTunnelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Create a tunnel.

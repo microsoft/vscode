@@ -8,7 +8,7 @@ import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfig
 import { ILanguageConfigurationService, LanguageConfigurationRegistry, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export class TestLanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private readonly _registry = this._register(new LanguageConfigurationRegistry());
 

@@ -29,7 +29,7 @@ export interface IScriptUrlClassifier {
 export const IProfileAnalysisWorkerService = createDecorator<IProfileAnalysisWorkerService>('IProfileAnalysisWorkerService');
 
 export interface IProfileAnalysisWorkerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	analyseBottomUp(profile: IV8Profile, callFrameClassifier: IScriptUrlClassifier, perfBaseline: number): Promise<ProfilingOutput>;
 	analyseByLocation(profile: IV8Profile, locations: [location: URI, id: string][]): Promise<[category: string, aggregated: number][]>;
 }
@@ -39,7 +39,7 @@ export interface IProfileAnalysisWorkerService {
 
 class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _workerFactory = new DefaultWorkerFactory('CpuProfileAnalysis');
 

@@ -114,7 +114,7 @@ interface IStoredFormatters {
 
 export class LabelService extends Disposable implements ILabelService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[];
 

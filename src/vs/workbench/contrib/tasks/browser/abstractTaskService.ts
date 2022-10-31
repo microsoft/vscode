@@ -190,7 +190,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly PersistentTasks_Key = 'workbench.tasks.persistentTasks';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 

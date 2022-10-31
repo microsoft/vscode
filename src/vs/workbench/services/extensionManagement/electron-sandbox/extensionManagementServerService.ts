@@ -21,7 +21,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 
 export class ExtensionManagementServerService extends Disposable implements IExtensionManagementServerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly localExtensionManagementServer: IExtensionManagementServer;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;

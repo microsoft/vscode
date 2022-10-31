@@ -224,7 +224,7 @@ export interface AmbiguousRunTestsRequest {
 }
 
 export interface ITestService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	/**
 	 * Fires when the user requests to cancel a test run -- or all runs, if no
 	 * runId is given.

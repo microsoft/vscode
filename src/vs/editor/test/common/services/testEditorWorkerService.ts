@@ -12,7 +12,7 @@ import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	canComputeUnicodeHighlights(uri: URI): boolean { return false; }
 	async computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }

@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
 export interface ICodeLensCache {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	put(model: ITextModel, data: CodeLensModel): void;
 	get(model: ITextModel): CodeLensModel | undefined;
 	delete(model: ITextModel): void;
@@ -38,7 +38,7 @@ class CacheItem {
 
 export class CodeLensCache implements ICodeLensCache {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _fakeProvider = new class implements CodeLensProvider {
 		provideCodeLenses(): CodeLensList {

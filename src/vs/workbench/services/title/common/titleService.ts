@@ -16,7 +16,7 @@ export interface ITitleProperties {
 
 export interface ITitleService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event when the menubar visibility changes.

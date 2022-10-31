@@ -83,7 +83,7 @@ interface IWebExtension {
 
 export class WebExtensionsScannerService extends Disposable implements IWebExtensionsScannerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly systemExtensionsCacheResource: URI | undefined = undefined;
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;

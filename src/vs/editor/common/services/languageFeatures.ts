@@ -11,7 +11,7 @@ export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService
 
 export interface ILanguageFeaturesService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly referenceProvider: LanguageFeatureRegistry<ReferenceProvider>;
 

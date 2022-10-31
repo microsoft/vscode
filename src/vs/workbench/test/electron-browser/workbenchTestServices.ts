@@ -178,7 +178,7 @@ export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFi
 
 export class TestSharedProcessService implements ISharedProcessService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	getChannel(channelName: string): any { return undefined; }
 
@@ -188,7 +188,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 }
 
 export class TestNativeHostService implements INativeHostService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly windowId = -1;
 

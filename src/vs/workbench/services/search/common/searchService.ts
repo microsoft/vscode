@@ -26,7 +26,7 @@ import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/
 
 export class SearchService extends Disposable implements ISearchService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();

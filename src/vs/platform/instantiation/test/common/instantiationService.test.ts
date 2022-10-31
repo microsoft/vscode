@@ -14,48 +14,48 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 const IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	c: number;
 }
 
 class Service1 implements IService1 {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	c = 1;
 }
 
 const IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	d: boolean;
 }
 
 class Service2 implements IService2 {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	d = true;
 }
 
 const IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	s: string;
 }
 
 class Service3 implements IService3 {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	s = 'farboo';
 }
 
 const IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	name: string;
 }
 
 class DependentService implements IDependentService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	constructor(@IService1 service: IService1) {
 		assert.strictEqual(service.c, 1);
 	}
@@ -107,7 +107,7 @@ class DependentServiceTarget2 {
 
 
 class ServiceLoop1 implements IService1 {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	c = 1;
 
 	constructor(@IService2 s: IService2) {
@@ -116,7 +116,7 @@ class ServiceLoop1 implements IService1 {
 }
 
 class ServiceLoop2 implements IService2 {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	d = true;
 
 	constructor(@IService1 s: IService1) {
@@ -335,7 +335,7 @@ suite('Instantiation Service', () => {
 		let serviceInstanceCount = 0;
 
 		const CtorCounter = class implements Service1 {
-			declare readonly _serviceBrand: undefined;
+			declare readonly $serviceBrand: undefined;
 			c = 1;
 			constructor() {
 				serviceInstanceCount += 1;
@@ -399,8 +399,8 @@ suite('Instantiation Service', () => {
 
 		const A = createDecorator<A>('A');
 		const B = createDecorator<B>('B');
-		interface A { _serviceBrand: undefined; doIt(): void }
-		interface B { _serviceBrand: undefined; b(): boolean }
+		interface A { $serviceBrand: undefined; doIt(): void }
+		interface B { $serviceBrand: undefined; b(): boolean }
 
 		class BConsumer {
 			constructor(@B readonly b: B) {
@@ -412,7 +412,7 @@ suite('Instantiation Service', () => {
 		}
 
 		class AService implements A {
-			_serviceBrand: undefined;
+			$serviceBrand: undefined;
 			prop: BConsumer;
 			constructor(@IInstantiationService insta: IInstantiationService) {
 				this.prop = insta.createInstance(BConsumer);
@@ -423,7 +423,7 @@ suite('Instantiation Service', () => {
 		}
 
 		class BService implements B {
-			_serviceBrand: undefined;
+			$serviceBrand: undefined;
 			constructor(@A a: A) {
 				assert.ok(a);
 			}
@@ -465,14 +465,14 @@ suite('Instantiation Service', () => {
 	test('Delayed and events', function () {
 		const A = createDecorator<A>('A');
 		interface A {
-			_serviceBrand: undefined;
+			$serviceBrand: undefined;
 			onDidDoIt: Event<any>;
 			doIt(): void;
 		}
 
 		let created = false;
 		class AImpl implements A {
-			_serviceBrand: undefined;
+			$serviceBrand: undefined;
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();

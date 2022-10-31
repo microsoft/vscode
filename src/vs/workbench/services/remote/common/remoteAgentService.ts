@@ -18,7 +18,7 @@ export const RemoteExtensionLogFileName = 'remoteagent';
 export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
 
 export interface IRemoteAgentService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly socketFactory: ISocketFactory;
 

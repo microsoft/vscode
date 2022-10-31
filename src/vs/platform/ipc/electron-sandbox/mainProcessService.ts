@@ -13,7 +13,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
  */
 export class ElectronIPCMainProcessService extends Disposable implements IMainProcessService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private mainProcessConnection: IPCElectronClient;
 

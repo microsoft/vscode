@@ -41,7 +41,7 @@ export interface IExtHostDocumentsAndEditorsDelta extends IDocumentsAndEditorsDe
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private _activeEditorId: string | null = null;
 

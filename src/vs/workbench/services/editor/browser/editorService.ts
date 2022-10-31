@@ -37,7 +37,7 @@ import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEd
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region events
 

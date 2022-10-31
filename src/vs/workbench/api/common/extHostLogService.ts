@@ -9,7 +9,7 @@ import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/commo
 
 export class ExtHostLogService extends LogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@ILoggerService loggerService: ILoggerService,

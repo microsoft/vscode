@@ -26,7 +26,7 @@ export const ctxHasSymbols = new RawContextKey('hasSymbols', false, localize('ha
 export const ISymbolNavigationService = createDecorator<ISymbolNavigationService>('ISymbolNavigationService');
 
 export interface ISymbolNavigationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	reset(): void;
 	put(anchor: OneReference): void;
 	revealNext(source: ICodeEditor): Promise<any>;
@@ -34,7 +34,7 @@ export interface ISymbolNavigationService {
 
 class SymbolNavigationService implements ISymbolNavigationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _ctxHasSymbols: IContextKey<boolean>;
 

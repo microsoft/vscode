@@ -59,7 +59,7 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 }
 
 export class TestTelemetryLoggerService implements ILoggerService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	logger?: TestTelemetryLogger;
 

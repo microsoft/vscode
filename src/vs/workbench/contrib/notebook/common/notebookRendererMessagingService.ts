@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const INotebookRendererMessagingService = createDecorator<INotebookRendererMessagingService>('INotebookRendererMessagingService');
 
 export interface INotebookRendererMessagingService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Event that fires when a message should be posted to extension hosts.

@@ -19,7 +19,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class NotebookExecutionStateService extends Disposable implements INotebookExecutionStateService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _executions = new ResourceMap<Map<number, CellExecution>>();
 	private readonly _notebookListeners = new ResourceMap<NotebookExecutionListeners>();

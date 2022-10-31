@@ -18,7 +18,7 @@ export const ILanguageFeatureDebounceService = createDecorator<ILanguageFeatureD
 
 export interface ILanguageFeatureDebounceService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number; max?: number; salt?: string }): IFeatureDebounceInformation;
 }
@@ -98,7 +98,7 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 
 export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _data = new Map<string, FeatureDebounceInformation>();
 

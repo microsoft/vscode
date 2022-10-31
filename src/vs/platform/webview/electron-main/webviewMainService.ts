@@ -12,7 +12,7 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
 	public onFoundInFrame = this._onFoundInFrame.event;

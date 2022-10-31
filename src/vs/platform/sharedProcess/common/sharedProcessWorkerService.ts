@@ -82,7 +82,7 @@ export const ipcSharedProcessWorkerChannelName = 'sharedProcessWorker';
 
 export interface ISharedProcessWorkerService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Will fork a new process with the provided module identifier off the shared

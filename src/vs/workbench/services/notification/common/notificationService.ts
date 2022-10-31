@@ -14,7 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly model = this._register(new NotificationsModel());
 

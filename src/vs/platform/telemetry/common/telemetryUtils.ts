@@ -16,7 +16,7 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 export class NullTelemetryServiceShape implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	readonly sendErrorTelemetry = false;
 
 	publicLog(eventName: string, data?: ITelemetryData) {
@@ -47,7 +47,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 export const NullTelemetryService = new NullTelemetryServiceShape();
 
 export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	async publicLog(_endpoint: ITelemetryEndpoint, _eventName: string, _data?: ITelemetryData): Promise<void> {
 		// noop

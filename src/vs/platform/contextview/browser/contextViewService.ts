@@ -9,7 +9,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IContextViewDelegate, IContextViewService } from './contextView';
 
 export class ContextViewService extends Disposable implements IContextViewService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private currentViewDisposable: IDisposable = Disposable.None;
 	private contextView: ContextView;

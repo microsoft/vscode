@@ -80,7 +80,7 @@ export function format(args: any): string {
 }
 
 export interface ILogService extends ILogger {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }
 
 export interface ILoggerOptions {
@@ -107,7 +107,7 @@ export interface ILoggerOptions {
 }
 
 export interface ILoggerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Creates a logger, or gets one if it already exists.
@@ -401,7 +401,7 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 }
 
 export class MultiplexLogService extends AbstractLogger implements ILogService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private readonly logServices: ReadonlyArray<ILogger>) {
 		super();
@@ -467,7 +467,7 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 }
 
 export class LogService extends Disposable implements ILogService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private logger: ILogger) {
 		super();
@@ -522,7 +522,7 @@ interface ILoggerItem {
 
 export abstract class AbstractLoggerService extends Disposable implements ILoggerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly loggerItems = new ResourceMap<ILoggerItem>();
 
@@ -604,7 +604,7 @@ export class NullLogger implements ILogger {
 }
 
 export class NullLogService extends NullLogger implements ILogService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 }
 
 export class NullLoggerService extends AbstractLoggerService {

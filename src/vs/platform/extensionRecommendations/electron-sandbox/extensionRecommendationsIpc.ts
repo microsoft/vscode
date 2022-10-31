@@ -9,7 +9,7 @@ import { IExtensionRecommendationNotificationService, RecommendationsNotificatio
 
 export class ExtensionRecommendationNotificationServiceChannelClient implements IExtensionRecommendationNotificationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) { }
 

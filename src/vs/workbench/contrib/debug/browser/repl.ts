@@ -83,7 +83,7 @@ const sessionsToIgnore = new Set<IDebugSession>();
 const identityProvider = { getId: (element: IReplElement) => element.getId() };
 
 export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 50; // delay in ms to refresh the repl for new elements to show
 	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);

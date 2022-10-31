@@ -22,7 +22,7 @@ export interface ILayoutOffsetInfo {
 
 export interface ILayoutService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * The dimensions of the container.

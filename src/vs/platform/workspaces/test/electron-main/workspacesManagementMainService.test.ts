@@ -36,7 +36,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 	class TestDialogMainService implements IDialogMainService {
 
-		declare readonly _serviceBrand: undefined;
+		declare readonly $serviceBrand: undefined;
 
 		pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
 		pickFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
@@ -49,7 +49,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 	class TestBackupMainService implements IBackupMainService {
 
-		declare readonly _serviceBrand: undefined;
+		declare readonly $serviceBrand: undefined;
 
 		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
 		getEmptyWindowBackups(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
@@ -94,7 +94,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		testDir = getRandomTestPath(tmpDir, 'vsctests', 'workspacesmanagementmainservice');
 		untitledWorkspacesHomePath = path.join(testDir, 'Workspaces');
 
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		const productService: IProductService = { $serviceBrand: undefined, ...product };
 
 		environmentMainService = new class TestEnvironmentService extends EnvironmentMainService {
 

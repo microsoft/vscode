@@ -30,7 +30,7 @@ export class TelemetryService implements ITelemetryService {
 	static readonly IDLE_START_EVENT_NAME = 'UserIdleStart';
 	static readonly IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _appenders: ITelemetryAppender[];
 	private _commonProperties: Promise<{ [name: string]: any }>;

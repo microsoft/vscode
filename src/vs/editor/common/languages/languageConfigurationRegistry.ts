@@ -33,7 +33,7 @@ export interface ICommentsConfiguration {
 }
 
 export interface ILanguageConfigurationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
 
@@ -57,7 +57,7 @@ export class LanguageConfigurationServiceChangeEvent {
 export const ILanguageConfigurationService = createDecorator<ILanguageConfigurationService>('languageConfigurationService');
 
 export class LanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private readonly _registry = this._register(new LanguageConfigurationRegistry());
 

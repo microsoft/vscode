@@ -145,7 +145,7 @@ interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 
 export class ConfigurationEditing {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private queue: Queue<void>;
 

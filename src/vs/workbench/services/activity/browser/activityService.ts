@@ -57,7 +57,7 @@ interface IViewActivity {
 
 export class ActivityService implements IActivityService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private viewActivities = new Map<string, IViewActivity>();
 

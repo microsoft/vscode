@@ -17,7 +17,7 @@ export interface IEditSessionIdentityProvider {
 export const IEditSessionIdentityService = createDecorator<IEditSessionIdentityService>('editSessionIdentityService');
 
 export interface IEditSessionIdentityService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): IDisposable;
 	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined>;

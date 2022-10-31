@@ -37,7 +37,7 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly MOUSE_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
 	private static readonly NAVIGATION_SCOPE_SETTING = 'workbench.editor.navigationScope';

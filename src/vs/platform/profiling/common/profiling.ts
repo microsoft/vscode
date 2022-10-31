@@ -35,7 +35,7 @@ export const IV8InspectProfilingService = createDecorator<IV8InspectProfilingSer
 
 export interface IV8InspectProfilingService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	startProfiling(options: { port: number }): Promise<string>;
 

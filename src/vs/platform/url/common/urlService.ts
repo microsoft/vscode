@@ -11,7 +11,7 @@ import { IOpenURLOptions, IURLHandler, IURLService } from 'vs/platform/url/commo
 
 export abstract class AbstractURLService extends Disposable implements IURLService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private handlers = new Set<IURLHandler>();
 

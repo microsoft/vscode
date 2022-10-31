@@ -941,7 +941,7 @@ export interface ILaunch {
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Gets the current debug state.

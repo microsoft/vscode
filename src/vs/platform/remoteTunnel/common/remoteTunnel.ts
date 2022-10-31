@@ -14,7 +14,7 @@ export interface IRemoteTunnelAccount {
 
 export const IRemoteTunnelService = createDecorator<IRemoteTunnelService>('IRemoteTunnelService');
 export interface IRemoteTunnelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidTokenFailed: Event<boolean>;
 

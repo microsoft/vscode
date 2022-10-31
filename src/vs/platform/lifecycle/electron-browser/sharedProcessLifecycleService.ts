@@ -12,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const ISharedProcessLifecycleService = createDecorator<ISharedProcessLifecycleService>('lifecycleSharedProcessService');
 
 export interface ISharedProcessLifecycleService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event that fires after after no window has vetoed the shutdown sequence. At
@@ -32,7 +32,7 @@ export interface ShutdownEvent {
 
 export class SharedProcessLifecycleService extends Disposable implements ISharedProcessLifecycleService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private pendingWillShutdownPromise: Promise<void> | undefined = undefined;
 

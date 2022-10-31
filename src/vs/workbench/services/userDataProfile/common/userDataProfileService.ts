@@ -16,7 +16,7 @@ const defaultUserDataProfileIcon = registerIcon('defaultSettingsProfiles-icon', 
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeCurrentProfile = this._register(new Emitter<DidChangeUserDataProfileEvent>());
 	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;

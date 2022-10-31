@@ -20,7 +20,7 @@ import * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration';
 
 export interface IExtHostVariableResolverProvider {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	getResolver(): Promise<IConfigurationResolverService>;
 }
 
@@ -125,7 +125,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 }
 
 export class ExtHostVariableResolverProviderService extends Disposable implements IExtHostVariableResolverProvider {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _resolver = new Lazy(async () => {
 		const configProvider = await this.configurationService.getConfigProvider();

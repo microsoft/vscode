@@ -112,7 +112,7 @@ export type ScanOptions = {
 
 export const IExtensionsScannerService = createDecorator<IExtensionsScannerService>('IExtensionsScannerService');
 export interface IExtensionsScannerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly systemExtensionsLocation: URI;
 	readonly userExtensionsLocation: URI;
@@ -133,7 +133,7 @@ export interface IExtensionsScannerService {
 
 export abstract class AbstractExtensionsScannerService extends Disposable implements IExtensionsScannerService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	protected abstract getTranslations(language: string): Promise<Translations>;
 

@@ -25,7 +25,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly disposables = this._register(new DisposableStore());
 

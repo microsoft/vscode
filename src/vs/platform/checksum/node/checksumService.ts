@@ -11,7 +11,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 
 export class ChecksumService implements IChecksumService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(@IFileService private readonly fileService: IFileService) { }
 

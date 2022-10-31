@@ -18,7 +18,7 @@ import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/no
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 	private _activeProxyKernelExecutionToken: CancellationTokenSource | undefined;
 
 	constructor(

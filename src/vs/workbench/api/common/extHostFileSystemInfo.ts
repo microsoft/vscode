@@ -12,7 +12,7 @@ import { ExtHostFileSystemInfoShape } from 'vs/workbench/api/common/extHost.prot
 
 export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _systemSchemes = new Set(Object.keys(Schemas));
 	private readonly _providerInfo = new Map<string, number>();

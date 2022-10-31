@@ -90,7 +90,7 @@ class ReplacePreviewModel extends Disposable {
 
 export class ReplaceService implements IReplaceService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly REPLACE_SAVE_SOURCE = SaveSourceRegistry.registerSource('searchReplace.source', nls.localize('searchReplace.source', "Search and Replace"));
 

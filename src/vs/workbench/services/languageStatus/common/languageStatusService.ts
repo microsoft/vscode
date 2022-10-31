@@ -37,7 +37,7 @@ export const ILanguageStatusService = createDecorator<ILanguageStatusService>('I
 
 export interface ILanguageStatusService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	onDidChange: Event<void>;
 
@@ -49,7 +49,7 @@ export interface ILanguageStatusService {
 
 class LanguageStatusServiceImpl implements ILanguageStatusService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _provider = new LanguageFeatureRegistry<ILanguageStatus>();
 

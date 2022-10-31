@@ -396,7 +396,7 @@ async function startExtensionHostProcess(): Promise<void> {
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
-		declare readonly _serviceBrand: undefined;
+		declare readonly $serviceBrand: undefined;
 		public readonly pid = process.pid;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return Promises.exists(path); }

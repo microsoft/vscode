@@ -149,7 +149,7 @@ const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electr
 const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private static _lastId: number = 0;
 

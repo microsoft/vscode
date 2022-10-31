@@ -16,7 +16,7 @@ export type PolicyDefinition = { type: 'string' | 'number' };
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 
 export interface IPolicyService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChange: Event<readonly PolicyName[]>;
 	registerPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>>;
@@ -25,7 +25,7 @@ export interface IPolicyService {
 }
 
 export abstract class AbstractPolicyService extends Disposable implements IPolicyService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	protected policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 	protected policies = new Map<PolicyName, PolicyValue>();
@@ -56,7 +56,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 }
 
 export class NullPolicyService implements IPolicyService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidChange = Event.None;
 	async registerPolicyDefinitions() { return {}; }
 	getPolicyValue() { return undefined; }

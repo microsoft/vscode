@@ -54,7 +54,7 @@ export interface IFailedCellInfo {
 export const INotebookExecutionStateService = createDecorator<INotebookExecutionStateService>('INotebookExecutionStateService');
 
 export interface INotebookExecutionStateService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
 	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;

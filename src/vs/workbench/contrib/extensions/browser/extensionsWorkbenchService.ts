@@ -676,7 +676,7 @@ class Extensions extends Disposable {
 export class ExtensionsWorkbenchService extends Disposable implements IExtensionsWorkbenchService, IURLHandler {
 
 	private static readonly UpdatesCheckInterval = 1000 * 60 * 60 * 12; // 12 hours
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private hasOutdatedExtensionsContextKey: IContextKey<boolean>;
 

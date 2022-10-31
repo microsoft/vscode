@@ -122,7 +122,7 @@ export class ExtensionHostMain {
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData, messagePorts });
+		services.set(IExtHostInitDataService, { $serviceBrand: undefined, ...initData, messagePorts });
 		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);

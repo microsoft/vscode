@@ -410,7 +410,7 @@ class TestCellExecution implements INotebookCellExecution {
 }
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 

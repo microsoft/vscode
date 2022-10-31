@@ -45,7 +45,7 @@ function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentif
 const hasRecommendedKeymapKey = 'hasRecommendedKeymap';
 
 export class NotebookKeymapService extends Disposable implements INotebookKeymapService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private notebookKeymapMemento: Memento;
 	private notebookKeymap: MementoObject;

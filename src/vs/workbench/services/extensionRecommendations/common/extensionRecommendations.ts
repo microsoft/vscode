@@ -32,7 +32,7 @@ export interface IExtensionRecommendationReson {
 export const IExtensionRecommendationsService = createDecorator<IExtensionRecommendationsService>('extensionRecommendationsService');
 
 export interface IExtensionRecommendationsService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeRecommendations: Event<void>;
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
@@ -55,7 +55,7 @@ export type IgnoredRecommendationChangeNotification = {
 export const IExtensionIgnoredRecommendationsService = createDecorator<IExtensionIgnoredRecommendationsService>('IExtensionIgnoredRecommendationsService');
 
 export interface IExtensionIgnoredRecommendationsService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChangeIgnoredRecommendations: Event<void>;
 	readonly ignoredRecommendations: string[];

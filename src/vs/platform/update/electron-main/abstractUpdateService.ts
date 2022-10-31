@@ -26,7 +26,7 @@ export type UpdateNotAvailableClassification = {
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	protected url: string | undefined;
 

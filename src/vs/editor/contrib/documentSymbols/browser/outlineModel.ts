@@ -390,7 +390,7 @@ export class OutlineModel extends TreeElement {
 export const IOutlineModelService = createDecorator<IOutlineModelService>('IOutlineModelService');
 
 export interface IOutlineModelService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	getOrCreate(model: ITextModel, token: CancellationToken): Promise<OutlineModel>;
 	getDebounceValue(textModel: ITextModel): number;
 }
@@ -407,7 +407,7 @@ interface CacheEntry {
 
 export class OutlineModelService implements IOutlineModelService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _debounceInformation: IFeatureDebounceInformation;

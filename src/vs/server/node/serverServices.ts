@@ -83,7 +83,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
 
-	const productService: IProductService = { _serviceBrand: undefined, ...product };
+	const productService: IProductService = { $serviceBrand: undefined, ...product };
 	services.set(IProductService, productService);
 
 	const environmentService = new ServerEnvironmentService(args, productService);
@@ -256,7 +256,7 @@ export class SocketServer<TContext = string> extends IPCServer<TContext> {
 }
 
 class ServerLogService extends AbstractLogger implements ILogService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	private useColors: boolean;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {

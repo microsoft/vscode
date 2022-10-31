@@ -430,7 +430,7 @@ export const enum ActivationKind {
 }
 
 export interface IExtensionService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event emitted when extensions are registered after their extension points got handled.
@@ -605,7 +605,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 
 
 export class NullExtensionService implements IExtensionService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions = Event.None;

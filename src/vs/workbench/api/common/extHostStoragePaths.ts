@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 export const IExtensionStoragePaths = createDecorator<IExtensionStoragePaths>('IExtensionStoragePaths');
 
 export interface IExtensionStoragePaths {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	whenReady: Promise<any>;
 	workspaceValue(extension: IExtensionDescription): URI | undefined;
 	globalValue(extension: IExtensionDescription): URI;
@@ -23,7 +23,7 @@ export interface IExtensionStoragePaths {
 
 export class ExtensionStoragePaths implements IExtensionStoragePaths {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _workspace?: IStaticWorkspaceData;
 	protected readonly _environment: IEnvironment;

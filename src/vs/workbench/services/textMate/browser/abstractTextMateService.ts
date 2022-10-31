@@ -33,7 +33,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private readonly _onDidEncounterLanguage: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;

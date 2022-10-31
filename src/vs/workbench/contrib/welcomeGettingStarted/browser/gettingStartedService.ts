@@ -89,7 +89,7 @@ type StepProgress = { done: boolean };
 export interface IResolvedWalkthroughStep extends IWalkthroughStep, StepProgress { }
 
 export interface IWalkthroughsService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidRemoveWalkthrough: Event<string>;
@@ -115,7 +115,7 @@ const DAYS = 24 * 60 * 60 * 1000;
 const NEW_WALKTHROUGH_TIME = 7 * DAYS;
 
 export class WalkthroughsService extends Disposable implements IWalkthroughsService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidAddWalkthrough = new Emitter<IResolvedWalkthrough>();
 	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough> = this._onDidAddWalkthrough.event;

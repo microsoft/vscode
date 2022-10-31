@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileService extends Disposable implements IFileService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	// Choose a buffer size that is a balance between memory needs and
 	// manageable IPC overhead. The larger the buffer size, the less

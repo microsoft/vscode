@@ -504,7 +504,7 @@ class UserKeyboardLayout extends Disposable {
 }
 
 export class BrowserKeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardLayout = new Emitter<void>();
 	public readonly onDidChangeKeyboardLayout: Event<void> = this._onDidChangeKeyboardLayout.event;

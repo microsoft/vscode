@@ -191,7 +191,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 export class TextModelResolverService extends Disposable implements ITextModelService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ | undefined = undefined;
 	private get resourceModelCollection() {

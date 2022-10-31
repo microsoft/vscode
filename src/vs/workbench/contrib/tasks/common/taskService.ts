@@ -62,7 +62,7 @@ export interface IWorkspaceFolderTaskResult extends IWorkspaceTaskResult {
 }
 
 export interface ITaskService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	onDidStateChange: Event<ITaskEvent>;
 	supportsMultipleTaskExecutions: boolean;
 

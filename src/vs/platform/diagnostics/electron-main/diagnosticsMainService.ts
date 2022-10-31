@@ -25,14 +25,14 @@ export interface IRemoteDiagnosticOptions {
 }
 
 export interface IDiagnosticsMainService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
 	getMainDiagnostics(): Promise<IMainProcessDiagnostics>;
 }
 
 export class DiagnosticsMainService implements IDiagnosticsMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,

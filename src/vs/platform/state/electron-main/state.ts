@@ -10,7 +10,7 @@ export const IStateMainService = createDecorator<IStateMainService>('stateMainSe
 
 export interface IStateMainService extends IStateService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	setItem(key: string, data?: object | string | number | boolean | undefined | null): void;
 	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void;

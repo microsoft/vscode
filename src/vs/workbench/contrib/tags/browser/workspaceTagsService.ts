@@ -10,7 +10,7 @@ import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/wo
 
 export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	getTags(): Promise<Tags> {
 		return Promise.resolve({});

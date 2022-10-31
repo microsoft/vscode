@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 
 class OutlineService implements IOutlineService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _factories = new LinkedList<IOutlineCreator<any, any>>();
 

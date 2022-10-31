@@ -130,7 +130,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 export class NotebookModelResolverServiceImpl implements INotebookEditorModelResolverService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _data: NotebookModelReferenceCollection;
 

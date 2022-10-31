@@ -12,7 +12,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
  */
 export class MessagePortMainProcessService implements IMainProcessService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		private server: MessagePortServer,

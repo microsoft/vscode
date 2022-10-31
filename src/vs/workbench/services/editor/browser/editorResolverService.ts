@@ -39,7 +39,7 @@ interface RegisteredEditor {
 type RegisteredEditors = Array<RegisteredEditor>;
 
 export class EditorResolverService extends Disposable implements IEditorResolverService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	// Events
 	private readonly _onDidChangeEditorRegistrations = this._register(new PauseableEmitter<void>());

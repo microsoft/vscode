@@ -14,7 +14,7 @@ export const IHoverService = createDecorator<IHoverService>('hoverService');
  * Enables the convenient display of rich markdown-based hovers in the workbench.
  */
 export interface IHoverService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Shows a hover, provided a hover with the same options object is not already visible.

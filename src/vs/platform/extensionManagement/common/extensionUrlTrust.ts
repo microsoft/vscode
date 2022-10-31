@@ -8,6 +8,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IExtensionUrlTrustService = createDecorator<IExtensionUrlTrustService>('extensionUrlTrustService');
 
 export interface IExtensionUrlTrustService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	isExtensionUrlTrusted(extensionId: string, url: string): Promise<boolean>;
 }

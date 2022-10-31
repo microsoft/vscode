@@ -18,7 +18,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateUuid } from 'vs/base/common/uuid';
 
 class SimpleSnippetService implements ISnippetsService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	constructor(readonly snippets: Snippet[]) { }
 	getSnippets() {
 		return Promise.resolve(this.getSnippetsSync());

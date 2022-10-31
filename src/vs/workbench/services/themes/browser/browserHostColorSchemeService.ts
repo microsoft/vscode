@@ -11,7 +11,7 @@ import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hos
 
 export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidSchemeChangeEvent = this._register(new Emitter<void>());
 

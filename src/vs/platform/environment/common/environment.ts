@@ -34,7 +34,7 @@ export type ExtensionKind = 'ui' | 'workspace' | 'web';
  */
 export interface IEnvironmentService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

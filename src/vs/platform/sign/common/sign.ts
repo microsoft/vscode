@@ -14,7 +14,7 @@ export interface IMessage {
 }
 
 export interface ISignService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	createNewMessage(value: string): Promise<IMessage>;
 	validate(message: IMessage, value: string): Promise<boolean>;

@@ -39,7 +39,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 class InlayHintsCache {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _entries = new LRUCache<string, InlayHintItem[]>(50);
 

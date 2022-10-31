@@ -47,7 +47,7 @@ function isRemoteServiceWithChannelClientOptions<T>(obj: unknown): obj is IRemot
 export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
 
 export interface IMainProcessService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	getChannel(channelName: string): IChannel;
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;
 }
@@ -70,7 +70,7 @@ export const ISharedProcessService = createDecorator<ISharedProcessService>('sha
 
 export interface ISharedProcessService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getChannel(channelName: string): IChannel;
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;

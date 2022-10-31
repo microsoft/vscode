@@ -17,7 +17,7 @@ export const IWorkspaceContextService = createDecorator<IWorkspaceContextService
 
 export interface IWorkspaceContextService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event which fires on workbench state changes.

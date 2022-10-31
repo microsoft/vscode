@@ -9,7 +9,7 @@ import { IV8InspectProfilingService, IV8Profile } from 'vs/platform/profiling/co
 
 export class InspectProfilingService implements IV8InspectProfilingService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private readonly _sessions = new Map<string, ProfilingSession>();
 

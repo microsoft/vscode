@@ -96,7 +96,7 @@ export interface IUserDataProfileUpdateOptions extends IUserDataProfileOptions {
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly profilesHome: URI;
 	readonly defaultProfile: IUserDataProfile;
@@ -181,7 +181,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	protected static readonly PROFILES_KEY = 'userDataProfiles';
 	protected static readonly PROFILE_ASSOCIATIONS_KEY = 'profileAssociations';
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	protected enabled: boolean = false;
 	protected readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = false;

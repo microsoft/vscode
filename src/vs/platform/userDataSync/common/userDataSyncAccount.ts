@@ -15,7 +15,7 @@ export interface IUserDataSyncAccount {
 
 export const IUserDataSyncAccountService = createDecorator<IUserDataSyncAccountService>('IUserDataSyncAccountService');
 export interface IUserDataSyncAccountService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onTokenFailed: Event<boolean>;
 	readonly account: IUserDataSyncAccount | undefined;
@@ -26,7 +26,7 @@ export interface IUserDataSyncAccountService {
 
 export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private _account: IUserDataSyncAccount | undefined;
 	get account(): IUserDataSyncAccount | undefined { return this._account; }

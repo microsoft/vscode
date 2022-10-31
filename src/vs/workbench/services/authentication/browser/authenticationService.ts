@@ -176,7 +176,7 @@ let placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(M
 });
 
 export class AuthenticationService extends Disposable implements IAuthenticationService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());

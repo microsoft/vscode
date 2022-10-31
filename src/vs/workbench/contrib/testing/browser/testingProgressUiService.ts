@@ -20,7 +20,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export interface ITestingProgressUiService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onCountChange: Event<CountSummary>;
 	readonly onTextChange: Event<string>;
 
@@ -88,7 +88,7 @@ export class TestingProgressTrigger extends Disposable {
 }
 
 export class TestingProgressUiService extends Disposable implements ITestingProgressUiService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly windowProg = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly testViewProg = this._register(new MutableDisposable<UnmanagedProgress>());

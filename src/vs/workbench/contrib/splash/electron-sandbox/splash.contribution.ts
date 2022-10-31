@@ -13,7 +13,7 @@ import { PartsSplash } from 'vs/workbench/contrib/splash/browser/partsSplash';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 
 class SplashStorageService implements ISplashStorageService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	readonly saveWindowSplash: (splash: IPartsSplash) => Promise<void>;
 
 	constructor(@INativeHostService nativeHostService: INativeHostService) {

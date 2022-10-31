@@ -43,7 +43,7 @@ export interface IIssueMainService extends ICommonIssueService {
 
 export class IssueMainService implements IIssueMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 

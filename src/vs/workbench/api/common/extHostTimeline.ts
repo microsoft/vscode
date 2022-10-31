@@ -18,14 +18,14 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isString } from 'vs/base/common/types';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	$getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken): Promise<Timeline | undefined>;
 }
 
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
 
 export class ExtHostTimeline implements IExtHostTimeline {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _proxy: MainThreadTimelineShape;
 

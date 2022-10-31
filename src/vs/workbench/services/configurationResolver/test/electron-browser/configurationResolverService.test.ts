@@ -652,7 +652,7 @@ suite('Configuration Resolver Service', () => {
 
 class MockCommandService implements ICommandService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
@@ -672,7 +672,7 @@ class MockCommandService implements ICommandService {
 }
 
 class MockLabelService implements ILabelService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
@@ -701,7 +701,7 @@ class MockLabelService implements ILabelService {
 }
 
 class MockPathService implements IPathService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	get path(): Promise<IPath> {
 		throw new Error('Property not implemented');
 	}

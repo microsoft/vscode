@@ -28,7 +28,7 @@ import { ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	activeTerminal: vscode.Terminal | undefined;
 	terminals: vscode.Terminal[];
@@ -345,7 +345,7 @@ interface ICachedLinkEntry {
 
 export abstract class BaseExtHostTerminalService extends Disposable implements IExtHostTerminalService, ExtHostTerminalServiceShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	protected _proxy: MainThreadTerminalServiceShape;
 	protected _activeTerminal: ExtHostTerminal | undefined;

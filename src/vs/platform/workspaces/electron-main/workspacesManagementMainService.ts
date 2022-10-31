@@ -37,7 +37,7 @@ export interface IWorkspaceEnteredEvent {
 
 export interface IWorkspacesManagementMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier>;
 	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent>;
@@ -58,7 +58,7 @@ export interface IWorkspacesManagementMainService {
 
 export class WorkspacesManagementMainService extends Disposable implements IWorkspacesManagementMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidDeleteUntitledWorkspace = this._register(new Emitter<IWorkspaceIdentifier>());
 	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier> = this._onDidDeleteUntitledWorkspace.event;

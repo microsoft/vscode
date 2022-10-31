@@ -11,7 +11,7 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TestConfigurationService implements IConfigurationService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private configuration: any;
 	readonly onDidChangeConfigurationEmitter = new Emitter<IConfigurationChangeEvent>();

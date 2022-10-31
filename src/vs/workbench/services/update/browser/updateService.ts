@@ -26,7 +26,7 @@ export interface IUpdateProvider {
 
 export class BrowserUpdateService extends Disposable implements IUpdateService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _onStateChange = this._register(new Emitter<State>());
 	readonly onStateChange: Event<State> = this._onStateChange.event;

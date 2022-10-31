@@ -31,7 +31,7 @@ export const IExtensionBisectService = createDecorator<IExtensionBisectService>(
 
 export interface IExtensionBisectService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	isDisabledByBisect(extension: IExtension): boolean;
 	isActive: boolean;
@@ -66,7 +66,7 @@ class BisectState {
 
 class ExtensionBisectService implements IExtensionBisectService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly _storageKey = 'extensionBisectState';
 

@@ -41,7 +41,7 @@ export class RequestChannel implements IServerChannel {
 
 export class RequestChannelClient implements IRequestService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) { }
 

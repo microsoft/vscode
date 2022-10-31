@@ -29,7 +29,7 @@ export interface ITelemetryService {
 	 */
 	readonly sendErrorTelemetry: boolean;
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * @deprecated Use publicLog2 and the typescript GDPR annotation where possible
@@ -65,7 +65,7 @@ export interface ITelemetryEndpoint {
 export const ICustomEndpointTelemetryService = createDecorator<ICustomEndpointTelemetryService>('customEndpointTelemetryService');
 
 export interface ICustomEndpointTelemetryService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	publicLog(endpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void>;
 	publicLogError(endpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void>;

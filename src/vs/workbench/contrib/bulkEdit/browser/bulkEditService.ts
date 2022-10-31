@@ -152,7 +152,7 @@ class BulkEdit {
 
 export class BulkEditService implements IBulkEditService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _activeUndoRedoGroups = new LinkedList<UndoRedoGroup>();
 	private _previewHandler?: IBulkEditPreviewHandler;

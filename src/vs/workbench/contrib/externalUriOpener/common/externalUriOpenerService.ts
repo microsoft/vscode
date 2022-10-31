@@ -38,7 +38,7 @@ export interface IExternalUriOpener {
 }
 
 export interface IExternalUriOpenerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Registers a provider for external resources openers.
@@ -54,7 +54,7 @@ export interface IExternalUriOpenerService {
 
 export class ExternalUriOpenerService extends Disposable implements IExternalUriOpenerService, IExternalOpener {
 
-	public readonly _serviceBrand: undefined;
+	public readonly $serviceBrand: undefined;
 
 	private readonly _providers = new LinkedList<IExternalOpenerProvider>();
 

@@ -12,7 +12,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class EditSessionIdentityService implements IEditSessionIdentityService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private _editSessionIdentifierProviders = new Map<string, IEditSessionIdentityProvider>();
 

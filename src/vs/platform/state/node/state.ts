@@ -9,7 +9,7 @@ export const IStateService = createDecorator<IStateService>('stateService');
 
 export interface IStateService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getItem<T>(key: string, defaultValue: T): T;
 	getItem<T>(key: string, defaultValue?: T): T | undefined;

@@ -22,7 +22,7 @@ export const IDialogMainService = createDecorator<IDialogMainService>('dialogMai
 
 export interface IDialogMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
 	pickFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
@@ -45,7 +45,7 @@ interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 
 export class DialogMainService implements IDialogMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly windowFileDialogLocks = new Map<number, Set<number>>();
 	private readonly windowDialogQueues = new Map<number, Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>>();

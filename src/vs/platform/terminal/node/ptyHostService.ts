@@ -37,7 +37,7 @@ let lastPtyId = 0;
  * from the pty host process and manages the connection.
  */
 export class PtyHostService extends Disposable implements IPtyService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _client: Client;
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies

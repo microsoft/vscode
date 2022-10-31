@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 
 export class MenuService implements IMenuService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _hiddenStates: PersistedMenuHideState;
 

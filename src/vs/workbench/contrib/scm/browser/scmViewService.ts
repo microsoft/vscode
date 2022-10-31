@@ -50,7 +50,7 @@ export interface ISCMViewServiceState {
 
 export class SCMViewService implements ISCMViewService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
 

@@ -9,14 +9,14 @@ import { IExtensionHostExitInfo } from 'vs/workbench/services/remote/common/remo
 export const IExtensionHostStatusService = createDecorator<IExtensionHostStatusService>('extensionHostStatusService');
 
 export interface IExtensionHostStatusService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	setExitInfo(reconnectionToken: string, info: IExtensionHostExitInfo): void;
 	getExitInfo(reconnectionToken: string): IExtensionHostExitInfo | null;
 }
 
 export class ExtensionHostStatusService implements IExtensionHostStatusService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private readonly _exitInfo = new Map<string, IExtensionHostExitInfo>();
 

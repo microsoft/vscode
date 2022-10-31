@@ -61,7 +61,7 @@ class MarkerDecorations extends Disposable {
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;

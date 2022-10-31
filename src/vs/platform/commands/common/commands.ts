@@ -19,7 +19,7 @@ export interface ICommandEvent {
 }
 
 export interface ICommandService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
 	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
@@ -141,7 +141,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 };
 
 export const NullCommandService: ICommandService = {
-	_serviceBrand: undefined,
+	$serviceBrand: undefined,
 	onWillExecuteCommand: () => Disposable.None,
 	onDidExecuteCommand: () => Disposable.None,
 	executeCommand() {

@@ -34,7 +34,7 @@ suite('UserDataSyncStoreManagementService', () => {
 		await client.setUp();
 
 		client.instantiationService.stub(IProductService, {
-			_serviceBrand: undefined, ...product, ...{
+			$serviceBrand: undefined, ...product, ...{
 				'configurationSync.store': undefined
 			}
 		});
@@ -465,7 +465,7 @@ suite('UserDataSyncStoreService', () => {
 suite('UserDataSyncRequestsSession', () => {
 
 	const requestService: IRequestService = {
-		_serviceBrand: undefined,
+		$serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
 		async resolveProxy() { return undefined; }
 	};

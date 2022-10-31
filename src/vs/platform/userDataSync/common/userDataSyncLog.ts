@@ -9,7 +9,7 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 
 export class UserDataSyncLogService extends AbstractLogger implements IUserDataSyncLogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private readonly logger: ILogger;
 
 	constructor(

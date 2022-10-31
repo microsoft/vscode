@@ -15,7 +15,7 @@ export const IStatusbarService = createDecorator<IStatusbarService>('statusbarSe
 
 export interface IStatusbarService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event that is triggered when an entry's visibility is changed.

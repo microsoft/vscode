@@ -32,7 +32,7 @@ import { ContributedCustomEditors } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
 
 export class CustomEditorService extends Disposable implements ICustomEditorService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private readonly _contributedEditors: ContributedCustomEditors;
 	private _untitledCounter = 0;

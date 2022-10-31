@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 export const IMarkerDecorationsService = createDecorator<IMarkerDecorationsService>('markerDecorationsService');
 
 export interface IMarkerDecorationsService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChangeMarker: Event<ITextModel>;
 

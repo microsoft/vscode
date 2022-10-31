@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IInteractiveHistoryService = createDecorator<IInteractiveHistoryService>('IInteractiveHistoryService');
 
 export interface IInteractiveHistoryService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	addToHistory(uri: URI, value: string): void;
 	getPreviousValue(uri: URI): string | null;
@@ -23,7 +23,7 @@ export interface IInteractiveHistoryService {
 }
 
 export class InteractiveHistoryService extends Disposable implements IInteractiveHistoryService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	#history: ResourceMap<HistoryNavigator2<string>>;
 
 	constructor() {

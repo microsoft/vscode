@@ -20,7 +20,7 @@ export interface DidChangeUserDataProfileEvent {
 
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidUpdateCurrentProfile: Event<void>;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
@@ -30,7 +30,7 @@ export interface IUserDataProfileService {
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
@@ -59,7 +59,7 @@ export type ProfileCreationOptions = { readonly skipComments: boolean };
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
 export interface IUserDataProfileImportExportService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	exportProfile(options?: ProfileCreationOptions): Promise<IUserDataProfileTemplate>;
 	importProfile(profile: IUserDataProfileTemplate): Promise<void>;

@@ -9,7 +9,7 @@ import { isEmptyObject } from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ISearchHistoryService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	onDidClearHistory: Event<void>;
 	clearHistory(): void;
 	load(): ISearchHistoryValues;
@@ -26,7 +26,7 @@ export interface ISearchHistoryValues {
 }
 
 export class SearchHistoryService implements ISearchHistoryService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
 

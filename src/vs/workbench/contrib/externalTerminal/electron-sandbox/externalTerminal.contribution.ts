@@ -83,7 +83,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 export class ExternalTerminalContribution implements IWorkbenchContribution {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	constructor(@IExternalTerminalMainService private readonly _externalTerminalService: IExternalTerminalMainService) {
 		this._updateConfiguration();
 	}

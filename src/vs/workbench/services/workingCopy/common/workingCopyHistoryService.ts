@@ -542,7 +542,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	private static readonly FILE_MOVED_SOURCE = SaveSourceRegistry.registerSource('moved.source', localize('moved.source', "File Moved"));
 	private static readonly FILE_RENAMED_SOURCE = SaveSourceRegistry.registerSource('renamed.source', localize('renamed.source', "File Renamed"));
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	protected readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
 	readonly onDidAddEntry = this._onDidAddEntry.event;

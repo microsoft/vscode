@@ -21,7 +21,7 @@ export interface IBannerItem {
 export const IBannerService = createDecorator<IBannerService>('bannerService');
 
 export interface IBannerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	focus(): void;
 	focusNextAction(): void;

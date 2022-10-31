@@ -21,7 +21,7 @@ export interface IntegrityTestResult {
 }
 
 export interface IIntegrityService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	isPure(): Promise<IntegrityTestResult>;
 }

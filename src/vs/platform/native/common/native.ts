@@ -34,7 +34,7 @@ export interface IOSStatistics {
 
 export interface ICommonNativeHostService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	// Properties
 	readonly windowId: number;

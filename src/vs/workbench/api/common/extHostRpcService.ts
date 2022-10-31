@@ -9,11 +9,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IExtHostRpcService = createDecorator<IExtHostRpcService>('IExtHostRpcService');
 
 export interface IExtHostRpcService extends IRPCProtocol {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }
 
 export class ExtHostRpcService implements IExtHostRpcService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly getProxy: <T>(identifier: ProxyIdentifier<T>) => Proxied<T>;
 	readonly set: <T, R extends T> (identifier: ProxyIdentifier<T>, instance: R) => R;

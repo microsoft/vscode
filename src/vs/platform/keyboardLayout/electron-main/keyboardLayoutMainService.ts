@@ -17,7 +17,7 @@ export interface IKeyboardLayoutMainService extends INativeKeyboardLayoutService
 
 export class KeyboardLayoutMainService extends Disposable implements INativeKeyboardLayoutService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<IKeyboardLayoutData>());
 	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;

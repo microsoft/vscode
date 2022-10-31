@@ -17,7 +17,7 @@ import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
 abstract class ExternalTerminalService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
 		return {

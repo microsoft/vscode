@@ -30,7 +30,7 @@ export const enum RecommendationsNotificationResult {
 export const IExtensionRecommendationNotificationService = createDecorator<IExtensionRecommendationNotificationService>('IExtensionRecommendationNotificationService');
 
 export interface IExtensionRecommendationNotificationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly ignoredRecommendations: string[];
 	hasToIgnoreRecommendationNotifications(): boolean;

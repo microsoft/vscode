@@ -2559,7 +2559,7 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 		extensionManagementService: remoteExtensionManagementService || createExtensionManagementService(),
 	};
 	return {
-		_serviceBrand: undefined,
+		$serviceBrand: undefined,
 		localExtensionManagementServer: null,
 		remoteExtensionManagementServer,
 		webExtensionManagementServer: null,
@@ -2593,7 +2593,7 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 		extensionManagementService: webExtensionManagementService,
 	} : null;
 	return {
-		_serviceBrand: undefined,
+		$serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
 		webExtensionManagementServer,

@@ -56,7 +56,7 @@ class IntegrityStorage {
 
 export class IntegrityService implements IIntegrityService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Promise<IntegrityTestResult>;

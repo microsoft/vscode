@@ -24,7 +24,7 @@ export const IWorkspacesService = createDecorator<IWorkspacesService>('workspace
 
 export interface IWorkspacesService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	// Workspaces Management
 	enterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined>;

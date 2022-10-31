@@ -195,7 +195,7 @@ export function LifecyclePhaseToString(phase: LifecyclePhase): string {
  */
 export interface ILifecycleService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Value indicates how this window got loaded.
@@ -265,7 +265,7 @@ export interface ILifecycleService {
 
 export const NullLifecycleService: ILifecycleService = {
 
-	_serviceBrand: undefined,
+	$serviceBrand: undefined,
 
 	onBeforeShutdown: Event.None,
 	onBeforeShutdownError: Event.None,

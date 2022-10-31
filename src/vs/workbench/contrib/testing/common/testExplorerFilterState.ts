@@ -11,7 +11,7 @@ import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestExplorerFilterState {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	/** Current filter text */
 	readonly text: IObservableValue<string>;
@@ -69,7 +69,7 @@ const tagRe = /!?@([^ ,:]+)/g;
 const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
 
 export class TestExplorerFilterState implements ITestExplorerFilterState {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 	private readonly focusEmitter = new Emitter<void>();
 	/**
 	 * Mapping of terms to whether they're included in the text.

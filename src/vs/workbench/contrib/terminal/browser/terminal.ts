@@ -35,7 +35,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * **This service is intended to only be used within the terminal contrib.**
  */
 export interface ITerminalInstanceService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event that's fired when a terminal instance is created.
@@ -127,7 +127,7 @@ export const enum TerminalConnectionState {
 }
 
 export interface ITerminalService extends ITerminalInstanceHost {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/** Gets all terminal instances, including editor and terminal view (group) instances. */
 	readonly instances: readonly ITerminalInstance[];
@@ -232,7 +232,7 @@ export interface ITerminalServiceNativeDelegate {
  * editors.
  */
 export interface ITerminalEditorService extends ITerminalInstanceHost {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/** Gets all _terminal editor_ instances. */
 	readonly instances: readonly ITerminalInstance[];
@@ -306,7 +306,7 @@ export interface TerminalEditorLocation {
  * within the terminal panel, not in an editor.
  */
 export interface ITerminalGroupService extends ITerminalInstanceHost {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
 	readonly instances: readonly ITerminalInstance[];

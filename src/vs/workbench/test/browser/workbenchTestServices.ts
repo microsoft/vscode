@@ -484,7 +484,7 @@ export const TestEnvironmentService = new TestEnvironmentServiceWithArgs('', URI
 
 export class TestProgressService implements IProgressService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	withProgress(
 		options: IProgressOptions | IProgressDialogOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
@@ -497,7 +497,7 @@ export class TestProgressService implements IProgressService {
 
 export class TestDecorationsService implements IDecorationsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 
@@ -507,7 +507,7 @@ export class TestDecorationsService implements IDecorationsService {
 
 export class TestMenuService implements IMenuService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
 		return {
@@ -524,7 +524,7 @@ export class TestMenuService implements IMenuService {
 
 export class TestHistoryService implements IHistoryService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private root?: URI) { }
 
@@ -545,7 +545,7 @@ export class TestHistoryService implements IHistoryService {
 
 export class TestFileDialogService implements IFileDialogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private confirmResult!: ConfirmResult;
 
@@ -573,7 +573,7 @@ export class TestFileDialogService implements IFileDialogService {
 
 export class TestLayoutService implements IWorkbenchLayoutService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	openedDefaultEditors = false;
 
@@ -643,7 +643,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 const activeViewlet: PaneComposite = {} as any;
 
 export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
@@ -700,7 +700,7 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 }
 
 export class TestSideBarPart implements IPaneCompositePart {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	onDidViewletRegisterEmitter = new Emitter<PaneCompositeDescriptor>();
 	onDidViewletDeregisterEmitter = new Emitter<PaneCompositeDescriptor>();
@@ -730,7 +730,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 }
 
 export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	element: HTMLElement = undefined!;
 	minimumWidth = 0;
@@ -757,7 +757,7 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 }
 
 export class TestViewsService implements IViewsService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 
 	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>().event;
@@ -779,7 +779,7 @@ export class TestViewsService implements IViewsService {
 
 export class TestEditorGroupsService implements IEditorGroupsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
@@ -925,7 +925,7 @@ export class TestEditorGroupAccessor implements IEditorGroupsAccessor {
 
 export class TestEditorService implements EditorServiceImpl {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
@@ -982,7 +982,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 export class TestFileService implements IFileService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
 	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
@@ -1216,7 +1216,7 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 
 export class TestLifecycleService implements ILifecycleService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	phase!: LifecyclePhase;
 	startupKind!: StartupKind;
@@ -1295,7 +1295,7 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private configurationService = new TestConfigurationService()) { }
 
@@ -1382,11 +1382,11 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 	}
 }
 
-export const productService: IProductService = { _serviceBrand: undefined, ...product };
+export const productService: IProductService = { $serviceBrand: undefined, ...product };
 
 export class TestHostService implements IHostService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _hasFocus = true;
 	get hasFocus() { return this._hasFocus; }
@@ -1684,7 +1684,7 @@ export async function createEditorPart(instantiationService: IInstantiationServi
 }
 
 export class TestListService implements IListService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	lastFocusedList: any | undefined = undefined;
 
@@ -1695,7 +1695,7 @@ export class TestListService implements IListService {
 
 export class TestPathService implements IPathService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.file, path: '/' }), public defaultUriScheme = Schemas.file) { }
 
@@ -1746,7 +1746,7 @@ export function getLastResolvedFileStat(model: unknown): IFileStatWithMetadata |
 }
 
 export class TestWorkspacesService implements IWorkspacesService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	onDidChangeRecentlyOpened = Event.None;
 
@@ -1763,7 +1763,7 @@ export class TestWorkspacesService implements IWorkspacesService {
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
 	onDidCreateInstance = Event.None;
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
@@ -1772,7 +1772,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 }
 
 export class TestTerminalEditorService implements ITerminalEditorService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	activeInstance: ITerminalInstance | undefined;
 	instances: readonly ITerminalInstance[] = [];
 	onDidDisposeInstance = Event.None;
@@ -1798,7 +1798,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 }
 
 export class TestTerminalGroupService implements ITerminalGroupService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	activeInstance: ITerminalInstance | undefined;
 	instances: readonly ITerminalInstance[] = [];
 	groups: readonly ITerminalGroup[] = [];
@@ -1843,7 +1843,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 }
 
 export class TestTerminalProfileService implements ITerminalProfileService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	availableProfiles: ITerminalProfile[] = [];
 	contributedProfiles: IExtensionTerminalProfile[] = [];
 	profilesReady: Promise<void> = Promise.resolve();
@@ -1858,7 +1858,7 @@ export class TestTerminalProfileService implements ITerminalProfileService {
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	defaultProfileName = '';
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void { }
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
@@ -1873,7 +1873,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 }
 
 export class TestQuickInputService implements IQuickInputService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly onShow = Event.None;
 	readonly onHide = Event.None;
@@ -1905,7 +1905,7 @@ export class TestQuickInputService implements IQuickInputService {
 
 class TestLanguageDetectionService implements ILanguageDetectionService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	isEnabledForLanguage(languageId: string): boolean { return false; }
 	async detectLanguage(resource: URI, supportedLangs?: string[] | undefined): Promise<string | undefined> { return undefined; }
@@ -1913,7 +1913,7 @@ class TestLanguageDetectionService implements ILanguageDetectionService {
 
 export class TestRemoteAgentService implements IRemoteAgentService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	socketFactory: ISocketFactory = {
 		connect() { }
@@ -1934,7 +1934,7 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 }
 
 export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtensionEnablementService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	onEnablementChanged = Event.None;
 	getEnablementState(extension: IExtension): EnablementState { return EnablementState.EnabledGlobally; }
 	getEnablementStates(extensions: IExtension[], workspaceTypeOverrides?: { trusted?: boolean | undefined } | undefined): EnablementState[] { return []; }
@@ -1949,7 +1949,7 @@ export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtens
 }
 
 export class TestWorkbenchExtensionManagementService implements IWorkbenchExtensionManagementService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	onInstallExtension = Event.None;
 	onDidInstallExtensions = Event.None;
 	onUninstallExtension = Event.None;
@@ -2011,7 +2011,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 
 export class TestUserDataProfileService implements IUserDataProfileService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }));
@@ -2020,7 +2020,7 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 }
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	onDidChangeProfile = Event.None;
 	async scanSystemExtensions(): Promise<IExtension[]> { return []; }
 	async scanUserExtensions(): Promise<IScannedExtension[]> { return []; }

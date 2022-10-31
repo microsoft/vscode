@@ -142,7 +142,7 @@ class SimpleModel implements IResolvedTextEditorModel {
 }
 
 class StandaloneTextModelService implements ITextModelService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	constructor(
 		@IModelService private readonly modelService: IModelService
@@ -170,7 +170,7 @@ class StandaloneTextModelService implements ITextModelService {
 }
 
 class StandaloneEditorProgressService implements IEditorProgressService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
 		done: () => { },
@@ -191,7 +191,7 @@ class StandaloneEditorProgressService implements IEditorProgressService {
 
 class StandaloneProgressService implements IProgressService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	withProgress<R>(_options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: ((choice?: number | undefined) => void) | undefined): Promise<R> {
 		return task({
@@ -202,7 +202,7 @@ class StandaloneProgressService implements IProgressService {
 
 class StandaloneDialogService implements IDialogService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
@@ -246,7 +246,7 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	public doNotDisturbMode: boolean = false;
 
@@ -290,7 +290,7 @@ export class StandaloneNotificationService implements INotificationService {
 }
 
 export class StandaloneCommandService implements ICommandService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 
@@ -541,7 +541,7 @@ function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides 
 
 export class StandaloneConfigurationService implements IConfigurationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -621,7 +621,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 
 class StandaloneResourceConfigurationService implements ITextResourceConfigurationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -652,7 +652,7 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 
 class StandaloneResourcePropertiesService implements ITextResourcePropertiesService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -669,7 +669,7 @@ class StandaloneResourcePropertiesService implements ITextResourcePropertiesServ
 }
 
 class StandaloneTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	public telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
 	public sendErrorTelemetry = false;
@@ -703,7 +703,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 
 class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private static readonly SCHEME = 'inmemory';
 
@@ -779,7 +779,7 @@ export function updateConfigurationService(configurationService: IConfigurationS
 }
 
 class StandaloneBulkEditService implements IBulkEditService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IModelService private readonly _modelService: IModelService
@@ -838,7 +838,7 @@ class StandaloneBulkEditService implements IBulkEditService {
 
 class StandaloneUriLabelService implements ILabelService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	public readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = Event.None;
 
@@ -900,7 +900,7 @@ class StandaloneContextViewService extends ContextViewService {
 }
 
 class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private _neverEmitter = new Emitter<never>();
 	public readonly onDidChangeTrust: Event<boolean> = this._neverEmitter.event;

@@ -11,7 +11,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 type MessageToSend = { editorId: string; rendererId: string; message: unknown };
 
 export class NotebookRendererMessagingService extends Disposable implements INotebookRendererMessagingService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 	/**
 	 * Activation promises. Maps renderer IDs to a queue of messages that should
 	 * be sent once activation finishes, or undefined if activation is complete.

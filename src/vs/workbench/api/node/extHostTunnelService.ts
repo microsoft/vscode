@@ -163,7 +163,7 @@ export function tryFindRootPorts(connections: { socket: number; ip: string; port
 }
 
 export class ExtHostTunnelService extends Disposable implements IExtHostTunnelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };

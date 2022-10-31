@@ -7,7 +7,7 @@ import { IMessage, ISignService } from 'vs/platform/sign/common/sign';
 
 export class SignService implements ISignService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		private readonly _token: Promise<string> | string | undefined

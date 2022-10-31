@@ -40,7 +40,7 @@ export interface INullableProcessEnvironment {
 }
 
 export interface IExtensionHostDebugService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	reload(sessionId: string): void;
 	readonly onReload: Event<IReloadSessionEvent>;

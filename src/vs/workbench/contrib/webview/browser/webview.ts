@@ -36,7 +36,7 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
 export interface IWebviewService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * The currently focused webview.

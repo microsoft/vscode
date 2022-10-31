@@ -223,7 +223,7 @@ export interface IMenuCreateOptions {
 
 export interface IMenuService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Create a new menu for the given menu identifier. A menu sends events when it's entries

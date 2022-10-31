@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class AccessibilityService extends Disposable implements IAccessibilityService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _accessibilityModeEnabledContext: IContextKey<boolean>;
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;

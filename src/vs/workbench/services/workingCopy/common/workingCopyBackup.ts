@@ -36,7 +36,7 @@ export interface IResolvedWorkingCopyBackup<T extends IWorkingCopyBackupMeta> {
  */
 export interface IWorkingCopyBackupService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Finds out if there are any working copy backups stored.

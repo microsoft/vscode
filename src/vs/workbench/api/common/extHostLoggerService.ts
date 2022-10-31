@@ -13,7 +13,7 @@ import { isUndefined } from 'vs/base/common/types';
 
 export class ExtHostLoggerService extends AbstractLoggerService implements ExtHostLogLevelServiceShape {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private readonly _proxy: MainThreadLoggerShape;
 
 	constructor(

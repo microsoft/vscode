@@ -130,7 +130,7 @@ class Lock {
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;

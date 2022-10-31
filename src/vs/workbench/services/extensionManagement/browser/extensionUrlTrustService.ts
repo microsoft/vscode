@@ -8,7 +8,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 
 class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	async isExtensionUrlTrusted(): Promise<boolean> {
 		return false;

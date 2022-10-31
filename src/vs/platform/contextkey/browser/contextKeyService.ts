@@ -267,7 +267,7 @@ function allEventKeysInContext(event: IContextKeyChangeEvent, context: Record<st
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
 	protected _myContextId: number;
@@ -531,7 +531,7 @@ class OverlayContext implements IContext {
 
 class OverlayContextKeyService implements IContextKeyService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 	private overlay: Map<string, any>;
 
 	get contextId(): number {

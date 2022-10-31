@@ -221,7 +221,7 @@ export interface IKeybindingsEditorOptions extends IEditorOptions {
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
 export interface IPreferencesService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI | null;

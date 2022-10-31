@@ -27,7 +27,7 @@ import { TestLifecycleMainService } from 'vs/platform/test/electron-main/workben
 
 suite('StorageMainService', function () {
 
-	const productService: IProductService = { _serviceBrand: undefined, ...product };
+	const productService: IProductService = { $serviceBrand: undefined, ...product };
 
 	const inMemoryProfileRoot = URI.file('/location').with({ scheme: Schemas.inMemory });
 	const inMemoryProfile: IUserDataProfile = {

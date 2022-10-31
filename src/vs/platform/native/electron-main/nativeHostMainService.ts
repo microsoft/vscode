@@ -50,7 +50,7 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		private sharedProcess: ISharedProcess,

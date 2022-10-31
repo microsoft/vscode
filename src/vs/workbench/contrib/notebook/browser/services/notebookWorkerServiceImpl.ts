@@ -15,7 +15,7 @@ import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/servic
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _workerManager: WorkerManager;
 

@@ -27,7 +27,7 @@ class WorkbenchNativeHostService extends NativeHostService {
 
 class WorkbenchHostService extends Disposable implements IHostService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,

@@ -15,7 +15,7 @@ const ignoredRecommendationsStorageKey = 'extensionsAssistant/ignored_recommenda
 
 export class ExtensionIgnoredRecommendationsService extends Disposable implements IExtensionIgnoredRecommendationsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _onDidChangeIgnoredRecommendations = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredRecommendations = this._onDidChangeIgnoredRecommendations.event;

@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ITestMessage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestingDecorationsService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	/**
 	 * Fires when something happened to change decorations in an editor.

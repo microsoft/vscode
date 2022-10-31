@@ -105,7 +105,7 @@ export class RemoteAuthorityResolverError extends ErrorNoTelemetry {
 
 export interface IRemoteAuthorityResolverService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeConnectionData: Event<void>;
 

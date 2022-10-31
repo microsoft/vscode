@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class StandaloneLayoutService implements ILayoutService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	public onDidLayout = Event.None;
 

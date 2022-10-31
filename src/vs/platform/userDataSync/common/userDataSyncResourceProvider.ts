@@ -36,7 +36,7 @@ interface ISyncResourceUriInfo {
 
 export class UserDataSyncResourceProviderService implements IUserDataSyncResourceProviderService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private static readonly NOT_EXISTING_RESOURCE = 'not-existing-resource';
 	private static readonly REMOTE_BACKUP_AUTHORITY = 'remote-backup';

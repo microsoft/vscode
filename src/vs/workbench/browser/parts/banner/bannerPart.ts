@@ -33,7 +33,7 @@ import { BannerFocused } from 'vs/workbench/common/contextkeys';
 
 export class BannerPart extends Part implements IBannerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	// #region IView
 

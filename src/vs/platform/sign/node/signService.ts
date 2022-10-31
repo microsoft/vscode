@@ -20,7 +20,7 @@ declare module vsda {
 }
 
 export class SignService implements ISignService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static _nextId = 1;
 	private readonly validators = new Map<string, vsda.validator>();

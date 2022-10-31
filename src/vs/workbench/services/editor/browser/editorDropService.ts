@@ -11,7 +11,7 @@ export const IEditorDropService = createDecorator<IEditorDropService>('editorDro
 
 export interface IEditorDropService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Allows to register a drag and drop target for editors.

@@ -27,7 +27,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
 export class ExplorerService implements IExplorerService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 

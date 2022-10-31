@@ -10,7 +10,7 @@ export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 0; // no polling
 
 export interface IAssignmentService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 }
 

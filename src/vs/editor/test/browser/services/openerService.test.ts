@@ -19,7 +19,7 @@ suite('OpenerService', function () {
 	let lastCommand: { id: string; args: any[] } | undefined;
 
 	const commandService = new (class implements ICommandService {
-		declare readonly _serviceBrand: undefined;
+		declare readonly $serviceBrand: undefined;
 		onWillExecuteCommand = () => Disposable.None;
 		onDidExecuteCommand = () => Disposable.None;
 		executeCommand(id: string, ...args: any[]): Promise<any> {

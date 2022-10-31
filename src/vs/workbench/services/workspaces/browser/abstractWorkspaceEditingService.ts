@@ -32,7 +32,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,

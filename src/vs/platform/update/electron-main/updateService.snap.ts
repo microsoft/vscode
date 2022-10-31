@@ -17,7 +17,7 @@ import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-ma
 
 abstract class AbstractUpdateService implements IUpdateService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _state: State = State.Uninitialized;
 

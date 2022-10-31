@@ -23,7 +23,7 @@ const RETAIN_MAX_BYTES = 1024 * 128;
 const CLEANUP_PROBABILITY = 0.2;
 
 export interface ITestResultStorage {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	/**
 	 * Retrieves the list of stored test results.
@@ -51,7 +51,7 @@ export const ITestResultStorage = createDecorator('ITestResultStorage');
 const currentRevision = 1;
 
 export abstract class BaseTestResultStorage implements ITestResultStorage {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
 		key: 'storedTestResults',

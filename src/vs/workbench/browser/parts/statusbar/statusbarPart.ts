@@ -46,7 +46,7 @@ interface IPendingStatusbarEntry {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region IView
 

@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
 
 export interface IAccessibilityService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeScreenReaderOptimized: Event<void>;
 	readonly onDidChangeReducedMotion: Event<void>;

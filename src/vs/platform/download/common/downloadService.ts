@@ -12,7 +12,7 @@ import { asTextOrError, IRequestService } from 'vs/platform/request/common/reque
 
 export class DownloadService implements IDownloadService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,

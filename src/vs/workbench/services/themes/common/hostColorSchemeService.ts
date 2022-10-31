@@ -10,7 +10,7 @@ export const IHostColorSchemeService = createDecorator<IHostColorSchemeService>(
 
 export interface IHostColorSchemeService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly dark: boolean;
 	readonly highContrast: boolean;

@@ -26,7 +26,7 @@ export const IThemeMainService = createDecorator<IThemeMainService>('themeMainSe
 
 export interface IThemeMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
@@ -40,7 +40,7 @@ export interface IThemeMainService {
 
 export class ThemeMainService extends Disposable implements IThemeMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;

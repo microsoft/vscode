@@ -132,7 +132,7 @@ flakySuite('BackupMainService', () => {
 		backupHome = path.join(testDir, 'Backups');
 		existingTestFolder1 = URI.file(path.join(testDir, 'folder1'));
 
-		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS), { $serviceBrand: undefined, ...product });
 
 		await Promises.mkdir(backupHome, { recursive: true });
 

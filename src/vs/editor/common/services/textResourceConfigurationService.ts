@@ -14,7 +14,7 @@ import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfi
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration: Emitter<ITextResourceConfigurationChangeEvent> = this._register(new Emitter<ITextResourceConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;

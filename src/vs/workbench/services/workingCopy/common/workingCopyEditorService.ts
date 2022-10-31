@@ -35,7 +35,7 @@ export interface IWorkingCopyEditorHandler {
 
 export interface IWorkingCopyEditorService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event fired whenever a handler is registered.
@@ -55,7 +55,7 @@ export interface IWorkingCopyEditorService {
 
 export class WorkingCopyEditorService extends Disposable implements IWorkingCopyEditorService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidRegisterHandler = this._register(new Emitter<IWorkingCopyEditorHandler>());
 	readonly onDidRegisterHandler = this._onDidRegisterHandler.event;

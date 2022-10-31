@@ -20,7 +20,7 @@ export interface ILanguagePackItem extends IQuickPickItem {
 }
 
 export interface ILanguagePackService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 	getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
@@ -28,7 +28,7 @@ export interface ILanguagePackService {
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(@IExtensionGalleryService protected readonly extensionGalleryService: IExtensionGalleryService) {
 		super();

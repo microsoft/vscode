@@ -37,7 +37,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	static readonly VARIABLE_LHS = '${';
 	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _context: IVariableResolveContext;
 	private _labelService?: ILabelService;

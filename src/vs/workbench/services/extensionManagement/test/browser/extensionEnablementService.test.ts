@@ -1044,7 +1044,7 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 
 export function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
 	return {
-		_serviceBrand: undefined,
+		$serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
 		webExtensionManagementServer,

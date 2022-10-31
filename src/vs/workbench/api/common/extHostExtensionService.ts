@@ -55,7 +55,7 @@ interface INewTestRunner {
 export const IHostUtils = createDecorator<IHostUtils>('IHostUtils');
 
 export interface IHostUtils {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly pid: number | undefined;
 	exit(code: number): void;
 	exists(path: string): Promise<boolean>;
@@ -75,7 +75,7 @@ type TelemetryActivationEventFragment = {
 
 export abstract class AbstractExtHostExtensionService extends Disposable implements ExtHostExtensionServiceShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	abstract readonly extensionRuntime: ExtensionRuntime;
 
@@ -970,7 +970,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
 
 export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	initialize(): Promise<void>;
 	terminate(reason: string): void;
 	getExtension(extensionId: string): Promise<IExtensionDescription | undefined>;

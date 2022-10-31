@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IIgnoredExtensionsManagementService = createDecorator<IIgnoredExtensionsManagementService>('IIgnoredExtensionsManagementService');
 export interface IIgnoredExtensionsManagementService {
-	readonly _serviceBrand: any;
+	readonly $serviceBrand: any;
 
 	getIgnoredExtensions(installed: ILocalExtension[]): string[];
 
@@ -22,7 +22,7 @@ export interface IIgnoredExtensionsManagementService {
 
 export class IgnoredExtensionsManagementService implements IIgnoredExtensionsManagementService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,

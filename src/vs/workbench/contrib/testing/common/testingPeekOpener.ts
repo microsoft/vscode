@@ -10,7 +10,7 @@ import { TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export interface ITestingPeekOpener {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	/**
 	 * Tries to peek the first test error, if the item is in a failed state.

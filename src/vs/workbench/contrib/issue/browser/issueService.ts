@@ -13,7 +13,7 @@ import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { userAgent } from 'vs/base/common/platform';
 
 export class WebIssueService implements IWorkbenchIssueService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,

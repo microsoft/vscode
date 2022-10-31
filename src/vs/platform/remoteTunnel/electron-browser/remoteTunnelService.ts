@@ -35,7 +35,7 @@ type RemoteTunnelEnablementEvent = {
  */
 export class RemoteTunnelService extends Disposable implements IRemoteTunnelService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidTokenFailedEmitter = new Emitter<boolean>();
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;

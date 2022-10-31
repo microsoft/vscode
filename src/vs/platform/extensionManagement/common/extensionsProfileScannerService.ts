@@ -31,7 +31,7 @@ export interface IScannedProfileExtension {
 
 export const IExtensionsProfileScannerService = createDecorator<IExtensionsProfileScannerService>('IExtensionsProfileScannerService');
 export interface IExtensionsProfileScannerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
@@ -39,7 +39,7 @@ export interface IExtensionsProfileScannerService {
 }
 
 export class ExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IScannedProfileExtension[]>>();
 

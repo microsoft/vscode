@@ -135,7 +135,7 @@ type WorkingCopyProvider = (resourceOrFolder: URI) => IWorkingCopy[];
  */
 export interface IWorkingCopyFileService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	//#region Events
 
@@ -268,7 +268,7 @@ export interface IWorkingCopyFileService {
 
 export class WorkingCopyFileService extends Disposable implements IWorkingCopyFileService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region Events
 

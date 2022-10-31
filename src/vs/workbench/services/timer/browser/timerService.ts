@@ -389,7 +389,7 @@ export interface IStartupMetrics {
 }
 
 export interface ITimerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * A promise that resolved when startup timings and perf marks
@@ -466,7 +466,7 @@ export type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
 
 export abstract class AbstractTimerService implements ITimerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();

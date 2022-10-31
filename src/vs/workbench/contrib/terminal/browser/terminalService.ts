@@ -50,7 +50,7 @@ import { ILifecycleService, ShutdownReason, StartupKind, WillShutdownEvent } fro
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalService implements ITerminalService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 

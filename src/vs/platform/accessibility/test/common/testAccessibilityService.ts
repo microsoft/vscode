@@ -8,7 +8,7 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 
 export class TestAccessibilityService implements IAccessibilityService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	onDidChangeScreenReaderOptimized = Event.None;
 	onDidChangeReducedMotion = Event.None;

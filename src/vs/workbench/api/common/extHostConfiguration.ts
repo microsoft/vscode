@@ -92,7 +92,7 @@ function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): 
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _logService: ILogService;

@@ -29,7 +29,7 @@ export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryM
 
 export interface IWorkspacesHistoryMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
 
@@ -45,7 +45,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private static readonly RECENTLY_OPENED_STORAGE_KEY = 'history.recentlyOpenedPathsList';
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeRecentlyOpened = this._register(new Emitter<void>());
 	readonly onDidChangeRecentlyOpened = this._onDidChangeRecentlyOpened.event;

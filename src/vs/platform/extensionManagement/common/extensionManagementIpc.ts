@@ -84,7 +84,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 
 export class ExtensionManagementChannelClient extends Disposable implements IExtensionManagementService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
 	get onInstallExtension() { return this._onInstallExtension.event; }

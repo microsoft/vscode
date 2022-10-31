@@ -17,7 +17,7 @@ export const IHostService = createDecorator<IHostService>('hostService');
  */
 export interface IHostService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 
 	//#region Focus

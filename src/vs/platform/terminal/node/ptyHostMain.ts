@@ -25,7 +25,7 @@ const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');
 delete process.env.VSCODE_LAST_PTY_ID;
 
 // Logging
-const productService: IProductService = { _serviceBrand: undefined, ...product };
+const productService: IProductService = { $serviceBrand: undefined, ...product };
 const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 const bufferLogService = new BufferLogService();
 const logService = new LogService(new MultiplexLogService([

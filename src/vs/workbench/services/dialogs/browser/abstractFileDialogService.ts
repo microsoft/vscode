@@ -34,7 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IHostService protected readonly hostService: IHostService,

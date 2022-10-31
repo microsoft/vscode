@@ -35,7 +35,7 @@ type WorkspaceType = { readonly virtual: boolean; readonly trusted: boolean };
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;

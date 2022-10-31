@@ -39,7 +39,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 		if (contribution) {
 			const widget = contribution.widget;
 			this.host = {
-				_serviceBrand: undefined,
+				$serviceBrand: undefined,
 				get hasContainer() { return true; },
 				get container() { return widget.getDomNode(); },
 				get dimension() { return editor.getLayoutInfo(); },
@@ -59,7 +59,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 
 export class StandaloneQuickInputService implements IQuickInputService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private mapEditorToService = new Map<ICodeEditor, EditorScopedQuickInputService>();
 	private get activeService(): IQuickInputService {

@@ -24,7 +24,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NativeLocaleService implements ILocaleService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,

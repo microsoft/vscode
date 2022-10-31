@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 export class ExtHostTheming implements ExtHostThemingShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private _actual: ColorTheme;
 	private _onDidChangeActiveColorTheme: Emitter<ColorTheme>;

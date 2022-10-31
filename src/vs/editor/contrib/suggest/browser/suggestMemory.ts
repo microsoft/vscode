@@ -226,7 +226,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 
 	private static readonly _storagePrefix = 'suggest/memories';
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 
 	private readonly _persistSoon: RunOnceScheduler;
@@ -302,7 +302,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
 
 export interface ISuggestMemoryService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }

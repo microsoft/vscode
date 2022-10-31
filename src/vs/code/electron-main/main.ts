@@ -151,7 +151,7 @@ class CodeMain {
 		process.once('exit', () => disposables.dispose());
 
 		// Product
-		const productService = { _serviceBrand: undefined, ...product };
+		const productService = { $serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
 
 		// Environment

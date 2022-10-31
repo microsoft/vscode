@@ -11,7 +11,7 @@ export const IExtensionSignatureVerificationService = createDecorator<IExtension
  * A service for verifying signed extensions.
  */
 export interface IExtensionSignatureVerificationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Verifies an extension file (.vsix) against a signature archive file.
@@ -37,7 +37,7 @@ export interface ExtensionSignatureVerificationError extends Error {
 }
 
 export class ExtensionSignatureVerificationService implements IExtensionSignatureVerificationService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private moduleLoadingPromise: Promise<typeof vsceSign> | undefined;
 

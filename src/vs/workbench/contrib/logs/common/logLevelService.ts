@@ -11,14 +11,14 @@ import { IOutputService } from 'vs/workbench/services/output/common/output';
 
 export const ILogLevelService = createDecorator<ILogLevelService>('ILogLevelService');
 export interface ILogLevelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidChangeLogLevel: Event<{ readonly id: string; logLevel: LogLevel }>;
 	setLogLevel(id: string, logLevel: LogLevel): void;
 	getLogLevel(id: string): LogLevel | undefined;
 }
 
 export class LogLevelService extends Disposable implements ILogLevelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeLogLevel = this._register(new Emitter<{ readonly id: string; logLevel: LogLevel }>());
 	readonly onDidChangeLogLevel = this._onDidChangeLogLevel.event;

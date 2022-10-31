@@ -12,7 +12,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class WebLocaleService implements ILocaleService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,

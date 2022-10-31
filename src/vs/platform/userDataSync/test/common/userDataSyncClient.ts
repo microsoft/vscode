@@ -70,7 +70,7 @@ export class UserDataSyncClient extends Disposable {
 		});
 
 		this.instantiationService.stub(IProductService, {
-			_serviceBrand: undefined, ...product, ...{
+			$serviceBrand: undefined, ...product, ...{
 				'configurationSync.store': {
 					url: this.testServer.url,
 					stableUrl: this.testServer.url,
@@ -164,7 +164,7 @@ const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines
 
 export class UserDataSyncTestServer implements IRequestService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
@@ -330,7 +330,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	async resolveDefaultIgnoredSettings(): Promise<string[]> {
 		return getDefaultIgnoredSettings();

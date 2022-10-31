@@ -26,7 +26,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 	private static _handlePool = 0;
 	private static _maxEventSize = 250;
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	private readonly _provider = new Map<number, ProviderData>();
 	private readonly _proxy: MainThreadDecorationsShape;
 

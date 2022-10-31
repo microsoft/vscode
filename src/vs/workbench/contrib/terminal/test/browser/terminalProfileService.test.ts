@@ -87,7 +87,7 @@ class TestTerminalExtensionService extends TestExtensionService {
 }
 
 class TestTerminalContributionService implements ITerminalContributionService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
 	quickFixes: IExtensionTerminalQuickFix[] = [];
 	setProfiles(profiles: IExtensionTerminalProfile[]): void {

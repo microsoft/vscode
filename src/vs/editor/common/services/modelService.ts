@@ -134,7 +134,7 @@ export class ModelService extends Disposable implements IModelService {
 
 	public static MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;

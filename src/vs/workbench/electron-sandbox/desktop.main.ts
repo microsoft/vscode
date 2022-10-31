@@ -163,7 +163,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IPolicyService, policyService);
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		const productService: IProductService = { $serviceBrand: undefined, ...product };
 		serviceCollection.set(IProductService, productService);
 
 		// Environment

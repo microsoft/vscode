@@ -36,7 +36,7 @@ class MockKeybindingContextKey<T extends ContextKeyValue = ContextKeyValue> impl
 
 export class MockContextKeyService implements IContextKeyService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	private _keys = new Map<string, IContextKey<any>>();
 
 	public dispose(): void {
@@ -84,7 +84,7 @@ export class MockScopableContextKeyService extends MockContextKeyService {
 }
 
 export class MockKeybindingService implements IKeybindingService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	public readonly inChordMode: boolean = false;
 

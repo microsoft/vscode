@@ -29,7 +29,7 @@ import { ErrorNoTelemetry, NotSupportedError } from 'vs/base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	taskExecutions: vscode.TaskExecution[];
 	onDidStartTask: Event<vscode.TaskStartEvent>;
@@ -390,7 +390,7 @@ export interface HandlerData {
 }
 
 export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	protected readonly _proxy: MainThreadTaskShape;
 	protected readonly _workspaceProvider: IExtHostWorkspaceProvider;

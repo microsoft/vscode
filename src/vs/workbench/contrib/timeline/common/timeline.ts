@@ -138,7 +138,7 @@ export interface TimelineRequest {
 }
 
 export interface ITimelineService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
 	onDidChangeTimeline: Event<TimelineChangeEvent>;

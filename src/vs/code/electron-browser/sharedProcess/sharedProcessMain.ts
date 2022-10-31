@@ -197,7 +197,7 @@ class SharedProcessMain extends Disposable {
 		// Lifecycle
 
 		// Product
-		const productService = { _serviceBrand: undefined, ...product };
+		const productService = { $serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
 
 		// Main Process

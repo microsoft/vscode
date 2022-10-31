@@ -14,7 +14,7 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryI
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private customTelemetryServices = new Map<string, ITelemetryService>();
 

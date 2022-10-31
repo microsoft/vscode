@@ -11,7 +11,7 @@ export const IBackupMainService = createDecorator<IBackupMainService>('backupMai
 
 export interface IBackupMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean;
 

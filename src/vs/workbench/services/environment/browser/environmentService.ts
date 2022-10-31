@@ -36,7 +36,7 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }

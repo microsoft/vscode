@@ -111,7 +111,7 @@ suite('AbstractKeybindingService', () => {
 		createTestKeybindingService = (items: ResolvedKeybindingItem[]): TestKeybindingService => {
 
 			const contextKeyService: IContextKeyService = {
-				_serviceBrand: undefined,
+				$serviceBrand: undefined,
 				dispose: undefined!,
 				onDidChangeContext: undefined!,
 				bufferChangeEvents() { },
@@ -127,7 +127,7 @@ suite('AbstractKeybindingService', () => {
 			};
 
 			const commandService: ICommandService = {
-				_serviceBrand: undefined,
+				$serviceBrand: undefined,
 				onWillExecuteCommand: () => Disposable.None,
 				onDidExecuteCommand: () => Disposable.None,
 				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
@@ -140,7 +140,7 @@ suite('AbstractKeybindingService', () => {
 			};
 
 			const notificationService: INotificationService = {
-				_serviceBrand: undefined,
+				$serviceBrand: undefined,
 				doNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,

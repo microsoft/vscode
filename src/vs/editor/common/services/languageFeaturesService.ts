@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 
 export class LanguageFeaturesService implements ILanguageFeaturesService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	readonly referenceProvider = new LanguageFeatureRegistry<ReferenceProvider>(this._score.bind(this));
 	readonly renameProvider = new LanguageFeatureRegistry<RenameProvider>(this._score.bind(this));

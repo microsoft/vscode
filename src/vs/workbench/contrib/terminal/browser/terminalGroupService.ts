@@ -21,7 +21,7 @@ import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal'
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	groups: ITerminalGroup[] = [];
 	activeGroupIndex: number = -1;

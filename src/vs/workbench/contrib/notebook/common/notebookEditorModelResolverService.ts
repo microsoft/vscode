@@ -40,7 +40,7 @@ export interface IUntitledNotebookResource {
 }
 
 export interface INotebookEditorModelResolverService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidSaveNotebook: Event<URI>;
 	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;

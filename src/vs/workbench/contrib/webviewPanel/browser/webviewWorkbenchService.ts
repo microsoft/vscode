@@ -34,7 +34,7 @@ export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService
  * Service responsible for showing and managing webview editors in the workbench.
  */
 export interface IWebviewWorkbenchService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Manages setting the icons show for a given webview.
@@ -206,7 +206,7 @@ class RevivalPool {
 
 
 export class WebviewEditorService extends Disposable implements IWebviewWorkbenchService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();

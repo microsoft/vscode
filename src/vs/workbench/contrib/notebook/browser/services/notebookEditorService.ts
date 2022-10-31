@@ -17,7 +17,7 @@ export interface IBorrowValue<T> {
 }
 
 export interface INotebookEditorService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, dimension?: Dimension): IBorrowValue<INotebookEditor>;
 

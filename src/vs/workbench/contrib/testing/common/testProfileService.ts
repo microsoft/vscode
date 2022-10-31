@@ -17,7 +17,7 @@ import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/t
 export const ITestProfileService = createDecorator<ITestProfileService>('testProfileService');
 
 export interface ITestProfileService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Fired when any profile changes.
@@ -101,7 +101,7 @@ export const capabilityContextKeys = (capabilities: number): [key: string, value
 ];
 
 export class TestProfileService implements ITestProfileService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private readonly preferredDefaults: StoredValue<{ [K in TestRunProfileBitset]?: { controllerId: string; profileId: number }[] }>;
 	private readonly capabilitiesContexts: { [K in TestRunProfileBitset]: IContextKey<boolean> };
 	private readonly changeEmitter = new Emitter<void>();

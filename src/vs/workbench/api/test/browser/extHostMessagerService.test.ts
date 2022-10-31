@@ -14,7 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 
 const emptyCommandService: ICommandService = {
-	_serviceBrand: undefined,
+	$serviceBrand: undefined,
 	onWillExecuteCommand: () => Disposable.None,
 	onDidExecuteCommand: () => Disposable.None,
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
@@ -23,7 +23,7 @@ const emptyCommandService: ICommandService = {
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	doNotDisturbMode: boolean = false;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
@@ -49,7 +49,7 @@ const emptyNotificationService = new class implements INotificationService {
 };
 
 class EmptyNotificationService implements INotificationService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	doNotDisturbMode: boolean = false;
 	constructor(private withNotify: (notification: INotification) => void) {
 	}

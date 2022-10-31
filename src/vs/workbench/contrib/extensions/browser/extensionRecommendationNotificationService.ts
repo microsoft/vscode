@@ -113,7 +113,7 @@ type VisibleRecommendationsNotification = { recommendationsNotification: Recomme
 
 export class ExtensionRecommendationNotificationService implements IExtensionRecommendationNotificationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	// Ignored Important Recommendations
 	get ignoredRecommendations(): string[] {

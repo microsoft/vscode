@@ -53,7 +53,7 @@ interface InstallableExtension {
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	removeUninstalledExtensions(removeOutdated: boolean): Promise<void>;
 	getAllUserInstalled(): Promise<ILocalExtension[]>;
 }

@@ -31,7 +31,7 @@ export interface ICellExecuteOutputItemEdit {
 export const INotebookExecutionService = createDecorator<INotebookExecutionService>('INotebookExecutionService');
 
 export interface INotebookExecutionService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>, contextKeyService: IContextKeyService): Promise<void>;
 	cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void>;

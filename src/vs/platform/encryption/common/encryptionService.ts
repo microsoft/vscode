@@ -11,7 +11,7 @@ export interface IEncryptionMainService extends ICommonEncryptionService { }
 
 export interface ICommonEncryptionService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	encrypt(value: string): Promise<string>;
 

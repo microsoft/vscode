@@ -30,7 +30,7 @@ export interface IEndpointDetails {
 export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
 
 export interface IPreferencesSearchService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;

@@ -41,7 +41,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private static readonly configCommandCenter = 'window.commandCenter';
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region IView
 

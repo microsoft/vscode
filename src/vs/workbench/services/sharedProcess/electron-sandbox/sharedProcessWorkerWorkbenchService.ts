@@ -36,7 +36,7 @@ export interface ISharedProcessWorker extends IDisposable {
 
 export interface ISharedProcessWorkerWorkbenchService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Will fork a new process with the provided module identifier off the shared
@@ -65,7 +65,7 @@ export interface ISharedProcessWorkerWorkbenchService {
 
 export class SharedProcessWorkerWorkbenchService extends Disposable implements ISharedProcessWorkerWorkbenchService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 	private get sharedProcessWorkerService(): ISharedProcessWorkerService {

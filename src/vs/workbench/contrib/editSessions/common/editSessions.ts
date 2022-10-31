@@ -21,7 +21,7 @@ export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 
 export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
 export interface IEditSessionsStorageService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;

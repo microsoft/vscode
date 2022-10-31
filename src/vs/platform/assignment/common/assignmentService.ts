@@ -23,7 +23,7 @@ class NullAssignmentServiceTelemetry implements IExperimentationTelemetry {
 }
 
 export abstract class BaseAssignmentService implements IAssignmentService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	protected tasClient: Promise<TASClient> | undefined;
 	private networkInitialized = false;
 	private overrideInitDelay: Promise<void>;

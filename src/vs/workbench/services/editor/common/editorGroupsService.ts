@@ -169,7 +169,7 @@ export interface IEditorSideGroup {
 
 export interface IEditorGroupsService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor

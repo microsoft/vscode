@@ -20,7 +20,7 @@ import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } fr
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _contextMenuHandler: ContextMenuHandler | undefined = undefined;
 	private get contextMenuHandler(): ContextMenuHandler {

@@ -22,7 +22,7 @@ export interface IExtensionHostProcessOptions {
 }
 
 export interface IExtensionHostStarter {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDynamicStdout(id: string): Event<string>;
 	onDynamicStderr(id: string): Event<string>;

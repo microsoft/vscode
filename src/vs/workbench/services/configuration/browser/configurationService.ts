@@ -58,7 +58,7 @@ class Workspace extends BaseWorkspace {
 
 export class WorkspaceService extends Disposable implements IWorkbenchConfigurationService, IWorkspaceContextService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	private workspace!: Workspace;
 	private initRemoteUserConfigurationBarrier: Barrier;

@@ -23,7 +23,7 @@ import { createEmptyWorkspaceIdentifier } from 'vs/platform/workspaces/node/work
 
 export class BackupMainService implements IBackupMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly backupWorkspacesMetadataStorageKey = 'backupWorkspaces';
 

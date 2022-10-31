@@ -1630,7 +1630,7 @@ export interface IContextKeyChangeEvent {
 }
 
 export interface IContextKeyService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;

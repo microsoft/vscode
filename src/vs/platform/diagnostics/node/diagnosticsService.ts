@@ -215,7 +215,7 @@ export async function collectLaunchConfigs(folder: string): Promise<WorkspaceSta
 
 export class DiagnosticsService implements IDiagnosticsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,

@@ -21,7 +21,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 
 	private static readonly MAX_PASSWORD_LENGTH = 2500;
 	private static readonly PASSWORD_CHUNK_SIZE = BaseCredentialsMainService.MAX_PASSWORD_LENGTH - 100;
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _onDidChangePassword: Emitter<ICredentialsChangeEvent> = this._register(new Emitter());
 	readonly onDidChangePassword = this._onDidChangePassword.event;

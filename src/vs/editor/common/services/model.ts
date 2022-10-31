@@ -16,7 +16,7 @@ export const IModelService = createDecorator<IModelService>('modelService');
 export type DocumentTokensProvider = DocumentSemanticTokensProvider | DocumentRangeSemanticTokensProvider;
 
 export interface IModelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget?: boolean): ITextModel;
 

@@ -23,7 +23,7 @@ const fileService = new TestFileService();
 export const mockUriIdentityService = new UriIdentityService(fileService);
 
 export class MockDebugService implements IDebugService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	get state(): State {
 		throw new Error('not implemented');

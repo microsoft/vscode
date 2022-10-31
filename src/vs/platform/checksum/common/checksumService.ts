@@ -10,7 +10,7 @@ export const IChecksumService = createDecorator<IChecksumService>('checksumServi
 
 export interface IChecksumService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Computes the checksum of the contents of the resource.

@@ -209,7 +209,7 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeService extends Disposable implements IStandaloneThemeService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
 	public readonly onDidColorThemeChange = this._onColorThemeChange.event;

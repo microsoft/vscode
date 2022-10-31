@@ -50,7 +50,7 @@ const emptyEditableSettingsContent = '{\n}';
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDispose = this._register(new Emitter<void>());
 

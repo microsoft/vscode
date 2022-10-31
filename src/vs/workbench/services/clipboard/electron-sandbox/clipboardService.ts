@@ -14,7 +14,7 @@ export class NativeClipboardService implements IClipboardService {
 
 	private static readonly FILE_FORMAT = 'code/file-list'; // Clipboard format for files
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService

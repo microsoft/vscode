@@ -15,7 +15,7 @@ export class TestNotificationService implements INotificationService {
 
 	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	doNotDisturbMode: boolean = false;
 

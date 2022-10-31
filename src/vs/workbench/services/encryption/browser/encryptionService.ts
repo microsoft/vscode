@@ -12,7 +12,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 
 export class EncryptionService implements IEncryptionService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,

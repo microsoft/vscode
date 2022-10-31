@@ -16,7 +16,7 @@ import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService
 
 class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IFileService fileService: IFileService,

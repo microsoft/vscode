@@ -28,7 +28,7 @@ interface CurrentChord {
 const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	protected readonly _onDidUpdateKeybindings: Emitter<void> = this._register(new Emitter<void>());
 	get onDidUpdateKeybindings(): Event<void> {

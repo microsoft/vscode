@@ -17,7 +17,7 @@ import { Dimension } from 'vs/base/browser/dom';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private _tokenPool = 1;
 

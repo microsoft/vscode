@@ -49,7 +49,7 @@ function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFe
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				declare readonly _serviceBrand: undefined;
+				declare readonly $serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {

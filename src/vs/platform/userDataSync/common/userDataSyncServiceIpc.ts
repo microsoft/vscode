@@ -132,7 +132,7 @@ export class UserDataSyncChannel implements IServerChannel {
 
 export class UserDataSyncChannelClient extends Disposable implements IUserDataSyncService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 

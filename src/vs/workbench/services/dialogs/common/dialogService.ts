@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class DialogService extends Disposable implements IDialogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly model = this._register(new DialogsModel());
 

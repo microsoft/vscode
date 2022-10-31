@@ -34,7 +34,7 @@ import { CancellationError } from 'vs/base/common/errors';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly onInstallExtension: Event<InstallExtensionOnServerEvent>;
 	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;

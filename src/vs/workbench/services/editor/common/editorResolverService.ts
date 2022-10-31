@@ -120,7 +120,7 @@ type EditorInputFactories = {
 export type EditorInputFactoryObject = AtLeastOne<EditorInputFactories>;
 
 export interface IEditorResolverService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	/**
 	 * Given a resource finds the editor associations that match it from the user's settings
 	 * @param resource The resource to match

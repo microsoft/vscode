@@ -26,7 +26,7 @@ import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCo
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -44,7 +44,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 
 export class TestContextService implements IWorkspaceContextService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private options: object;
@@ -203,7 +203,7 @@ export function createFileStat(resource: URI, readonly = false): IFileStatWithMe
 
 export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
 	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
@@ -239,10 +239,10 @@ export interface Ctor<T> {
 
 export class TestExtensionService extends NullExtensionService { }
 
-export const TestProductService = { _serviceBrand: undefined, ...product };
+export const TestProductService = { $serviceBrand: undefined, ...product };
 
 export class TestActivityService implements IActivityService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable {
 		return this;
 	}

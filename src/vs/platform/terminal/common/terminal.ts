@@ -269,7 +269,7 @@ export interface IPtyHostController {
 }
 
 export interface IPtyService extends IPtyHostController {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number; event: IProcessDataEvent | string }>;
 	readonly onProcessReady: Event<{ id: number; event: IProcessReadyEvent }>;

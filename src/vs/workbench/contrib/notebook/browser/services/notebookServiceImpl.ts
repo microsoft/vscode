@@ -408,7 +408,7 @@ class ModelData implements IDisposable {
 
 export class NotebookService extends Disposable implements INotebookService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
 	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined = undefined;

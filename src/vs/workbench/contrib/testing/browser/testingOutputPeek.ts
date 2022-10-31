@@ -122,7 +122,7 @@ function* allMessages(results: readonly ITestResult[]) {
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;
 

@@ -24,7 +24,7 @@ export interface IExtensionIdWithVersion {
 export const IExtensionStorageService = createDecorator<IExtensionStorageService>('IExtensionStorageService');
 
 export interface IExtensionStorageService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
@@ -41,7 +41,7 @@ const EXTENSION_KEYS_ID_VERSION_REGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.
 
 export class ExtensionStorageService extends Disposable implements IExtensionStorageService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private static toKey(extension: IExtensionIdWithVersion): string {
 		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;

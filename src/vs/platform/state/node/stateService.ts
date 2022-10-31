@@ -146,7 +146,7 @@ export class FileStorage {
 
 export class StateService implements IStateService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	protected readonly fileStorage: FileStorage;
 

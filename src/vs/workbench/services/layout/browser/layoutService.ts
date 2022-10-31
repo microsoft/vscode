@@ -77,7 +77,7 @@ export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedO
 
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Emits when the zen mode is enabled or disabled.

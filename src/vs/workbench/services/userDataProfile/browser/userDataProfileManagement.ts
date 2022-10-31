@@ -15,7 +15,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { DidChangeUserDataProfileEvent, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileManagementService extends Disposable implements IUserDataProfileManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,

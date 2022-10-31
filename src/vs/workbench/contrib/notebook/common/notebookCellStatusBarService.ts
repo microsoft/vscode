@@ -13,7 +13,7 @@ import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } fr
 export const INotebookCellStatusBarService = createDecorator<INotebookCellStatusBarService>('notebookCellStatusBarService');
 
 export interface INotebookCellStatusBarService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeProviders: Event<void>;
 	readonly onDidChangeItems: Event<void>;

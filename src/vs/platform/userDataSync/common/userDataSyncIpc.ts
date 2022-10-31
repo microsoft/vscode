@@ -54,7 +54,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
 	}

@@ -16,7 +16,7 @@ import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, IWorkerToSh
 
 export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly workers = new Map<string /* process module ID */, Promise<SharedProcessWebWorker>>();
 

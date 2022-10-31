@@ -21,7 +21,7 @@ interface ISerializableExtensionEnvironmentVariableCollection {
  * Tracks and persists environment variable collections as defined by extensions.
  */
 export class EnvironmentVariableService implements IEnvironmentVariableService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
 	mergedCollection: IMergedEnvironmentVariableCollection;

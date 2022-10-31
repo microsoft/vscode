@@ -23,7 +23,7 @@ import { isWeb } from 'vs/base/common/platform';
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
 export interface IExtensionManifestPropertiesService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	prefersExecuteOnUI(manifest: IExtensionManifest): boolean;
 	prefersExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
@@ -41,7 +41,7 @@ export interface IExtensionManifestPropertiesService {
 
 export class ExtensionManifestPropertiesService extends Disposable implements IExtensionManifestPropertiesService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private _extensionPointExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
 	private _productExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;

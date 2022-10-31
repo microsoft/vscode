@@ -109,7 +109,7 @@ class CliMain extends Disposable {
 		const services = new ServiceCollection();
 
 		// Product
-		const productService = { _serviceBrand: undefined, ...product };
+		const productService = { $serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
 
 		// Environment

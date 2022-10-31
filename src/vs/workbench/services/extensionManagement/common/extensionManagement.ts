@@ -35,7 +35,7 @@ export const enum ExtensionInstallLocation {
 
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 export interface IExtensionManagementServerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	readonly webExtensionManagementServer: IExtensionManagementServer | null;
@@ -52,7 +52,7 @@ export type DidChangeProfileForServerEvent = DidChangeProfileEvent & { server: I
 
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService>(IProfileAwareExtensionManagementService);
 export interface IWorkbenchExtensionManagementService extends IProfileAwareExtensionManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionOnServerEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
@@ -87,7 +87,7 @@ export const enum EnablementState {
 export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchExtensionEnablementService>('extensionEnablementService');
 
 export interface IWorkbenchExtensionEnablementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Event to listen on for extension enablement changes
@@ -164,7 +164,7 @@ export type ScanOptions = { readonly skipInvalidExtensions?: boolean };
 
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
 export interface IWebExtensionsScannerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	scanSystemExtensions(): Promise<IExtension[]>;
 	scanUserExtensions(profileLocation: URI | undefined, options?: ScanOptions): Promise<IScannedExtension[]>;

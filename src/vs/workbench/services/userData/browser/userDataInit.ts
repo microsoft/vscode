@@ -41,7 +41,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	requiresInitialization(): Promise<boolean>;
 	whenInitializationFinished(): Promise<void>;
@@ -52,7 +52,7 @@ export interface IUserDataInitializationService {
 
 export class UserDataInitializationService implements IUserDataInitializationService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private readonly initialized: SyncResource[] = [];
 	private readonly initializationFinished = new Barrier();

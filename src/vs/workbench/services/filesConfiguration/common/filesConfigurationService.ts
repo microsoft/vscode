@@ -35,7 +35,7 @@ export const IFilesConfigurationService = createDecorator<IFilesConfigurationSer
 
 export interface IFilesConfigurationService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	//#region Auto Save
 
@@ -60,7 +60,7 @@ export interface IFilesConfigurationService {
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
 

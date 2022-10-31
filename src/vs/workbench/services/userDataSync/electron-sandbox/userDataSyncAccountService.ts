@@ -12,7 +12,7 @@ import { IUserDataSyncAccountService, IUserDataSyncAccount } from 'vs/platform/u
 
 export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 

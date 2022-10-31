@@ -48,7 +48,7 @@ const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-mi
 let migrationMessageShown = false;
 
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private _primaryBackendOs: OperatingSystem | undefined;
 

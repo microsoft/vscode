@@ -14,7 +14,7 @@ import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly withSharedProcessConnection: Promise<MessagePortClient>;
 

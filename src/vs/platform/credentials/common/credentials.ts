@@ -23,7 +23,7 @@ export interface ICredentialsChangeEvent {
 }
 
 export interface ICredentialsService extends ICredentialsProvider {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidChangePassword: Event<ICredentialsChangeEvent>;
 
 	/*

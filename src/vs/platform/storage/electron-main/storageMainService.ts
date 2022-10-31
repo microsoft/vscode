@@ -31,7 +31,7 @@ export interface IProfileStorageChangeEvent extends IStorageChangeEvent {
 
 export interface IStorageMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Provides access to the application storage shared across all
@@ -74,7 +74,7 @@ export interface IStorageMainService {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private shutdownReason: ShutdownReason | undefined = undefined;
 
@@ -330,7 +330,7 @@ export interface IApplicationStorageMainService extends IStorageService {
 
 export class ApplicationStorageMainService extends AbstractStorageService implements IApplicationStorageMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly whenReady = this.storageMainService.applicationStorage.whenInit;
 

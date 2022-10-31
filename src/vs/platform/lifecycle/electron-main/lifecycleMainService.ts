@@ -70,7 +70,7 @@ export interface ShutdownEvent {
 
 export interface ILifecycleMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Will be true if the program was restarted (e.g. due to explicit request or update).
@@ -186,7 +186,7 @@ export const enum LifecycleMainPhase {
 
 export class LifecycleMainService extends Disposable implements ILifecycleMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly QUIT_AND_RESTART_KEY = 'lifecycle.quitAndRestart';
 

@@ -13,7 +13,7 @@ import { parseJsonAndRestoreBufferRefs, stringifyJsonWithBufferRefs } from 'vs/w
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {
-		_serviceBrand: undefined,
+		$serviceBrand: undefined,
 		remoteAuthority: null!,
 		getProxy<T>(): T {
 			return thing;
@@ -30,7 +30,7 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 
 export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	public remoteAuthority = null!;
 	public extensionHostKind = ExtensionHostKind.LocalProcess;
 

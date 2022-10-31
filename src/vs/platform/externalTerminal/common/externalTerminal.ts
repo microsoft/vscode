@@ -21,7 +21,7 @@ export interface ITerminalForPlatform {
 }
 
 export interface IExternalTerminalService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	openTerminal(configuration: IExternalTerminalSettings, cwd: string | undefined): Promise<void>;
 	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined>;
 	getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform>;
@@ -39,5 +39,5 @@ export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
 
 export interface IExternalTerminalMainService extends IExternalTerminalService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }

@@ -31,7 +31,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 
 export class ContextMenuService implements IContextMenuService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private impl: HTMLContextMenuService | NativeContextMenuService;
 
@@ -71,7 +71,7 @@ export class ContextMenuService implements IContextMenuService {
 
 class NativeContextMenuService extends Disposable implements IContextMenuService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidShowContextMenu = this._store.add(new Emitter<void>());
 	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;

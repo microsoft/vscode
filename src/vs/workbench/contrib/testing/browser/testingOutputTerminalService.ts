@@ -21,7 +21,7 @@ import { getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
 
 
 export interface ITestingOutputTerminalService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	/**
 	 * Opens a terminal for the given test's output. Optionally, scrolls to and
@@ -46,7 +46,7 @@ const genericTitle = localize('testOutputTerminalTitle', 'Test Output');
 export const ITestingOutputTerminalService = createDecorator<ITestingOutputTerminalService>('ITestingOutputTerminalService');
 
 export class TestingOutputTerminalService implements ITestingOutputTerminalService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private outputTerminals = new WeakMap<ITerminalInstance, TestOutputProcess>();
 

@@ -29,7 +29,7 @@ import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostC
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
-	override readonly _serviceBrand: undefined;
+	override readonly $serviceBrand: undefined;
 
 	private _integratedTerminalInstances = new DebugTerminalCollection();
 	private _terminalDisposedListener: IDisposable | undefined;

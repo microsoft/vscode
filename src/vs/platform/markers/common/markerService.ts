@@ -141,7 +141,7 @@ class MarkerStats implements MarkerStatistics {
 
 export class MarkerService implements IMarkerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onMarkerChanged = new DebounceEmitter<readonly URI[]>({
 		delay: 0,

@@ -17,7 +17,7 @@ export const IWindowsMainService = createDecorator<IWindowsMainService>('windows
 
 export interface IWindowsMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
 

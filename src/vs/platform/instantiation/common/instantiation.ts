@@ -22,7 +22,7 @@ export namespace _util {
 
 // --- interfaces ------
 
-export type BrandedService = { _serviceBrand: undefined };
+export type BrandedService = { $serviceBrand: undefined };
 
 export interface IConstructorSignature<T, Args extends any[] = []> {
 	new <Services extends BrandedService[]>(...args: [...Args, ...Services]): T;
@@ -46,7 +46,7 @@ export type GetLeadingNonServiceArgs<Args> =
 
 export interface IInstantiationService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Synchronously creates an instance that is denoted by the descriptor

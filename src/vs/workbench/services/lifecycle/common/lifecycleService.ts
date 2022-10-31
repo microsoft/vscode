@@ -15,7 +15,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	protected readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	readonly onBeforeShutdown = this._onBeforeShutdown.event;

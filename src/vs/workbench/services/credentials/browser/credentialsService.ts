@@ -13,7 +13,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 
 export class BrowserCredentialsService extends Disposable implements ICredentialsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _onDidChangePassword = this._register(new Emitter<ICredentialsChangeEvent>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;

@@ -35,7 +35,7 @@ import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;

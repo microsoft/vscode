@@ -22,7 +22,7 @@ import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetr
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private impl: ITelemetryService = NullTelemetryService;
 	public readonly sendErrorTelemetry = true;

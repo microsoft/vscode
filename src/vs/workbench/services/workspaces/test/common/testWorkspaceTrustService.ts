@@ -10,7 +10,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 
 
 export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnablementService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	constructor(private isEnabled: boolean = true) { }
 
@@ -20,7 +20,7 @@ export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnabl
 }
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private _onDidChangeTrust = new Emitter<boolean>();
 	onDidChangeTrust = this._onDidChangeTrust.event;
@@ -101,7 +101,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 }
 
 export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private readonly _onDidInitiateOpenFilesTrustRequest = new Emitter<void>();
 	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;

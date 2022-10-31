@@ -31,7 +31,7 @@ export interface FoundInFrameResult {
 }
 
 export interface IWebviewManagerService {
-	_serviceBrand: unknown;
+	$serviceBrand: unknown;
 
 	onFoundInFrame: Event<FoundInFrameResult>;
 

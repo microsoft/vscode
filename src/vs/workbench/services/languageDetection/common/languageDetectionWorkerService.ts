@@ -11,7 +11,7 @@ export const ILanguageDetectionService = createDecorator<ILanguageDetectionServi
 export const LanguageDetectionLanguageEventSource = 'languageDetection';
 
 export interface ILanguageDetectionService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * @param languageId The languageId to check if language detection is currently enabled.

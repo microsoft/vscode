@@ -15,7 +15,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ExtHostConsumerFileSystem {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly value: vscode.FileSystem;
 

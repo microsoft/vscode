@@ -11,7 +11,7 @@ import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs
 import { IWorkspace, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class MockLabelService implements ILabelService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Method not implemented.');

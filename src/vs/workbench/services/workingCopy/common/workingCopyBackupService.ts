@@ -126,7 +126,7 @@ export class WorkingCopyBackupsModel {
 
 export abstract class WorkingCopyBackupService implements IWorkingCopyBackupService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private impl: WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
 
@@ -202,7 +202,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
@@ -552,7 +552,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 
 export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 

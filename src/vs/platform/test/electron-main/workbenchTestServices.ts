@@ -12,7 +12,7 @@ import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/wind
 
 export class TestLifecycleMainService implements ILifecycleMainService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	onBeforeShutdown = Event.None;
 
@@ -51,7 +51,7 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 
 export class InMemoryTestStateMainService implements IStateMainService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private readonly data = new Map<string, object | string | number | boolean | undefined | null>();
 

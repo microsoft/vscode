@@ -31,7 +31,7 @@ function getViewContainerStorageId(viewContainerId: string): string { return `${
 
 export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly VIEWS_CUSTOMIZATIONS = 'views.customizations';
 	private static readonly COMMON_CONTAINER_ID_PREFIX = 'workbench.views.service';

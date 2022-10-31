@@ -24,7 +24,7 @@ export const IPathService = createDecorator<IPathService>('pathService');
  */
 export interface IPathService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * The correct path library to use for the target environment. If
@@ -80,7 +80,7 @@ export interface IPathService {
 
 export abstract class AbstractPathService implements IPathService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private resolveOS: Promise<OperatingSystem>;
 

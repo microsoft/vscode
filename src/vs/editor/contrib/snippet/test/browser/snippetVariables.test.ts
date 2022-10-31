@@ -352,7 +352,7 @@ suite('Snippet Variables Resolver', function () {
 
 		let workspace: IWorkspace;
 		const workspaceService = new class implements IWorkspaceContextService {
-			declare readonly _serviceBrand: undefined;
+			declare readonly $serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;

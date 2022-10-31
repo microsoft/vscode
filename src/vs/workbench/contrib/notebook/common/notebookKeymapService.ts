@@ -8,5 +8,5 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const INotebookKeymapService = createDecorator<INotebookKeymapService>('notebookKeymapService');
 
 export interface INotebookKeymapService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }

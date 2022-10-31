@@ -15,7 +15,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { diffSets } from 'vs/base/common/collections';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	tabGroups: vscode.TabGroups;
 }
 
@@ -214,7 +214,7 @@ class ExtHostEditorTabGroup {
 }
 
 export class ExtHostEditorTabs implements IExtHostEditorTabs {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _onDidChangeTabs = new Emitter<vscode.TabChangeEvent>();

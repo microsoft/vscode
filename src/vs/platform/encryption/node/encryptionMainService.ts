@@ -10,7 +10,7 @@ export interface Encryption {
 	decrypt(salt: string, value: string): Promise<string>;
 }
 export class EncryptionMainService implements ICommonEncryptionService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	constructor(
 		private machineId: string) {
 

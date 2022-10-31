@@ -91,7 +91,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		});
 	}
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	getDefaultProfileName(): string | undefined {
 		return this._defaultProfileName;

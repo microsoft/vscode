@@ -19,7 +19,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
 	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;

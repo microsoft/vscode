@@ -77,7 +77,7 @@ const fileIconThemesExtPoint = registerFileIconThemeExtensionPoint();
 const productIconThemesExtPoint = registerProductIconThemeExtensionPoint();
 
 export class WorkbenchThemeService implements IWorkbenchThemeService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly container: HTMLElement;
 	private settings: ThemeConfiguration;

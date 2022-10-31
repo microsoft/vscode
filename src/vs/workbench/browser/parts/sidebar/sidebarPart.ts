@@ -35,7 +35,7 @@ import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart
 
 export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 

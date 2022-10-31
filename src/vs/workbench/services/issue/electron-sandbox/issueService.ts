@@ -24,7 +24,7 @@ import { IIntegrityService } from 'vs/workbench/services/integrity/common/integr
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IIssueService private readonly issueService: IIssueService,

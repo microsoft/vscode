@@ -72,7 +72,7 @@ interface ITestDecoration extends IPublicTestDecoration {
 }
 
 export class TestingDecorationService extends Disposable implements ITestingDecorationsService {
-	declare public _serviceBrand: undefined;
+	declare public $serviceBrand: undefined;
 
 	private generation = 0;
 	private readonly changeEmitter = new Emitter<void>();

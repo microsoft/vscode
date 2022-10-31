@@ -14,7 +14,7 @@ import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 
 export class SharedProcessRequestService implements IRequestService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly browserRequestService: IRequestService;
 	private readonly mainRequestService: IRequestService;

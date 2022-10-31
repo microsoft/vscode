@@ -114,7 +114,7 @@ export interface IBulkEditResult {
 export type IBulkEditPreviewHandler = (edits: ResourceEdit[], options?: IBulkEditOptions) => Promise<ResourceEdit[]>;
 
 export interface IBulkEditService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	hasPreviewHandler(): boolean;
 

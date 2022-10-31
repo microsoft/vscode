@@ -32,7 +32,7 @@ export const allChangedResults = (evt: ResultChangeEvent): Iterable<ITestResult>
 			: evt.removed;
 
 export interface ITestResultService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	/**
 	 * Fired after any results are added, removed, or completed.
 	 */
@@ -80,7 +80,7 @@ export const isRunningTests = (service: ITestResultService) =>
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
 export class TestResultService implements ITestResultService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 	private changeResultEmitter = new Emitter<ResultChangeEvent>();
 	private _results: ITestResult[] = [];
 	private testChangeEmitter = new Emitter<TestResultItemChange>();

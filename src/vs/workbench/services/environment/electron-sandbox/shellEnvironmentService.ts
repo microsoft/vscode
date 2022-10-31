@@ -12,14 +12,14 @@ export const IShellEnvironmentService = createDecorator<IShellEnvironmentService
 
 export interface IShellEnvironmentService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getShellEnv(): Promise<IProcessEnvironment>;
 }
 
 export class ShellEnvironmentService implements IShellEnvironmentService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	getShellEnv(): Promise<IProcessEnvironment> {
 		return process.shellEnv();

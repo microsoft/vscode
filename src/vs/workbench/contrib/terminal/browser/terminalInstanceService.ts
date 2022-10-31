@@ -19,7 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;

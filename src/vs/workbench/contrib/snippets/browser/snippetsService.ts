@@ -205,7 +205,7 @@ class SnippetUsageTimestamps {
 
 export class SnippetsService implements ISnippetsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _pendingWork: Promise<any>[] = [];

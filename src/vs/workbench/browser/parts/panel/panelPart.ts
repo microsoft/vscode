@@ -71,7 +71,7 @@ interface IPanelPartOptions extends IPartOptions {
 export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region IView
 

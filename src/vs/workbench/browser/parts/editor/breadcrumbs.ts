@@ -19,7 +19,7 @@ export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditor
 
 export interface IBreadcrumbsService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
@@ -29,7 +29,7 @@ export interface IBreadcrumbsService {
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 

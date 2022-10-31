@@ -178,7 +178,7 @@ export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
 export interface IUserDataSyncStoreManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidChangeUserDataSyncStore: Event<void>;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	switch(type: UserDataSyncStoreType): Promise<void>;
@@ -187,7 +187,7 @@ export interface IUserDataSyncStoreManagementService {
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export interface IUserDataSyncStoreService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
@@ -211,7 +211,7 @@ export interface IUserDataSyncStoreService {
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
 export interface IUserDataSyncBackupStoreService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	backup(profile: IUserDataProfile, resource: SyncResource, content: string): Promise<void>;
 	getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]>;
 	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref: string): Promise<string | null>;
@@ -456,7 +456,7 @@ export function getEnablementKey(resource: SyncResource) { return `sync.enable.$
 // #region User Data Sync Services
 export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
 export interface IUserDataSyncEnablementService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	readonly onDidChangeEnablement: Event<boolean>;
 	isEnabled(): boolean;
@@ -485,7 +485,7 @@ export interface IUserDataManualSyncTask extends IDisposable {
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
@@ -523,7 +523,7 @@ export interface IUserDataSyncService {
 
 export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
 export interface IUserDataSyncResourceProviderService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
 	getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]>;
@@ -535,7 +535,7 @@ export interface IUserDataSyncResourceProviderService {
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
 	turnOn(): Promise<void>;
 	turnOff(everywhere: boolean): Promise<void>;
@@ -544,7 +544,7 @@ export interface IUserDataAutoSyncService {
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 export interface IUserDataSyncUtilService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 	resolveDefaultIgnoredSettings(): Promise<string[]>;

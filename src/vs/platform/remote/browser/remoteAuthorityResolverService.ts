@@ -13,7 +13,7 @@ import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/plat
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;

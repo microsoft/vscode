@@ -16,7 +16,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class UserDataProfileImportExportService implements IUserDataProfileImportExportService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly settingsProfile: SettingsProfile;
 	private readonly globalStateProfile: GlobalStateProfile;

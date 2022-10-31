@@ -35,7 +35,7 @@ export interface WorkspaceTrustRequestOptions {
 export const IWorkspaceTrustEnablementService = createDecorator<IWorkspaceTrustEnablementService>('workspaceTrustEnablementService');
 
 export interface IWorkspaceTrustEnablementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	isWorkspaceTrustEnabled(): boolean;
 }
@@ -43,7 +43,7 @@ export interface IWorkspaceTrustEnablementService {
 export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
 
 export interface IWorkspaceTrustManagementService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChangeTrust: Event<boolean>;
 	onDidChangeTrustedFolders: Event<void>;
@@ -79,7 +79,7 @@ export const enum WorkspaceTrustUriResponse {
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
 
 export interface IWorkspaceTrustRequestService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;

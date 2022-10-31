@@ -13,7 +13,7 @@ export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 
 export interface IDiagnosticsService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
@@ -93,7 +93,7 @@ export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
 }
 
 export class NullDiagnosticsService implements IDiagnosticsService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	async getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
 		return {};

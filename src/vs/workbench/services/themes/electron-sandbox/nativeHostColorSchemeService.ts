@@ -17,7 +17,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 
 	static readonly STORAGE_KEY = 'HostColorSchemeData';
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<void>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;

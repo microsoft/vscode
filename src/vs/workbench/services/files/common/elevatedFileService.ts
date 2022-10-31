@@ -12,7 +12,7 @@ export const IElevatedFileService = createDecorator<IElevatedFileService>('eleva
 
 export interface IElevatedFileService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Whether saving elevated is supported for the provided resource.

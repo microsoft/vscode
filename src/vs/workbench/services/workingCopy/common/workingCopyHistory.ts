@@ -72,7 +72,7 @@ export interface IWorkingCopyHistoryEntryDescriptor {
 
 export interface IWorkingCopyHistoryService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event when an entry is added to the history.

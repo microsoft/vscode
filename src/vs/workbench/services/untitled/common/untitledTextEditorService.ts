@@ -116,12 +116,12 @@ export interface IUntitledTextEditorModelManager {
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }
 
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;

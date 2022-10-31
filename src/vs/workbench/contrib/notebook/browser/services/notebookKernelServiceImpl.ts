@@ -93,7 +93,7 @@ interface IKernelInfoCache {
 
 export class NotebookKernelService extends Disposable implements INotebookKernelService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _kernels = new Map<string, KernelInfo>();
 

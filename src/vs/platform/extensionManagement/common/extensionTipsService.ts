@@ -18,7 +18,7 @@ import { asJson, IRequestService } from 'vs/platform/request/common/request';
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private readonly allConfigBasedTips: Map<string, IRawConfigBasedExtensionTip> = new Map<string, IRawConfigBasedExtensionTip>();
 

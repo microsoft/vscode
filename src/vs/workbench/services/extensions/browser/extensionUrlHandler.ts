@@ -71,7 +71,7 @@ class UserTrustedExtensionIdStorage {
 export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('extensionUrlHandler');
 
 export interface IExtensionUrlHandler {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
@@ -97,7 +97,7 @@ type ExtensionUrlHandlerClassification = {
  */
 class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();

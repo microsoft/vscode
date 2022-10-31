@@ -253,7 +253,7 @@ export interface IDialogHandler {
  */
 export interface IDialogService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * An event that fires when a dialog is about to show.
@@ -307,7 +307,7 @@ export const IFileDialogService = createDecorator<IFileDialogService>('fileDialo
  */
 export interface IFileDialogService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * The default path for a new file based on previously used files.

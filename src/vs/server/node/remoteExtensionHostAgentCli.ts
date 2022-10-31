@@ -77,7 +77,7 @@ class CliMain extends Disposable {
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
-		const productService = { _serviceBrand: undefined, ...product };
+		const productService = { $serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
 
 		const environmentService = new ServerEnvironmentService(this.args, productService);

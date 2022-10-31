@@ -117,7 +117,7 @@ interface IInitialEditorsState {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region Events
 

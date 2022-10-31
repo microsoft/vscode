@@ -9,7 +9,7 @@ import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IIn
 
 export class TestDialogService implements IDialogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;

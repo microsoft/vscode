@@ -21,7 +21,7 @@ type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { err
 
 export class ProtocolMainService extends Disposable implements IProtocolMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
 	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384

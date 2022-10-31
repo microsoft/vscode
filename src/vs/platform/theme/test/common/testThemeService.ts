@@ -54,7 +54,7 @@ export class UnthemedProductIconTheme implements IProductIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	_colorTheme: IColorTheme;
 	_fileIconTheme: IFileIconTheme;
 	_productIconTheme: IProductIconTheme;

@@ -27,7 +27,7 @@ export interface IStorageValue {
 
 export const IUserDataSyncProfilesStorageService = createDecorator<IUserDataSyncProfilesStorageService>('IUserDataSyncProfilesStorageService');
 export interface IUserDataSyncProfilesStorageService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted in a profile storage or target of a profile storage entry changes
@@ -56,7 +56,7 @@ export interface IUserDataSyncProfilesStorageService {
 
 export abstract class AbstractUserDataSyncProfilesStorageService extends Disposable implements IUserDataSyncProfilesStorageService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	readonly abstract onDidChange: Event<IProfileStorageChanges>;
 

@@ -456,7 +456,7 @@ const missingEditStack = new ResourceEditStack('', '');
 missingEditStack.locked = true;
 
 export class UndoRedoService implements IUndoRedoService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _editStacks: Map<string, ResourceEditStack>;
 	private readonly _uriComparisonKeyComputers: [string, UriComparisonKeyComputer][];

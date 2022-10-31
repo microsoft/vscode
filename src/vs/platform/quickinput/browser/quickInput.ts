@@ -24,7 +24,7 @@ export interface IQuickInputControllerHost extends ILayoutService { }
 
 export class QuickInputService extends Themable implements IQuickInputService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	get backButton(): IQuickInputButton { return this.controller.backButton; }
 

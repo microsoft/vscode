@@ -17,7 +17,7 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private configuration: Configuration;
 	private readonly defaultConfiguration: DefaultConfiguration;

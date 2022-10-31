@@ -209,7 +209,7 @@ export class TunnelService extends BaseTunnelService {
 }
 
 export class SharedTunnelsService extends Disposable implements ISharedTunnelsService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private readonly _tunnelServices: Map<string, ITunnelService> = new Map();
 
 	public constructor(

@@ -10,7 +10,7 @@ import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandb
 export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
 
 export interface IExternalTerminalMainService extends IExternalTerminalService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }
 
 registerMainProcessRemoteService(IExternalTerminalMainService, 'externalTerminal');

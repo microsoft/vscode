@@ -47,7 +47,7 @@ suite('Extension Gallery Service', () => {
 		storageService = new InMemoryStorageService();
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
-		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
+		productService = { $serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
 	teardown(() => disposables.clear());

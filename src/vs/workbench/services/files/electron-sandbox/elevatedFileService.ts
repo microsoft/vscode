@@ -15,7 +15,7 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 
 export class NativeElevatedFileService implements IElevatedFileService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,

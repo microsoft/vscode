@@ -29,7 +29,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 
 export class ProgressService extends Disposable implements IProgressService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,

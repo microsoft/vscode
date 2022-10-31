@@ -423,6 +423,6 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
 export interface IBuiltinExtensionsScannerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	scanBuiltinExtensions(): Promise<IExtension[]>;
 }

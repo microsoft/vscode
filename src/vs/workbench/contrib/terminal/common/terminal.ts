@@ -43,7 +43,7 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly defaultProfileName: string | undefined;
 
@@ -72,7 +72,7 @@ export interface IRegisterContributedProfileArgs {
 
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
 export interface ITerminalProfileService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly availableProfiles: ITerminalProfile[];
 	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly profilesReady: Promise<void>;

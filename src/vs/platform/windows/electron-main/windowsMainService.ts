@@ -175,7 +175,7 @@ function isSingleFolderWorkspacePathToOpen(path: IPathToOpen | undefined): path 
 
 export class WindowsMainService extends Disposable implements IWindowsMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly WINDOWS: ICodeWindow[] = [];
 

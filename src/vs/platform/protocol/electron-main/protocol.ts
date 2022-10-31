@@ -29,7 +29,7 @@ export interface IIPCObjectUrl<T> extends IDisposable {
 
 export interface IProtocolMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Allows to make an object accessible to a renderer

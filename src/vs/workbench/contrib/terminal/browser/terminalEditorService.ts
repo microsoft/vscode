@@ -22,7 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	instances: ITerminalInstance[] = [];
 	private _activeInstanceIndex: number = -1;

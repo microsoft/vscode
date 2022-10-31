@@ -37,7 +37,7 @@ export interface IWillSaveStateEvent {
 
 export interface IStorageService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -253,7 +253,7 @@ export function loadKeyTargets(storage: IStorage): IKeyTargets {
 
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
 

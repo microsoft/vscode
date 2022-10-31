@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface ITreeViewsService<T, U, V> {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined;
 	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void;
@@ -15,7 +15,7 @@ export interface ITreeViewsService<T, U, V> {
 }
 
 export class TreeviewsService<T, U, V> implements ITreeViewsService<T, U, V> {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 	private _dragOperations: Map<string, Promise<T | undefined>> = new Map();
 	private _renderedElements: Map<U, V> = new Map();
 

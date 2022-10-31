@@ -317,7 +317,7 @@ export enum NotificationsFilter {
  */
 export interface INotificationService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * The DND mode can be enabled or disabled

@@ -887,7 +887,7 @@ export interface CandidatePort {
 }
 
 export interface IRemoteExplorerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	onDidChangeTargetType: Event<string[]>;
 	targetType: string[];
 	readonly tunnelModel: TunnelModel;
@@ -907,7 +907,7 @@ export interface IRemoteExplorerService {
 }
 
 class RemoteExplorerService implements IRemoteExplorerService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 	private _targetType: string[] = [];
 	private readonly _onDidChangeTargetType: Emitter<string[]> = new Emitter<string[]>();
 	public readonly onDidChangeTargetType: Event<string[]> = this._onDidChangeTargetType.event;

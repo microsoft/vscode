@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class BrowserClipboardService extends Disposable implements IClipboardService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 

@@ -84,7 +84,7 @@ export interface INotebookTextModelLike { uri: URI; viewType: string }
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
 
 export interface INotebookKernelService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	readonly onDidAddKernel: Event<INotebookKernel>;
 	readonly onDidRemoveKernel: Event<INotebookKernel>;

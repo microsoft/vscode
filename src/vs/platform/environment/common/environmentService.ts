@@ -41,7 +41,7 @@ export interface INativeEnvironmentPaths {
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	@memoize
 	get appRoot(): string { return dirname(FileAccess.asFileUri('', require).fsPath); }

@@ -108,13 +108,13 @@ export interface ITunnel {
 }
 
 export interface ISharedTunnelsService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 }
 
 export interface ITunnelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly tunnels: Promise<readonly RemoteTunnel[]>;
 	readonly canChangePrivacy: boolean;
@@ -193,7 +193,7 @@ export class DisposableTunnel {
 }
 
 export abstract class AbstractTunnelService implements ITunnelService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
 	public onTunnelOpened: Event<RemoteTunnel> = this._onTunnelOpened.event;

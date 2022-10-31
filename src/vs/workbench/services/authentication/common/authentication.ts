@@ -30,7 +30,7 @@ export interface AuthenticationProviderInformation {
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	isAuthenticationProviderRegistered(id: string): boolean;
 	getProviderIds(): string[];

@@ -43,7 +43,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
 export interface IPrivateBreakpointWidgetService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	close(success: boolean): void;
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
@@ -73,7 +73,7 @@ function createDecorations(theme: IColorTheme, placeHolder: string): IDecoration
 }
 
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private selectContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;

@@ -18,7 +18,7 @@ import { RemoteExtensionManagementService } from 'vs/workbench/services/extensio
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	readonly localExtensionManagementServer: IExtensionManagementServer | null = null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;

@@ -70,7 +70,7 @@ export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto' | 'pre
 
 
 export interface IWorkbenchThemeService extends IThemeService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	setColorTheme(themeId: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;

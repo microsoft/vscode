@@ -98,7 +98,7 @@ enum HostShutdownReason {
 
 export class BrowserHostService extends Disposable implements IHostService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private workspaceProvider: IWorkspaceProvider;
 

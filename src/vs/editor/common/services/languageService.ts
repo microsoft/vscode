@@ -13,7 +13,7 @@ import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/languag
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 export class LanguageService extends Disposable implements ILanguageService {
-	public _serviceBrand: undefined;
+	public $serviceBrand: undefined;
 
 	static instanceCount = 0;
 

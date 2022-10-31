@@ -27,7 +27,7 @@ interface IBundledExtension {
 
 export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScannerService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly builtinExtensionsPromises: Promise<IExtension>[] = [];
 

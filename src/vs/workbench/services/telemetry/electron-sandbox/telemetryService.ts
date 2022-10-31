@@ -21,7 +21,7 @@ import { IObservableValue } from 'vs/base/common/observableValue';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private impl: ITelemetryService;
 	public readonly sendErrorTelemetry: boolean;

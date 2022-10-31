@@ -14,7 +14,7 @@ import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUse
 
 export class UserDataProfilesNativeService extends Disposable implements IUserDataProfilesService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 

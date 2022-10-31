@@ -27,7 +27,7 @@ export interface CustomEditorCapabilities {
 }
 
 export interface ICustomEditorService {
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	readonly models: ICustomEditorModelManager;
 

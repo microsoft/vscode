@@ -58,13 +58,13 @@ suite('EnvironmentService', () => {
 	});
 
 	test('userDataDir', () => {
-		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { $serviceBrand: undefined, ...product });
 		assert.ok(service1.userDataPath.length > 0);
 
 		const args = parseArgs(process.argv, OPTIONS);
 		args['user-data-dir'] = '/userDataDir/folder';
 
-		const service2 = new NativeEnvironmentService(args, { _serviceBrand: undefined, ...product });
+		const service2 = new NativeEnvironmentService(args, { $serviceBrand: undefined, ...product });
 		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
 	});
 });

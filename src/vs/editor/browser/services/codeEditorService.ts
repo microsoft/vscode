@@ -15,7 +15,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
 export interface ICodeEditorService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onCodeEditorAdd: Event<ICodeEditor>;
 	readonly onCodeEditorRemove: Event<ICodeEditor>;

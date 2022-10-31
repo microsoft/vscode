@@ -40,7 +40,7 @@ export interface ArgumentProcessor {
 
 export class ExtHostCommands implements ExtHostCommandsShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	#proxy: MainThreadCommandsShape;
 

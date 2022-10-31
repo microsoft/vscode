@@ -174,7 +174,7 @@ suite('ExtensionService', () => {
 			[IExtensionManifestPropertiesService, ExtensionManifestPropertiesService],
 			[IConfigurationService, TestConfigurationService],
 			[IWorkspaceContextService, TestContextService],
-			[IProductService, { _serviceBrand: undefined, ...product }],
+			[IProductService, { $serviceBrand: undefined, ...product }],
 			[IFileService, TestFileService],
 			[IWorkbenchExtensionEnablementService, TestWorkbenchExtensionEnablementService],
 			[ITelemetryService, NullTelemetryService],

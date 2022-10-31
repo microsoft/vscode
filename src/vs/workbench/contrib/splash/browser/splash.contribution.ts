@@ -12,7 +12,7 @@ import { PartsSplash } from 'vs/workbench/contrib/splash/browser/partsSplash';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 
 registerSingleton(ISplashStorageService, class SplashStorageService implements ISplashStorageService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	async saveWindowSplash(splash: IPartsSplash): Promise<void> {
 		const raw = JSON.stringify(splash);

@@ -12,7 +12,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 // @ts-ignore: interface is implemented via proxy
 export class NativeWorkspacesService implements IWorkspacesService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,

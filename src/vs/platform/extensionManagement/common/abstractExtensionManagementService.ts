@@ -43,7 +43,7 @@ export interface IUninstallExtensionTask {
 
 export abstract class AbstractExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private extensionsControlManifest: Promise<IExtensionsControlManifest> | undefined;
 	private lastReportTimestamp = 0;

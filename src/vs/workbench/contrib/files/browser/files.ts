@@ -19,7 +19,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export interface IExplorerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
 

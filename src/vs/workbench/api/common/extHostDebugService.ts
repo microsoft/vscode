@@ -31,7 +31,7 @@ export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtH
 
 export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidStartDebugSession: Event<vscode.DebugSession>;
 	onDidTerminateDebugSession: Event<vscode.DebugSession>;
@@ -54,7 +54,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 
 export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private _configProviderHandleCounter: number;
 	private _configProviders: ConfigProviderTuple[];

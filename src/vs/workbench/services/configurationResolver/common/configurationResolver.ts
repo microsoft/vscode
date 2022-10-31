@@ -12,7 +12,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
 export interface IConfigurationResolverService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 

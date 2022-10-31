@@ -16,7 +16,7 @@ import { IObservable, observableFromEvent, derived } from 'vs/base/common/observ
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
 export interface IAudioCueService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	playAudioCue(cue: AudioCue): Promise<void>;
 	playAudioCues(cues: AudioCue[]): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
@@ -25,7 +25,7 @@ export interface IAudioCueService {
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,

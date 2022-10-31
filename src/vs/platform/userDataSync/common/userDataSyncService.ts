@@ -50,7 +50,7 @@ const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
-	_serviceBrand: any;
+	$serviceBrand: any;
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
 	get status(): SyncStatus { return this._status; }

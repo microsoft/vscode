@@ -23,7 +23,7 @@ export interface IWorkingCopySaveEvent extends IBaseWorkingCopySaveEvent {
 
 export interface IWorkingCopyService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 
 	//#region Events
@@ -127,7 +127,7 @@ export interface IWorkingCopyService {
 
 export class WorkingCopyService extends Disposable implements IWorkingCopyService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	//#region Events
 

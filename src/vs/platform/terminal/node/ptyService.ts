@@ -36,7 +36,7 @@ let SerializeAddon: typeof XtermSerializeAddon;
 let Unicode11Addon: typeof XtermUnicode11Addon;
 
 export class PtyService extends Disposable implements IPtyService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();

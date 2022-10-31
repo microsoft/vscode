@@ -10,7 +10,7 @@ export const IProductService = createDecorator<IProductService>('productService'
 
 export interface IProductService extends Readonly<IProductConfiguration> {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 }
 

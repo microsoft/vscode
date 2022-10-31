@@ -28,7 +28,7 @@ export interface IURLHandler {
 
 export interface IURLService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Create a URL that can be called to trigger IURLhandlers.

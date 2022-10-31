@@ -100,7 +100,7 @@ export interface IConfigurationValue<T> {
 }
 
 export interface IConfigurationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 

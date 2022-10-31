@@ -71,7 +71,7 @@ export interface IExternalUriResolver {
 
 export interface IOpenerService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Register a participant that can handle the open() call.
@@ -116,7 +116,7 @@ export interface IOpenerService {
 }
 
 export const NullOpenerService = Object.freeze({
-	_serviceBrand: undefined,
+	$serviceBrand: undefined,
 	registerOpener() { return Disposable.None; },
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },

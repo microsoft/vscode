@@ -18,7 +18,7 @@ import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;

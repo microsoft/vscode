@@ -53,7 +53,7 @@ export class SimpleNotebookProviderInfo {
 }
 
 export interface INotebookService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
 
 	readonly onWillRemoveViewType: Event<string>;

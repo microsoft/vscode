@@ -11,7 +11,7 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 
 export class BrowserElevatedFileService implements IElevatedFileService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	isSupported(resource: URI): boolean {
 		// Saving elevated is currently not supported in web for as

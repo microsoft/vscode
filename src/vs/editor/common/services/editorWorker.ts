@@ -15,7 +15,7 @@ import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleW
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
 export interface IEditorWorkerService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	canComputeUnicodeHighlights(uri: URI): boolean;
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;

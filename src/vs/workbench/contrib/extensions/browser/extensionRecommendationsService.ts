@@ -37,7 +37,7 @@ type IgnoreRecommendationClassification = {
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	// Recommendations
 	private readonly fileBasedRecommendations: FileBasedRecommendations;

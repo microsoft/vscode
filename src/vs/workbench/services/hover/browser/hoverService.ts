@@ -18,7 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class HoverService implements IHoverService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;

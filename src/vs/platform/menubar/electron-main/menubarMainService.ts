@@ -12,12 +12,12 @@ import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 export const IMenubarMainService = createDecorator<IMenubarMainService>('menubarMainService');
 
 export interface IMenubarMainService extends ICommonMenubarService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 }
 
 export class MenubarMainService implements IMenubarMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private menubar: Promise<Menubar>;
 

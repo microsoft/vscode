@@ -101,7 +101,7 @@ export interface IEditorsChangeEvent {
 
 export interface IEditorService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Emitted when the currently active editor changes.

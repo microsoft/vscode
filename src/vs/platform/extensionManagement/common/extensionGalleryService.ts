@@ -568,7 +568,7 @@ interface IRawExtensionsControlManifest {
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly extensionsGalleryUrl: string | undefined;
 	private readonly extensionsGallerySearchUrl: string | undefined;

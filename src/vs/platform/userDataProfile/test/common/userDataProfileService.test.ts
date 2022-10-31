@@ -20,7 +20,7 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {
-		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
+		super(Object.create(null), Object.create(null), { $serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 }

@@ -12,7 +12,7 @@ import { Event } from 'vs/base/common/event';
 
 class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 

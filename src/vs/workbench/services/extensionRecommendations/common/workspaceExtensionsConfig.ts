@@ -30,7 +30,7 @@ export interface IExtensionsConfigContent {
 export const IWorkspaceExtensionsConfigService = createDecorator<IWorkspaceExtensionsConfigService>('IWorkspaceExtensionsConfigService');
 
 export interface IWorkspaceExtensionsConfigService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidChangeExtensionsConfigs: Event<void>;
 	getExtensionsConfigs(): Promise<IExtensionsConfigContent[]>;
@@ -43,7 +43,7 @@ export interface IWorkspaceExtensionsConfigService {
 
 export class WorkspaceExtensionsConfigService extends Disposable implements IWorkspaceExtensionsConfigService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeExtensionsConfigs = this._register(new Emitter<void>());
 	readonly onDidChangeExtensionsConfigs = this._onDidChangeExtensionsConfigs.event;

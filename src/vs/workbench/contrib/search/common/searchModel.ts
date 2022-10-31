@@ -1572,7 +1572,7 @@ export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch 
 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private _searchModel: SearchModel | null = null;
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
@@ -1589,7 +1589,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
 
 export interface ISearchWorkbenchService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;
 }

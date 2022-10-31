@@ -10,7 +10,7 @@ export const ISplashStorageService = createDecorator<ISplashStorageService>('ISp
 
 export interface ISplashStorageService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 }

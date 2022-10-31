@@ -9,7 +9,7 @@ import { IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/commo
 
 export class EditSessionsLogService extends AbstractLogger implements IEditSessionsLogService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private readonly logger: ILogger;
 
 	constructor(

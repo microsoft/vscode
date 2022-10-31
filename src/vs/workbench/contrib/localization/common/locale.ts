@@ -9,7 +9,7 @@ import { ILanguagePackItem } from 'vs/platform/languagePacks/common/languagePack
 export const ILocaleService = createDecorator<ILocaleService>('localizationService');
 
 export interface ILocaleService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	setLocale(languagePackItem: ILanguagePackItem): Promise<void>;
 	clearLocalePreference(): Promise<void>;
 }

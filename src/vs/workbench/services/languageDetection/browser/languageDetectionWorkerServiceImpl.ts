@@ -39,7 +39,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	static readonly workspaceOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.workspace';
 	static readonly globalOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.global';
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private _languageDetectionWorkerClient: LanguageDetectionWorkerClient;
 

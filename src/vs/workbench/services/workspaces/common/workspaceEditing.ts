@@ -12,7 +12,7 @@ export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService
 
 export interface IWorkspaceEditingService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Add folders to the existing workspace.

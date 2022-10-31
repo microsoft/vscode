@@ -16,7 +16,7 @@ import { ILanguageSelection } from 'vs/editor/common/languages/language';
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
 
 export interface IOutputChannelModelService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, file?: URI): IOutputChannelModel;
 
@@ -24,7 +24,7 @@ export interface IOutputChannelModelService {
 
 export class OutputChannelModelService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly outputLocation: URI;
 

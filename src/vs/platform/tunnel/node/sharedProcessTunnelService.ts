@@ -47,7 +47,7 @@ class TunnelData extends Disposable implements IAddressProvider {
 }
 
 export class SharedProcessTunnelService extends Disposable implements ISharedProcessTunnelService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private static _lastId = 0;
 

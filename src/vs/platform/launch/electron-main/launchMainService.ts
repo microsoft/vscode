@@ -29,7 +29,7 @@ export interface IStartArguments {
 
 export interface ILaunchMainService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 
@@ -38,7 +38,7 @@ export interface ILaunchMainService {
 
 export class LaunchMainService implements ILaunchMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

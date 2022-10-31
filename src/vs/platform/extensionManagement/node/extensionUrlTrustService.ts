@@ -10,7 +10,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 export class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private trustedExtensionUrlPublicKeys = new Map<string, (crypto.KeyObject | string | null)[]>();
 

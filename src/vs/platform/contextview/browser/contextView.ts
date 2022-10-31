@@ -16,7 +16,7 @@ export const IContextViewService = createDecorator<IContextViewService>('context
 
 export interface IContextViewService extends IContextViewProvider {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable;
 	hideContextView(data?: any): void;
@@ -42,7 +42,7 @@ export const IContextMenuService = createDecorator<IContextMenuService>('context
 
 export interface IContextMenuService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly onDidShowContextMenu: Event<void>;
 	readonly onDidHideContextMenu: Event<void>;

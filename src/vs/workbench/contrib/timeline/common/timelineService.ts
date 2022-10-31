@@ -16,7 +16,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
 export class TimelineService implements ITimelineService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onDidChangeProviders = new Emitter<TimelineProvidersChangeEvent>();
 	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent> = this._onDidChangeProviders.event;

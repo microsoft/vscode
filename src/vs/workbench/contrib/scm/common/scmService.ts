@@ -279,7 +279,7 @@ class SCMRepository implements ISCMRepository {
 
 export class SCMService implements ISCMService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private _repositories = new Map<string, ISCMRepository>();
 	get repositories(): Iterable<ISCMRepository> { return this._repositories.values(); }

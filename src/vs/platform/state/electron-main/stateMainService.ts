@@ -8,7 +8,7 @@ import { StateService } from 'vs/platform/state/node/stateService';
 
 export class StateMainService extends StateService implements IStateMainService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 		this.fileStorage.setItem(key, data);

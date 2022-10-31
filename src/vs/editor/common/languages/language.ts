@@ -42,7 +42,7 @@ export interface ILanguageIcon {
 }
 
 export interface ILanguageService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * A codec which can encode and decode a string `languageId` as a number.

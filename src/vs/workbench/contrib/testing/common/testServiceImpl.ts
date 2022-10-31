@@ -31,7 +31,7 @@ import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib
 import { isDefined } from 'vs/base/common/types';
 
 export class TestService extends Disposable implements ITestService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private testControllers = new Map<string, IMainThreadTestController>();
 
 	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();

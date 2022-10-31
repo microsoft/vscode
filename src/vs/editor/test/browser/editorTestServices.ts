@@ -55,7 +55,7 @@ export class TestGlobalStyleSheet extends GlobalStyleSheet {
 }
 
 export class TestCommandService implements ICommandService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 

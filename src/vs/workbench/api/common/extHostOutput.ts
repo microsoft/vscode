@@ -107,7 +107,7 @@ class ExtHostLogOutputChannel extends ExtHostOutputChannel {
 
 export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly proxy: MainThreadOutputServiceShape;
 

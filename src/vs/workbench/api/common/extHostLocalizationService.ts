@@ -14,7 +14,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostLocalizationService implements ExtHostLocalizationShape {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadLocalizationShape;
 	private readonly currentLanguage: string;

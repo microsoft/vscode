@@ -77,7 +77,7 @@ interface ICachedViewContainer {
 
 export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private static readonly PINNED_VIEW_CONTAINERS = 'workbench.activity.pinnedViewlets2';
 	private static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.activity.placeholderViewlets';

@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IInteractiveDocumentService = createDecorator<IInteractiveDocumentService>('IInteractiveDocumentService');
 
 export interface IInteractiveDocumentService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	onWillAddInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; languageId: string }>;
 	onWillRemoveInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI }>;
 	willCreateInteractiveDocument(notebookUri: URI, inputUri: URI, languageId: string): void;
@@ -19,7 +19,7 @@ export interface IInteractiveDocumentService {
 }
 
 export class InteractiveDocumentService extends Disposable implements IInteractiveDocumentService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 	private readonly _onWillAddInteractiveDocument = this._register(new Emitter<{ notebookUri: URI; inputUri: URI; languageId: string }>());
 	onWillAddInteractiveDocument = this._onWillAddInteractiveDocument.event;
 	private readonly _onWillRemoveInteractiveDocument = this._register(new Emitter<{ notebookUri: URI; inputUri: URI }>());

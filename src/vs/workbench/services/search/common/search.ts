@@ -40,7 +40,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  * A service that enables to search for files or with in files.
  */
 export interface ISearchService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;

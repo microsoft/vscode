@@ -10,7 +10,7 @@ import type { IGrammar } from 'vscode-textmate';
 export const ITextMateService = createDecorator<ITextMateService>('textMateService');
 
 export interface ITextMateService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	onDidEncounterLanguage: Event<string>;
 

@@ -65,7 +65,7 @@ export class CanonicalWorkspace implements IWorkspace {
 
 export class WorkspaceTrustEnablementService extends Disposable implements IWorkspaceTrustEnablementService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -85,7 +85,7 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 
 export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
 
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
 
@@ -655,7 +655,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 }
 
 export class WorkspaceTrustRequestService extends Disposable implements IWorkspaceTrustRequestService {
-	_serviceBrand: undefined;
+	$serviceBrand: undefined;
 
 	private _openFilesTrustRequestPromise?: Promise<WorkspaceTrustUriResponse>;
 	private _openFilesTrustRequestResolver?: (response: WorkspaceTrustUriResponse) => void;

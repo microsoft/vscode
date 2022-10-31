@@ -90,7 +90,7 @@ class ErrorTestingSettings {
 
 suite('TelemetryService', () => {
 
-	const TestProductService: IProductService = { _serviceBrand: undefined, ...product };
+	const TestProductService: IProductService = { $serviceBrand: undefined, ...product };
 
 	test('Disposing', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();

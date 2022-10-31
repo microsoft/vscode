@@ -15,7 +15,7 @@ import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/ex
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
 
 export interface ITerminalContributionService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	readonly terminalProfiles: ReadonlyArray<IExtensionTerminalProfile>;
 	readonly quickFixes: Array<IExtensionTerminalQuickFix>;
@@ -24,7 +24,7 @@ export interface ITerminalContributionService {
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
 
 export class TerminalContributionService implements ITerminalContributionService {
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private _terminalProfiles: ReadonlyArray<IExtensionTerminalProfile> = [];
 	get terminalProfiles() { return this._terminalProfiles; }

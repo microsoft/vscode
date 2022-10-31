@@ -24,7 +24,7 @@ export const ITextFileService = createDecorator<ITextFileService>('textFileServi
 
 export interface ITextFileService extends IDisposable {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Access to the manager of text file editor models providing further

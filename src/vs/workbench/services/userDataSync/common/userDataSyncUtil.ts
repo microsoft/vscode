@@ -14,7 +14,7 @@ import { ITextResourcePropertiesService, ITextResourceConfigurationService } fro
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	constructor(
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,

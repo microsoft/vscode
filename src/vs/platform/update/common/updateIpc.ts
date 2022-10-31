@@ -36,7 +36,7 @@ export class UpdateChannel implements IServerChannel {
 
 export class UpdateChannelClient implements IUpdateService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;

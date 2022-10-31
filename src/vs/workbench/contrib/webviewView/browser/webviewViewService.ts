@@ -72,7 +72,7 @@ export const IWebviewViewService = createDecorator<IWebviewViewService>('webview
 
 export interface IWebviewViewService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Fired when a resolver has been registered
@@ -93,7 +93,7 @@ export interface IWebviewViewService {
 
 export class WebviewViewService extends Disposable implements IWebviewViewService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
 

@@ -28,7 +28,7 @@ export const ITextEditorService = createDecorator<ITextEditorService>('textEdito
 
 export interface ITextEditorService {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * @deprecated this method should not be used, rather consider using
@@ -57,7 +57,7 @@ export interface ITextEditorService {
 
 export class TextEditorService extends Disposable implements ITextEditorService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	private readonly editorInputCache = new ResourceMap<TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput>();
 

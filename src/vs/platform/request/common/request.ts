@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 

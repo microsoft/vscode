@@ -8,7 +8,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 
 export class IntegrityService implements IIntegrityService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	async isPure(): Promise<IntegrityTestResult> {
 		return { isPure: true, proof: [] };

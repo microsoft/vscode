@@ -184,7 +184,7 @@ export class MarkerList {
 export const IMarkerNavigationService = createDecorator<IMarkerNavigationService>('IMarkerNavigationService');
 
 export interface IMarkerNavigationService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 	registerProvider(provider: IMarkerListProvider): IDisposable;
 	getMarkerList(resource: URI | undefined): MarkerList;
 }
@@ -195,7 +195,7 @@ export interface IMarkerListProvider {
 
 class MarkerNavigationService implements IMarkerNavigationService, IMarkerListProvider {
 
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	private readonly _provider = new LinkedList<IMarkerListProvider>();
 

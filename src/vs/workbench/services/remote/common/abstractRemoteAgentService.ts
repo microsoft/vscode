@@ -23,7 +23,7 @@ import { URI } from 'vs/base/common/uri';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	public readonly socketFactory: ISocketFactory;
 	private readonly _connection: IRemoteAgentConnection | null;

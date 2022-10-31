@@ -12,7 +12,7 @@ import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElem
 import { OverlayWebview } from './overlayWebview';
 
 export class WebviewService extends Disposable implements IWebviewService {
-	declare readonly _serviceBrand: undefined;
+	declare readonly $serviceBrand: undefined;
 
 	protected readonly _webviewThemeDataProvider: WebviewThemeDataProvider;
 

@@ -60,7 +60,7 @@ export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID)
  * The output service to manage output from the various processes running.
  */
 export interface IOutputService {
-	readonly _serviceBrand: undefined;
+	readonly $serviceBrand: undefined;
 
 	/**
 	 * Given the channel id returns the output channel instance.

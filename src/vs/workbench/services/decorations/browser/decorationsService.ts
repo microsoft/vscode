@@ -243,7 +243,7 @@ type DecorationEntry = Map<IDecorationsProvider, DecorationDataRequest | IDecora
 
 export class DecorationsService implements IDecorationsService {
 
-	declare _serviceBrand: undefined;
+	declare $serviceBrand: undefined;
 
 	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() });
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
