@@ -9,7 +9,7 @@ import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 
 export interface ITranslations {
-	[key: string]: string | { message: string; comment: string[] };
+	[key: string]: string | { message: string; comment: string[] } | undefined;
 }
 
 export function localizeManifest(extensionManifest: IExtensionManifest, translations: ITranslations, fallbackTranslations?: ITranslations): IExtensionManifest {
@@ -39,7 +39,7 @@ function replaceNLStrings(extensionManifest: IExtensionManifest, messages: ITran
 				if (translated === undefined && originalMessages) {
 					translated = originalMessages[messageKey];
 				}
-				const message: string | undefined = typeof translated === 'string' ? translated : translated.message;
+				const message: string | undefined = typeof translated === 'string' ? translated : translated?.message;
 				if (message !== undefined) {
 					// This branch returns ILocalizedString's instead of Strings so that the Command Palette can contain both the localized and the original value.
 					const original = originalMessages?.[messageKey];
