@@ -107,7 +107,6 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 		this.allMenuItems = this.toMenuItems(items, showHeaders);
 		this.list.splice(0, this.list.length, this.allMenuItems);
-		console.log('length', this.list.length);
 		this.focusNext();
 	}
 

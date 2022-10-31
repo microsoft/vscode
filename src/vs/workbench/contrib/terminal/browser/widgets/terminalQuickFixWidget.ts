@@ -274,7 +274,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 				new HeaderRenderer(),
 			],
 			options: {
-				keyboardSupport: false,
+				keyboardSupport: true,
 				accessibilityProvider: {
 					getAriaLabel: element => {
 						if (element.kind === 'action') {
@@ -303,6 +303,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 				title: 'Quick fix...',
 				icon: { codicon: Codicon.lightBulb }
 			},
+			disabled: true
 		});
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
