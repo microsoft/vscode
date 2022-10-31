@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -883,18 +883,22 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		const fileMatchParentParts: URI[] = [];
 		let uri = this.uriParent(rawFileMatch.resource);
 
-		let debugStr = '';
+		const debug: string[] = ['[search model building]'];
 		while (!this.uriEquals(this.resource, uri)) {
 			fileMatchParentParts.unshift(uri);
 			const prevUri = uri;
 			uri = this.uriParent(uri);
-			debugStr += `current uri parent ${uri} comparing with ${prevUri}\n\n`;
+			if (this._logService.getLevel() === LogLevel.Trace) {
+				debug.push(`current uri parent ${uri} comparing with ${prevUri}`);
+			}
 			if (this.uriEquals(prevUri, uri)) {
-				this._logService.trace('[search model building - failed] ' + debugStr);
+				this._logService.trace(debug.join('\n\n'));
 				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
 			}
 		}
-		this._logService.trace('[search model building - success] ' + debugStr);
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace(debug.join('\n\n'));
+		}
 
 		const root = this.closestRoot ?? this;
 		let parent: FolderMatch = this;
