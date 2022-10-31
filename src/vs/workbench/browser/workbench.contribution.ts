@@ -454,7 +454,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.layoutControl.enabled': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
+				'markdownDescription': isWeb ?
+					localize('layoutControlEnabledWeb', "Controls whether the layout control in the title bar is shown.") :
+					localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout control is shown in the custom title bar. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'workbench.layoutControl.type': {
 				'type': 'string',
@@ -466,26 +468,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
-			},
-			'workbench.experimental.layoutControl.enabled': {
-				'type': 'boolean',
-				'tags': ['experimental'],
-				'default': false,
-				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
-				'markdownDeprecationMessage': localize({ key: 'layoutControlEnabledDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.enabled#`')
-			},
-			'workbench.experimental.layoutControl.type': {
-				'type': 'string',
-				'enum': ['menu', 'toggles', 'both'],
-				'enumDescriptions': [
-					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
-					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
-					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
-				],
-				'tags': ['experimental'],
-				'default': 'both',
-				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
-				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
 		}
 	});
@@ -541,7 +523,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				type: 'boolean',
 				default: false,
 				tags: ['experimental'],
-				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
+				markdownDescription: isWeb ?
+					localize('window.commandCenterWeb', "Show command launcher together with the window title.") :
+					localize({ key: 'window.commandCenter', comment: ['{0} is a placeholder for a setting identifier.'] }, "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -553,7 +537,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
 						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
+					isWeb ?
+						localize('window.menuBarVisibility.compact.web', "Menu is displayed as a compact button in the side bar.") :
+						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
