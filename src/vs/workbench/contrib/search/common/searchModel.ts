@@ -890,10 +890,11 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 			uri = this.uriParent(uri);
 			debugStr += `current uri parent ${uri} comparing with ${prevUri}\n\n`;
 			if (this.uriEquals(prevUri, uri)) {
+				this._logService.trace('[search model building - failed] ' + debugStr);
 				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
 			}
 		}
-		this._logService.trace('[search model building] ' + debugStr);
+		this._logService.trace('[search model building - success] ' + debugStr);
 
 		const root = this.closestRoot ?? this;
 		let parent: FolderMatch = this;
