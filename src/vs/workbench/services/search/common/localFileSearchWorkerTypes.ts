@@ -33,7 +33,7 @@ export interface IWorkerFileSystemDirectoryHandle extends IWorkerFileSystemHandl
 	entries(): AsyncIterableIterator<[string, IWorkerFileSystemDirectoryHandle | IWorkerFileSystemFileHandle]>;
 }
 
-interface IWorkerFileSystemFileHandle extends IWorkerFileSystemHandle {
+export interface IWorkerFileSystemFileHandle extends IWorkerFileSystemHandle {
 	readonly kind: 'file';
 	getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
 }
