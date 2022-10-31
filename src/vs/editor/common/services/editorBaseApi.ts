@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Token } from 'vs/editor/common/languages';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 
-export class KeyMod {
+class KeyMod {
 	public static readonly CtrlCmd: number = ConstKeyMod.CtrlCmd;
 	public static readonly Shift: number = ConstKeyMod.Shift;
 	public static readonly Alt: number = ConstKeyMod.Alt;

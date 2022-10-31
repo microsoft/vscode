@@ -93,7 +93,7 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class MirrorModel extends BaseMirrorModel implements ICommonModel {
+class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
