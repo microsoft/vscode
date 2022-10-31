@@ -893,7 +893,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
 			}
 		}
-		this._logService.trace(debugStr);
+		this._logService.trace('[search model building] ' + debugStr);
 
 		const root = this.closestRoot ?? this;
 		let parent: FolderMatch = this;
