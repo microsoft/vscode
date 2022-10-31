@@ -158,6 +158,12 @@ export interface IUndoRedoService {
 	getLastElement(resource: URI): IUndoRedoElement | null;
 
 	/**
+	 * Pop the last pushed element for a resource.
+	 * If the last pushed element has been undone, returns null.
+	 */
+	popLastElement(resource: URI): IUndoRedoElement | null;
+
+	/**
 	 * Get all the elements associated with a resource.
 	 * This includes the past and the future.
 	 */

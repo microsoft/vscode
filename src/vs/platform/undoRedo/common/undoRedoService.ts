@@ -361,6 +361,12 @@ class ResourceEditStack {
 		}
 		return this._past[this._past.length - 1];
 	}
+	public popClosestPastElement() {
+		if (this._past.length === 0) {
+			return null;
+		}
+		return this._past.pop();
+	}
 
 	public getSecondClosestPastElement(): StackElement | null {
 		if (this._past.length < 2) {
@@ -559,6 +565,18 @@ export class UndoRedoService implements IUndoRedoService {
 				return null;
 			}
 			const closestPastElement = editStack.getClosestPastElement();
+			return closestPastElement ? closestPastElement.actual : null;
+		}
+		return null;
+	}
+	public popLastElement(resource: URI) {
+		const strResource = this.getUriComparisonKey(resource);
+		if (this._editStacks.has(strResource)) {
+			const editStack = this._editStacks.get(strResource)!;
+			if (editStack.hasFutureElements()) {
+				return null;
+			}
+			const closestPastElement = editStack.popClosestPastElement();
 			return closestPastElement ? closestPastElement.actual : null;
 		}
 		return null;
