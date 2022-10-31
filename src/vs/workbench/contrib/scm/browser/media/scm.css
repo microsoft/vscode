@@ -242,6 +242,10 @@
 	border: 1px solid var(--vscode-button-background);
 }
 
+.scm-view .button-container .monaco-description-button:hover {
+	border-color: var(--vscode-button-hoverBackground);
+}
+
 .scm-view .button-container .monaco-description-button > .monaco-button-label {
 	flex-grow: 1;
 	width: 0;
