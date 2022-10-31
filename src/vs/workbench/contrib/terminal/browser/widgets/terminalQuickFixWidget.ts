@@ -302,8 +302,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 				kind: CodeActionKind.QuickFix,
 				title: 'Quick fix...',
 				icon: { codicon: Codicon.lightBulb }
-			},
-			disabled: true
+			}
 		});
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
