@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel, LogLevelToString, parseLogLevel } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
@@ -59,17 +59,20 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 
 // --- Internal commands to improve extension test runs
 
-CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: string) {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 
 	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-		logService.setLevel(level);
+		const logLevel = parseLogLevel(level);
+		if (logLevel !== undefined) {
+			logService.setLevel(logLevel);
+		}
 	}
 });
 
 CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
 	const logService = accessor.get(ILogService);
 
-	return logService.getLevel();
+	return LogLevelToString(logService.getLevel());
 });
