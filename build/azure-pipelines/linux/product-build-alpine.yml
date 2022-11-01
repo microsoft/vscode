@@ -59,6 +59,23 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
+  # In Alpine, we always want to setup and authenticate against the NPM_REGISTRY
+  # because of the Prebuild step, since it always runs `yarn` from inside an alpine
+  # container
+  - script: |
+      set -e
+      npm config set registry "$NPM_REGISTRY" --location=project
+      npm config set always-auth=true --location=project
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
   - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" > .build/yarnlockhash
@@ -83,20 +100,6 @@ steps:
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
-
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
-      yarn config set registry "$NPM_REGISTRY"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
-
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: .npmrc
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Authentication
 
   - script: |
       set -e

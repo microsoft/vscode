@@ -315,16 +315,6 @@ class ServerLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			if (this.useColors) {
-				console.error(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[${now()}]`, message, ...args);
-			}
-		}
-	}
-
 	override dispose(): void {
 		// noop
 	}

@@ -27,8 +27,6 @@ import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
@@ -314,10 +312,3 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 }
 
 registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution);
-
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
-	}
-});

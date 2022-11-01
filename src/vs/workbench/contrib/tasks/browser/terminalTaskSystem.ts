@@ -211,7 +211,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
-	private readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _reconnectedTerminals: ITerminalInstance[] | undefined;
 
 	get taskShellIntegrationStartSequence(): string {
@@ -261,10 +260,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this._onDidStateChange.event;
 	}
 
-	public get onDidReconnectToTerminals(): Event<void> {
-		return this._onDidReconnectToTerminals.event;
-	}
-
 	private _log(value: string): void {
 		this._appendOutput(value + '\n');
 	}
@@ -274,9 +269,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
-		if (!this._hasReconnected) {
-			this._reconnectToTerminals();
-		}
+		this._reconnectToTerminals();
 		return this.run(task, resolver, Triggers.reconnect);
 	}
 
@@ -1338,8 +1331,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
-			this._hasReconnected = true;
-			return;
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
 				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
@@ -1352,8 +1343,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				const terminalData = { lastTask: task.lastTask, group: task.group, terminal };
 				this._terminals[terminal.instanceId] = terminalData;
 			}
-			this._hasReconnected = true;
 		}
+		this._hasReconnected = true;
 	}
 
 	private _deleteTaskAndTerminal(terminal: ITerminalInstance, terminalData: ITerminalData): void {
