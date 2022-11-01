@@ -79,7 +79,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
  * Range of a word inside a model.
  * @internal
  */
-export interface IWordRange {
+interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
