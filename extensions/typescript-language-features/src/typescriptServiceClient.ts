@@ -1036,7 +1036,13 @@ function getReportIssueArgsForError(
 	];
 
 	if (globalPlugins.length) {
-		sections.push(`**Global TS Server Plugins**\n\n` + globalPlugins.map(plugin => `- \`${plugin.name}\``).join('\n'));
+		sections.push(
+			[
+				`**Global TypeScript Server Plugins**`,
+				`❗️ Please test with extensions disabled. Extensions are the root cause of most TypeScript server crashes`,
+				globalPlugins.map(plugin => `- \`${plugin.name}\``).join('\n')
+			].join('\n\n')
+		);
 	}
 
 	if (logPath) {
