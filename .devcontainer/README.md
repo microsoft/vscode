@@ -18,7 +18,7 @@ If you already have VS Code and Docker installed, you can click the badge above 
 
 3. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [Dev Containers](https://aka.ms/vscode-remote/download/containers) extension.
 
-    ![Image of Dev Containers extension](https://microsoft.github.io/vscode-remote-release/images/remote-containers-extn.png)
+    ![Image of Dev Containers extension](https://microsoft.github.io/vscode-remote-release/images/dev-containers-extn.png)
 
     > **Note:** The Dev Containers extension requires the Visual Studio Code distribution of Code - OSS. See the [FAQ](https://aka.ms/vscode-remote/faq/license) for details.
 
