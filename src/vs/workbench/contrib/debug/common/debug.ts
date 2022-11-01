@@ -725,7 +725,7 @@ export interface IDebugAdapterFactory extends ITerminalLauncher {
 	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 }
 
-export interface IDebugAdapterExecutableOptions {
+interface IDebugAdapterExecutableOptions {
 	cwd?: string;
 	env?: { [key: string]: string };
 }
@@ -748,12 +748,12 @@ export interface IDebugAdapterNamedPipeServer {
 	readonly path: string;
 }
 
-export interface IDebugAdapterInlineImpl extends IDisposable {
+interface IDebugAdapterInlineImpl extends IDisposable {
 	readonly onDidSendMessage: Event<DebugProtocol.Message>;
 	handleMessage(message: DebugProtocol.Message): void;
 }
 
-export interface IDebugAdapterImpl {
+interface IDebugAdapterImpl {
 	readonly type: 'implementation';
 	readonly implementation: IDebugAdapterInlineImpl;
 }
@@ -821,11 +821,7 @@ export interface IDebugAdapterDescriptorFactory {
 	createDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor>;
 }
 
-export interface IDebugAdapterTrackerFactory {
-	readonly type: string;
-}
-
-export interface ITerminalLauncher {
+interface ITerminalLauncher {
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 
