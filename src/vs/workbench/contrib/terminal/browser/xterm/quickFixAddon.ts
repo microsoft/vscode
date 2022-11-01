@@ -134,7 +134,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (this._expectedCommands) {
 				const id = this._fixId || '';
 				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
-				this._logService.debug(quickFixTelemetryTitle, {
+				this._logService.info(quickFixTelemetryTitle, {
 					id,
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
@@ -173,7 +173,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		const { fixes, onDidRunQuickFix, expectedCommands } = result;
 		this._expectedCommands = expectedCommands;
-		this._fixId = fixes.map(f => f.label).join('');
+		this._fixId = fixes.map(f => f.id).join('');
 		this._quickFixes = fixes;
 		this._register(onDidRunQuickFix((id) => {
 			const ranQuickFixCommand = (this._expectedCommands?.includes(command.command) || false);
@@ -274,7 +274,7 @@ export function getQuickFixesForCommand(
 							case 'command': {
 								const label = localize('quickFix.command', 'Run: {0}', quickFix.command);
 								action = {
-									id: `quickFix.command`,
+									id: quickFix.id,
 									label,
 									class: undefined,
 									enabled: true,
@@ -376,6 +376,7 @@ export function convertToQuickFixOptions(quickFix: IExtensionTerminalQuickFix): 
 			if (fixedCommand) {
 				actions.push({
 					type: 'command',
+					id: quickFix.id,
 					command: fixedCommand,
 					addNewLine: true
 				});
