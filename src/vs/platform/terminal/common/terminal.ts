@@ -825,7 +825,6 @@ export interface IExtensionTerminalQuickFix extends ITerminalQuickFixContributio
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
-export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;

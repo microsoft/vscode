@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
 
-export interface IResolvedLanguage {
+interface IResolvedLanguage {
 	identifier: string;
 	name: string | null;
 	mimetypes: string[];
