@@ -38,7 +38,6 @@ export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
 export const DISASSEMBLY_VIEW_ID = 'workbench.debug.disassemblyView';
 export const DEBUG_PANEL_ID = 'workbench.panel.repl';
 export const REPL_VIEW_ID = 'workbench.panel.repl.view';
-export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined, { type: 'string', description: nls.localize('debugType', "Debug type of the active debug session. For example 'python'.") });
 export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined, { type: 'string', description: nls.localize('debugConfigurationType', "Debug type of the selected launch configuration. For example 'python'.") });
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive', { type: 'string', description: nls.localize('debugState', "State that the focused debug session is in. One of the following: 'inactive', 'initializing', 'stopped' or 'running'.") });
@@ -663,7 +662,7 @@ export interface IGlobalConfig {
 	configurations: IConfig[];
 }
 
-export interface IEnvConfig {
+interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preRestartTask?: string | ITaskIdentifier;
 	postRestartTask?: string | ITaskIdentifier;
@@ -937,7 +936,7 @@ export interface ILaunch {
 
 // Debug service interfaces
 
-export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+export const IDebugService = createDecorator<IDebugService>('debugService');
 
 export interface IDebugService {
 	readonly _serviceBrand: undefined;
