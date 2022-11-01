@@ -15,6 +15,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
+import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 
 //#region typed options
 
@@ -739,7 +740,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'smart' | 'experimental';
+	diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
 }
 
 /**
