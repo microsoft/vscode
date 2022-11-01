@@ -22,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { Config, ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 
 import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
@@ -1657,7 +1657,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				matcher = value;
 			}
 			if (matcher && matcher.filePrefix) {
-				this._collectVariables(variables, matcher.filePrefix);
+				if (Types.isString(matcher.filePrefix)) {
+					this._collectVariables(variables, matcher.filePrefix);
+				} else {
+					for (const fp of [...matcher.filePrefix.include, ...(matcher.filePrefix.exclude ?? [])]) {
+						this._collectVariables(variables, fp);
+					}
+				}
 			}
 		});
 	}
@@ -1719,7 +1725,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
-					copy.filePrefix = await this._resolveVariable(resolver, copy.filePrefix);
+					if (Types.isString(matcher.filePrefix)) {
+						copy.filePrefix = await this._resolveVariable(resolver, copy.filePrefix as string);
+					} else {
+						const copyFilePrefix = copy.filePrefix as Config.SearchFileLocationArgs;
+						copyFilePrefix.include = await Promise.all(copyFilePrefix.include.map(x => this._resolveVariable(resolver, x)));
+						if (copyFilePrefix.exclude) {
+							copyFilePrefix.exclude = await Promise.all(copyFilePrefix.exclude.map(x => this._resolveVariable(resolver, x)));
+						}
+					}
 				}
 				result.push(copy);
 			}
