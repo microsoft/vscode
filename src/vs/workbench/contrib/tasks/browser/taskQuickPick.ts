@@ -280,7 +280,7 @@ export class TaskQuickPick extends Disposable {
 					picker.dispose();
 					return undefined;
 				}
-				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask, name);
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
 
 
 				// Proceed to second level of quick pick
