@@ -131,14 +131,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._register(commandDetection.onCommandFinished(command => {
 			if (this._expectedCommands) {
+				const id = this._quickFixes?.map(q => q.id).join(' ') || '';
 				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
-				this._logService.debug(quickFixTelemetryTitle, {
-					id: this._expectedCommands.join(' '),
+				this._logService.info(quickFixTelemetryTitle, {
+					id,
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
 				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-					id: this._expectedCommands.join(' '),
+					id,
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
