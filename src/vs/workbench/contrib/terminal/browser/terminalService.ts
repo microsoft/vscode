@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -20,7 +20,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -30,7 +29,6 @@ import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/the
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -70,8 +68,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalHasBeenCreated: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
 	private _configHelper: TerminalConfigHelper;
-	private _remoteTerminalsInitPromise: Promise<void> | undefined;
-	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
@@ -84,11 +80,6 @@ export class TerminalService implements ITerminalService {
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
-	}
-
-	private _primaryBackendRegistered: Barrier = new Barrier();
-	get primaryBackendRegistered(): Promise<void> {
-		return this._primaryBackendRegistered.wait().then(() => { });
 	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
@@ -158,7 +149,6 @@ export class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -221,21 +211,6 @@ export class TerminalService implements ITerminalService {
 		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
-		if (this._configurationService.getValue(TaskSettingId.Reconnection)) {
-			// in order to reconnect to tasks, we have to show the panel
-			const reconnectToTaskKey = 'reconnectToTasks';
-			this._storageService.onWillSaveState((e) => {
-				if (e.reason === WillSaveStateReason.SHUTDOWN) {
-					this._storageService.store(reconnectToTaskKey, this.instances.some(i => i.shellLaunchConfig.type === 'Task'), StorageScope.WORKSPACE, StorageTarget.USER);
-				}
-			});
-			if (this._storageService.getBoolean(reconnectToTaskKey, StorageScope.WORKSPACE)) {
-				this._viewsService.openView(TERMINAL_VIEW_ID).then(() => {
-					this._storageService.store(reconnectToTaskKey, false, StorageScope.WORKSPACE, StorageTarget.USER);
-				});
-			}
-		}
-
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
@@ -291,16 +266,12 @@ export class TerminalService implements ITerminalService {
 			const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
 			if (isPersistentRemote) {
-				this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+				this._reconnectToRemoteTerminals().then(() => this._setConnected());
 			} else if (enableTerminalReconnection) {
-				this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+				this._reconnectToLocalTerminals().then(() => this._setConnected());
 			} else {
-				this._connectionState = TerminalConnectionState.Connected;
+				Promise.resolve().then(() => this._setConnected());
 			}
-
-			// Open the primary backend registered barrier to allow ITerminalService consumers to
-			// start using the backend
-			this._primaryBackendRegistered.open();
 
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
@@ -751,19 +722,6 @@ export class TerminalService implements ITerminalService {
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
-	}
-
-	async initializeTerminals(): Promise<void> {
-		if (this._remoteTerminalsInitPromise) {
-			await this._remoteTerminalsInitPromise;
-			this._setConnected();
-		} else if (this._localTerminalsInitPromise) {
-			await this._localTerminalsInitPromise;
-			this._setConnected();
-		}
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ location: TerminalLocation.Panel });
-		}
 	}
 
 	moveToEditor(source: ITerminalInstance): void {

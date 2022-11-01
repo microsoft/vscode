@@ -117,7 +117,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		const oldOwner = this._owner;
 
 		this._owner = owner;
-		this.show();
+		this._show();
 
 		if (oldOwner !== owner) {
 			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
@@ -184,7 +184,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	private show() {
+	private _show() {
 		if (this._isDisposed) {
 			throw new Error('Webview overlay is disposed');
 		}
@@ -259,25 +259,25 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public get html(): string { return this._html; }
 	public set html(value: string) {
 		this._html = value;
-		this.withWebview(webview => webview.html = value);
+		this._withWebview(webview => webview.html = value);
 	}
 
 	public get initialScrollProgress(): number { return this._initialScrollProgress; }
 	public set initialScrollProgress(value: number) {
 		this._initialScrollProgress = value;
-		this.withWebview(webview => webview.initialScrollProgress = value);
+		this._withWebview(webview => webview.initialScrollProgress = value);
 	}
 
 	public get state(): string | undefined { return this._state; }
 	public set state(value: string | undefined) {
 		this._state = value;
-		this.withWebview(webview => webview.state = value);
+		this._withWebview(webview => webview.state = value);
 	}
 
 	public get extension(): WebviewExtensionDescription | undefined { return this._extension; }
 	public set extension(value: WebviewExtensionDescription | undefined) {
 		this._extension = value;
-		this.withWebview(webview => webview.extension = value);
+		this._withWebview(webview => webview.extension = value);
 	}
 
 	public get options(): WebviewOptions { return this._options; }
@@ -286,11 +286,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public get contentOptions(): WebviewContentOptions { return this._contentOptions; }
 	public set contentOptions(value: WebviewContentOptions) {
 		this._contentOptions = value;
-		this.withWebview(webview => webview.contentOptions = value);
+		this._withWebview(webview => webview.contentOptions = value);
 	}
 
 	public set localResourcesRoot(resources: URI[]) {
-		this.withWebview(webview => webview.localResourcesRoot = resources);
+		this._withWebview(webview => webview.localResourcesRoot = resources);
 	}
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -355,7 +355,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	runFindAction(previous: boolean): void { this._webview.value?.runFindAction(previous); }
 
-	private withWebview(f: (webview: IWebview) => void): void {
+	private _withWebview(f: (webview: IWebview) => void): void {
 		if (this._webview.value) {
 			f(this._webview.value);
 		}
