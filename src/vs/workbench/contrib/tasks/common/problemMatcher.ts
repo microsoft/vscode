@@ -21,13 +21,14 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
+import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from 'vs/platform/files/common/files';
 
 export enum FileLocationKind {
 	Default,
 	Relative,
 	Absolute,
-	AutoDetect
+	AutoDetect,
+	Search
 }
 
 export module FileLocationKind {
@@ -39,6 +40,8 @@ export module FileLocationKind {
 			return FileLocationKind.Relative;
 		} else if (value === 'autodetect') {
 			return FileLocationKind.AutoDetect;
+		} else if (value === 'search') {
+			return FileLocationKind.Search;
 		} else {
 			return undefined;
 		}
@@ -132,7 +135,7 @@ export interface ProblemMatcher {
 	source?: string;
 	applyTo: ApplyToKind;
 	fileLocation: FileLocationKind;
-	filePrefix?: string;
+	filePrefix?: string | Config.SearchFileLocationArgs;
 	pattern: IProblemPattern | IProblemPattern[];
 	severity?: Severity;
 	watching?: IWatchingMatcher;
@@ -192,7 +195,7 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	let fullPath: string | undefined;
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
-	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
+	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix && Types.isString(matcher.filePrefix)) {
 		fullPath = join(matcher.filePrefix, filename);
 	} else if (kind === FileLocationKind.AutoDetect) {
 		const matcherClone = Objects.deepClone(matcher);
@@ -212,6 +215,18 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 
 		matcherClone.fileLocation = FileLocationKind.Absolute;
 		return getResource(filename, matcherClone);
+	} else if (kind === FileLocationKind.Search && fileService) {
+		const fsProvider = fileService.getProvider('file');
+		if (fsProvider) {
+			const uri = await searchForFileLocation(filename, fsProvider, matcher.filePrefix as Config.SearchFileLocationArgs);
+			fullPath = uri?.path;
+		}
+
+		if (!fullPath) {
+			const absoluteMatcher = Objects.deepClone(matcher);
+			absoluteMatcher.fileLocation = FileLocationKind.Absolute;
+			return getResource(filename, absoluteMatcher);
+		}
 	}
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
@@ -226,6 +241,40 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	} else {
 		return URI.file(fullPath);
 	}
+}
+
+async function searchForFileLocation(filename: string, fsProvider: IFileSystemProvider, args: Config.SearchFileLocationArgs): Promise<URI | undefined> {
+	async function search(dir: URI): Promise<URI | undefined> {
+		const entries = await fsProvider.readdir(dir);
+		const subdirs: URI[] = [];
+
+		for (const [name, fileType] of entries) {
+			if (fileType === FileType.Directory) {
+				subdirs.push(URI.joinPath(dir, name));
+				continue;
+			}
+
+			if (fileType === FileType.File && name === filename) {
+				return URI.joinPath(dir, name);
+			}
+		}
+
+		for (const subdir of subdirs) {
+			const result = search(subdir);
+			if (result) {
+				return result;
+			}
+		}
+		return undefined;
+	}
+
+	for (const dir of args.include) {
+		const hit = await search(URI.file(dir));
+		if (hit) {
+			return hit;
+		}
+	}
+	return undefined;
 }
 
 export interface ILineMatcher {
@@ -796,8 +845,12 @@ export namespace Config {
 		*  - ["autodetect", "path value"]: the filename is treated
 		*    relative to the given path value, and if it does not
 		*    exist, it is treated as absolute.
+		*  - ["search", { include: []; exclude?: [] }]: The filename
+		*    needs to be searched under the directories named by the "include"
+		*    property and their nested subdirectories. With "exclude" property
+		*    present, the directories should be removed from the search.
 		*/
-		fileLocation?: string | string[];
+		fileLocation?: string | string[] | ['search', SearchFileLocationArgs];
 
 		/**
 		* The name of a predefined problem pattern, the inline definition
@@ -823,6 +876,11 @@ export namespace Config {
 		watching?: IBackgroundMonitor;
 		background?: IBackgroundMonitor;
 	}
+
+	export type SearchFileLocationArgs = {
+		include: string[];
+		exclude?: string[];
+	};
 
 	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
 
@@ -1367,7 +1425,7 @@ export class ProblemMatcherParser extends Parser {
 			applyTo = ApplyToKind.allDocuments;
 		}
 		let fileLocation: FileLocationKind | undefined = undefined;
-		let filePrefix: string | undefined = undefined;
+		let filePrefix: string | Config.SearchFileLocationArgs | undefined = undefined;
 
 		let kind: FileLocationKind | undefined;
 		if (Types.isUndefined(description.fileLocation)) {
@@ -1392,6 +1450,9 @@ export class ProblemMatcherParser extends Parser {
 					filePrefix = values[1];
 				}
 			}
+		} else if (Array.isArray(description.fileLocation) && FileLocationKind.fromString(description.fileLocation[0]) === FileLocationKind.Search) {
+			fileLocation = FileLocationKind.Search;
+			filePrefix = description.fileLocation[1];
 		}
 
 		const pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
@@ -1612,9 +1673,24 @@ export namespace Schemas {
 						items: {
 							type: 'string'
 						}
+					},
+					{
+						type: 'array',
+						items: [
+							{ type: 'string', enum: ['search'] },
+							{
+								type: 'object',
+								properties: {
+									'include': { type: 'array', items: { type: 'string' } },
+									'exclude': { type: 'array', items: { type: 'string' } },
+								},
+								required: ['include']
+							}
+						],
+						additionalItems: false,
 					}
 				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path the relative file location.')
+				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path of the relative file location.')
 			},
 			background: {
 				type: 'object',
