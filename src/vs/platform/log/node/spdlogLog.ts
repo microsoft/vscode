@@ -58,6 +58,7 @@ function setLogLevel(logger: spdlog.Logger, level: LogLevel): void {
 		case LogLevel.Info: logger.setLevel(SpdLogLevel.Info); break;
 		case LogLevel.Warning: logger.setLevel(SpdLogLevel.Warning); break;
 		case LogLevel.Error: logger.setLevel(SpdLogLevel.Error); break;
+		case LogLevel.Off: logger.setLevel(SpdLogLevel.Off); break;
 		default: throw new Error('Invalid log level');
 	}
 }
