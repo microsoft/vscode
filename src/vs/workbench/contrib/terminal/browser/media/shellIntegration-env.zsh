@@ -7,7 +7,7 @@ if [[ -f $USER_ZDOTDIR/.zshenv ]]; then
 	ZDOTDIR=$USER_ZDOTDIR
 
 	# prevent recursion
-	if [[ $USER_ZDOTDIR -ne $VSCODE_ZDOTDIR ]]; then
+	if [[ $USER_ZDOTDIR != $VSCODE_ZDOTDIR ]]; then
 		. $USER_ZDOTDIR/.zshenv
 	fi
 
