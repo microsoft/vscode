@@ -67,6 +67,7 @@ import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViews
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 export class TreeViewPane extends ViewPane {
 
@@ -559,7 +560,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			}
 		}
 
-		setImmediate(() => {
+		setTimeout0(() => {
 			if (this.dataProvider) {
 				this._onDidChangeVisibility.fire(this.isVisible);
 			}
