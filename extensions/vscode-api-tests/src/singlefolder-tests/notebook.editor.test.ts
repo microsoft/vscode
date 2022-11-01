@@ -66,7 +66,7 @@ import * as utils from '../utils';
 	});
 
 	// #138683
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	test.skip('Opening a notebook should fire activeNotebook event changed only once', async function () {
 		const openedEditor = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.workspace.openNotebookDocument(resource);
