@@ -29,10 +29,6 @@ export async function showWithPinnedItems(storageService: IStorageService, stora
 			quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
 		}
 	});
-	quickPick.onDidChangeValue(async value => {
-		// Return pinned items if there is no search value
-		quickPick.items = value ? itemsWithoutPinned : itemsWithPinned;
-	});
 	quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
 	quickPick.show();
 }

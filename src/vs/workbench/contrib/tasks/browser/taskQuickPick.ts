@@ -280,12 +280,14 @@ export class TaskQuickPick extends Disposable {
 					picker.dispose();
 					return undefined;
 				}
-				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask, name);
+
+
 				// Proceed to second level of quick pick
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
-					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
 					picker.value = '';
+					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
 				} else if (selectedEntry && Types.isString(selectedEntry.settingType)) {
 					picker.dispose();
 					return this.handleSettingOption(selectedEntry.settingType);
@@ -303,8 +305,6 @@ export class TaskQuickPick extends Disposable {
 		} while (1);
 		return;
 	}
-
-
 
 	private async _doPickerFirstLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
 		picker.items = taskQuickPickEntries;
