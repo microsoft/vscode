@@ -48,12 +48,6 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.logs.push(message);
-		}
-	}
-
 	override dispose(): void { }
 	flush(): void { }
 }

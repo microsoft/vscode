@@ -70,7 +70,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 }
 
-export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
+class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
