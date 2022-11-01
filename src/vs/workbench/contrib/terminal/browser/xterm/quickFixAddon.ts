@@ -75,6 +75,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _fixesShown: boolean = false;
 	private _expectedCommands: string[] | undefined;
+	private _fixId: string | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -131,9 +132,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._register(commandDetection.onCommandFinished(command => {
 			if (this._expectedCommands) {
-				const id = this._quickFixes?.map(q => q.id).join(' ') || '';
+				const id = this._fixId || '';
 				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
-				this._logService.info(quickFixTelemetryTitle, {
+				this._logService.debug(quickFixTelemetryTitle, {
 					id,
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
@@ -144,6 +145,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					ranQuickFixCommand
 				});
 				this._expectedCommands = undefined;
+				this._fixId = undefined;
 			}
 			this._resolveQuickFixes(command);
 			this._fixesShown = false;
@@ -171,6 +173,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		const { fixes, onDidRunQuickFix, expectedCommands } = result;
 		this._expectedCommands = expectedCommands;
+		this._fixId = fixes.map(f => f.label).join('');
 		this._quickFixes = fixes;
 		this._register(onDidRunQuickFix((id) => {
 			const ranQuickFixCommand = (this._expectedCommands?.includes(command.command) || false);
