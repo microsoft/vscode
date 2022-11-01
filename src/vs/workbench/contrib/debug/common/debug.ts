@@ -820,11 +820,7 @@ export interface IDebugAdapterDescriptorFactory {
 	createDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor>;
 }
 
-export interface IDebugAdapterTrackerFactory {
-	readonly type: string;
-}
-
-export interface ITerminalLauncher {
+interface ITerminalLauncher {
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 
