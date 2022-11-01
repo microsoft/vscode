@@ -588,6 +588,17 @@ export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	return DEFAULT_LOG_LEVEL;
 }
 
+export function LogLevelToString(logLevel: LogLevel): string {
+	switch (logLevel) {
+		case LogLevel.Trace: return 'trace';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warn';
+		case LogLevel.Error: return 'error';
+		case LogLevel.Off: return 'off';
+	}
+}
+
 export function parseLogLevel(logLevel: string): LogLevel | undefined {
 	switch (logLevel) {
 		case 'trace':
@@ -606,15 +617,4 @@ export function parseLogLevel(logLevel: string): LogLevel | undefined {
 			return LogLevel.Off;
 	}
 	return undefined;
-}
-
-export function LogLevelToString(logLevel: LogLevel): string {
-	switch (logLevel) {
-		case LogLevel.Trace: return 'trace';
-		case LogLevel.Debug: return 'debug';
-		case LogLevel.Info: return 'info';
-		case LogLevel.Warning: return 'warn';
-		case LogLevel.Error: return 'error';
-		case LogLevel.Off: return 'off';
-	}
 }
