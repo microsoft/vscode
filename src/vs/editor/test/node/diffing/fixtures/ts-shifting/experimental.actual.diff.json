@@ -1,0 +1,16 @@
+{
+	"originalFileName": "./1.tsx",
+	"modifiedFileName": "./2.tsx",
+	"diffs": [
+		{
+			"originalRange": "[13,22)",
+			"modifiedRange": "[13,13)",
+			"innerChanges": [
+				{
+					"originalRange": "[13,1 -> 22,1]",
+					"modifiedRange": "[13,1 -> 13,1]"
+				}
+			]
+		}
+	]
+}
