@@ -860,7 +860,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:hover {
 	background: var(--vscode-welcomePage-tileHoverBackground);
-	outline-color: var(--vscode-contrastActiveBorder);
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.expanded:hover  {
