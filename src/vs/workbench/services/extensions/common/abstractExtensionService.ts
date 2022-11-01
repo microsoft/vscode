@@ -1518,7 +1518,7 @@ class ProposedApiController {
 			extension.enabledApiProposals = extension.enabledApiProposals.filter(name => {
 				const result = Boolean(allApiProposals[<ApiProposalName>name]);
 				if (!result) {
-					this._logService.critical(`Extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
+					this._logService.error(`Extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
 				}
 				return result;
 			});
@@ -1537,10 +1537,10 @@ class ProposedApiController {
 			const extensionSet = new Set(extension.enabledApiProposals);
 			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
 			if (diff.size > 0) {
-				this._logService.critical(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
+				this._logService.error(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
 
 				if (this._environmentService.isExtensionDevelopment) {
-					this._logService.critical(`Proceeding with EXTRA proposals (${[...diff].join(', ')}) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.`);
+					this._logService.error(`Proceeding with EXTRA proposals (${[...diff].join(', ')}) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.`);
 					productEnabledProposals.push(...diff);
 				}
 			}
@@ -1557,7 +1557,7 @@ class ProposedApiController {
 
 		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
-			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
+			this._logService.error(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
 		}
 	}

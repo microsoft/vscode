@@ -163,11 +163,6 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
-export interface IDataLinkClickEvent {
-	readonly dataURL: string;
-	readonly downloadName?: string;
-}
-
 export interface WebviewMessageReceivedEvent {
 	readonly message: any;
 	readonly transfer?: readonly ArrayBuffer[];
