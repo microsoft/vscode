@@ -265,7 +265,7 @@ async function searchForFileLocation(filename: string, fsProvider: IFileSystemPr
 		}
 
 		for (const subdir of subdirs) {
-			const result = search(subdir);
+			const result = await search(subdir);
 			if (result) {
 				return result;
 			}
