@@ -17,7 +17,7 @@ export class FindFileReferencesCommand implements Command {
 	public readonly id = 'markdown.findAllFileReferences';
 
 	constructor(
-		private readonly client: MdLanguageClient,
+		private readonly _client: MdLanguageClient,
 	) { }
 
 	public async execute(resource?: vscode.Uri) {
@@ -31,7 +31,7 @@ export class FindFileReferencesCommand implements Command {
 			location: vscode.ProgressLocation.Window,
 			title: localize('progress.title', "Finding file references")
 		}, async (_progress, token) => {
-			const locations = (await this.client.getReferencesToFileInWorkspace(resource!, token)).map(loc => {
+			const locations = (await this._client.getReferencesToFileInWorkspace(resource!, token)).map(loc => {
 				return new vscode.Location(vscode.Uri.parse(loc.uri), convertRange(loc.range));
 			});
 
