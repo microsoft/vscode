@@ -10,6 +10,8 @@ import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 /**
  * This function is called before test running and also again at the end of test running
  * and can be used to add assertions. e.g. that registries are empty, etc.
+ *
+ * !! This is called directly by the testing framework.
  */
 export function assertCleanState(): void {
 	// If this test fails, it is a clear indication that

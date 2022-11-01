@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-"@joaomoreno/unique-names-generator@5.0.0":
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/@joaomoreno/unique-names-generator/-/unique-names-generator-5.0.0.tgz#a67fe66e3d825c929fc97abfdf17fd80a72beab0"
-  integrity sha512-3kP6z7aoGEoM3tvhTBZioYa1QFkovOU8uxAlVclnZlXivwF/WTE5EcOzvoDdM+jtjJyWvCMDR1Q4RBjDqupD3A==
+"@joaomoreno/unique-names-generator@^5.1.0":
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/@joaomoreno/unique-names-generator/-/unique-names-generator-5.1.0.tgz#d577d425aed794c44c0e8863cddd5dea349f74f3"
+  integrity sha512-KEVThTpUIKPb7dBKJ9mJ3WYnD1mJZZsEinCSp9CVEPlWbDagurFv1RKRjvvujrLfJzsGc0HkBHS9W8Bughao4A==
 
 "@microsoft/1ds-core-js@3.2.3", "@microsoft/1ds-core-js@^3.2.3":
   version "3.2.3"

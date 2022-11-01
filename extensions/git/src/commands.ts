@@ -452,10 +452,12 @@ export class CommandCenter {
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
+			current.uri = toGitUri(uri, head.hash);
 
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
+			incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
