@@ -78,16 +78,22 @@ steps:
         displayName: Merge distro
 
   - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
       if (!(Test-Path ".build")) { New-Item -Path ".build" -ItemType Directory }
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
-      "$env:NPM_REGISTRY" | Out-File -Encoding ascii -NoNewLine .build\npm_registry
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/arch, .build/npm_registry, .build/yarnlockhash"
+      key: "nodeModules | $(Agent.OS) | .build/arch, .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -119,13 +125,6 @@ steps:
       workingFile: .npmrc
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Registry
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1

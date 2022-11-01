@@ -16,7 +16,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
-import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, TerminalQuickFixAction, TerminalQuickFixMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -28,6 +28,10 @@ import { IDecoration, Terminal } from 'xterm';
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
+import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	id: string;
@@ -75,6 +79,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -94,6 +99,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
+		for (const quickFix of this._terminalContributionService.quickFixes) {
+			this.registerCommandFinishedListener(convertToQuickFixOptions(quickFix));
+		}
+		this.registerCommandFinishedListener(gitSimilar());
+		this.registerCommandFinishedListener(convertToQuickFixOptions(gitCreatePr()));
+		this.registerCommandFinishedListener(convertToQuickFixOptions(gitPushSetUpstream()));
 	}
 
 	activate(terminal: Terminal): void {
@@ -331,3 +342,64 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { background-color: ${backgroundColor.toString()}; } `);
 	}
 });
+
+export function convertToQuickFixOptions(quickFix: IExtensionTerminalQuickFix): ITerminalQuickFixOptions {
+	const type = quickFix.commandToRun ? 'command' : quickFix.linkToOpen ? 'opener' : undefined;
+	const options = {
+		id: quickFix.id,
+		commandLineMatcher: quickFix.commandLineMatcher,
+		outputMatcher: quickFix.outputMatcher,
+		type,
+		getQuickFixes: type === 'command' ? (matchResult: TerminalQuickFixMatchResult) => {
+			const matches = matchResult.outputMatch;
+			const commandToRun = quickFix.commandToRun;
+			if (!matches || !commandToRun) {
+				return;
+			}
+			const groups = matches.groups;
+			if (!groups) {
+				return;
+			}
+			const actions: TerminalQuickFixAction[] = [];
+			let fixedCommand = commandToRun;
+			for (const [key, value] of Object.entries(groups)) {
+				const varToResolve = '${group:' + `${key}` + '}';
+				if (!commandToRun.includes(varToResolve)) {
+					return [];
+				}
+				fixedCommand = fixedCommand.replaceAll(varToResolve, value);
+			}
+			if (fixedCommand) {
+				actions.push({
+					type: 'command',
+					command: fixedCommand,
+					addNewLine: true
+				});
+				return actions;
+			}
+			return;
+		} : (matchResult: TerminalQuickFixMatchResult) => {
+			const matches = matchResult.outputMatch;
+			const linkToOpen = quickFix.linkToOpen;
+			if (!matches || !linkToOpen) {
+				return;
+			}
+			const groups = matches.groups;
+			if (!groups) {
+				return;
+			}
+			let link = linkToOpen;
+			for (const [key, value] of Object.entries(groups)) {
+				const varToResolve = '${group:' + `${key}` + '}';
+				if (!linkToOpen?.includes(varToResolve)) {
+					return [];
+				}
+				link = link.replaceAll(varToResolve, value);
+			}
+			return link ? { type: 'opener', uri: URI.parse(link) } as ITerminalQuickFixOpenerAction : [];
+		},
+		exitStatus: quickFix.exitStatus,
+		source: quickFix.extensionIdentifier
+	};
+	return options;
+}

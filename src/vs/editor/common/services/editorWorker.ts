@@ -12,8 +12,7 @@ import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeText
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 
-export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
-export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
+export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;

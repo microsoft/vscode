@@ -259,7 +259,7 @@ export function serializeWebviewOptions(
 	};
 }
 
-export function reviveOptions(options: extHostProtocol.IWebviewContentOptions): vscode.WebviewOptions {
+function reviveOptions(options: extHostProtocol.IWebviewContentOptions): vscode.WebviewOptions {
 	return {
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,

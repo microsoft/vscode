@@ -18,12 +18,12 @@ type DirWatcherEntry = {
 
 export class FileWatcherManager {
 
-	private readonly fileWatchers = new Map<number, {
+	private readonly _fileWatchers = new Map<number, {
 		readonly watcher: vscode.FileSystemWatcher;
 		readonly dirWatchers: DirWatcherEntry[];
 	}>();
 
-	private readonly dirWatchers = new ResourceMap<{
+	private readonly _dirWatchers = new ResourceMap<{
 		readonly watcher: vscode.FileSystemWatcher;
 		refCount: number;
 	}>();
@@ -31,7 +31,7 @@ export class FileWatcherManager {
 	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, listeners: { create?: () => void; change?: () => void; delete?: () => void }): void {
 		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'), !listeners.create, !listeners.change, !listeners.delete);
 		const parentDirWatchers: DirWatcherEntry[] = [];
-		this.fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
+		this._fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
 
 		if (listeners.create) { watcher.onDidCreate(listeners.create); }
 		if (listeners.change) { watcher.onDidChange(listeners.change); }
@@ -42,12 +42,12 @@ export class FileWatcherManager {
 			for (let dirUri = Utils.dirname(uri); dirUri.path.length > 1; dirUri = Utils.dirname(dirUri)) {
 				const dirWatcher: DirWatcherEntry = { uri: dirUri, listeners: [] };
 
-				let parentDirWatcher = this.dirWatchers.get(dirUri);
+				let parentDirWatcher = this._dirWatchers.get(dirUri);
 				if (!parentDirWatcher) {
 					const glob = new vscode.RelativePattern(Utils.dirname(dirUri), Utils.basename(dirUri));
 					const parentWatcher = vscode.workspace.createFileSystemWatcher(glob, !listeners.create, true, !listeners.delete);
 					parentDirWatcher = { refCount: 0, watcher: parentWatcher };
-					this.dirWatchers.set(dirUri, parentDirWatcher);
+					this._dirWatchers.set(dirUri, parentDirWatcher);
 				}
 				parentDirWatcher.refCount++;
 
@@ -77,16 +77,16 @@ export class FileWatcherManager {
 	}
 
 	delete(id: number): void {
-		const entry = this.fileWatchers.get(id);
+		const entry = this._fileWatchers.get(id);
 		if (entry) {
 			for (const dirWatcher of entry.dirWatchers) {
 				disposeAll(dirWatcher.listeners);
 
-				const dirWatcherEntry = this.dirWatchers.get(dirWatcher.uri);
+				const dirWatcherEntry = this._dirWatchers.get(dirWatcher.uri);
 				if (dirWatcherEntry) {
 					if (--dirWatcherEntry.refCount <= 0) {
 						dirWatcherEntry.watcher.dispose();
-						this.dirWatchers.delete(dirWatcher.uri);
+						this._dirWatchers.delete(dirWatcher.uri);
 					}
 				}
 			}
@@ -94,6 +94,6 @@ export class FileWatcherManager {
 			entry.watcher.dispose();
 		}
 
-		this.fileWatchers.delete(id);
+		this._fileWatchers.delete(id);
 	}
 }

@@ -263,23 +263,7 @@ impl DevTunnels {
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
 		is_valid_name(name)?;
 
-		let existing = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.rename.search"),
-			self.client.list_all_tunnels(&TunnelRequestOptions {
-				tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string(), name.to_string()],
-				require_all_tags: true,
-				..Default::default()
-			})
-		)
-		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
-
-		if !existing.is_empty() {
-			return Err(AnyError::from(TunnelCreationFailed(
-				name.to_string(),
-				"tunnel name already in use".to_string(),
-			)));
-		}
+		self.check_is_name_free(name).await?;
 
 		let mut tunnel = match self.launcher_tunnel.load() {
 			Some(t) => t,
@@ -320,14 +304,36 @@ impl DevTunnels {
 		preferred_name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
-		let matches_preferred_name = |tunnel: &PersistedTunnel| {
-			match &preferred_name {
-				Some(p) => p.eq(&tunnel.name),
-				None => true
-			}
-		};
-		let (tunnel, persisted) = match self.launcher_tunnel.load().filter(matches_preferred_name) {
-			Some(persisted) => {
+		let (tunnel, persisted) = match self.launcher_tunnel.load() {
+			Some(mut persisted) => {
+				if let Some(name) = preferred_name {
+					if persisted.name.ne(&name) {
+						self.check_is_name_free(&name).await?;
+						let mut full_tunnel = spanf!(
+							self.log,
+							self.log.span("dev-tunnel.tag.get"),
+							self.client
+								.get_tunnel(&persisted.locator(), NO_REQUEST_OPTIONS)
+						)
+						.map_err(|e| wrap(e, "failed to lookup tunnel"))?;
+
+						info!(self.log, "Updating name of existing tunnel");
+
+						full_tunnel.tags =
+							vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
+						if spanf!(
+							self.log,
+							self.log.span("dev-tunnel.tag.update"),
+							self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
+						)
+						.is_ok()
+						{
+							persisted.name = name.to_string();
+							self.launcher_tunnel.save(Some(persisted.clone()))?;
+						}
+					}
+				}
+
 				let tunnel_lookup = spanf!(
 					self.log,
 					self.log.span("dev-tunnel.tag.get"),
@@ -356,7 +362,9 @@ impl DevTunnels {
 			}
 			None => {
 				debug!(self.log, "No code server tunnel found, creating new one");
-				let name = self.get_name_for_tunnel(preferred_name, use_random_name).await?;
+				let name = self
+					.get_name_for_tunnel(preferred_name, use_random_name)
+					.await?;
 				let (persisted, full_tunnel) = self.create_tunnel(&name).await?;
 				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				(full_tunnel, persisted)
@@ -517,9 +525,31 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn get_name_for_tunnel(&mut self, preferred_name: Option<String>, mut use_random_name: bool) -> Result<String, AnyError> {
+	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
+		let existing = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.rename.search"),
+			self.client.list_all_tunnels(&TunnelRequestOptions {
+				tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string(), name.to_string()],
+				require_all_tags: true,
+				..Default::default()
+			})
+		)
+		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
+		if !existing.is_empty() {
+			return Err(AnyError::from(TunnelCreationFailed(
+				name.to_string(),
+				"tunnel name already in use".to_string(),
+			)));
+		};
+		Ok(())
+	}
 
-
+	async fn get_name_for_tunnel(
+		&mut self,
+		preferred_name: Option<String>,
+		mut use_random_name: bool,
+	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_all_server_tunnels().await?;
 		let is_name_free = |n: &str| {
 			!existing_tunnels
@@ -536,7 +566,10 @@ impl DevTunnels {
 			if is_name_free(&name) {
 				return Ok(name);
 			}
-			info!(self.log, "{} is already taken, using a random name instead", &name);
+			info!(
+				self.log,
+				"{} is already taken, using a random name instead", &name
+			);
 			use_random_name = true;
 		}
 

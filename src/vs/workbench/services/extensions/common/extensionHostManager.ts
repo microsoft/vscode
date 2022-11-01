@@ -63,7 +63,7 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 	return instantiationService.createInstance(ExtensionHostManager, extensionHostId, extensionHost, initialActivationEvents, internalExtensionService);
 }
 
-export type ExtensionHostStartupClassification = {
+type ExtensionHostStartupClassification = {
 	owner: 'alexdima';
 	comment: 'The startup state of the extension host';
 	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time reported by Date.now().' };
@@ -74,7 +74,7 @@ export type ExtensionHostStartupClassification = {
 	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error stack.' };
 };
 
-export type ExtensionHostStartupEvent = {
+type ExtensionHostStartupEvent = {
 	time: number;
 	action: 'starting' | 'success' | 'error';
 	kind: string;

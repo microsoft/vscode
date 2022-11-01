@@ -20,7 +20,7 @@ import { encodeBase64 } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/browser/editSessionsStorageService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -57,8 +57,8 @@ import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
@@ -292,13 +292,24 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
-				if (uri === undefined) { return; }
-
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
-					ref = await that.storeEditSession(false);
+					ref = await that.progressService.withProgress({
+						location: ProgressLocation.Notification,
+						type: 'syncing',
+						title: localize('store your edit session', 'Storing your edit session...')
+					}, async () => that.storeEditSession(false));
+				}
+
+				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
+				if (uri === undefined) {
+					// If the user didn't end up picking a Continue On destination
+					// and we stored an edit session, clean up the stored edit session
+					if (ref !== undefined) {
+						void that.editSessionsStorageService.delete(ref);
+					}
+					return;
 				}
 
 				// Append the ref to the URI
@@ -397,7 +408,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			} else if (ref !== undefined) {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
 			}
-			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
+			this.logService.info(ref !== undefined ? `Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
 			return;
 		}
 		const editSession = data.editSession;
