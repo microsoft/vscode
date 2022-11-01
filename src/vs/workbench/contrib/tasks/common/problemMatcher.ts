@@ -244,7 +244,12 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 }
 
 async function searchForFileLocation(filename: string, fsProvider: IFileSystemProvider, args: Config.SearchFileLocationArgs): Promise<URI | undefined> {
+	const exclusions = new Set(args.exclude?.map(x => URI.file(x).path) ?? []);
 	async function search(dir: URI): Promise<URI | undefined> {
+		if (exclusions.has(dir.path)) {
+			return undefined;
+		}
+
 		const entries = await fsProvider.readdir(dir);
 		const subdirs: URI[] = [];
 
