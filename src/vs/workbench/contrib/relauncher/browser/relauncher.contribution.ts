@@ -61,21 +61,25 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
 
+		function processChanged(didChange: boolean) {
+			changed = changed || didChange;
+		}
+
 		if (isNative) {
 			// Titlebar style
-			changed = changed || (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle);
+			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 			// Windows: Window Controls Overlay
-			changed = changed || isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled);
+			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled));
 			// Windows: Sandbox
-			changed = changed || this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox);
+			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
 			// macOS: Native tabs
-			changed = changed || isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs);
+			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
 			// macOS: Native fullscreen
-			changed = changed || isMacintosh && this.nativeFullScreen.handleChange(config.window?.nativeFullScreen);
+			processChanged(isMacintosh && this.nativeFullScreen.handleChange(config.window?.nativeFullScreen));
 			// macOS: Click through (accept first mouse)
-			changed = changed || isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive);
+			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 			// Update channel
-			changed = changed || this.updateMode.handleChange(config.update?.mode);
+			processChanged(this.updateMode.handleChange(config.update?.mode));
 
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
@@ -86,15 +90,15 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 
 			// Workspace trust
-			changed = changed || this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled);
+			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
 
 		}
 		// Profiles
-		changed = changed || this.productService.quality === 'stable' && this.settingsProfilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled);
+		processChanged(this.productService.quality === 'stable' && this.settingsProfilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
 		// Experiments
-		changed = changed || this.experimentsEnabled.handleChange(config.workbench?.enableExperiments);
+		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));
 		// Profiles
-		changed = changed || this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE);
+		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
