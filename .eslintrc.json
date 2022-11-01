@@ -69,6 +69,7 @@
 			}
 		],
 		"local/code-translation-remind": "warn",
+		"local/code-only-privates-use-underscore": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
@@ -120,11 +121,13 @@
 		},
 		{
 			"files": [
-				"**/*.test.ts"
+				"**/*.test.ts",
+				"**/test/**"
 			],
 			"rules": {
 				"local/code-no-test-only": "error",
-				"local/code-no-unexternalized-strings": "off"
+				"local/code-no-unexternalized-strings": "off",
+				"local/code-only-privates-use-underscore": "off"
 			}
 		},
 		{
@@ -331,7 +334,7 @@
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
-							"@microsoft/1ds-core-js",// node module allowed even in /common/
+							"@microsoft/1ds-core-js", // node module allowed even in /common/
 							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
