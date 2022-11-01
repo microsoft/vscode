@@ -34,13 +34,13 @@ import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
-	id: string;
+	quickFixId: string;
 	fixesShown: boolean;
 	ranQuickFixCommand?: boolean;
 };
 type QuickFixClassification = {
 	owner: 'meganrogge';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
+	quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
 	fixesShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the fixes were shown by the user' };
 	ranQuickFixCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
 	comment: 'Terminal quick fixes';
@@ -132,15 +132,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._register(commandDetection.onCommandFinished(command => {
 			if (this._expectedCommands) {
-				const id = this._fixId || '';
+				const quickFixId = this._fixId || '';
 				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
 				this._logService.debug(quickFixTelemetryTitle, {
-					id,
+					quickFixId,
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
 				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-					id,
+					quickFixId,
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
@@ -175,15 +175,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._expectedCommands = expectedCommands;
 		this._fixId = fixes.map(f => f.id).join('');
 		this._quickFixes = fixes;
-		this._register(onDidRunQuickFix((id) => {
+		this._register(onDidRunQuickFix((quickFixId) => {
 			const ranQuickFixCommand = (this._expectedCommands?.includes(command.command) || false);
 			this._logService.debug(quickFixTelemetryTitle, {
-				id,
+				quickFixId,
 				fixesShown: this._fixesShown,
 				ranQuickFixCommand
 			});
 			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-				id,
+				quickFixId,
 				fixesShown: this._fixesShown,
 				ranQuickFixCommand
 			});
