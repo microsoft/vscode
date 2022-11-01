@@ -21,7 +21,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { isWindows } from 'vs/base/common/platform';
@@ -40,6 +40,7 @@ suite('SearchResult', () => {
 		instantiationService.stubPromise(IReplaceService, {});
 		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
 		instantiationService.stub(ILabelService, new MockLabelService());
+		instantiationService.stub(ILogService, new NullLogService());
 	});
 
 	test('Line Match', function () {
