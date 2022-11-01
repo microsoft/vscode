@@ -245,7 +245,8 @@ function minifyTask(src, sourceMapBaseUrl) {
                 outdir: '.',
                 platform: 'node',
                 target: ['esnext'],
-                write: false
+                write: false,
+                mangleProps: /^_\w+Service$/,
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));
                 const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path));
