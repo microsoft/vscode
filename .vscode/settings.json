@@ -12,7 +12,8 @@
 		}
 	},
 	"files.associations": {
-		"cglicenses.json": "jsonc"
+		"cglicenses.json": "jsonc",
+		"*.tst": "typescript"
 	},
 	"search.exclude": {
 		"**/node_modules": true,

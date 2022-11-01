@@ -1,6 +1,6 @@
 {
-	"originalFileName": "./1.tsx",
-	"modifiedFileName": "./2.tsx",
+	"originalFileName": "./1.tst",
+	"modifiedFileName": "./2.tst",
 	"diffs": [
 		{
 			"originalRange": "[2,2)",
