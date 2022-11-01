@@ -42,7 +42,7 @@ export interface IReplaceInputStyles extends IInputBoxStyles {
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseToggle', "Preserve Case");
 
-export class PreserveCaseToggle extends Toggle {
+class PreserveCaseToggle extends Toggle {
 	constructor(opts: IFindInputToggleOpts) {
 		super({
 			// TODO: does this need its own icon?
