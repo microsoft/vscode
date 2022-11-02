@@ -267,7 +267,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 		const focusIndex = focused[0];
 		const element = this.list.element(focusIndex);
-		if (this.focusCondition(element)) {
+		if (!this.focusCondition(element)) {
 			return;
 		}
 
