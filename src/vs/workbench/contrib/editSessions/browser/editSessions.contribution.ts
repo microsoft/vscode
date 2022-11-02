@@ -56,6 +56,7 @@ import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -117,6 +118,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IActivityService private readonly activityService: IActivityService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -295,11 +297,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
-					ref = await that.progressService.withProgress({
-						location: ProgressLocation.Notification,
-						type: 'syncing',
-						title: localize('store your edit session', 'Storing your edit session...')
-					}, async () => that.storeEditSession(false));
+					ref = await that.storeEditSession(false);
 				}
 
 				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
@@ -408,7 +406,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			} else if (ref !== undefined) {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
 			}
-			this.logService.info(ref !== undefined ? `Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
+			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
 		const editSession = data.editSession;
@@ -561,6 +559,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
 		const folders: Folder[] = [];
 		let hasEdits = false;
+
+		// Save all saveable editors before building edit session contents
+		await this.editorService.saveAll();
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
