@@ -23,7 +23,7 @@ import { ExtHostCommands } from './extHostCommands';
 
 type ProviderHandle = number;
 
-export interface ExtHostComments {
+interface ExtHostComments {
 	createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController;
 }
 

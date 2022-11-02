@@ -1246,7 +1246,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (!this._webview) {
-			this._createWebview(this.getId(), this.textModel.viewType, this.textModel.uri);
+			this._ensureWebview(this.getId(), this.textModel.viewType, this.textModel.uri);
 		}
 
 		this._webviewResolvePromise = (async () => {
@@ -1283,7 +1283,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._webviewResolvePromise;
 	}
 
-	private async _createWebview(id: string, viewType: string, resource: URI): Promise<void> {
+	private _ensureWebview(id: string, viewType: string, resource: URI) {
+		if (this._webview) {
+			return;
+		}
+
 		const that = this;
 
 		this._webview = this.instantiationService.createInstance(BackLayerWebView, {
@@ -1316,7 +1320,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
-		await this._createWebview(this.getId(), textModel.viewType, textModel.uri);
+		this._ensureWebview(this.getId(), textModel.viewType, textModel.uri);
+
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
