@@ -82,8 +82,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private createWorkspaceTrustElement(): HTMLElement {
 		const workspaceTrustElement = $('span.setting-item-workspace-trust');
 		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
-		workspaceTrustLabel.text = localize('workspaceUntrustedLabel', "Requires Workspace Trust");
-		const contentFallback = localize('trustLabel', "This setting can only be applied in a trusted workspace.");
+		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
+		const contentFallback = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
 
 		const contentMarkdownString = contentFallback + ` [${localize('manageWorkspaceTrust', "Manage Workspace Trust")}](manage-workspace-trust).`;
 		const content: ITooltipMarkdownString = {
@@ -128,7 +128,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private render() {
-		const elementsToShow = [this.scopeOverridesElement, this.workspaceTrustElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
+		const elementsToShow = [this.workspaceTrustElement, this.scopeOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
 			return element.style.display !== 'none';
 		});
 
@@ -181,10 +181,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesElement.style.display = 'inline';
 			this.scopeOverridesElement.classList.add('with-custom-hover');
 
-			const policyText = localize('policyLabelText', "Managed by policy");
-			this.scopeOverridesLabel.text = policyText;
-
-			const contentFallback = localize('policyDescription', "This setting is managed by your organization.");
+			this.scopeOverridesLabel.text = '$(warning) ' + localize('policyLabelText', "Setting value not applied");
+			const contentFallback = localize('policyDescription', "This setting is managed by your organization and its applied value cannot be changed.");
 			const contentMarkdownString = contentFallback + ` [${localize('policyFilterLink', "View policy settings")}](policy-settings).`;
 			const content: ITooltipMarkdownString = {
 				markdown: {
@@ -361,12 +359,12 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	// Add workspace trust text
 	if (element.isUntrusted) {
-		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value will not take effect"));
+		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value not applied"));
 	}
 
 	const profilesEnabled = userDataProfilesService.isEnabled();
 	if (element.hasPolicyValue) {
-		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy"));
+		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
 	} else if (profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {

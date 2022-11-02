@@ -55,7 +55,7 @@ declare module vsda {
 	}
 }
 
-export class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
+class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };

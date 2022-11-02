@@ -13,6 +13,7 @@
 		"activityBarBadge.background": "#007ACC",
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
+		"menu.border": "#D4D4D4",
 		"input.placeholderForeground": "#767676",
 		"searchEditor.textInputBorder": "#CECECE",
 		"settings.textInputBorder": "#CECECE",

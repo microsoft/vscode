@@ -46,24 +46,26 @@ export class AccessibilityHelpController extends Disposable implements IEditorCo
 	}
 
 	private _editor: ICodeEditor;
-	private _widget: AccessibilityHelpWidget;
+	private _widget?: AccessibilityHelpWidget;
 
 	constructor(
 		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
 	}
 
 	public show(): void {
+		if (!this._widget) {
+			this._widget = this._register(this.instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
+		}
 		this._widget.show();
 	}
 
 	public hide(): void {
-		this._widget.hide();
+		this._widget?.hide();
 	}
 }
 

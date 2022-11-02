@@ -11,6 +11,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 export interface IEditSessionIdentityProvider {
 	readonly scheme: string;
 	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, token: CancellationToken): Promise<string | undefined>;
+	provideEditSessionIdentityMatch(workspaceFolder: IWorkspaceFolder, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 }
 
 export const IEditSessionIdentityService = createDecorator<IEditSessionIdentityService>('editSessionIdentityService');
@@ -20,4 +21,11 @@ export interface IEditSessionIdentityService {
 
 	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): IDisposable;
 	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined>;
+	provideEditSessionIdentityMatch(workspaceFolder: IWorkspaceFolder, identity1: string, identity2: string, cancellationTokenSource: CancellationTokenSource): Promise<EditSessionIdentityMatch | undefined>;
+}
+
+export enum EditSessionIdentityMatch {
+	Complete = 100,
+	Partial = 50,
+	None = 0,
 }

@@ -20,7 +20,7 @@ import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quicki
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
-export class EditorScopedQuickInputService extends QuickInputService {
+class EditorScopedQuickInputService extends QuickInputService {
 
 	private host: IQuickInputControllerHost | undefined = undefined;
 

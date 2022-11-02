@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
-import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
+import { onDidChangeFullscreen, isFullscreen, isWCOVisible } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
@@ -167,7 +167,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			top += this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-			quickPickTop = this.titleService.isCommandCenterVisible ? quickPickTop : top;
+			quickPickTop = top;
+		}
+		// If the command center is visible then the quickinput should go over the title bar and the banner
+		if (this.titleService.isCommandCenterVisible) {
+			quickPickTop = 0;
 		}
 		return { top, quickPickTop };
 	}
@@ -480,6 +484,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout Initialization State
 		const initialEditorsState = this.getInitialEditorsState();
+		if (initialEditorsState) {
+			this.logService.info('Initial editor state', initialEditorsState);
+		}
 		const initialLayoutState: ILayoutInitializationState = {
 			layout: {
 				editors: initialEditorsState?.layout
@@ -598,7 +605,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (initialEditorsState) {
 
 			// Merge editor (single)
-			const filesToMerge = coalesce(await pathsToEditors(initialEditorsState.filesToMerge, fileService));
+			const filesToMerge = coalesce(await pathsToEditors(initialEditorsState.filesToMerge, fileService, this.logService));
 			if (filesToMerge.length === 4 && isResourceEditorInput(filesToMerge[0]) && isResourceEditorInput(filesToMerge[1]) && isResourceEditorInput(filesToMerge[2]) && isResourceEditorInput(filesToMerge[3])) {
 				return [{
 					editor: {
@@ -612,7 +619,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			// Diff editor (single)
-			const filesToDiff = coalesce(await pathsToEditors(initialEditorsState.filesToDiff, fileService));
+			const filesToDiff = coalesce(await pathsToEditors(initialEditorsState.filesToDiff, fileService, this.logService));
 			if (filesToDiff.length === 2) {
 				return [{
 					editor: {
@@ -625,7 +632,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Normal editor (multiple)
 			const filesToOpenOrCreate: IEditorToOpen[] = [];
-			const resolvedFilesToOpenOrCreate = await pathsToEditors(initialEditorsState.filesToOpenOrCreate, fileService);
+			const resolvedFilesToOpenOrCreate = await pathsToEditors(initialEditorsState.filesToOpenOrCreate, fileService, this.logService);
 			for (let i = 0; i < resolvedFilesToOpenOrCreate.length; i++) {
 				const resolvedFileToOpenOrCreate = resolvedFilesToOpenOrCreate[i];
 				if (resolvedFileToOpenOrCreate) {
@@ -767,7 +774,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				openEditorsPromise = Promise.all(Array.from(mapEditorsToGroup).map(async ([groupId, editors]) => {
-					return this.editorService.openEditors(Array.from(editors), groupId, { validateTrust: true });
+					try {
+						await this.editorService.openEditors(Array.from(editors), groupId, { validateTrust: true });
+					} catch (error) {
+						this.logService.error(error);
+					}
 				}));
 			}
 
@@ -1064,6 +1075,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// non-fullscreen native must show the title bar
 		if (isNative && !this.state.runtime.fullscreen) {
+			return true;
+		}
+
+		// if WCO is visible, we have to show the title bar
+		if (isWCOVisible()) {
 			return true;
 		}
 

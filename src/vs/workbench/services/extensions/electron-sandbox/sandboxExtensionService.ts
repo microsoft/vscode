@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionHostKind, ExtensionRunningLocation, IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ElectronExtensionService } from 'vs/workbench/services/extensions/electron-sandbox/electronExtensionService';
 import { NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost';
@@ -19,4 +19,4 @@ export class SandboxExtensionService extends ElectronExtensionService {
 	}
 }
 
-registerSingleton(IExtensionService, SandboxExtensionService, false);
+registerSingleton(IExtensionService, SandboxExtensionService, InstantiationType.Eager);

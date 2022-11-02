@@ -245,7 +245,7 @@ export class SelectionToReplAction extends EditorAction {
 			id: SelectionToReplAction.ID,
 			label: SelectionToReplAction.LABEL,
 			alias: 'Debug: Evaluate in Console',
-			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 0
@@ -262,7 +262,14 @@ export class SelectionToReplAction extends EditorAction {
 			return;
 		}
 
-		const text = editor.getModel().getValueInRange(editor.getSelection());
+		const selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+		} else {
+			text = editor.getModel().getValueInRange(selection);
+		}
+
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
 		await viewsService.openView(REPL_VIEW_ID, false);
 	}

@@ -1,7 +1,6 @@
 {
 	"displayName": "Git",
 	"description": "Git SCM Integration",
-	"command.setLogLevel": "Set Log Level...",
 	"command.clone": "Clone",
 	"command.cloneRecursive": "Clone (Recursive)",
 	"command.init": "Initialize Repository",
@@ -236,21 +235,6 @@
 	"config.repositoryScanIgnoredFolders": "List of folders that are ignored while scanning for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`.",
 	"config.repositoryScanMaxDepth": "Controls the depth used when scanning workspace folders for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`. Can be set to `-1` for no limit.",
 	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
-	"config.logLevel": {
-		"message": "Specifies how much information (if any) to log to the [git output](command:git.showOutput).",
-		"comment": [
-			"{Locked='](command:git.showOutput'}",
-			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
-			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
-		]
-	},
-	"config.logLevel.trace": "Log all information",
-	"config.logLevel.debug": "Log only debug, information, warning, error, and critical information",
-	"config.logLevel.info": "Log only information, warning, error, and critical information",
-	"config.logLevel.warn": "Log only warning, error, and critical information",
-	"config.logLevel.error": "Log only error, and critical information",
-	"config.logLevel.critical": "Log only critical information",
-	"config.logLevel.off": "Log nothing",
 	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",

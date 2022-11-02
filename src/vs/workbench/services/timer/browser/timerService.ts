@@ -12,10 +12,11 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -398,6 +399,14 @@ export interface ITimerService {
 	whenReady(): Promise<boolean>;
 
 	/**
+	 * A baseline performance indicator for this machine. The value will only available
+	 * late after startup because computing it takes away CPU resources
+	 *
+	 * NOTE that this returns -1 if the machine is hopelessly slow...
+	 */
+	perfBaseline: Promise<number>;
+
+	/**
 	 * Startup metrics. Can ONLY be accessed after `whenReady` has resolved.
 	 */
 	readonly startupMetrics: IStartupMetrics;
@@ -461,7 +470,10 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
+
 	private _startupMetrics?: IStartupMetrics;
+
+	readonly perfBaseline: Promise<number>;
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -487,6 +499,38 @@ export abstract class AbstractTimerService implements ITimerService {
 			this._reportStartupTimes(metrics);
 			this._barrier.open();
 		});
+
+
+		this.perfBaseline = this._barrier.wait()
+			.then(() => this._lifecycleService.when(LifecyclePhase.Eventually))
+			.then(() => timeout(this._startupMetrics!.timers.ellapsedRequire))
+			.then(() => {
+
+				// we use fibonacci numbers to have a performance baseline that indicates
+				// how slow/fast THIS machine actually is.
+				const sw = new StopWatch(true);
+				let tooSlow = false;
+				function fib(n: number): number {
+					if (tooSlow) {
+						return 0;
+					}
+					if (sw.elapsed() >= 1000) {
+						tooSlow = true;
+					}
+					if (n <= 2) {
+						return n;
+					}
+					return fib(n - 1) + fib(n - 2);
+				}
+
+				// the following operation took ~16ms (one frame at 64FPS) to complete on my machine. We derive performance observations
+				// from that. We also bail if that took too long (>1s)
+				sw.reset();
+				fib(24);
+				const value = Math.round(sw.elapsed());
+
+				return (tooSlow ? -1 : value);
+			});
 	}
 
 	whenReady(): Promise<boolean> {
@@ -503,7 +547,9 @@ export abstract class AbstractTimerService implements ITimerService {
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
 		// Perf marks are a shared resource because anyone can generate them
 		// and because of that we only accept marks that start with 'code/'
-		this._marks.setMarks(source, marks.filter(mark => mark.name.startsWith('code/')));
+		const codeMarks = marks.filter(mark => mark.name.startsWith('code/'));
+		this._marks.setMarks(source, codeMarks);
+		this._reportPerformanceMarks(source, codeMarks);
 	}
 
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
@@ -521,34 +567,30 @@ export abstract class AbstractTimerService implements ITimerService {
 			}
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
+	}
 
-
+	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {
 		// report raw timers as telemetry. each mark is send a separate telemetry
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
-		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
-			type MarkClassification = {
-				owner: 'jrieken';
-				comment: 'Information about a performance marker';
-				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
-				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
-				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The duration between the previous and this marker' };
-				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
-			};
 
-			let lastMark: perf.PerformanceMark = marks[0];
-			for (const mark of marks) {
-				const delta = mark.startTime - lastMark.startTime;
-				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
-					source,
-					name: mark.name,
-					relativeStartTime: delta,
-					startTime: mark.startTime
-				});
-				lastMark = mark;
-			}
+		type Mark = { source: string; name: string; startTime: number };
+		type MarkClassification = {
+			owner: 'jrieken';
+			comment: 'Information about a performance marker';
+			source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
+			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
+		};
+
+		for (const mark of marks) {
+			this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
+				source,
+				name: mark.name,
+				startTime: mark.startTime
+			});
 		}
+
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
