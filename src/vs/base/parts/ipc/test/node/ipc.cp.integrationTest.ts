@@ -5,9 +5,10 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { TestServiceClient } from './testService';
+import { ITestService, TestServiceClient } from './testService';
 
 function createClient(): Client {
 	return new Client(getPathFromAmdModule(require, 'bootstrap-fork'), {
@@ -20,23 +21,27 @@ suite('IPC, Child Process', function () {
 	this.slow(2000);
 	this.timeout(10000);
 
-	test('createChannel', async () => {
-		const client = createClient();
-		const channel = client.getChannel('test');
-		const service = new TestServiceClient(channel);
+	let client: Client;
+	let channel: IChannel;
+	let service: ITestService;
 
-		const result = await service.pong('ping');
-		assert.strictEqual(result.incoming, 'ping');
-		assert.strictEqual(result.outgoing, 'pong');
+	setup(() => {
+		client = createClient();
+		channel = client.getChannel('test');
+		service = new TestServiceClient(channel);
+	});
 
+	teardown(() => {
 		client.dispose();
 	});
 
-	test('events', async () => {
-		const client = createClient();
-		const channel = client.getChannel('test');
-		const service = new TestServiceClient(channel);
+	test('createChannel', async () => {
+		const result = await service.pong('ping');
+		assert.strictEqual(result.incoming, 'ping');
+		assert.strictEqual(result.outgoing, 'pong');
+	});
 
+	test('events', async () => {
 		const event = Event.toPromise(Event.once(service.onMarco));
 		const promise = service.marco();
 
@@ -44,15 +49,9 @@ suite('IPC, Child Process', function () {
 
 		assert.strictEqual(promiseResult, 'polo');
 		assert.strictEqual(eventResult.answer, 'polo');
-
-		client.dispose();
 	});
 
 	test('event dispose', async () => {
-		const client = createClient();
-		const channel = client.getChannel('test');
-		const service = new TestServiceClient(channel);
-
 		let count = 0;
 		const disposable = service.onMarco(() => count++);
 
@@ -68,7 +67,5 @@ suite('IPC, Child Process', function () {
 		const answer_2 = await service.marco();
 		assert.strictEqual(answer_2, 'polo');
 		assert.strictEqual(count, 2);
-
-		client.dispose();
 	});
 });
