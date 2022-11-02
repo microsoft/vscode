@@ -130,7 +130,10 @@ export class TaskTerminalStatus extends Disposable {
 		}
 		if (!terminalData.disposeListener) {
 			terminalData.disposeListener = terminalData.terminal.onDisposed(() => {
-				this.terminalMap.delete(event.terminalId!);
+				if (!event.terminalId) {
+					return;
+				}
+				this.terminalMap.delete(event.terminalId);
 				terminalData.disposeListener?.dispose();
 			});
 		}
