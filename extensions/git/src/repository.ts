@@ -2011,26 +2011,13 @@ export class Repository implements Disposable {
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
-			const updateResourceStates = (resourcesGroups: GitResourceGroups) => {
-				// set resource groups
-				if (resourcesGroups.indexGroup) { this.indexGroup.resourceStates = resourcesGroups.indexGroup; }
-				if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
-				if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
-				if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
-
-				// set count badge
-				this.setCountBadge();
-
-				this._onDidChangeStatus.fire();
-			};
-
 			// Optimistically update the resource states
 			if (optimisticResourcesGroups) {
-				updateResourceStates(optimisticResourcesGroups);
+				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
 			// Update resource states based on status information
-			updateResourceStates(await this.getStatus(cancellationToken));
+			this._updateResourceGroupsState(await this.getStatus(cancellationToken));
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -2039,6 +2026,19 @@ export class Repository implements Disposable {
 
 			throw err;
 		}
+	}
+
+	private _updateResourceGroupsState(resourcesGroups: GitResourceGroups): void {
+		// set resource groups
+		if (resourcesGroups.indexGroup) { this.indexGroup.resourceStates = resourcesGroups.indexGroup; }
+		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
+		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
+		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+
+		// set count badge
+		this.setCountBadge();
+
+		this._onDidChangeStatus.fire();
 	}
 
 	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {
