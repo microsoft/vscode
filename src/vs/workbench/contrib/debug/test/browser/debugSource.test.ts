@@ -37,7 +37,7 @@ suite('Debug - Source', () => {
 		assert.strictEqual(source.name, 'internalModule.js');
 		assert.strictEqual(source.inMemory, true);
 		assert.strictEqual(source.reference, 11);
-		assert.strictEqual(source.uri.toString(), 'debug:internalModule.js?session%3DaDebugSessionId%26ref%3D11');
+		assert.strictEqual(source.uri.toString(), 'debug:internalModule.js?session=aDebugSessionId&ref=11');
 	});
 
 	test('get encoded debug data', () => {
