@@ -49,15 +49,16 @@ interface ITerminalQuickFixDelegate {
 
 export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 
-	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
-	) {
-		super();
-	}
-
 	private static _instance?: TerminalQuickFixWidget;
+
+	public static get INSTANCE(): TerminalQuickFixWidget | undefined { return this._instance; }
+
+	public static getOrCreateInstance(instantiationService: IInstantiationService): TerminalQuickFixWidget {
+		if (!this._instance) {
+			this._instance = instantiationService.createInstance(TerminalQuickFixWidget);
+		}
+		return this._instance;
+	}
 
 	private _currentShowingContext?: {
 		readonly options: ActionShowOptions;
@@ -68,13 +69,16 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 		readonly delegate: ITerminalQuickFixDelegate;
 	};
 
-	public static get INSTANCE(): TerminalQuickFixWidget | undefined { return this._instance; }
+	constructor(
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
+		super();
+	}
 
-	public static getOrCreateInstance(instantiationService: IInstantiationService): TerminalQuickFixWidget {
-		if (!this._instance) {
-			this._instance = instantiationService.createInstance(TerminalQuickFixWidget);
-		}
-		return this._instance;
+	get isVisible(): boolean {
+		return !!this._currentShowingContext;
 	}
 
 	public async show(trigger: string, actions: ActionSet<TerminalQuickFix>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: ITerminalQuickFixDelegate): Promise<void> {
@@ -100,11 +104,6 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 				return this._onWidgetClosed(trigger, options, actions, didCancel, delegate);
 			},
 		}, container, false);
-	}
-
-	private _onWidgetClosed(trigger: string, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: ITerminalQuickFixDelegate): void {
-		this._currentShowingContext = undefined;
-		delegate.onHide(cancelled);
 	}
 
 	private _renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: ITerminalQuickFixDelegate): IDisposable {
@@ -176,6 +175,25 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 		return renderDisposables;
 	}
 
+	private _onWidgetClosed(trigger: string, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: ITerminalQuickFixDelegate): void {
+		this._currentShowingContext = undefined;
+		delegate.onHide(cancelled);
+	}
+
+	/**
+	 * Toggles whether the disabled actions in the quick fix widget are visible or not.
+	 */
+	private _toggleShowDisabled(newShowDisabled: boolean): void {
+		const previousCtx = this._currentShowingContext;
+
+		this.hide();
+
+		this.showDisabled = newShowDisabled;
+
+		if (previousCtx) {
+			this.show(previousCtx.trigger, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+		}
+	}
 
 	private _createActionBar(inputActions: ActionSet<TerminalQuickFix>, options: ActionShowOptions): ActionBar | undefined {
 		const actions = this._getActionBarActions(inputActions, options);
@@ -209,21 +227,6 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 			});
 		}
 		return actions;
-	}
-
-	/**
-	 * Toggles whether the disabled actions in the quick fix widget are visible or not.
-	 */
-	private _toggleShowDisabled(newShowDisabled: boolean): void {
-		const previousCtx = this._currentShowingContext;
-
-		this.hide();
-
-		this.showDisabled = newShowDisabled;
-
-		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
-		}
 	}
 }
 
