@@ -513,6 +513,9 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 			|| code === CharCode.Period
 			|| code === CharCode.Underline
 			|| code === CharCode.Tilde
+			// keep special characters: & and = as is, see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURI#description
+			|| code === CharCode.Equals
+			|| code === CharCode.Ampersand
 			|| (allowSlash && code === CharCode.Slash)
 		) {
 			// check if we are delaying native encode
