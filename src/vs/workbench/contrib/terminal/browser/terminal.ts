@@ -966,12 +966,14 @@ export type TerminalQuickFixCallback = (matchResult: TerminalQuickFixMatchResult
 
 export interface ITerminalQuickFixCommandAction {
 	type: 'command';
+	id: string;
 	command: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine: boolean;
 }
 export interface ITerminalQuickFixOpenerAction {
 	type: 'opener';
+	id: string;
 	uri: URI;
 }
 
