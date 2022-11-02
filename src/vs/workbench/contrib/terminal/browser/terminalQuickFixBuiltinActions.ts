@@ -40,6 +40,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 				const fixedCommand = results[i];
 				if (fixedCommand) {
 					actions.push({
+						id: 'Git Similar',
 						type: 'command',
 						command: command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
 						addNewLine: true
@@ -70,6 +71,7 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 			}
 			return {
 				type: 'command',
+				id: 'Git Two Dashes',
 				command: command.command.replace(` -${problemArg}`, ` --${problemArg}`),
 				addNewLine: true
 			};
