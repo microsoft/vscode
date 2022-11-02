@@ -14,7 +14,7 @@ import 'vs/css!./codeActionWidget';
 import { ActionItemRenderer, ActionList, ActionWidget, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
-import { CodeActionItem, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -290,6 +290,32 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
 
 		return renderDisposables;
+	}
+
+	override onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: any): void {
+		type ApplyCodeActionEvent = {
+			codeActionFrom: any;
+			validCodeActions: number;
+			cancelled: boolean;
+		};
+
+		type ApplyCodeEventClassification = {
+			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+			owner: 'mjbvz';
+			comment: 'Event used to gain insights into how code actions are being triggered';
+		};
+
+		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+			codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
+			validCodeActions: actions.validActions.length,
+			cancelled: cancelled,
+		});
+
+		this.currentShowingContext = undefined;
+
+		delegate.onHide(cancelled);
 	}
 
 	private createActionBar(codeActions: CodeActionSet, options: ActionShowOptions): ActionBar | undefined {

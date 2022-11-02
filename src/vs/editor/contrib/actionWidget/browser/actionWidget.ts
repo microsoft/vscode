@@ -10,7 +10,6 @@ import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -25,14 +24,14 @@ export interface IActionMenuTemplateData {
 	readonly keybinding: KeybindingLabel;
 }
 
-export class ActionWidget<T> extends BaseActionWidget<T> {
+export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 
 	currentShowingContext?: {
 		readonly options: ActionShowOptions;
 		readonly trigger: any;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
-		readonly codeActions: ActionSet<T>;
+		readonly actions: ActionSet<T>;
 		readonly delegate: any;
 	};
 
@@ -51,37 +50,37 @@ export class ActionWidget<T> extends BaseActionWidget<T> {
 		return !!this.currentShowingContext;
 	}
 
-	public async show(trigger: any, codeActions: ActionSet<T>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: any): Promise<void> {
+	public async show(trigger: any, actions: ActionSet<T>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: any): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = this.visibleContextKey.bindTo(this._contextKeyService);
 
-		const actionsToShow = options.includeDisabledActions && (this.showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
+		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
 		if (!actionsToShow.length) {
 			visibleContext.reset();
 			return;
 		}
 
-		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options };
+		this.currentShowingContext = { trigger, actions, anchor, container, delegate, options };
 
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this.renderWidget(container, trigger, codeActions, options, actionsToShow, delegate);
+				return this.renderWidget(container, trigger, actions, options, actionsToShow, delegate);
 			},
 			onHide: (didCancel: boolean) => {
 				visibleContext.reset();
-				return this.onWidgetClosed(trigger, options, codeActions, didCancel, delegate);
+				return this.onWidgetClosed(trigger, options, actions, didCancel, delegate);
 			},
 		}, container, false);
 	}
 
-	renderWidget(element: HTMLElement, trigger: any, codeActions: ActionSet<T>, options: ActionShowOptions, showingCodeActions: readonly T[], delegate: any): IDisposable {
-		throw new Error('');
-	}
+	abstract onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<T>, didCancel: boolean, delegate: any): void;
+
+	abstract renderWidget(element: HTMLElement, trigger: any, actions: ActionSet<T>, options: ActionShowOptions, showingActions: readonly T[], delegate: any): IDisposable;
 
 	/**
-	 * Toggles whether the disabled actions in the code action widget are visible or not.
+	 * Toggles whether the disabled actions in the action widget are visible or not.
 	 */
 	private toggleShowDisabled(newShowDisabled: boolean): void {
 		const previousCtx = this.currentShowingContext;
@@ -91,38 +90,12 @@ export class ActionWidget<T> extends BaseActionWidget<T> {
 		this.showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+			this.show(previousCtx.trigger, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
 		}
 	}
 
-	private onWidgetClosed(trigger: any, options: ActionShowOptions, codeActions: ActionSet<T>, cancelled: boolean, delegate: any): void {
-		type ApplyCodeActionEvent = {
-			codeActionFrom: any;
-			validCodeActions: number;
-			cancelled: boolean;
-		};
-
-		type ApplyCodeEventClassification = {
-			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-			owner: 'mjbvz';
-			comment: 'Event used to gain insights into how code actions are being triggered';
-		};
-
-		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-			codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
-			validCodeActions: codeActions.validActions.length,
-			cancelled: cancelled,
-		});
-
-		this.currentShowingContext = undefined;
-
-		delegate.onHide(cancelled);
-	}
-
-	getActionBarActions(codeActions: ActionSet<T>, options: ActionShowOptions): IAction[] {
-		const actions = codeActions.documentation.map((command): IAction => ({
+	getActionBarActions(actions: ActionSet<T>, options: ActionShowOptions): IAction[] {
+		const resultActions = actions.documentation.map((command): IAction => ({
 			id: command.id,
 			label: command.title,
 			tooltip: command.tooltip ?? '',
@@ -131,17 +104,17 @@ export class ActionWidget<T> extends BaseActionWidget<T> {
 			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
 		}));
 
-		if (options.includeDisabledActions && codeActions.validActions.length > 0 && codeActions.allActions.length !== codeActions.validActions.length) {
-			actions.push(this.showDisabled ? {
-				id: 'hideMoreCodeActions',
-				label: localize('hideMoreCodeActions', 'Hide Disabled'),
+		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {
+			resultActions.push(this.showDisabled ? {
+				id: 'hideMoreActions',
+				label: localize('hideMoreActions', 'Hide Disabled'),
 				enabled: true,
 				tooltip: '',
 				class: undefined,
 				run: () => this.toggleShowDisabled(false)
 			} : {
-				id: 'showMoreCodeActions',
-				label: localize('showMoreCodeActions', 'Show Disabled'),
+				id: 'showMoreActions',
+				label: localize('showMoreActions', 'Show Disabled'),
 				enabled: true,
 				tooltip: '',
 				class: undefined,
@@ -149,7 +122,7 @@ export class ActionWidget<T> extends BaseActionWidget<T> {
 			});
 		}
 
-		return actions;
+		return resultActions;
 	}
 }
 
