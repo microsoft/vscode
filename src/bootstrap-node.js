@@ -77,8 +77,8 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
 
 	// @ts-ignore
 	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
 		if (Array.isArray(paths)) {
-			const paths = originalResolveLookupPaths(moduleName, parent);
 			let commonSuffixLength = 0;
 			while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
 				commonSuffixLength++;
