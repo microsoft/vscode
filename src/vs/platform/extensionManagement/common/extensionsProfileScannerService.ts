@@ -54,7 +54,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		return this.withProfileExtensions(profileLocation);
 	}
 
-	addExtensionsToProfile(extensions: [IExtension, Metadata][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
+	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
 		return this.withProfileExtensions(profileLocation, profileExtensions => {
 			// Remove the existing extension to avoid duplicates
 			profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
