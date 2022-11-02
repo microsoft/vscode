@@ -30,10 +30,10 @@ export async function showWithPinnedItems(storageService: IStorageService, stora
 		}
 	});
 	quickPick.onDidChangeValue(async value => {
-		// If the items are pinnable (top level quick pick), update items such that
-		// pinned are excluded from the search results
-		if (quickPick.items.some(i => i.buttons?.some(b => b.iconClass === pinButtonClass))) {
-			quickPick.items = value ? itemsWithoutPinned : itemsWithPinned;
+		if (quickPick.items === itemsWithPinned && value) {
+			quickPick.items = itemsWithoutPinned;
+		} else if (quickPick.items === itemsWithoutPinned && !value) {
+			quickPick.items = itemsWithPinned;
 		}
 	});
 
