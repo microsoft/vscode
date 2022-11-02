@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionSet, ActionShowOptions, BaseActionWidget, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionWidget, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -21,6 +21,8 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ActionGroup } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
 const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
@@ -47,7 +49,7 @@ interface ITerminalQuickFixDelegate {
 	onHide(cancelled: boolean): void;
 }
 
-export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
+export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 
 	private static _instance?: TerminalQuickFixWidget;
 
@@ -70,43 +72,16 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 	};
 
 	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@ICommandService override readonly _commandService: ICommandService,
+		@IContextViewService override readonly contextViewService: IContextViewService,
+		@IKeybindingService override readonly keybindingService: IKeybindingService,
+		@ITelemetryService override readonly _telemetryService: ITelemetryService,
+		@IContextKeyService override readonly _contextKeyService: IContextKeyService
 	) {
-		super();
+		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	get isVisible(): boolean {
-		return !!this._currentShowingContext;
-	}
-
-	public async show(trigger: string, actions: ActionSet<TerminalQuickFix>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: ITerminalQuickFixDelegate): Promise<void> {
-		this._currentShowingContext = undefined;
-		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
-
-		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
-		if (!actionsToShow.length) {
-			visibleContext.reset();
-			return;
-		}
-
-		this._currentShowingContext = { trigger, actions, anchor, container, delegate, options };
-
-		this._contextViewService.showContextView({
-			getAnchor: () => anchor,
-			render: (container: HTMLElement) => {
-				visibleContext.set(true);
-				return this._renderWidget(container, trigger, actions, options, actionsToShow, delegate);
-			},
-			onHide: (didCancel: boolean) => {
-				visibleContext.reset();
-				return this._onWidgetClosed(trigger, options, actions, didCancel, delegate);
-			},
-		}, container, false);
-	}
-
-	private _renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: ITerminalQuickFixDelegate): IDisposable {
+	override renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: ITerminalQuickFixDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
@@ -120,8 +95,8 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 			showingActions,
 			options.showHeaders ?? true,
 			onDidSelect,
-			this._keybindingService,
-			this._contextViewService);
+			this.keybindingService,
+			this.contextViewService);
 
 
 		widget.appendChild(this.list.value.domNode);
@@ -175,8 +150,30 @@ export class TerminalQuickFixWidget extends BaseActionWidget<TerminalQuickFix> {
 		return renderDisposables;
 	}
 
-	private _onWidgetClosed(trigger: string, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: ITerminalQuickFixDelegate): void {
-		this._currentShowingContext = undefined;
+	override onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: any): void {
+		// TODO:
+		// type ApplyCodeActionEvent = {
+		// 	codeActionFrom: any;
+		// 	validCodeActions: number;
+		// 	cancelled: boolean;
+		// };
+
+		// type ApplyCodeEventClassification = {
+		// 	codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+		// 	validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+		// 	cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+		// 	owner: 'mjbvz';
+		// 	comment: 'Event used to gain insights into how code actions are being triggered';
+		// };
+
+		// this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+		// codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
+		// 	validCodeActions: actions.validActions.length,
+		// 	cancelled: cancelled,
+		// });
+
+		this.currentShowingContext = undefined;
+
 		delegate.onHide(cancelled);
 	}
 
