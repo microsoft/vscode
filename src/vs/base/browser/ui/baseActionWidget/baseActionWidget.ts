@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
 export interface ActionSet<T> extends IDisposable {
@@ -71,8 +70,6 @@ export abstract class BaseActionWidget<T> extends Disposable {
 	public layout(minWidth: number) {
 		this.list?.value?.layout(minWidth);
 	}
-
-	public abstract show(trigger: any, actions: any, anchor: IAnchor, container: HTMLElement | undefined, options: any, delegate: any): Promise<void>;
 
 	public toMenuItems(actions: readonly T[], showHeaders: boolean): ListMenuItem<T>[] {
 		const list = this.list.value;

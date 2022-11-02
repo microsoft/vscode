@@ -5,18 +5,16 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ListMenuItem, BaseActionWidget, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ListMenuItem, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, IActionMenuTemplateData } from 'vs/editor/contrib/actionList/browser/actionList';
+import { ActionItemRenderer, ActionList, ActionWidget, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
-import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionItem, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -126,7 +124,7 @@ class HeaderRenderer implements IListRenderer<ListMenuItem<CodeActionItem>, Head
 	}
 }
 
-class CodeActionList extends ActionList<CodeActionItem> {
+export class CodeActionList extends ActionList<CodeActionItem> {
 
 	constructor(
 		codeActions: readonly CodeActionItem[],
@@ -199,68 +197,30 @@ class CodeActionList extends ActionList<CodeActionItem> {
 	}
 }
 
-export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
+export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 
 	private static _instance?: CodeActionWidget;
 
 	public static get INSTANCE(): CodeActionWidget | undefined { return this._instance; }
 
-	public static getOrCreateInstance(instantiationService: IInstantiationService): BaseActionWidget<CodeActionItem> {
+	public static getOrCreateInstance(instantiationService: IInstantiationService): ActionWidget<CodeActionItem> {
 		if (!this._instance) {
 			this._instance = instantiationService.createInstance(CodeActionWidget);
 		}
 		return this._instance;
 	}
 
-	private currentShowingContext?: {
-		readonly options: ActionShowOptions;
-		readonly trigger: CodeActionTrigger;
-		readonly anchor: IAnchor;
-		readonly container: HTMLElement | undefined;
-		readonly codeActions: CodeActionSet;
-		readonly delegate: CodeActionWidgetDelegate;
-	};
-
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@ICommandService override readonly _commandService: ICommandService,
+		@IContextViewService override readonly contextViewService: IContextViewService,
+		@IKeybindingService override readonly keybindingService: IKeybindingService,
+		@ITelemetryService override readonly _telemetryService: ITelemetryService,
+		@IContextKeyService override readonly _contextKeyService: IContextKeyService
 	) {
-		super();
+		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	get isVisible(): boolean {
-		return !!this.currentShowingContext;
-	}
-
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {
-		this.currentShowingContext = undefined;
-		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
-
-		const actionsToShow = options.includeDisabledActions && (this.showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
-		if (!actionsToShow.length) {
-			visibleContext.reset();
-			return;
-		}
-
-		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options };
-
-		this._contextViewService.showContextView({
-			getAnchor: () => anchor,
-			render: (container: HTMLElement) => {
-				visibleContext.set(true);
-				return this.renderWidget(container, trigger, codeActions, options, actionsToShow, delegate);
-			},
-			onHide: (didCancel: boolean) => {
-				visibleContext.reset();
-				return this.onWidgetClosed(trigger, options, codeActions, didCancel, delegate);
-			},
-		}, container, false);
-	}
-
-	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
+	override renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
@@ -274,8 +234,8 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 			showingCodeActions,
 			options.showHeaders ?? true,
 			onDidSelect,
-			this._keybindingService,
-			this._contextViewService);
+			this.keybindingService,
+			this.contextViewService);
 
 		if (this.list.value) {
 			widget.appendChild(this.list.value.domNode);
@@ -332,47 +292,6 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		return renderDisposables;
 	}
 
-	/**
-	 * Toggles whether the disabled actions in the code action widget are visible or not.
-	 */
-	private toggleShowDisabled(newShowDisabled: boolean): void {
-		const previousCtx = this.currentShowingContext;
-
-		this.hide();
-
-		this.showDisabled = newShowDisabled;
-
-		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
-		}
-	}
-
-	private onWidgetClosed(trigger: CodeActionTrigger, options: ActionShowOptions, codeActions: CodeActionSet, cancelled: boolean, delegate: CodeActionWidgetDelegate): void {
-		type ApplyCodeActionEvent = {
-			codeActionFrom: CodeActionTriggerSource;
-			validCodeActions: number;
-			cancelled: boolean;
-		};
-
-		type ApplyCodeEventClassification = {
-			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-			owner: 'mjbvz';
-			comment: 'Event used to gain insights into how code actions are being triggered';
-		};
-
-		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-			codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
-			validCodeActions: codeActions.validActions.length,
-			cancelled: cancelled,
-		});
-
-		this.currentShowingContext = undefined;
-
-		delegate.onHide(cancelled);
-	}
-
 	private createActionBar(codeActions: CodeActionSet, options: ActionShowOptions): ActionBar | undefined {
 		const actions = this.getActionBarActions(codeActions, options);
 		if (!actions.length) {
@@ -383,36 +302,5 @@ export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
-	}
-
-	private getActionBarActions(codeActions: CodeActionSet, options: ActionShowOptions): IAction[] {
-		const actions = codeActions.documentation.map((command): IAction => ({
-			id: command.id,
-			label: command.title,
-			tooltip: command.tooltip ?? '',
-			class: undefined,
-			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
-		}));
-
-		if (options.includeDisabledActions && codeActions.validActions.length > 0 && codeActions.allActions.length !== codeActions.validActions.length) {
-			actions.push(this.showDisabled ? {
-				id: 'hideMoreCodeActions',
-				label: localize('hideMoreCodeActions', 'Hide Disabled'),
-				enabled: true,
-				tooltip: '',
-				class: undefined,
-				run: () => this.toggleShowDisabled(false)
-			} : {
-				id: 'showMoreCodeActions',
-				label: localize('showMoreCodeActions', 'Show Disabled'),
-				enabled: true,
-				tooltip: '',
-				class: undefined,
-				run: () => this.toggleShowDisabled(true)
-			});
-		}
-
-		return actions;
 	}
 }

@@ -2,20 +2,155 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-import { IActionList, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionSet, ActionShowOptions, BaseActionWidget, IActionList, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
+import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IActionMenuTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly text: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+}
+
+export class ActionWidget<T> extends BaseActionWidget<T> {
+
+	currentShowingContext?: {
+		readonly options: ActionShowOptions;
+		readonly trigger: any;
+		readonly anchor: IAnchor;
+		readonly container: HTMLElement | undefined;
+		readonly codeActions: ActionSet<T>;
+		readonly delegate: any;
+	};
+
+	constructor(
+		readonly visibleContextKey: RawContextKey<boolean>,
+		@ICommandService readonly _commandService: ICommandService,
+		@IContextViewService readonly contextViewService: IContextViewService,
+		@IKeybindingService  readonly keybindingService: IKeybindingService,
+		@ITelemetryService readonly _telemetryService: ITelemetryService,
+		@IContextKeyService readonly _contextKeyService: IContextKeyService
+	) {
+		super();
+	}
+
+	get isVisible(): boolean {
+		return !!this.currentShowingContext;
+	}
+
+	public async show(trigger: any, codeActions: ActionSet<T>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: any): Promise<void> {
+		this.currentShowingContext = undefined;
+		const visibleContext = this.visibleContextKey.bindTo(this._contextKeyService);
+
+		const actionsToShow = options.includeDisabledActions && (this.showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
+		if (!actionsToShow.length) {
+			visibleContext.reset();
+			return;
+		}
+
+		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options };
+
+		this.contextViewService.showContextView({
+			getAnchor: () => anchor,
+			render: (container: HTMLElement) => {
+				visibleContext.set(true);
+				return this.renderWidget(container, trigger, codeActions, options, actionsToShow, delegate);
+			},
+			onHide: (didCancel: boolean) => {
+				visibleContext.reset();
+				return this.onWidgetClosed(trigger, options, codeActions, didCancel, delegate);
+			},
+		}, container, false);
+	}
+
+	renderWidget(element: HTMLElement, trigger: any, codeActions: ActionSet<T>, options: ActionShowOptions, showingCodeActions: readonly T[], delegate: any): IDisposable {
+		throw new Error('');
+	}
+
+	/**
+	 * Toggles whether the disabled actions in the code action widget are visible or not.
+	 */
+	private toggleShowDisabled(newShowDisabled: boolean): void {
+		const previousCtx = this.currentShowingContext;
+
+		this.hide();
+
+		this.showDisabled = newShowDisabled;
+
+		if (previousCtx) {
+			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+		}
+	}
+
+	private onWidgetClosed(trigger: any, options: ActionShowOptions, codeActions: ActionSet<T>, cancelled: boolean, delegate: any): void {
+		type ApplyCodeActionEvent = {
+			codeActionFrom: any;
+			validCodeActions: number;
+			cancelled: boolean;
+		};
+
+		type ApplyCodeEventClassification = {
+			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+			owner: 'mjbvz';
+			comment: 'Event used to gain insights into how code actions are being triggered';
+		};
+
+		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+			codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
+			validCodeActions: codeActions.validActions.length,
+			cancelled: cancelled,
+		});
+
+		this.currentShowingContext = undefined;
+
+		delegate.onHide(cancelled);
+	}
+
+	getActionBarActions(codeActions: ActionSet<T>, options: ActionShowOptions): IAction[] {
+		const actions = codeActions.documentation.map((command): IAction => ({
+			id: command.id,
+			label: command.title,
+			tooltip: command.tooltip ?? '',
+			class: undefined,
+			enabled: true,
+			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
+		}));
+
+		if (options.includeDisabledActions && codeActions.validActions.length > 0 && codeActions.allActions.length !== codeActions.validActions.length) {
+			actions.push(this.showDisabled ? {
+				id: 'hideMoreCodeActions',
+				label: localize('hideMoreCodeActions', 'Hide Disabled'),
+				enabled: true,
+				tooltip: '',
+				class: undefined,
+				run: () => this.toggleShowDisabled(false)
+			} : {
+				id: 'showMoreCodeActions',
+				label: localize('showMoreCodeActions', 'Show Disabled'),
+				enabled: true,
+				tooltip: '',
+				class: undefined,
+				run: () => this.toggleShowDisabled(true)
+			});
+		}
+
+		return actions;
+	}
 }
 
 export abstract class ActionItemRenderer<T> implements IListRenderer<T, IActionMenuTemplateData> {

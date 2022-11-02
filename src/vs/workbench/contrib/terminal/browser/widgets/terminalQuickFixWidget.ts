@@ -7,7 +7,7 @@ import { ActionSet, ActionShowOptions, BaseActionWidget, ListMenuItem, stripNewl
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionList/browser/actionList';
+import { ActionItemRenderer, ActionList, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
