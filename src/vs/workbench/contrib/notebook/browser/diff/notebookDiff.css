@@ -306,3 +306,15 @@
 .notebook-text-diff-editor .notebook-overview-ruler-container .diffViewport {
 	z-index: var(--notebook-diff-view-viewport-slider);
 }
+
+.notebook-text-diff-editor .diffViewport {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.notebook-text-diff-editor .diffViewport:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.notebook-text-diff-editor .diffViewport:active {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
