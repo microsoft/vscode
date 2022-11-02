@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import * as dom from 'vs/base/browser/dom';
 import { ActionSet, ActionShowOptions, BaseActionWidget, IActionList, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -82,7 +84,7 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 	/**
 	 * Toggles whether the disabled actions in the action widget are visible or not.
 	 */
-	private toggleShowDisabled(newShowDisabled: boolean): void {
+	toggleShowDisabled(newShowDisabled: boolean): void {
 		const previousCtx = this.currentShowingContext;
 
 		this.hide();
@@ -121,8 +123,18 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 				run: () => this.toggleShowDisabled(true)
 			});
 		}
-
 		return resultActions;
+	}
+	createActionBar(className: string, inputActions: ActionSet<T>, options: ActionShowOptions): ActionBar | undefined {
+		const actions = this.getActionBarActions(inputActions, options);
+		if (!actions.length) {
+			return undefined;
+		}
+
+		const container = dom.$(className);
+		const actionBar = new ActionBar(container);
+		actionBar.push(actions, { icon: false, label: true });
+		return actionBar;
 	}
 }
 

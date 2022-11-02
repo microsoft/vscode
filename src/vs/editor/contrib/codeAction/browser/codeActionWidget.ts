@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ListMenuItem, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -220,7 +219,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	override renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
+	renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
@@ -275,7 +274,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		// Action bar
 		let actionBarWidth = 0;
 		if (!options.fromLightbulb) {
-			const actionBar = this.createActionBar(codeActions, options);
+			const actionBar = this.createActionBar('.codeActionWidget-action-bar', codeActions, options);
 			if (actionBar) {
 				widget.appendChild(actionBar.getContainer().parentElement!);
 				renderDisposables.add(actionBar);
@@ -292,7 +291,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		return renderDisposables;
 	}
 
-	override onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: any): void {
+	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: any): void {
 		type ApplyCodeActionEvent = {
 			codeActionFrom: any;
 			validCodeActions: number;
@@ -316,17 +315,5 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		this.currentShowingContext = undefined;
 
 		delegate.onHide(cancelled);
-	}
-
-	private createActionBar(codeActions: CodeActionSet, options: ActionShowOptions): ActionBar | undefined {
-		const actions = this.getActionBarActions(codeActions, options);
-		if (!actions.length) {
-			return undefined;
-		}
-
-		const container = dom.$('.codeActionWidget-action-bar');
-		const actionBar = new ActionBar(container);
-		actionBar.push(actions, { icon: false, label: true });
-		return actionBar;
 	}
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ActionItemRenderer, ActionList, ActionWidget, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
@@ -15,7 +14,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as dom from 'vs/base/browser/dom';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -62,15 +60,6 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		return this._instance;
 	}
 
-	private _currentShowingContext?: {
-		readonly options: ActionShowOptions;
-		readonly trigger: string;
-		readonly anchor: IAnchor;
-		readonly container: HTMLElement | undefined;
-		readonly actions: ActionSet<TerminalQuickFix>;
-		readonly delegate: ITerminalQuickFixDelegate;
-	};
-
 	constructor(
 		@ICommandService override readonly _commandService: ICommandService,
 		@IContextViewService override readonly contextViewService: IContextViewService,
@@ -81,7 +70,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	override renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: ITerminalQuickFixDelegate): IDisposable {
+	renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: ITerminalQuickFixDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
@@ -133,7 +122,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		// Action bar
 		let actionBarWidth = 0;
 		if (!options.fromLightbulb) {
-			const actionBar = this._createActionBar(actions, options);
+			const actionBar = this.createActionBar('.terminalQuickFixWidget-action-bar', actions, options);
 			if (actionBar) {
 				widget.appendChild(actionBar.getContainer().parentElement!);
 				renderDisposables.add(actionBar);
@@ -150,7 +139,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		return renderDisposables;
 	}
 
-	override onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: any): void {
+	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: any): void {
 		// TODO:
 		// type ApplyCodeActionEvent = {
 		// 	codeActionFrom: any;
@@ -177,54 +166,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		delegate.onHide(cancelled);
 	}
 
-	/**
-	 * Toggles whether the disabled actions in the quick fix widget are visible or not.
-	 */
-	private _toggleShowDisabled(newShowDisabled: boolean): void {
-		const previousCtx = this._currentShowingContext;
 
-		this.hide();
-
-		this.showDisabled = newShowDisabled;
-
-		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
-		}
-	}
-
-	private _createActionBar(inputActions: ActionSet<TerminalQuickFix>, options: ActionShowOptions): ActionBar | undefined {
-		const actions = this._getActionBarActions(inputActions, options);
-		if (!actions.length) {
-			return undefined;
-		}
-
-		const container = dom.$('.quickFixActionWidget-action-bar');
-		const actionBar = new ActionBar(container);
-		actionBar.push(actions, { icon: false, label: true });
-		return actionBar;
-	}
-
-	private _getActionBarActions(inputActions: ActionSet<TerminalQuickFix>, options: ActionShowOptions): IAction[] {
-		const actions = [];
-		if (options.includeDisabledActions && inputActions.validActions.length > 0 && inputActions.allActions.length !== inputActions.validActions.length) {
-			actions.push(this.showDisabled ? {
-				id: 'hideMoreactions',
-				label: localize('hideMoreactions', 'Hide Disabled'),
-				enabled: true,
-				tooltip: '',
-				class: undefined,
-				run: () => this._toggleShowDisabled(false)
-			} : {
-				id: 'showMoreactions',
-				label: localize('showMoreactions', 'Show Disabled'),
-				enabled: true,
-				tooltip: '',
-				class: undefined,
-				run: () => this._toggleShowDisabled(true)
-			});
-		}
-		return actions;
-	}
 }
 
 export class QuickFixItemRenderer extends ActionItemRenderer<ListMenuItem<TerminalQuickFix>> {
