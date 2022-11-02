@@ -11,7 +11,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, update, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -29,7 +29,6 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-
 class InspectContextKeysAction extends Action2 {
 
 	constructor() {
@@ -196,12 +195,39 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
+		const onCompositionstart = disposables.add(new DomEmitter(window, 'compositionstart', true));
+		const compositionupdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
+		const compositionend = disposables.add(new DomEmitter(window, 'compositionend', true));
 		let keyboardTimeout: IDisposable = Disposable.None;
 		let length = 0;
+		let start = false;
+		disposables.add(onCompositionstart.event(e => {
+			start = true;
+		}));
+		disposables.add(compositionupdate.event(e => {
+			keyboardTimeout.dispose();
+			update(keyboardMarker, $(`span.key.update`, {}, e.data || ''));
+			const promise = timeout(keyboardMarkerTimeout);
+			keyboardTimeout = toDisposable(() => promise.cancel());
+
+			promise.then(() => {
+				keyboardMarker.textContent = '';
+				length = 0;
+			});
+		}));
+		disposables.add(compositionend.event(e => {
+			if (start === true) {
+				append(keyboardMarker, $(`span.key.update`, {}, e.data || ''));
+				start = false;
+			}
+		}));
 
 		disposables.add(onKeyDown.event(e => {
 			keyboardTimeout.dispose();
-
+			if (e.key === 'Process') {
+				if (!e.code.includes('Key')) { start = false; }
+				return;
+			}
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 

@@ -927,6 +927,17 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 	return child;
 }
 
+export function update<T extends Node>(parent: HTMLElement, child: T): T;
+export function update<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
+export function update<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
+	const update = parent.querySelector(`.update:last-child`);
+	if (!update) {
+		parent.append(...children);
+	} else {
+		update.textContent = (children as any)[0].textContent;
+	}
+}
+
 export function append<T extends Node>(parent: HTMLElement, child: T): T;
 export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
 export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
