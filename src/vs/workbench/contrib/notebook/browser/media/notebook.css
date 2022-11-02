@@ -551,3 +551,21 @@
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
 	margin-left: 0;
 }
+
+/** Notebook Cell Comments */
+
+.cell-comment-container.review-widget {
+	border-left: 1px solid var(--vscode-peekView-border); border-right: 1px solid var(--vscode-peekView-border);
+}
+
+.cell-comment-container.review-widget > .head {
+	border-top: 1px solid var(--vscode-peekView-border);
+}
+
+.cell-comment-container.review-widget > .body {
+	border-bottom: 1px solid var(--vscode-peekView-border);
+}
+
+.cell-comment-container.review-widget {
+	background-color: var(--vscode-peekViewResult-background);
+}
