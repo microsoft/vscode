@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { TestServiceClient } from './testService';
@@ -17,46 +17,38 @@ function createClient(): Client {
 }
 
 suite('IPC, Child Process', function () {
+	this.slow(2000);
 	this.timeout(10000);
 
-	test('createChannel', () => {
+	test('createChannel', async () => {
 		const client = createClient();
 		const channel = client.getChannel('test');
 		const service = new TestServiceClient(channel);
 
-		const result = service.pong('ping').then(r => {
-			assert.strictEqual(r.incoming, 'ping');
-			assert.strictEqual(r.outgoing, 'pong');
-		});
+		const result = await service.pong('ping');
+		assert.strictEqual(result.incoming, 'ping');
+		assert.strictEqual(result.outgoing, 'pong');
 
-		return result.finally(() => client.dispose());
+		client.dispose();
 	});
 
-	test('events', () => {
+	test('events', async () => {
 		const client = createClient();
 		const channel = client.getChannel('test');
 		const service = new TestServiceClient(channel);
 
-		const event = new Promise((c, e) => {
-			service.onMarco(({ answer }) => {
-				try {
-					assert.strictEqual(answer, 'polo');
-					c(undefined);
-				} catch (err) {
-					e(err);
-				}
-			});
-		});
+		const event = Event.toPromise(Event.once(service.onMarco));
+		const promise = service.marco();
 
-		return timeout(100).then(() => {
-			const request = service.marco();
-			const result = Promise.all([request, event]);
+		const [promiseResult, eventResult] = await Promise.all([promise, event]);
 
-			return result.finally(() => client.dispose());
-		});
+		assert.strictEqual(promiseResult, 'polo');
+		assert.strictEqual(eventResult.answer, 'polo');
+
+		client.dispose();
 	});
 
-	test('event dispose', () => {
+	test('event dispose', async () => {
 		const client = createClient();
 		const channel = client.getChannel('test');
 		const service = new TestServiceClient(channel);
@@ -64,20 +56,19 @@ suite('IPC, Child Process', function () {
 		let count = 0;
 		const disposable = service.onMarco(() => count++);
 
-		const result = service.marco().then(async answer => {
-			assert.strictEqual(answer, 'polo');
-			assert.strictEqual(count, 1);
+		const answer = await service.marco();
+		assert.strictEqual(answer, 'polo');
+		assert.strictEqual(count, 1);
 
-			const answer_1 = await service.marco();
-			assert.strictEqual(answer_1, 'polo');
-			assert.strictEqual(count, 2);
-			disposable.dispose();
+		const answer_1 = await service.marco();
+		assert.strictEqual(answer_1, 'polo');
+		assert.strictEqual(count, 2);
+		disposable.dispose();
 
-			const answer_2 = await service.marco();
-			assert.strictEqual(answer_2, 'polo');
-			assert.strictEqual(count, 2);
-		});
+		const answer_2 = await service.marco();
+		assert.strictEqual(answer_2, 'polo');
+		assert.strictEqual(count, 2);
 
-		return result.finally(() => client.dispose());
+		client.dispose();
 	});
 });
