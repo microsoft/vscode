@@ -287,6 +287,11 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
+	// Fast check to see if it is a file path to avoid doing unnecessary heavy regex work
+	if (!stack || (!stack.includes('/') && !stack.includes('\\'))) {
+		return stack;
+	}
+
 	let updatedStack = stack;
 
 	const cleanUpIndexes: [number, number][] = [];

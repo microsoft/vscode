@@ -180,9 +180,14 @@ export interface IOutputRequestDto {
 	readonly outputId: string;
 }
 
+export interface OutputItemEntry {
+	readonly mime: string;
+	readonly valueBytes: Uint8Array;
+}
+
 export type ICreationContent =
 	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string };
+	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly metadata: unknown; readonly output: OutputItemEntry; readonly allOutputs: ReadonlyArray<{ readonly mime: string }> };
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -428,6 +433,19 @@ export interface IOutputResizedMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 }
 
+export interface IGetOutputItemMessage extends BaseToWebviewMessage {
+	readonly type: 'getOutputItem';
+	readonly requestId: number;
+	readonly outputId: string;
+	readonly mime: string;
+}
+
+export interface IReturnOutputItemMessage {
+	readonly type: 'returnOutputItem';
+	readonly requestId: number;
+	readonly output: OutputItemEntry | undefined;
+}
+
 
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
@@ -457,7 +475,8 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
 	IDidFindHighlightMessage |
-	IOutputResizedMessage;
+	IOutputResizedMessage |
+	IGetOutputItemMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -488,7 +507,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
-	IFindStopMessage;
+	IFindStopMessage |
+	IReturnOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

@@ -11,7 +11,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { CellRevealType, IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -285,16 +285,18 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 }
 
-export class NotebookCellOutline extends Disposable implements IOutline<OutlineEntry> {
+export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
-	private readonly _onDidChange = this._register(new Emitter<OutlineChangeEvent>());
+	private readonly _dispoables = new DisposableStore();
+
+	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _uri: URI | undefined;
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry?: OutlineEntry;
-	private readonly _entriesDisposables = this._register(new DisposableStore());
+	private readonly _entriesDisposables = new DisposableStore();
 
 	readonly config: IOutlineListConfig<OutlineEntry>;
 	readonly outlineKind = 'notebookCells';
@@ -313,8 +315,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
-		super();
-		const selectionListener = this._register(new MutableDisposable());
+		const selectionListener = new MutableDisposable();
+		this._dispoables.add(selectionListener);
 		const installSelectionListener = () => {
 			const notebookEditor = _editor.getControl();
 			if (!notebookEditor?.hasModel()) {
@@ -335,22 +337,22 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			}
 		};
 
-		this._register(_editor.onDidChangeModel(() => {
+		this._dispoables.add(_editor.onDidChangeModel(() => {
 			this._recomputeState();
 			installSelectionListener();
 		}));
 
-		this._register(_configurationService.onDidChangeConfiguration(e => {
+		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
 				this._recomputeState();
 			}
 		}));
 
-		this._register(themeService.onDidFileIconThemeChange(() => {
+		this._dispoables.add(themeService.onDidFileIconThemeChange(() => {
 			this._onDidChange.fire({});
 		}));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._dispoables.add(_notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
@@ -360,7 +362,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		installSelectionListener();
 
 		const options: IWorkbenchDataTreeOptions<OutlineEntry, FuzzyScore> = {
-			collapseByDefault: _target === OutlineTarget.Breadcrumbs,
+			collapseByDefault: _target === OutlineTarget.Breadcrumbs || (_target === OutlineTarget.OutlinePane && _configurationService.getValue(OutlineConfigKeys.collapseItems) === OutlineConfigCollapseItemsValues.Collapsed),
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
@@ -392,6 +394,12 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			comparator,
 			options
 		};
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
+		this._dispoables.dispose();
+		this._entriesDisposables.dispose();
 	}
 
 	private _recomputeState(): void {

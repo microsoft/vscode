@@ -167,7 +167,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			top += this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-			quickPickTop = this.titleService.isCommandCenterVisible ? quickPickTop : top;
+			quickPickTop = top;
+		}
+		// If the command center is visible then the quickinput should go over the title bar and the banner
+		if (this.titleService.isCommandCenterVisible) {
+			quickPickTop = 0;
 		}
 		return { top, quickPickTop };
 	}

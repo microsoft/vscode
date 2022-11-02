@@ -33,6 +33,9 @@ export async function activate(ctx: RendererContext<void>) {
 		.katex-error {
 			color: var(--vscode-editorError-foreground);
 		}
+		.katex-block {
+			counter-reset: katexEqnNo mmlEqnNo;
+		}
 	`;
 
 	// Put Everything into a template

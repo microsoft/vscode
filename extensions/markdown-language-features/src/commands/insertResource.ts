@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
 import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/dropIntoEditor';
 import { coalesce } from '../util/arrays';
@@ -24,7 +25,7 @@ export class InsertLinkFromWorkspace implements Command {
 
 		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
-			canSelectFolders: true,
+			canSelectFolders: false,
 			canSelectMany: true,
 			openLabel: localize('insertLink.openLabel', "Insert link"),
 			title: localize('insertLink.title', "Insert link"),
@@ -65,7 +66,7 @@ function getDefaultUri(document: vscode.TextDocument) {
 	if (docUri.scheme === Schemes.untitled) {
 		return vscode.workspace.workspaceFolders?.[0]?.uri;
 	}
-	return docUri;
+	return Utils.dirname(docUri);
 }
 
 async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsImage: boolean): Promise<void> {
@@ -84,6 +85,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vs
 			insertAsImage: insertAsImage,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
+			separator: insertAsImage ? '\n' : ' ',
 		});
 
 		return snippet ? new vscode.SnippetTextEdit(selection, snippet) : undefined;

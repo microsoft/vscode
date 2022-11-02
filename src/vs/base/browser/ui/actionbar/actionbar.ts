@@ -89,7 +89,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
+	private _onDidCancel = this._register(new Emitter<void>({ onWillAddFirstListener: () => this.cancelHasListener = true }));
 	readonly onDidCancel = this._onDidCancel.event;
 	private cancelHasListener = false;
 
@@ -419,6 +419,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	clear(): void {
+		if (this.isEmpty()) {
+			return;
+		}
+
 		this.viewItems = dispose(this.viewItems);
 		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);

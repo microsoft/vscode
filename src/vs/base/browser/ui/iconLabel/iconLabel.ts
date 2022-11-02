@@ -82,13 +82,12 @@ class FastLabelNode {
 
 export class IconLabel extends Disposable {
 
-	private readonly domNode: FastLabelNode;
+	private readonly creationOptions?: IIconLabelCreationOptions;
 
+	private readonly domNode: FastLabelNode;
 	private readonly nameNode: Label | LabelWithHighlights;
 
-	private readonly descriptionContainer: FastLabelNode;
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
-	private readonly descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	private readonly labelContainer: HTMLElement;
 
@@ -97,24 +96,18 @@ export class IconLabel extends Disposable {
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
+		this.creationOptions = options;
 
 		this.domNode = this._register(new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label'))));
 
 		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
 
 		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
-		this.descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
 
 		if (options?.supportHighlights || options?.supportIcons) {
 			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
 		} else {
 			this.nameNode = new Label(nameContainer);
-		}
-
-		if (options?.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.descriptionContainer.element, dom.$('span.label-description')), { supportIcons: !!options.supportIcons });
-		} else {
-			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.descriptionContainer.element, dom.$('span.label-description'))));
 		}
 
 		this.hoverDelegate = options?.hoverDelegate;
@@ -152,17 +145,14 @@ export class IconLabel extends Disposable {
 		this.nameNode.setLabel(label, options);
 
 		if (description || this.descriptionNode) {
-			if (!this.descriptionNode) {
-				this.descriptionNode = this.descriptionNodeFactory(); // description node is created lazily on demand
-			}
-
-			if (this.descriptionNode instanceof HighlightedLabel) {
-				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
-				this.setupHover(this.descriptionNode.element, options?.descriptionTitle);
+			const descriptionNode = this.getOrCreateDescriptionNode();
+			if (descriptionNode instanceof HighlightedLabel) {
+				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
+				this.setupHover(descriptionNode.element, options?.descriptionTitle);
 			} else {
-				this.descriptionNode.textContent = description || '';
-				this.setupHover(this.descriptionNode.element, options?.descriptionTitle || '');
-				this.descriptionNode.empty = !description;
+				descriptionNode.textContent = description || '';
+				this.setupHover(descriptionNode.element, options?.descriptionTitle || '');
+				descriptionNode.empty = !description;
 			}
 		}
 	}
@@ -195,6 +185,19 @@ export class IconLabel extends Disposable {
 			disposable.dispose();
 		}
 		this.customHovers.clear();
+	}
+
+	private getOrCreateDescriptionNode() {
+		if (!this.descriptionNode) {
+			const descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
+			if (this.creationOptions?.supportDescriptionHighlights) {
+				this.descriptionNode = new HighlightedLabel(dom.append(descriptionContainer.element, dom.$('span.label-description')), { supportIcons: !!this.creationOptions.supportIcons });
+			} else {
+				this.descriptionNode = this._register(new FastLabelNode(dom.append(descriptionContainer.element, dom.$('span.label-description'))));
+			}
+		}
+
+		return this.descriptionNode;
 	}
 }
 

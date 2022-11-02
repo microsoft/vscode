@@ -169,7 +169,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 	}
 
 	hasLocalData(): Promise<boolean> { throw new Error('not implemented'); }
-	getAssociatedResources(): Promise<{ resource: URI; comparableResource: URI }[]> { throw new Error('not implemented'); }
+	async resolveContent(uri: URI): Promise<string | null> { return null; }
 }
 
 suite('TestSynchronizer - Auto Sync', () => {

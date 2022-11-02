@@ -24,7 +24,7 @@ import { IWebviewService, IOverlayWebview } from 'vs/workbench/contrib/webview/b
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
-export interface CustomEditorInputInitInfo {
+interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly id: string;

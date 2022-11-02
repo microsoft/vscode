@@ -290,7 +290,8 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				}
 			}
 		} catch (e) {
-			const error = createErrorWithActions(e instanceof Error ? e : new Error(e.message), [
+			console.warn(e);
+			const error = createErrorWithActions(e instanceof Error ? e : new Error((e ? e.message : '')), [
 				toAction({
 					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {
 						const activeEditorPane = this._editorService.activeEditorPane;

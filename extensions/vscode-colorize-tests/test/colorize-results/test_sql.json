@@ -1,7 +1,7 @@
 [
 	{
 		"c": "CREATE",
-		"t": "source.sql keyword.other.sql",
+		"t": "source.sql meta.create.sql keyword.other.create.sql",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -12,7 +12,55 @@
 		}
 	},
 	{
-		"c": " VIEW METRIC_STATS (ID, ",
+		"c": " ",
+		"t": "source.sql meta.create.sql",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "VIEW",
+		"t": "source.sql meta.create.sql keyword.other.sql",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.sql meta.create.sql",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "METRIC_STATS",
+		"t": "source.sql meta.create.sql entity.name.function.sql",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " (ID, ",
 		"t": "source.sql",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -25,14 +73,14 @@
 	},
 	{
 		"c": "MONTH",
-		"t": "source.sql support.function.datetime.sql",
+		"t": "source.sql keyword.other.sql",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #5E2CBC"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
 		}
 	},
 	{
@@ -85,14 +133,14 @@
 	},
 	{
 		"c": "MONTH",
-		"t": "source.sql support.function.datetime.sql",
+		"t": "source.sql keyword.other.sql",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #5E2CBC"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
 		}
 	},
 	{

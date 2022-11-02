@@ -20,7 +20,7 @@ import { encodeBase64 } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/browser/editSessionsStorageService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -56,9 +56,10 @@ import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
@@ -117,6 +118,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IActivityService private readonly activityService: IActivityService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -292,13 +294,20 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
-				if (uri === undefined) { return; }
-
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
 					ref = await that.storeEditSession(false);
+				}
+
+				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
+				if (uri === undefined) {
+					// If the user didn't end up picking a Continue On destination
+					// and we stored an edit session, clean up the stored edit session
+					if (ref !== undefined) {
+						void that.editSessionsStorageService.delete(ref);
+					}
+					return;
 				}
 
 				// Append the ref to the URI
@@ -550,6 +559,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
 		const folders: Folder[] = [];
 		let hasEdits = false;
+
+		// Save all saveable editors before building edit session contents
+		await this.editorService.saveAll();
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
