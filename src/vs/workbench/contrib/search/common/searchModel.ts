@@ -24,6 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -851,7 +852,8 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
@@ -881,13 +883,21 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		const fileMatchParentParts: URI[] = [];
 		let uri = this.uriParent(rawFileMatch.resource);
 
+		const debug: string[] = ['[search model building]'];
 		while (!this.uriEquals(this.resource, uri)) {
 			fileMatchParentParts.unshift(uri);
 			const prevUri = uri;
 			uri = this.uriParent(uri);
+			if (this._logService.getLevel() === LogLevel.Trace) {
+				debug.push(`current uri parent ${uri} comparing with ${prevUri}`);
+			}
 			if (this.uriEquals(prevUri, uri)) {
+				this._logService.trace(debug.join('\n\n'));
 				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
 			}
+		}
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace(debug.join('\n\n'));
 		}
 
 		const root = this.closestRoot ?? this;

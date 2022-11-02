@@ -78,7 +78,6 @@ export class SetLogLevelAction extends Action {
 			{ label: this.getLabel(nls.localize('info', "Info"), LogLevel.Info, current), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, defaultLogLevel) },
 			{ label: this.getLabel(nls.localize('warn', "Warning"), LogLevel.Warning, current), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, defaultLogLevel) },
 			{ label: this.getLabel(nls.localize('err', "Error"), LogLevel.Error, current), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, defaultLogLevel) },
-			{ label: this.getLabel(nls.localize('critical', "Critical"), LogLevel.Critical, current), level: LogLevel.Critical, description: this.getDescription(LogLevel.Critical, defaultLogLevel) },
 			{ label: this.getLabel(nls.localize('off', "Off"), LogLevel.Off, current), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, defaultLogLevel) },
 		];
 

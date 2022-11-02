@@ -69,7 +69,7 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 	}
 }
 
-export interface ITunnelViewModel {
+interface ITunnelViewModel {
 	readonly onForwardedPortsChanged: Event<void>;
 	readonly all: TunnelItem[];
 	readonly input: TunnelItem;
@@ -728,8 +728,8 @@ class TunnelItem implements ITunnelItem {
 	}
 }
 
-export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
-export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
+const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
+const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
 const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacyId | string | undefined>('tunnelPrivacy', undefined, true);
 const TunnelPrivacyEnabledContextKey = new RawContextKey<boolean>('tunnelPrivacyEnabled', false, true);
 const TunnelProtocolContextKey = new RawContextKey<TunnelProtocol | undefined>('tunnelProtocol', TunnelProtocol.Http, true);
@@ -1778,7 +1778,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		isForwardedOrDetectedExpr)
 }));
 
-export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
+const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,

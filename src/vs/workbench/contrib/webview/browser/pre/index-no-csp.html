@@ -589,6 +589,10 @@
 				} else {
 					return; // let the browser handle this
 				}
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
+				// (No effect in a regular browser tab.)
+				e.preventDefault();
 			}
 
 			hostMessaging.postMessage('did-keydown', {
@@ -653,6 +657,24 @@
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
 			return hasMeta && e.key.toLowerCase() === 'f';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseTab(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'w';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isNewWindow(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'n';
 		}
 
 		let isHandlingScroll = false;
