@@ -14,7 +14,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -36,6 +36,7 @@ suite('Search - Viewlet', () => {
 		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 		instantiation.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiation.stub(ILabelService, new MockLabelService());
+		instantiation.stub(ILogService, new NullLogService());
 	});
 
 	test('Data Source', function () {

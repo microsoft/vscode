@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
-
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -50,7 +47,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	}
 
 	const info = await findGit(pathHints, gitPath => {
-		logger.info(localize('validating', "Validating found git in: {0}", gitPath));
+		logger.info(l10n.t('Validating found git in: "{0}"', gitPath));
 		if (excludes.length === 0) {
 			return true;
 		}
@@ -58,7 +55,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
 		const skip = excludes.some(e => normalized.startsWith(e));
 		if (skip) {
-			logger.info(localize('skipped', "Skipped found git in: {0}", gitPath));
+			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
 	});
@@ -81,7 +78,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, [askpass, gitEditor, ipcServer]);
 	disposables.push(terminalEnvironmentManager);
 
-	logger.info(localize('using git', "Using git {0} from {1}", info.version, info.path));
+	logger.info(l10n.t('Using git "{0}" from "{1}"', info.version, info.path));
 
 	const git = new Git({
 		gitPath: info.path,
@@ -159,10 +156,10 @@ async function warnAboutMissingGit(): Promise<void> {
 		return;
 	}
 
-	const download = localize('downloadgit', "Download Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const download = l10n.t('Download Git');
+	const neverShowAgain = l10n.t('Don\'t Show Again');
 	const choice = await window.showWarningMessage(
-		localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
+		l10n.t('Git not found. Install it or configure it using the "git.path" setting.'),
 		download,
 		neverShowAgain
 	);
@@ -249,11 +246,11 @@ async function checkGitv1(info: IGit): Promise<void> {
 		return;
 	}
 
-	const update = localize('updateGit', "Update Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const update = l10n.t('Update Git');
+	const neverShowAgain = l10n.t('Don\'t Show Again');
 
 	const choice = await window.showWarningMessage(
-		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
+		l10n.t('You seem to have git "{0}" installed. Code works best with git >= 2', info.version),
 		update,
 		neverShowAgain
 	);
@@ -277,10 +274,10 @@ async function checkGitWindows(info: IGit): Promise<void> {
 		return;
 	}
 
-	const update = localize('updateGit', "Update Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const update = l10n.t('Update Git');
+	const neverShowAgain = l10n.t('Don\'t Show Again');
 	const choice = await window.showWarningMessage(
-		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
+		l10n.t('There are known issues with the installed Git "{0}". Please update to Git >= 2.27 for the git features to work correctly.', info.version),
 		update,
 		neverShowAgain
 	);

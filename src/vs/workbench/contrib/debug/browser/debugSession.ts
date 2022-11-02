@@ -889,7 +889,7 @@ export class DebugSession implements IDebugSession {
 			// whether the thread is stopped or not
 			if (stoppedDetails.allThreadsStopped) {
 				this.threads.forEach(thread => {
-					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: undefined };
+					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: thread.stoppedDetails?.reason };
 					thread.stopped = true;
 					thread.clearCallStack();
 				});

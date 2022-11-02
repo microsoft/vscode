@@ -180,7 +180,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		}
 		const removeAction = this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folder);
 		actions.push(removeAction);
-		templateData.disposableActions.add(removeAction);
 
 		templateData.actions.push(actions, { icon: true, label: false });
 	}

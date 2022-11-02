@@ -378,8 +378,8 @@ class MenuImpl implements IMenu {
 
 		this._onDidChange = new DebounceEmitter({
 			// start/stop context key listener
-			onFirstListenerAdd: startLazyListener,
-			onLastListenerRemove: lazyListener.clear.bind(lazyListener),
+			onWillAddFirstListener: startLazyListener,
+			onDidRemoveLastListener: lazyListener.clear.bind(lazyListener),
 			delay: options.eventDebounceDelay,
 			merge
 		});

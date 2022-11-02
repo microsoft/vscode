@@ -20,13 +20,12 @@ function now(): string {
 }
 
 export enum LogLevel {
+	Off,
 	Trace,
 	Debug,
 	Info,
 	Warning,
-	Error,
-	Critical,
-	Off
+	Error
 }
 
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
@@ -41,7 +40,6 @@ export interface ILogger extends IDisposable {
 	info(message: string, ...args: any[]): void;
 	warn(message: string, ...args: any[]): void;
 	error(message: string | Error, ...args: any[]): void;
-	critical(message: string | Error, ...args: any[]): void;
 
 	/**
 	 * An operation to flush the contents. Can be synchronous.
@@ -56,7 +54,6 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 		case LogLevel.Info: logger.info(message); break;
 		case LogLevel.Warning: logger.warn(message); break;
 		case LogLevel.Error: logger.error(message); break;
-		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
 	}
 }
@@ -198,12 +195,6 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 		}
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Critical)) {
-			this.log(LogLevel.Critical, format([message, ...args]));
-		}
-	}
-
 	flush(): void { }
 }
 
@@ -268,16 +259,6 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			if (this.useColors) {
-				console.error(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[main ${now()}]`, message, ...args);
-			}
-		}
-	}
-
 	override dispose(): void {
 		// noop
 	}
@@ -325,12 +306,6 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			console.log('%cCRITI', 'background: #f33; color: white', message, ...args);
-		}
-	}
-
 	override dispose(): void {
 		// noop
 	}
@@ -374,12 +349,6 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 	error(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
 			this.adapter.log(LogLevel.Error, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.adapter.log(LogLevel.Critical, [this.extractMessage(message), ...args]);
 		}
 	}
 
@@ -447,12 +416,6 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.critical(message, ...args);
-		}
-	}
-
 	flush(): void {
 		for (const logService of this.logServices) {
 			logService.flush();
@@ -504,10 +467,6 @@ export class LogService extends Disposable implements ILogService {
 
 	error(message: string | Error, ...args: any[]): void {
 		this.logger.error(message, ...args);
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		this.logger.critical(message, ...args);
 	}
 
 	flush(): void {
@@ -629,6 +588,17 @@ export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	return DEFAULT_LOG_LEVEL;
 }
 
+export function LogLevelToString(logLevel: LogLevel): string {
+	switch (logLevel) {
+		case LogLevel.Trace: return 'trace';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warn';
+		case LogLevel.Error: return 'error';
+		case LogLevel.Off: return 'off';
+	}
+}
+
 export function parseLogLevel(logLevel: string): LogLevel | undefined {
 	switch (logLevel) {
 		case 'trace':
@@ -642,21 +612,9 @@ export function parseLogLevel(logLevel: string): LogLevel | undefined {
 		case 'error':
 			return LogLevel.Error;
 		case 'critical':
-			return LogLevel.Critical;
+			return LogLevel.Error;
 		case 'off':
 			return LogLevel.Off;
 	}
 	return undefined;
-}
-
-export function LogLevelToString(logLevel: LogLevel): string {
-	switch (logLevel) {
-		case LogLevel.Trace: return 'trace';
-		case LogLevel.Debug: return 'debug';
-		case LogLevel.Info: return 'info';
-		case LogLevel.Warning: return 'warn';
-		case LogLevel.Error: return 'error';
-		case LogLevel.Critical: return 'critical';
-		case LogLevel.Off: return 'off';
-	}
 }

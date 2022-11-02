@@ -34,7 +34,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		for (const imageMime of supportedImageMimes) {
 			const file = dataTransfer.get(imageMime)?.asFile();
 			if (file) {
-				const edit = await this.makeCreateImagePasteEdit(document, file, token);
+				const edit = await this._makeCreateImagePasteEdit(document, file, token);
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -49,7 +49,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
 	}
 
-	private async makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
 		if (file.uri) {
 			// If file is already in workspace, we don't want to create a copy of it
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
@@ -59,7 +59,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			}
 		}
 
-		const uri = await this.getNewFileName(document, file);
+		const uri = await this._getNewFileName(document, file);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -78,7 +78,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		return pasteEdit;
 	}
 
-	private async getNewFileName(document: vscode.TextDocument, file: vscode.DataTransferFile): Promise<vscode.Uri> {
+	private async _getNewFileName(document: vscode.TextDocument, file: vscode.DataTransferFile): Promise<vscode.Uri> {
 		const root = Utils.dirname(document.uri);
 
 		const ext = path.extname(file.name);

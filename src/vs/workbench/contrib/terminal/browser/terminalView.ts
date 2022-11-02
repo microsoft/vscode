@@ -52,7 +52,6 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
-	private _terminalsInitialized = false;
 	private _isWelcomeShowing: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -132,6 +131,12 @@ export class TerminalViewPane extends ViewPane {
 		return (decorationsEnabled === 'both' || decorationsEnabled === 'gutter') && this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
 	}
 
+	private _initializeTerminal() {
+		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && !this._terminalGroupService.groups.length) {
+			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+		}
+	}
+
 	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
@@ -164,22 +169,10 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				const hadTerminals = !!this._terminalGroupService.groups.length;
-				// Ensure the primary backend is registered as it's important to do before
-				// initializeTerminals is called.
-				await this._terminalService.primaryBackendRegistered;
-				if (this._terminalService.isProcessSupportRegistered) {
-					if (this._terminalsInitialized) {
-						if (!hadTerminals) {
-							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-						}
-					} else {
-						this._terminalsInitialized = true;
-						this._terminalService.initializeTerminals();
-					}
-				} else {
+				if (!this._terminalService.isProcessSupportRegistered) {
 					this._onDidChangeViewWelcomeState.fire();
 				}
+				this._initializeTerminal();
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
@@ -191,6 +184,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._terminalGroupService.updateVisibility();
 		}));
+		this._register(this._terminalService.onDidChangeConnectionState(() => this._initializeTerminal()));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
 

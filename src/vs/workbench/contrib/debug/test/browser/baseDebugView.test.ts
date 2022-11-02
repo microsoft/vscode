@@ -11,7 +11,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
 import { isWindows } from 'vs/base/common/platform';
@@ -132,8 +132,8 @@ suite('Debug - Base Debug View', () => {
 
 	test('statusbar in debug mode', () => {
 		const model = createMockDebugModel();
-		const session = createMockSession(model);
-		const session2 = createMockSession(model, undefined, { suppressDebugStatusbar: true });
+		const session = createTestSession(model);
+		const session2 = createTestSession(model, undefined, { suppressDebugStatusbar: true });
 		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, []), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, [session]), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), true);

@@ -315,7 +315,7 @@ export interface IDragAndDropContributionRegistry {
 	getAll(): IterableIterator<IDragAndDropContribution>;
 }
 
-export interface IDragAndDropContribution {
+interface IDragAndDropContribution {
 	readonly dataFormatKey: string;
 	getEditorInputs(data: string): IDraggedResourceEditorInput[];
 	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;

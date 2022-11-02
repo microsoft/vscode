@@ -96,7 +96,7 @@ export interface IColor {
 	defaults: { light: string; dark: string; highContrast: string };
 }
 
-export interface IWebviewEditor {
+interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
 	readonly selector: readonly {

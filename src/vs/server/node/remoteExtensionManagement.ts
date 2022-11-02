@@ -8,13 +8,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
-export interface IExtensionsManagementProcessInitData {
-	args: NativeParsedArgs;
-}
-
-export function printTime(ms: number): string {
+function printTime(ms: number): string {
 	let h = 0;
 	let m = 0;
 	let s = 0;

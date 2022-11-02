@@ -1043,7 +1043,7 @@ export class TimelinePane extends ViewPane {
 	}
 }
 
-export class TimelineElementTemplate implements IDisposable {
+class TimelineElementTemplate implements IDisposable {
 	static readonly id = 'TimelineElementTemplate';
 
 	readonly actionBar: ActionBar;
@@ -1052,15 +1052,14 @@ export class TimelineElementTemplate implements IDisposable {
 	readonly timestamp: HTMLSpanElement;
 
 	constructor(
-		readonly container: HTMLElement,
+		container: HTMLElement,
 		actionViewItemProvider: IActionViewItemProvider,
-		private hoverDelegate: IHoverDelegate,
-
+		hoverDelegate: IHoverDelegate,
 	) {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: hoverDelegate });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
@@ -1213,7 +1212,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	}
 
 	disposeTemplate(template: TimelineElementTemplate): void {
-		template.iconLabel.dispose();
+		template.dispose();
 	}
 }
 
