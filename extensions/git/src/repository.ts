@@ -1254,9 +1254,17 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
-		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+		const clearInputBoxAndCloseDiffEditors = async () => {
+			if (message) {
+				this.inputBox.value = await this.getInputTemplate();
+			}
+
+			const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+			const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+				[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
+			this.closeDiffEditors(indexResources, workingGroupResources);
+		};
 
 		if (this.rebaseCommit) {
 			await this.run(
@@ -1268,7 +1276,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.rebaseContinue();
-					this.closeDiffEditors(indexResources, workingGroupResources);
+					await clearInputBoxAndCloseDiffEditors();
 				});
 		} else {
 			// Set post-commit command to render the correct action button
@@ -1290,13 +1298,9 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.commit(message, opts);
-					this.closeDiffEditors(indexResources, workingGroupResources);
+					await clearInputBoxAndCloseDiffEditors();
 				},
-				async (): Promise<GitResourceGroups> => {
-					if (message) {
-						this.inputBox.value = await this.getInputTemplate();
-					}
-
+				(): GitResourceGroups => {
 					let untrackedGroup: Resource[] | undefined = undefined,
 						workingTreeGroup: Resource[] | undefined = undefined;
 
@@ -1900,7 +1904,7 @@ export class Repository implements Disposable {
 	private async run<T>(
 		operation: Operation,
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
-		optimisticResourceGroups: () => Promise<GitResourceGroups | undefined> | GitResourceGroups | undefined = () => undefined): Promise<T> {
+		optimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
@@ -1917,7 +1921,7 @@ export class Repository implements Disposable {
 				const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 				const optimisticUpdate = scopedConfig.get<boolean>('experimental.optimisticUpdate') === true;
 
-				await this.updateModelState(optimisticUpdate ? await optimisticResourceGroups() : undefined);
+				await this.updateModelState(optimisticUpdate ? optimisticResourceGroups() : undefined);
 			}
 
 			return result;
