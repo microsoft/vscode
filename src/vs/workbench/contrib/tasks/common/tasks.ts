@@ -1153,7 +1153,7 @@ export namespace TaskEvent {
 				group: task.configurationProperties.group,
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
-				terminalId: terminalId,
+				terminalId
 				__task: task
 			};
 			if (kind === TaskEventKind.Start) {
