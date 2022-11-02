@@ -61,7 +61,7 @@ suite('QuickFixAddon', () => {
 			status`;
 			const exitCode = 1;
 			const actions = [{
-				id: 'Git Similar Command',
+				id: 'Git Similar',
 				enabled: true,
 				label: 'Run: git status',
 				tooltip: 'Run: git status',
@@ -100,13 +100,13 @@ suite('QuickFixAddon', () => {
 						pull
 						push`;
 					const actions = [{
-						id: 'Git Similar Command',
+						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git pull',
 						tooltip: 'Run: git pull',
 						command: 'git pull'
 					}, {
-						id: 'Git Similar Command',
+						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git push',
 						tooltip: 'Run: git push',
@@ -120,7 +120,7 @@ suite('QuickFixAddon', () => {
 				The most similar commands are
 						checkout`;
 					assertMatchOptions(getQuickFixesForCommand(createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService)?.fixes, [{
-						id: 'Git Similar Command',
+						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git checkout .',
 						tooltip: 'Run: git checkout .',
