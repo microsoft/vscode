@@ -82,5 +82,5 @@
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .codicon-notebook-state-error {
-	color: var(--notebook-cell-status-icon-error);
+	color: var(--vscode-notebookStatusErrorIcon-foreground);
 }
