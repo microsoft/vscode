@@ -748,8 +748,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
 			? this.contextService.getWorkspace().folders[0].name
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
-		quickPick.title = localize('continueEditSessionPick.title', "Continue {0} on", `'${workspaceContext}'`);
-		quickPick.placeholder = localize('continueEditSessionPick.placeholder', 'Choose how you would like to continue working');
+		quickPick.placeholder = localize('continueEditSessionPick.title', "Select option to continue {0} on", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {

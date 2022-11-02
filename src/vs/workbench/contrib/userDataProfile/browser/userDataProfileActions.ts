@@ -219,7 +219,7 @@ export class RenameProfileAction extends Action2 {
 
 		const name = await quickInputService.input({
 			value: profile.name,
-			title: localize('edit settings profile', "Rename Settings Profile..."),
+			title: localize('select settings profile to rename', 'Rename {0}', profile.name),
 			validateInput: async (value: string) => {
 				if (profile!.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
 					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
@@ -248,6 +248,7 @@ export class RenameProfileAction extends Action2 {
 				profile
 			})),
 			{
+				title: localize('rename specific settings profile', "Rename Settings Profile..."),
 				placeHolder: localize('pick profile to rename', "Select Settings Profile to Rename"),
 			});
 		return pick?.profile;
@@ -294,6 +295,7 @@ registerAction2(class DeleteProfileAction extends Action2 {
 					profile
 				})),
 				{
+					title: localize('delete specific settings profile', "Delete Settings Profile..."),
 					placeHolder: localize('pick profile to delete', "Select Settings Profiles to Delete"),
 					canPickMany: true
 				});
