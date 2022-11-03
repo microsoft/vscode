@@ -6,7 +6,7 @@
 import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionWidget, HeaderRenderer, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionWidget, HeaderRenderer } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -74,7 +74,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
-		widget.classList.add('terminalQuickFixWidget');
+		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
 		const onDidSelect = async (action: TerminalQuickFix, options: { readonly preview: boolean }) => {
 			await delegate.onSelectQuickFix(action, trigger, options);
@@ -140,64 +140,8 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 	}
 
 	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: any): void {
-		// TODO:
-		// type ApplyCodeActionEvent = {
-		// 	codeActionFrom: any;
-		// 	validCodeActions: number;
-		// 	cancelled: boolean;
-		// };
-
-		// type ApplyCodeEventClassification = {
-		// 	codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-		// 	validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-		// 	cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-		// 	owner: 'mjbvz';
-		// 	comment: 'Event used to gain insights into how code actions are being triggered';
-		// };
-
-		// this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		// codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
-		// 	validCodeActions: actions.validActions.length,
-		// 	cancelled: cancelled,
-		// });
-
 		this.currentShowingContext = undefined;
-
 		delegate.onHide(cancelled);
-	}
-
-
-}
-
-export class QuickFixItemRenderer extends ActionItemRenderer<ListMenuItem<TerminalQuickFix>> {
-	constructor(
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-	) {
-		super();
-	}
-	get templateId(): string {
-		return 'action';
-	}
-	renderElement(element: ListMenuItem<TerminalQuickFix>, _index: number, data: IActionMenuTemplateData): void {
-		if (element.group.icon) {
-			data.icon.className = element.group.icon.codicon.classNames;
-			data.icon.style.color = element.group.icon.color ?? '';
-		} else {
-			data.icon.className = Codicon.lightBulb.classNames;
-			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
-		}
-		if (!element.item?.action?.label) {
-			return;
-		}
-		data.text.textContent = stripNewlines(element.item?.action?.label);
-
-		if (element.item.disabled) {
-			data.container.title = element.item.action.label;
-			data.container.classList.add('option-disabled');
-		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedTerminalQuickFixCommand)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedTerminalQuickFixCommand)?.getLabel());
-			data.container.classList.remove('option-disabled');
-		}
 	}
 }
 
@@ -212,14 +156,14 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 		super({
 			user: 'quickFixWidget',
 			renderers: [
-				new QuickFixItemRenderer(keybindingService),
+				new ActionItemRenderer<TerminalQuickFix>(acceptSelectedTerminalQuickFixCommand, previewSelectedTerminalQuickFixCommand, keybindingService),
 				new HeaderRenderer(),
 			],
 			options: {
 				keyboardSupport: true,
 				accessibilityProvider: {
 					getAriaLabel: element => {
-						if (element.kind === 'action') {
+						if (element.kind === 'code-action') {
 							let label = stripNewlines(element.item.action.label);
 							if (element.item.action.disabled) {
 								label = localize({ key: 'customQuickFixWidget.labels', comment: ['terminal quick fix labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.disabled);
@@ -249,13 +193,15 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
 				menuItems.push({
-					kind: 'action',
+					kind: 'code-action',
 					item: action,
 					group: {
 						kind: CodeActionKind.QuickFix,
 						icon: { codicon: action.action.id === 'quickFix.opener' ? Codicon.link : Codicon.run },
 						title: action.action!.label
-					}
+					},
+					disabled: false,
+					label: action.title
 				});
 			}
 		}
@@ -264,7 +210,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 }
 
 interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
-	readonly kind: 'action' | 'header';
+	readonly kind: 'code-action' | 'header';
 	readonly item?: TerminalQuickFix;
 	readonly group: ActionGroup;
 }

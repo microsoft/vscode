@@ -10,7 +10,7 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, ActionWidget, IActionMenuTemplateData } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionWidget } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
@@ -57,51 +57,12 @@ const codeActionGroups = Object.freeze<ActionGroup[]>([
 	uncategorizedCodeActionGroup,
 ]);
 
-class CodeActionItemRenderer extends ActionItemRenderer<ListMenuItem<CodeActionItem>> {
-	get templateId(): string { return CodeActionListItemKind.CodeAction; }
-	constructor(
-		private readonly keybindingResolver: CodeActionKeybindingResolver,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) {
-		super();
-	}
-
-	renderElement(element: ListMenuItem<CodeActionItem>, _index: number, data: IActionMenuTemplateData): void {
-		if (element.group.icon) {
-			data.icon.className = element.group.icon.codicon.classNames;
-			data.icon.style.color = element.group.icon.color ?? '';
-		} else {
-			data.icon.className = Codicon.lightBulb.classNames;
-			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
-		}
-		if (!element.item?.action.title) {
-			return;
-		}
-		data.text.textContent = stripNewlines(element.item?.action.title);
-		const binding = this.keybindingResolver.getResolver()(element.item.action);
-		data.keybinding.set(binding);
-		if (!binding) {
-			dom.hide(data.keybinding.element);
-		} else {
-			dom.show(data.keybinding.element);
-		}
-
-		if (element.item.action.disabled) {
-			data.container.title = element.item.action.disabled;
-			data.container.classList.add('option-disabled');
-		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
-			data.container.classList.remove('option-disabled');
-		}
-	}
-}
-
 interface HeaderTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
 }
 
-class HeaderRenderer implements IListRenderer<ListMenuItem<CodeActionItem>, HeaderTemplateData> {
+class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
 
 	get templateId(): string { return CodeActionListItemKind.Header; }
 
@@ -114,7 +75,7 @@ class HeaderRenderer implements IListRenderer<ListMenuItem<CodeActionItem>, Head
 		return { container, text };
 	}
 
-	renderElement(element: ListMenuItem<CodeActionItem>, _index: number, templateData: HeaderTemplateData): void {
+	renderElement(element: ListMenuItem<T>, _index: number, templateData: HeaderTemplateData): void {
 		templateData.text.textContent = element.group.title;
 	}
 
@@ -135,7 +96,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 		super({
 			user: 'codeActionWidget',
 			renderers: [
-				new CodeActionItemRenderer(new CodeActionKeybindingResolver(keybindingService), keybindingService),
+				new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService)),
 				new HeaderRenderer(),
 			],
 			options: {
@@ -165,7 +126,9 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 				return {
 					kind: CodeActionListItemKind.CodeAction,
 					item: action,
-					group: uncategorizedCodeActionGroup
+					group: uncategorizedCodeActionGroup,
+					disabled: !!action.action.disabled,
+					label: action.action.title
 				};
 			});
 		}
@@ -188,7 +151,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 			if (menuEntry.actions.length) {
 				allMenuItems.push({ kind: CodeActionListItemKind.Header, group: menuEntry.group });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, item: action, group: menuEntry.group });
+					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, item: action, group: menuEntry.group, label: action.action.title, disabled: action.action.disabled });
 				}
 			}
 		}

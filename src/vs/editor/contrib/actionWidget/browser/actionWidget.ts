@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
-import { ActionSet, ActionShowOptions, BaseActionWidget, IActionList, ListMenuItem } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionSet, ActionShowOptions, BaseActionWidget, IActionList, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -18,6 +18,7 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IActionMenuTemplateData {
 	readonly container: HTMLElement;
@@ -138,9 +139,15 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 	}
 }
 
-export abstract class ActionItemRenderer<T> implements IListRenderer<T, IActionMenuTemplateData> {
+export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, IActionMenuTemplateData> {
 
-	abstract get templateId(): string;
+	get templateId(): string { return 'code-action'; }
+
+	constructor(private readonly _acceptSelectedTerminalQuickFixCommand: string,
+		private readonly _previewSelectedTerminalQuickFixCommand: string,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		private readonly _resolver?: any) {
+	}
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
 		container.classList.add(this.templateId);
@@ -158,7 +165,37 @@ export abstract class ActionItemRenderer<T> implements IListRenderer<T, IActionM
 		return { container, icon, text, keybinding };
 	}
 
-	abstract renderElement(element: T, _index: number, data: IActionMenuTemplateData): void;
+	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
+		if (element.group.icon) {
+			data.icon.className = element.group.icon.codicon.classNames;
+			data.icon.style.color = element.group.icon.color ?? '';
+		} else {
+			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
+		}
+		if (!element.item || !element.label) {
+			return;
+		}
+		data.text.textContent = stripNewlines(element.label);
+		let binding;
+		if (this._resolver) {
+			binding = this._resolver?.getResolver()((element.item as any).action);
+		}
+		data.keybinding.set(binding);
+		if (!binding) {
+			dom.hide(data.keybinding.element);
+		} else {
+			dom.show(data.keybinding.element);
+		}
+
+		if (element.disabled) {
+			data.container.title = element.label;
+			data.container.classList.add('option-disabled');
+		} else {
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(this._acceptSelectedTerminalQuickFixCommand)?.getLabel(), this._keybindingService.lookupKeybinding(this._previewSelectedTerminalQuickFixCommand)?.getLabel());
+			data.container.classList.remove('option-disabled');
+		}
+	}
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
 		// noop
 	}
@@ -169,7 +206,7 @@ interface HeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-export class HeaderRenderer<T> implements IListRenderer<ListMenuItem<T>, HeaderTemplateData> {
+export class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
 
 	get templateId(): string { return 'header'; }
 
