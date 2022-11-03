@@ -27,6 +27,38 @@ export interface IActionMenuTemplateData {
 	readonly keybinding: KeybindingLabel;
 }
 
+export enum ActionListItemKind {
+	Action = 'action',
+	Header = 'header'
+}
+
+interface HeaderTemplateData {
+	readonly container: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+export class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
+
+	get templateId(): string { return ActionListItemKind.Header; }
+
+	renderTemplate(container: HTMLElement): HeaderTemplateData {
+		container.classList.add('group-header');
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return { container, text };
+	}
+
+	renderElement(element: ListMenuItem<T>, _index: number, templateData: HeaderTemplateData): void {
+		templateData.text.textContent = element.group.title;
+	}
+
+	disposeTemplate(_templateData: HeaderTemplateData): void {
+		// noop
+	}
+}
+
 export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 
 	currentShowingContext?: {
@@ -141,7 +173,7 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 
 export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, IActionMenuTemplateData> {
 
-	get templateId(): string { return 'code-action'; }
+	get templateId(): string { return 'action'; }
 
 	constructor(private readonly _acceptSelectedTerminalQuickFixCommand: string,
 		private readonly _previewSelectedTerminalQuickFixCommand: string,
@@ -206,27 +238,6 @@ interface HeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-export class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
-
-	get templateId(): string { return 'header'; }
-
-	renderTemplate(container: HTMLElement): HeaderTemplateData {
-		container.classList.add('group-header');
-
-		const text = document.createElement('span');
-		container.append(text);
-
-		return { container, text };
-	}
-
-	renderElement(element: ListMenuItem<T>, _index: number, templateData: HeaderTemplateData): void {
-		templateData.text.textContent = element.group.title;
-	}
-
-	disposeTemplate(_templateData: HeaderTemplateData): void {
-		// noop
-	}
-}
 
 export abstract class ActionList<T> extends Disposable implements IActionList<T> {
 

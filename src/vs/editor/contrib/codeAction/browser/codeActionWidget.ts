@@ -6,11 +6,10 @@
 import * as dom from 'vs/base/browser/dom';
 import { ListMenuItem, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, ActionWidget } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
@@ -33,11 +32,6 @@ interface CodeActionWidgetDelegate {
 	onHide(cancelled: boolean): void;
 }
 
-enum CodeActionListItemKind {
-	CodeAction = 'code-action',
-	Header = 'header'
-}
-
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
@@ -56,33 +50,6 @@ const codeActionGroups = Object.freeze<ActionGroup[]>([
 	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: { codicon: Codicon.symbolFile } },
 	uncategorizedCodeActionGroup,
 ]);
-
-interface HeaderTemplateData {
-	readonly container: HTMLElement;
-	readonly text: HTMLElement;
-}
-
-class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
-
-	get templateId(): string { return CodeActionListItemKind.Header; }
-
-	renderTemplate(container: HTMLElement): HeaderTemplateData {
-		container.classList.add('group-header');
-
-		const text = document.createElement('span');
-		container.append(text);
-
-		return { container, text };
-	}
-
-	renderElement(element: ListMenuItem<T>, _index: number, templateData: HeaderTemplateData): void {
-		templateData.text.textContent = element.group.title;
-	}
-
-	disposeTemplate(_templateData: HeaderTemplateData): void {
-		// noop
-	}
-}
 
 export class CodeActionList extends ActionList<CodeActionItem> {
 
@@ -103,7 +70,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 				keyboardSupport: false,
 				accessibilityProvider: {
 					getAriaLabel: element => {
-						if (element.kind === CodeActionListItemKind.CodeAction) {
+						if (element.kind === ActionListItemKind.Action) {
 							let label = stripNewlines(element.item.action.title);
 							if (element.item.action.disabled) {
 								label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.action.disabled);
@@ -117,14 +84,14 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 					getWidgetRole: () => 'code-action-widget'
 				},
 			}
-		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === CodeActionListItemKind.CodeAction && !element.item?.action.disabled; }, onDidSelect, contextViewService);
+		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === ActionListItemKind.Action && !element.item?.action.disabled; }, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {
 		if (!showHeaders) {
 			return inputCodeActions.map((action): ListMenuItem<CodeActionItem> => {
 				return {
-					kind: CodeActionListItemKind.CodeAction,
+					kind: ActionListItemKind.Action,
 					item: action,
 					group: uncategorizedCodeActionGroup,
 					disabled: !!action.action.disabled,
@@ -149,9 +116,9 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 		const allMenuItems: ListMenuItem<CodeActionItem>[] = [];
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.actions.length) {
-				allMenuItems.push({ kind: CodeActionListItemKind.Header, group: menuEntry.group });
+				allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, item: action, group: menuEntry.group, label: action.action.title, disabled: action.action.disabled });
+					allMenuItems.push({ kind: ActionListItemKind.Action, item: action, group: menuEntry.group, label: action.action.title, disabled: action.action.disabled });
 				}
 			}
 		}

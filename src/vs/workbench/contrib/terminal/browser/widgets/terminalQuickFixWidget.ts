@@ -6,7 +6,7 @@
 import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionWidget, HeaderRenderer } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -18,7 +18,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ActionGroup } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -183,7 +182,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): ListMenuItem<TerminalQuickFix>[] {
 		const menuItems: TerminalQuickFixListItem[] = [];
 		menuItems.push({
-			kind: 'header',
+			kind: ActionListItemKind.Header,
 			group: {
 				kind: CodeActionKind.QuickFix,
 				title: 'Quick fix...',
@@ -193,7 +192,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
 			if (!action.disabled && action.action) {
 				menuItems.push({
-					kind: 'code-action',
+					kind: ActionListItemKind.Action,
 					item: action,
 					group: {
 						kind: CodeActionKind.QuickFix,
@@ -210,9 +209,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 }
 
 interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
-	readonly kind: 'code-action' | 'header';
 	readonly item?: TerminalQuickFix;
-	readonly group: ActionGroup;
 }
 
 registerAction2(class extends Action2 {

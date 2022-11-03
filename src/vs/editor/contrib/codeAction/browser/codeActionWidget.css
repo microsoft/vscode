@@ -40,7 +40,7 @@
 	width: 100%;
 }
 
-.codeActionWidget .monaco-list .monaco-list-row.code-action.focused:not(.option-disabled) {
+.codeActionWidget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
 	background-color: var(--vscode-quickInputList-focusBackground);
 	color: var(--vscode-quickInputList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
@@ -68,25 +68,25 @@
 	outline: 0 solid !important;
 }
 
-.codeActionWidget .monaco-list-row.code-action {
+.codeActionWidget .monaco-list-row.action {
 	display: flex;
 	gap: 6px;
 	align-items: center;
 }
 
-.codeActionWidget .monaco-list-row.code-action.option-disabled {
+.codeActionWidget .monaco-list-row.action.option-disabled {
 	color: var(--vscode-disabledForeground);
 }
 
-.codeActionWidget .monaco-list-row.code-action.option-disabled .codicon {
+.codeActionWidget .monaco-list-row.action.option-disabled .codicon {
 	opacity: 0.4;
 }
 
-.codeActionWidget .monaco-list-row.code-action:not(.option-disabled) .codicon {
+.codeActionWidget .monaco-list-row.action:not(.option-disabled) .codicon {
 	color: inherit;
 }
 
-.codeActionWidget .monaco-list-row.code-action .title {
+.codeActionWidget .monaco-list-row.action .title {
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
