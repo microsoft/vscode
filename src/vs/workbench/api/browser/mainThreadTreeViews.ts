@@ -125,6 +125,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return controller.resolveDropFileData(requestId, dataItemId);
 	}
 
+	public async $disposeTree(treeViewId: string): Promise<void> {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.dataProvider = undefined;
+		}
+	}
+
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;

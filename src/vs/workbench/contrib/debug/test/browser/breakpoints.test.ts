@@ -14,7 +14,7 @@ import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel, MockDebugService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -174,7 +174,7 @@ suite('Debug - Breakpoints', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
 		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
 		const breakpoints = model.getBreakpoints();
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		const data = new Map<string, DebugProtocol.Breakpoint>();
 
 		assert.strictEqual(breakpoints[0].lineNumber, 5);
@@ -186,7 +186,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(breakpoints[0].lineNumber, 5);
 		assert.strictEqual(breakpoints[1].lineNumber, 50);
 
-		const session2 = createMockSession(model);
+		const session2 = createTestSession(model);
 		const data2 = new Map<string, DebugProtocol.Breakpoint>();
 		data2.set(breakpoints[0].getId(), { verified: true, line: 100 });
 		data2.set(breakpoints[1].getId(), { verified: true, line: 500 });

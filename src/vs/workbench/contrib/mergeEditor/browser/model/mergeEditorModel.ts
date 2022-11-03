@@ -152,7 +152,10 @@ export class MergeEditorModel extends EditorModel {
 				state.handled.set(handled, tx);
 			}
 
-			this.resultTextModel.setValue(this.computeAutoMergedResult());
+			this.resultTextModel.pushEditOperations(null, [{
+				range: new Range(1, 1, Number.MAX_SAFE_INTEGER, 1),
+				text: this.computeAutoMergedResult()
+			}], () => null);
 		});
 	}
 

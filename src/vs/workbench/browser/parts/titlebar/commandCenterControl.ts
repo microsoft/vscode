@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventLike, reset } from 'vs/base/browser/dom';
+import { reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
@@ -62,9 +62,6 @@ export class CommandCenterControl {
 							super.render(container);
 							container.classList.add('command-center');
 
-							const left = document.createElement('span');
-							left.classList.add('left');
-
 							// icon (search)
 							const searchIcon = renderIcon(Codicon.search);
 							searchIcon.classList.add('search-icon');
@@ -74,22 +71,13 @@ export class CommandCenterControl {
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
 							labelElement.innerText = label;
-							reset(left, searchIcon, labelElement);
+							reset(container, searchIcon, labelElement);
 
-							// icon (dropdown)
-							const right = document.createElement('span');
-							right.classList.add('right');
-							const dropIcon = renderIcon(Codicon.chevronDown);
-							reset(right, dropIcon);
-							reset(container, left, right);
-
-							// hovers
-							this._store.add(setupCustomHover(hoverDelegate, right, localize('all', "Show Search Modes...")));
-							const leftHover = this._store.add(setupCustomHover(hoverDelegate, left, this.getTooltip()));
+							const hover = this._store.add(setupCustomHover(hoverDelegate, container, this.getTooltip()));
 
 							// update label & tooltip when window title changes
 							this._store.add(windowTitle.onDidChange(() => {
-								leftHover.update(this.getTooltip());
+								hover.update(this.getTooltip());
 								labelElement.innerText = this._getLabel();
 							}));
 						}
@@ -118,22 +106,6 @@ export class CommandCenterControl {
 								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
 
 							return title;
-						}
-
-						override onClick(event: EventLike, preserveFocus = false): void {
-
-							if (event instanceof MouseEvent) {
-								let el = event.target;
-								while (el instanceof HTMLElement) {
-									if (el.classList.contains('right')) {
-										quickInputService.quickAccess.show('?');
-										return;
-									}
-									el = el.parentElement;
-								}
-							}
-
-							super.onClick(event, preserveFocus);
 						}
 					}
 

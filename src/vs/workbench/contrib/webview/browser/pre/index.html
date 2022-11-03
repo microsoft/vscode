@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-lC8sxUeeYqUtmkCpPt/OX/HQdE0JbHG1Z3dzrilsRU0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-DmsqQtB7vkf/ey+8HeQmSYaMMdiE0Au1IXEkLBE+OtY=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -590,6 +590,10 @@
 				} else {
 					return; // let the browser handle this
 				}
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
+				// (No effect in a regular browser tab.)
+				e.preventDefault();
 			}
 
 			hostMessaging.postMessage('did-keydown', {
@@ -663,6 +667,24 @@
 		function isSaveEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
 			return hasMeta && e.key.toLowerCase() === 's';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseTab(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'w';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isNewWindow(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'n';
 		}
 
 		let isHandlingScroll = false;
