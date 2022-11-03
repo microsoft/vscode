@@ -479,6 +479,9 @@
 	border: 1px solid #ffffff;
 }
 
+.terminal-scroll-highlight {
+	border-color: var(--vscode-focusBorder);
+}
 .hc-black .xterm-find-result-decoration,
 .hc-light .xterm-find-result-decoration {
 	outline-style: dotted !important;
