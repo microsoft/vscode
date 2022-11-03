@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -129,11 +129,17 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return local;
 	}
 
-	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
+	protected doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
+		if (!options.profileLocation) {
+			options = { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		}
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
 
-	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
+	protected doCreateUninstallExtensionTask(extension: ILocalExtension, options: UninstallOptions): IUninstallExtensionTask {
+		if (!options.profileLocation) {
+			options = { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		}
 		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
 	}
 
@@ -142,7 +148,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
 	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
-	reinstallFromGallery(): Promise<void> { throw new Error('unsupported'); }
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = e.previous.extensionsResource;
@@ -197,7 +202,7 @@ class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtensio
 	constructor(
 		manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
-		private readonly options: InstallExtensionTaskOptions,
+		private readonly options: InstallOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super();
@@ -238,7 +243,7 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly options: UninstallExtensionTaskOptions,
+		private readonly options: UninstallOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super();

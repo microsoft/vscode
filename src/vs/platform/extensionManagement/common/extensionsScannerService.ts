@@ -190,9 +190,8 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	async scanUserExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]> {
-		const location = scanOptions.profileLocation ?? this.userExtensionsLocation;
-		this.logService.trace('Started scanning user extensions', location);
-		const extensionsScannerInput = await this.createExtensionScannerInput(location, !!scanOptions.profileLocation, ExtensionType.User, !scanOptions.includeUninstalled, scanOptions.language);
+		this.logService.trace('Started scanning user extensions');
+		const extensionsScannerInput = await this.createExtensionScannerInput(scanOptions.profileLocation ?? this.userExtensionsLocation, !!scanOptions.profileLocation, ExtensionType.User, !scanOptions.includeUninstalled, scanOptions.language);
 		const extensionsScanner = scanOptions.useCache && !extensionsScannerInput.devMode && extensionsScannerInput.excludeObsolete ? this.userExtensionsCachedScanner : this.extensionsScanner;
 		let extensions = await extensionsScanner.scanExtensions(extensionsScannerInput);
 		extensions = await this.applyScanOptions(extensions, ExtensionType.User, scanOptions, true);
