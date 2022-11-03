@@ -1904,7 +1904,7 @@ export class Repository implements Disposable {
 	private async run<T>(
 		operation: Operation,
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
-		optimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
+		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
@@ -1919,9 +1919,9 @@ export class Repository implements Disposable {
 
 			if (!isReadOnly(operation)) {
 				const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-				const optimisticUpdate = scopedConfig.get<boolean>('experimental.optimisticUpdate') === true;
+				const optimisticUpdate = scopedConfig.get<boolean>('optimisticUpdate') === true;
 
-				await this.updateModelState(optimisticUpdate ? optimisticResourceGroups() : undefined);
+				await this.updateModelState(optimisticUpdate ? getOptimisticResourceGroups() : undefined);
 			}
 
 			return result;

@@ -2544,7 +2544,7 @@
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
         },
-        "git.experimental.optimisticUpdate": {
+        "git.optimisticUpdate": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "%config.optimisticUpdate%",
