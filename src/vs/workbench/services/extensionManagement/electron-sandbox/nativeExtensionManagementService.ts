@@ -15,6 +15,7 @@ import { delta } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { joinPath } from 'vs/base/common/resources';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { Schemas } from 'vs/base/common/network';
@@ -105,7 +106,8 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	}
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
-		const oldExtensions = await super.getInstalled(ExtensionType.User, e.previous.extensionsResource);
+		const previousExtensionsResource = e.previous.extensionsResource ?? joinPath(e.previous.location, EXTENSIONS_RESOURCE_NAME);
+		const oldExtensions = await super.getInstalled(ExtensionType.User, previousExtensionsResource);
 		if (e.preserveData) {
 			const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(oldExtensions
 				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */

@@ -54,12 +54,13 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(testObject.defaultProfile.settingsResource.toString(), joinPath(environmentService.userRoamingDataHome, 'settings.json').toString());
 		assert.strictEqual(testObject.defaultProfile.snippetsHome.toString(), joinPath(environmentService.userRoamingDataHome, 'snippets').toString());
 		assert.strictEqual(testObject.defaultProfile.tasksResource.toString(), joinPath(environmentService.userRoamingDataHome, 'tasks.json').toString());
-		assert.strictEqual(testObject.defaultProfile.extensionsResource.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
+		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
 	});
 
 	test('profiles always include default profile', () => {
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 	test('create profile with id', async () => {
@@ -115,6 +116,7 @@ suite('UserDataProfileService (Common)', () => {
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+		assert.deepStrictEqual(testObject.profiles[0].extensionsResource?.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
 	});
 
 	test('profiles include default profile with extension resource undefined when transiet prrofile is removed', async () => {
@@ -123,6 +125,7 @@ suite('UserDataProfileService (Common)', () => {
 
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 	test('update named profile', async () => {
