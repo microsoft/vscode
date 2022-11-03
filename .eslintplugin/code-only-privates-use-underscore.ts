@@ -10,8 +10,13 @@ export = new class OnlyPrivatesUseUnderscorePrefix implements eslint.Rule.RuleMo
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
 			['PropertyDefinition[key.name=/^_.*/]:not([accessibility="private"])']: (node: any) => {
+
+				if (String(node.key.name).endsWith('Brand')) {
+					return;
+				}
+
 				return context.report({
-					node,
+					node: node.key,
 					message: 'Properties starting with an underscore should be marked as private'
 				});
 			}
