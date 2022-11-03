@@ -157,6 +157,11 @@
 	height: 100%;
 }
 
+.settings-editor > .settings-body .settings-tree-container .settings-group-title-label,
+.settings-editor > .settings-body .settings-tree-container .setting-item-label {
+	color: var(--vscode-settings-headerForeground);
+}
+
 .settings-editor.no-results > .settings-body .settings-toc-container,
 .settings-editor.no-results > .settings-body .settings-tree-container {
 	display: none;
@@ -182,6 +187,19 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .settings-row-inner-container {
+	background-color: var(--vscode-settings-focusedRowBackground);
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover {
+	background-color: var(--vscode-settings-rowHoverBackground);
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents,
+.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label {
+	outline: 1px solid var(--vscode-settings-focusedRowBorder);
 }
 
 .settings-editor.mid-width > .settings-body .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
@@ -235,6 +253,11 @@
 .settings-editor.no-toc-search > .settings-body .settings-toc-container,
 .settings-editor.narrow-width > .settings-body .settings-toc-container {
 	display: none;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) {
+	color: var(--vscode-foreground);
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row .monaco-tl-contents {
@@ -360,6 +383,13 @@
 	font-style: italic;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored {
+	/* Hack for subpixel antialiasing */
+	color: var(--vscode-foreground);
+	opacity: 0.9;
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-overrides.with-custom-hover:hover,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-ignored:hover,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-default-overridden:hover {
@@ -404,6 +434,7 @@
 	user-select: text;
 	-webkit-user-select: text;
 	display: none;
+	color: var(--vscode-errorForeground);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message {
@@ -419,10 +450,15 @@
 	margin-top: -1px;
 	user-select: text;
 	-webkit-user-select: text;
+	color: var(--vscode-foreground);
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message {
 	display: none;
+	background-color: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground);
+	border: solid 1px var(--vscode-inputValidation-errorBorder);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item .setting-item-contents.invalid-input .setting-item-validation-message {
@@ -469,6 +505,7 @@
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover,
@@ -482,7 +519,6 @@
 	cursor: pointer;
 	text-decoration: underline;
 }
-
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown code {
 	line-height: 15px;
