@@ -28,7 +28,7 @@ export const Context = {
 };
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction(action: CodeActionItem, trigger: CodeActionTrigger, options: { readonly preview: boolean }): Promise<any>;
+	onSelectCodeAction(action: CodeActionItem, trigger: CodeActionTrigger, preview?: boolean): Promise<any>;
 	onHide(cancelled: boolean): void;
 }
 
@@ -56,7 +56,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
+		onDidSelect: (action: CodeActionItem, preview?: boolean) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
@@ -155,9 +155,9 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
-		const onDidSelect = (action: CodeActionItem, options: { readonly preview: boolean }) => {
+		const onDidSelect = (action: CodeActionItem, preview?: boolean) => {
 			this.hide();
-			delegate.onSelectCodeAction(action, trigger, options);
+			delegate.onSelectCodeAction(action, trigger, preview);
 		};
 		this.list.value = new CodeActionList(
 			showingCodeActions,

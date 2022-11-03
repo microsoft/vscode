@@ -37,7 +37,7 @@ export interface IActionList<T> extends IDisposable {
 	focusNext(): void;
 	layout(minWidth: number): number;
 	toMenuItems(items: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
-	acceptSelected(options?: { readonly preview?: boolean }): void;
+	acceptSelected(preview?: boolean): void;
 	domNode: HTMLElement;
 }
 
@@ -48,8 +48,8 @@ export abstract class BaseActionWidget<T> extends Disposable {
 		super();
 	}
 
-	public acceptSelected(options?: { readonly preview?: boolean }) {
-		this.list.value?.acceptSelected(options);
+	public acceptSelected(preview?: boolean) {
+		this.list.value?.acceptSelected(preview);
 	}
 
 	public focusPrevious() {

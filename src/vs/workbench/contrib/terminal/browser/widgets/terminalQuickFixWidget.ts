@@ -22,7 +22,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
-const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
+export const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
 const weight = KeybindingWeight.EditorContrib + 1000;
 
 export class TerminalQuickFix extends Disposable {
@@ -42,7 +42,7 @@ export const Context = {
 };
 
 interface ITerminalQuickFixDelegate {
-	onSelectQuickFix(fix: TerminalQuickFix, trigger: string, options: { readonly preview: boolean }): Promise<any>;
+	onSelectQuickFix(fix: TerminalQuickFix, trigger: string, preview?: boolean): Promise<any>;
 	onHide(cancelled: boolean): void;
 }
 
@@ -75,8 +75,8 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
-		const onDidSelect = async (action: TerminalQuickFix, options: { readonly preview: boolean }) => {
-			await delegate.onSelectQuickFix(action, trigger, options);
+		const onDidSelect = async (action: TerminalQuickFix, preview?: boolean) => {
+			await delegate.onSelectQuickFix(action, trigger, preview);
 			this.hide();
 		};
 		this.list.value = new QuickFixList(
@@ -148,7 +148,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 	constructor(
 		fixes: readonly TerminalQuickFix[],
 		showHeaders: boolean,
-		onDidSelect: (fix: TerminalQuickFix, options: { readonly preview: boolean }) => void,
+		onDidSelect: (fix: TerminalQuickFix, preview?: boolean) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
@@ -319,7 +319,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		TerminalQuickFixWidget.INSTANCE?.acceptSelected();
+		TerminalQuickFixWidget.INSTANCE?.acceptSelected(true);
 	}
 });
 

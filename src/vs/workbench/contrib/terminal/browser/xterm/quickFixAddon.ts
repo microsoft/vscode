@@ -25,10 +25,10 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { TerminalQuickFix, TerminalQuickFixWidget } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
+import { previewSelectedTerminalQuickFixCommand, TerminalQuickFix, TerminalQuickFixWidget } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
 import { ActionSet } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
+
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	quickFixId: string;
@@ -244,9 +244,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					return;
 				}
 				TerminalQuickFixWidget.getOrCreateInstance(this._instantiationService).show('click', actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
-					onSelectQuickFix: async (action: TerminalQuickFix, trigger: string, options: { preview: any }) => {
-						if (options.preview) {
-							this._commandService.executeCommand(previewSelectedCodeActionCommand);
+					onSelectQuickFix: async (action: TerminalQuickFix, trigger: string, preview?: boolean) => {
+						if (preview) {
+							this._commandService.executeCommand(previewSelectedTerminalQuickFixCommand);
 						} else {
 							action.action?.run();
 						}

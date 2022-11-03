@@ -256,7 +256,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		private readonly previewSelectedActionCommand: string,
 		private readonly acceptSelectedActionCommand: string,
 		private readonly focusCondition: (element: ListMenuItem<T>) => boolean,
-		private readonly onDidSelect: (action: T, options: { readonly preview: boolean }) => void,
+		private readonly onDidSelect: (action: T, preview?: boolean) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 		super();
@@ -319,7 +319,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		this.list.focusNext(1, true, undefined, this.focusCondition);
 	}
 
-	public acceptSelected(options?: { readonly preview?: boolean }) {
+	public acceptSelected(preview?: boolean) {
 		const focused = this.list.getFocus();
 		if (focused.length === 0) {
 			return;
@@ -331,7 +331,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			return;
 		}
 
-		const event = new UIEvent(options?.preview ? this.previewSelectedActionCommand : this.acceptSelectedActionCommand);
+		const event = new UIEvent(preview ? this.previewSelectedActionCommand : this.acceptSelectedActionCommand);
 		this.list.setSelection([focusIndex], event);
 	}
 
@@ -342,7 +342,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 		const element = e.elements[0];
 		if (element.item && this.focusCondition(element)) {
-			this.onDidSelect(element.item, { preview: e.browserEvent?.type === 'previewSelectedEventType' });
+			this.onDidSelect(element.item, e.browserEvent?.type === 'previewSelectedEventType');
 		} else {
 			this.list.setSelection([]);
 		}
