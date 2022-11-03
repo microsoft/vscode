@@ -222,24 +222,24 @@ export class InteractiveEditor extends EditorPane {
 		if (focusIndicator === 'gutter') {
 			styleSheets.push(`
 				.interactive-editor .input-cell-container:focus-within .input-focus-indicator::before {
-					border-color: var(--notebook-focused-cell-border-color) !important;
+					border-color: var(--vscode-notebook-focusedCellBorder) !important;
 				}
 				.interactive-editor .input-focus-indicator::before {
-					border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+					border-color: var(--vscode-notebook-inactiveFocusedCellBorder) !important;
 				}
 				.interactive-editor .input-cell-container .input-focus-indicator {
 					display: block;
 					top: ${INPUT_CELL_VERTICAL_PADDING}px;
 				}
 				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+					border-top: 1px solid var(--vscode-notebook-inactiveFocusedCellBorder);
 				}
 			`);
 		} else {
 			// border
 			styleSheets.push(`
 				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+					border-top: 1px solid var(--vscode-notebook-inactiveFocusedCellBorder);
 				}
 				.interactive-editor .input-cell-container .input-focus-indicator {
 					display: none;
@@ -687,10 +687,10 @@ export class InteractiveEditor extends EditorPane {
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 	.interactive-editor .input-cell-container:focus-within .input-editor-container .monaco-editor {
-		outline: solid 1px var(--notebook-focused-cell-border-color);
+		outline: solid 1px var(--vscode-notebook-focusedCellBorder);
 	}
 	.interactive-editor .input-cell-container .input-editor-container .monaco-editor {
-		outline: solid 1px var(--notebook-inactive-focused-cell-border-color);
+		outline: solid 1px var(--vscode-notebook-inactiveFocusedCellBorder);
 	}
 	.interactive-editor .input-cell-container .input-focus-indicator {
 		top: ${INPUT_CELL_VERTICAL_PADDING}px;

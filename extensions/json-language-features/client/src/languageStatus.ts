@@ -149,8 +149,7 @@ function showSchemaList(input: ShowSchemasInput) {
 	items.push({ label: localize('schema.showdocs', 'Learn more about JSON schema configuration...'), uri: Uri.parse('https://code.visualstudio.com/docs/languages/json#_json-schemas-and-settings') });
 
 	const quickPick = window.createQuickPick<ShowSchemasItem>();
-	quickPick.title = localize('schemaPicker.title', 'JSON Schemas used for {0}', input.uri);
-	//	quickPick.placeholder = items.length ? localize('schemaPicker.placeholder', 'Select the schema to open') : undefined;
+	quickPick.placeholder = items.length ? localize('schemaPicker.placeholder', 'Select the schema to use for {0}', input.uri) : undefined;
 	quickPick.items = items;
 	quickPick.show();
 	quickPick.onDidAccept(() => {
