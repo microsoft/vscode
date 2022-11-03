@@ -19,7 +19,7 @@ class QueueProtocol implements IMessagePassingProtocol {
 	private buffers: VSBuffer[] = [];
 
 	private readonly _onMessage = new Emitter<VSBuffer>({
-		onFirstListenerDidAdd: () => {
+		onDidAddFirstListener: () => {
 			for (const buffer of this.buffers) {
 				this._onMessage.fire(buffer);
 			}
@@ -27,7 +27,7 @@ class QueueProtocol implements IMessagePassingProtocol {
 			this.buffers = [];
 			this.buffering = false;
 		},
-		onLastListenerRemove: () => {
+		onDidRemoveLastListener: () => {
 			this.buffering = true;
 		}
 	});

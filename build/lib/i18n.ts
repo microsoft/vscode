@@ -787,7 +787,7 @@ export interface TranslationPath {
 
 function getRecordFromL10nJsonFormat(l10nJsonFormat: l10nJsonFormat): Record<string, string> {
 	const record: Record<string, string> = {};
-	for (const key of Object.keys(l10nJsonFormat)) {
+	for (const key of Object.keys(l10nJsonFormat).sort()) {
 		const value = l10nJsonFormat[key];
 		record[key] = typeof value === 'string' ? value : value.message;
 	}

@@ -701,7 +701,7 @@ export abstract class CommonTask {
  */
 export class CustomTask extends CommonTask {
 
-	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
+	declare type: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	instance: number | undefined;
 
@@ -903,7 +903,7 @@ export class ContributedTask extends CommonTask {
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 * Set in the super constructor
 	 */
-	override _source!: IExtensionTaskSource;
+	declare _source: IExtensionTaskSource;
 
 	instance: number | undefined;
 
@@ -997,7 +997,7 @@ export class InMemoryTask extends CommonTask {
 
 	instance: number | undefined;
 
-	override type!: 'inMemory';
+	declare type: 'inMemory';
 
 	public constructor(id: string, source: IInMemoryTaskSource, label: string, type: string,
 		runOptions: IRunOptions, configurationProperties: IConfigurationProperties) {

@@ -24,7 +24,10 @@
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "restrictedConfigurations": [
+        "github-enterprise.uri"
+      ]
     }
   },
   "contributes": {

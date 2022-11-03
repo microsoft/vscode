@@ -390,8 +390,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
-			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
-			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
+			onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
+			onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
 		});
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._register({

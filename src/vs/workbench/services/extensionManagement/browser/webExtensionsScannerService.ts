@@ -444,7 +444,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
-		return this.addWebExtension(webExtension, profileLocation);
+		const extension = await this.toScannedExtension(webExtension, false);
+		await this.addToInstalledExtensions([webExtension], profileLocation);
+		return extension;
 	}
 
 	async removeExtension(extension: IScannedExtension, profileLocation?: URI): Promise<void> {
@@ -677,7 +679,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			};
 		}
 
-		const packageNLSUri = webExtension.packageNLSUris?.get(Language.value());
+		const packageNLSUri = webExtension.packageNLSUris?.get(Language.value().toLowerCase());
 		if (packageNLSUri || webExtension.fallbackPackageNLSUri) {
 			manifest = packageNLSUri
 				? await this.translateManifest(manifest, packageNLSUri, webExtension.fallbackPackageNLSUri)

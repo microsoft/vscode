@@ -30,7 +30,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { Change, IRemoteUserData, ISyncData, ISyncExtension, ISyncExtensionWithVersion, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, ISyncData, ISyncExtension, ISyncExtensionWithVersion, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
@@ -76,9 +76,24 @@ async function parseAndMigrateExtensions(syncData: ISyncData, extensionManagemen
 	return extensions;
 }
 
-export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
+export function parseExtensions(syncData: ISyncData): ISyncExtension[] {
+	return JSON.parse(syncData.content);
+}
 
-	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/extensions.json` });
+export function stringify(extensions: ISyncExtension[], format: boolean): string {
+	extensions.sort((e1, e2) => {
+		if (!e1.identifier.uuid && e2.identifier.uuid) {
+			return -1;
+		}
+		if (e1.identifier.uuid && !e2.identifier.uuid) {
+			return 1;
+		}
+		return compare(e1.identifier.id, e2.identifier.id);
+	});
+	return format ? toFormattedString(extensions, {}) : JSON.stringify(extensions);
+}
+
+export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	/*
 		Version 3 - Introduce installed property to skip installing built in extensions
@@ -292,16 +307,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		return [{ resource: this.extUri.joinPath(uri, 'extensions.json'), comparableResource: ExtensionsSynchroniser.EXTENSIONS_DATA_URI }];
-	}
-
-	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
-			const { localExtensions, ignoredExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.profile);
-			return this.stringify(localExtensions.filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier))), true);
-		}
-
+	async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri)
 			|| this.extUri.isEqual(this.baseResource, uri)
 			|| this.extUri.isEqual(this.localResource, uri)
@@ -310,37 +316,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const content = await this.resolvePreviewContent(uri);
 			return content ? this.stringify(JSON.parse(content), true) : content;
 		}
-
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				switch (this.extUri.basename(uri)) {
-					case 'extensions.json':
-						return this.stringify(this.parseExtensions(syncData), true);
-				}
-			}
-		}
-
 		return null;
 	}
 
 	private stringify(extensions: ISyncExtension[], format: boolean): string {
-		extensions.sort((e1, e2) => {
-			if (!e1.identifier.uuid && e2.identifier.uuid) {
-				return -1;
-			}
-			if (e1.identifier.uuid && !e2.identifier.uuid) {
-				return 1;
-			}
-			return compare(e1.identifier.id, e2.identifier.id);
-		});
-		return format ? toFormattedString(extensions, {}) : JSON.stringify(extensions);
+		return stringify(extensions, format);
 	}
 
 	async hasLocalData(): Promise<boolean> {
@@ -353,10 +333,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			/* ignore error */
 		}
 		return false;
-	}
-
-	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
-		return JSON.parse(syncData.content);
 	}
 
 }
