@@ -453,10 +453,19 @@
 .terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
 	border-radius: 5px;
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.terminal-command-decoration {
+	color: var(--vscode-terminalCommandDecoration-successBackground);
+}
+
+.terminal-command-decoration.error {
+	color: var(--vscode-terminalCommandDecoration-errorBackground);
+}
 .terminal-command-decoration.default {
 	pointer-events: none;
+	color: var(--vscode-terminalCommandDecoration-defaultBackground);
 }
 
 .terminal-scroll-highlight {
