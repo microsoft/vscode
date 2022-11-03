@@ -20,7 +20,6 @@ export const foldSourceAbbr = {
 	[FoldSource.recovered]: 'r',
 };
 
-
 export interface FoldRange {
 	startLineNumber: number;
 	endLineNumber: number;
