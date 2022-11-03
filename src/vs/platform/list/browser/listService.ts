@@ -782,7 +782,7 @@ class ListResourceNavigator<T> extends ResourceNavigator<T> {
 
 class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 
-	protected override readonly widget!: Table<TRow>;
+	protected declare readonly widget: Table<TRow>;
 
 	constructor(
 		widget: Table<TRow>,
@@ -798,7 +798,7 @@ class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 
 class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
 
-	protected override readonly widget!: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>;
+	protected declare readonly widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>;
 
 	constructor(
 		widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
