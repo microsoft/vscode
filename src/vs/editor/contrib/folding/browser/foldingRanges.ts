@@ -239,7 +239,6 @@ export class FoldingRegions {
 	}
 
 
-
 	public toString() {
 		const res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
