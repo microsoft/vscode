@@ -35,6 +35,10 @@ export function asCssVariableName(colorIdent: ColorIdentifier): string {
 	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
+export function asCssValue(color: ColorIdentifier): string {
+	return `var(${asCssVariableName(color)})`;
+}
+
 export const enum ColorTransformType {
 	Darken,
 	Lighten,

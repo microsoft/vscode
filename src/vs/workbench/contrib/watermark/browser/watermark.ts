@@ -29,10 +29,9 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 
@@ -92,7 +91,6 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
@@ -155,18 +153,15 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 			.filter(entry => !('mac' in entry) || entry.mac === (isMacintosh && !isWeb))
 			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
 
-		const keybindingLabelStylers = this.watermarkDisposable.add(new DisposableStore());
 
 		const update = () => {
 			dom.clearNode(box);
-			keybindingLabelStylers.clear();
 			selected.map(entry => {
 				const dl = dom.append(box, $('dl'));
 				const dt = dom.append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = dom.append(dl, $('dd'));
-				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
-				keybindingLabelStylers.add(attachKeybindingLabelStyler(keybinding, this.themeService));
+				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...getKeybindingLabelStyles() });
 				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
 			});
 		};
