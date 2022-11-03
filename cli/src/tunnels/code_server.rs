@@ -352,7 +352,7 @@ fn install_server(
 
 	unzip_downloaded_release(compressed_file, &paths.server_dir, SilentCopyProgress())?;
 
-	match fs::remove_file(&compressed_file) {
+	match fs::remove_file(compressed_file) {
 		Ok(()) => {}
 		Err(e) => {
 			if e.kind() != ErrorKind::NotFound {
