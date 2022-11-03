@@ -58,8 +58,6 @@ class BitField {
 	}
 }
 
-
-
 export class FoldingRegions {
 	private readonly _startIndexes: Uint32Array;
 	private readonly _endIndexes: Uint32Array;
