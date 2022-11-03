@@ -2285,9 +2285,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 
-				const disabledfgColor = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.7));
-				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
-
 				// Hack for subpixel antialiasing
 				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
 					.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
@@ -2338,7 +2335,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus { outline-color: ${focusBorderColor} }`);
 				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
