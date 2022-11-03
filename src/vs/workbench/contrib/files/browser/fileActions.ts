@@ -529,7 +529,7 @@ export class ToggleAutoSaveAction extends Action2 {
 	}
 }
 
-export abstract class BaseSaveAllAction extends Action {
+abstract class BaseSaveAllAction extends Action {
 	private lastDirtyState: boolean;
 
 	constructor(
