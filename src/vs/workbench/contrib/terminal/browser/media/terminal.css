@@ -17,7 +17,9 @@
 .terminal-command-decoration.hide {
 	visibility: hidden;
 }
-
+.monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container {
+	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+}
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group,
@@ -26,7 +28,23 @@
 .monaco-workbench .editor-instance .terminal-outer-container {
 	height: 100%;
 }
+.monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container,
+.monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container {
+	background-color: var(--vscode-terminal-background, --vscode-sideBar-background);
+}
 
+.monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child),
+.monaco-workbench .pane-body.integrated-terminal .tabs-container {
+	border-color: var(--vscode-terminal-border);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay {
+	background-color: var(--vscode-terminal-dropBackground, --vscode-editorGroup-dropBackground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
+	background-color: var(--vscode-terminal-tab-activeBorder);
+}
 /* Override monaco's styles for terminal editors */
 .monaco-workbench .editor-instance .xterm textarea:focus {
 	opacity: 0 !important;
@@ -37,6 +55,7 @@
 	font-family: 'codicon' !important;
 	font-size: 16px !important;
 }
+
 .monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
 	background-image: none !important;
 }
