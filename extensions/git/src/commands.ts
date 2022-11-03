@@ -543,7 +543,7 @@ export class CommandCenter {
 				canSelectMany: false,
 				defaultUri: Uri.file(defaultCloneDirectory),
 				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select Repository Location')
+				openLabel: l10n.t('Select as Repository Destination')
 			});
 
 			if (!uris || uris.length === 0) {
