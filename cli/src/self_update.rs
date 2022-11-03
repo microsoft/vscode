@@ -150,7 +150,7 @@ fn copy_file_metadata(from: &Path, to: &Path) -> Result<(), std::io::Error> {
 	use std::os::unix::fs::MetadataExt;
 
 	let metadata = from.metadata()?;
-	fs::set_permissions(&to, metadata.permissions())?;
+	fs::set_permissions(to, metadata.permissions())?;
 
 	// based on coreutils' chown https://github.com/uutils/coreutils/blob/72b4629916abe0852ad27286f4e307fbca546b6e/src/chown/chown.rs#L266-L281
 	let s = std::ffi::CString::new(to.as_os_str().as_bytes()).unwrap();
