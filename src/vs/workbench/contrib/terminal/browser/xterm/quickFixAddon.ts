@@ -8,16 +8,12 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { asArray } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, TerminalQuickFixAction, TerminalQuickFixMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
@@ -356,21 +352,6 @@ export function getQuickFixesForCommand(
 	}
 	return fixes.length > 0 ? { fixes, onDidRunQuickFix, expectedCommands } : undefined;
 }
-
-
-
-let foregroundColor: string | Color | undefined;
-let backgroundColor: string | Color | undefined;
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	foregroundColor = theme.getColor('editorLightBulb.foreground');
-	backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-	if (foregroundColor) {
-		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { color: ${foregroundColor.toString()} !important; } `);
-	}
-	if (backgroundColor) {
-		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { background-color: ${backgroundColor.toString()}; } `);
-	}
-});
 
 export function convertToQuickFixOptions(quickFix: IExtensionTerminalQuickFix): ITerminalQuickFixOptions {
 	const type = quickFix.commandToRun ? 'command' : quickFix.linkToOpen ? 'opener' : undefined;

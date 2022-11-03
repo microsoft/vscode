@@ -76,6 +76,7 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
 	opacity: 0.9;
 	border-radius: 0;
+	color: var(--vscode-foreground);
 }
 
 .settings-editor > .settings-header > .settings-header-controls .last-synced-label {
@@ -93,6 +94,8 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
 	opacity: 1;
+	color: var(--vscode-settings-headerForeground);
+	border-bottom-color: var(--vscode-settings-headerForeground);
 }
 
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
@@ -333,6 +336,7 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-modified-indicator {
 	display: none;
+	border-color: var(--vscode-settings-modifiedItemIndicator);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-configured .setting-item-modified-indicator {
@@ -417,22 +421,6 @@
 	-webkit-user-select: text;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description,
-.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description {
-	display: flex;
-	font-weight: 600;
-	margin: 6px 0 12px 0;
-}
-
-.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description[hidden] {
-	display: none;
-}
-
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span,
-.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span {
-	padding-right: 5px;
-}
-
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message {
 	display: none;
 }
@@ -472,23 +460,35 @@
 	margin: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code {
+	color: var(--vscode-textLink-foreground);
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:active,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover > code,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:active > code {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover {
 	cursor: pointer;
 	text-decoration: underline;
 }
 
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown code {
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);
+	color: var(--vscode-textPreformat-foreground);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {
@@ -559,6 +559,22 @@
 	font: inherit;
 	height: 26px;
 	padding: 2px 6px;
+}
+
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a,
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a > code {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:hover,
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:active,
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:hover > code,
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:active > code {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-new-extensions {

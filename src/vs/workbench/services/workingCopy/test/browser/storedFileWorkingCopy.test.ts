@@ -228,7 +228,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDirty(), false);
 	});
 
-	test('resolve (without backup)', async () => {
+	test.skip('resolve (without backup)', async () => {
 		let onDidResolveCounter = 0;
 		workingCopy.onDidResolve(() => {
 			onDidResolveCounter++;

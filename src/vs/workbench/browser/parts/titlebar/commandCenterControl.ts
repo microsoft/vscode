@@ -10,6 +10,7 @@ import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -157,20 +158,27 @@ colors.registerColor(
 // background (inactive and active)
 colors.registerColor(
 	'commandCenter.background',
-	{ dark: null, hcDark: null, light: null, hcLight: null },
+	{
+		dark: Color.white.transparent(0.05), hcDark: null, light: Color.black.transparent(0.05), hcLight: null
+	},
 	localize('commandCenter-background', "Background color of the command center"),
 	false
 );
 colors.registerColor(
 	'commandCenter.activeBackground',
-	{ dark: MENUBAR_SELECTION_BACKGROUND, hcDark: MENUBAR_SELECTION_BACKGROUND, light: MENUBAR_SELECTION_BACKGROUND, hcLight: MENUBAR_SELECTION_BACKGROUND },
+	{ dark: Color.white.transparent(0.08), hcDark: MENUBAR_SELECTION_BACKGROUND, light: Color.black.transparent(0.08), hcLight: MENUBAR_SELECTION_BACKGROUND },
 	localize('commandCenter-activeBackground', "Active background color of the command center"),
 	false
 );
-// border: defaults to active background
+// border: active and inactive. defaults to active background
 colors.registerColor(
-	'commandCenter.border', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), hcDark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), hcLight: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25) },
+	'commandCenter.border', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60), light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60) },
 	localize('commandCenter-border', "Border color of the command center"),
+	false
+);
+colors.registerColor(
+	'commandCenter.activeBorder', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-activeBorder', "Active border color of the command center"),
 	false
 );
 // border: defaults to active background
