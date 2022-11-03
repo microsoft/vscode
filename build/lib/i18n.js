@@ -63,8 +63,8 @@ var BundledFormat;
     BundledFormat.is = is;
 })(BundledFormat || (BundledFormat = {}));
 class Line {
+    buffer = [];
     constructor(indent = 0) {
-        this.buffer = [];
         if (indent > 0) {
             this.buffer.push(new Array(indent + 1).join(' '));
         }
@@ -79,6 +79,7 @@ class Line {
 }
 exports.Line = Line;
 class TextModel {
+    _lines;
     constructor(contents) {
         this._lines = contents.split(/\r\n|\r|\n/);
     }
@@ -87,6 +88,10 @@ class TextModel {
     }
 }
 class XLF {
+    project;
+    buffer;
+    files;
+    numberOfMessages;
     constructor(project) {
         this.project = project;
         this.buffer = [];
@@ -168,55 +173,55 @@ class XLF {
         line.append(content);
         this.buffer.push(line.toString());
     }
+    static parse = function (xlfString) {
+        return new Promise((resolve, reject) => {
+            const parser = new xml2js.Parser();
+            const files = [];
+            parser.parseString(xlfString, function (err, result) {
+                if (err) {
+                    reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
+                }
+                const fileNodes = result['xliff']['file'];
+                if (!fileNodes) {
+                    reject(new Error(`XLF parsing error: XLIFF file does not contain "xliff" or "file" node(s) required for parsing.`));
+                }
+                fileNodes.forEach((file) => {
+                    const name = file.$.original;
+                    if (!name) {
+                        reject(new Error(`XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file.`));
+                    }
+                    const language = file.$['target-language'];
+                    if (!language) {
+                        reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
+                    }
+                    const messages = {};
+                    const transUnits = file.body[0]['trans-unit'];
+                    if (transUnits) {
+                        transUnits.forEach((unit) => {
+                            const key = unit.$.id;
+                            if (!unit.target) {
+                                return; // No translation available
+                            }
+                            let val = unit.target[0];
+                            if (typeof val !== 'string') {
+                                // We allow empty source values so support them for translations as well.
+                                val = val._ ? val._ : '';
+                            }
+                            if (!key) {
+                                reject(new Error(`XLF parsing error: trans-unit ${JSON.stringify(unit, undefined, 0)} defined in file ${name} is missing the ID attribute.`));
+                                return;
+                            }
+                            messages[key] = decodeEntities(val);
+                        });
+                        files.push({ messages, name, language: language.toLowerCase() });
+                    }
+                });
+                resolve(files);
+            });
+        });
+    };
 }
 exports.XLF = XLF;
-XLF.parse = function (xlfString) {
-    return new Promise((resolve, reject) => {
-        const parser = new xml2js.Parser();
-        const files = [];
-        parser.parseString(xlfString, function (err, result) {
-            if (err) {
-                reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
-            }
-            const fileNodes = result['xliff']['file'];
-            if (!fileNodes) {
-                reject(new Error(`XLF parsing error: XLIFF file does not contain "xliff" or "file" node(s) required for parsing.`));
-            }
-            fileNodes.forEach((file) => {
-                const name = file.$.original;
-                if (!name) {
-                    reject(new Error(`XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file.`));
-                }
-                const language = file.$['target-language'];
-                if (!language) {
-                    reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
-                }
-                const messages = {};
-                const transUnits = file.body[0]['trans-unit'];
-                if (transUnits) {
-                    transUnits.forEach((unit) => {
-                        const key = unit.$.id;
-                        if (!unit.target) {
-                            return; // No translation available
-                        }
-                        let val = unit.target[0];
-                        if (typeof val !== 'string') {
-                            // We allow empty source values so support them for translations as well.
-                            val = val._ ? val._ : '';
-                        }
-                        if (!key) {
-                            reject(new Error(`XLF parsing error: trans-unit ${JSON.stringify(unit, undefined, 0)} defined in file ${name} is missing the ID attribute.`));
-                            return;
-                        }
-                        messages[key] = decodeEntities(val);
-                    });
-                    files.push({ messages, name, language: language.toLowerCase() });
-                }
-            });
-            resolve(files);
-        });
-    });
-};
 function sortLanguages(languages) {
     return languages.sort((a, b) => {
         return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
