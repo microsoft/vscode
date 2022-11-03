@@ -523,7 +523,7 @@ export class ExtensionsScanner extends Disposable {
 		if (!this._migrateDefaultProfileExtensionsPromise) {
 			this._migrateDefaultProfileExtensionsPromise = (async () => {
 				try {
-					const migrationMarkerFile = joinPath(this.extensionsScannerService.userExtensionsLocation, '.migrated-default-profile');
+					const migrationMarkerFile = joinPath(this.userDataProfilesService.defaultProfile.location, '.migrated-default-profile');
 					if (await this.fileService.exists(migrationMarkerFile)) {
 						return;
 					}
