@@ -101,6 +101,36 @@
 	display: none;
 }
 
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	border-bottom: 1px solid;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	color: var(--vscode-panelTitle-inactiveForeground);
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom-color: var(--vscode-focusBorder) !important;
+	outline: none;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
+	color: var(--vscode-panelTitle-activeForeground);
+	border-bottom-color: var(--vscode-panelTitle-activeBorder);
+	outline-color: var(--vscode-contrastActiveBorder);
+	outline-width: 1px;
+	outline-style: solid;
+	border-bottom: none;
+	padding-bottom: 0;
+	outline-offset: -1px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
+	outline-style: dashed;
+}
+
 .preferences-header > .settings-header-widget {
 	flex: 1;
 	display: flex;
