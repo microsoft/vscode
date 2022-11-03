@@ -294,9 +294,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 */
 	private async getAccountPreference(fromContinueOn: boolean): Promise<AuthenticationSession & { providerId: string } | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
-		quickpick.title = localize('account preference', 'Turn on Edit Sessions to bring your working changes with you');
 		quickpick.ok = false;
-		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
+		quickpick.placeholder = localize('choose account placeholder', "Select an account to turn on Edit Sessions");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems(fromContinueOn);
 

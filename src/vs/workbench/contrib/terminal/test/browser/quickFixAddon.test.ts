@@ -61,7 +61,7 @@ suite('QuickFixAddon', () => {
 			status`;
 			const exitCode = 1;
 			const actions = [{
-				id: `quickFix.command`,
+				id: 'Git Similar',
 				enabled: true,
 				label: 'Run: git status',
 				tooltip: 'Run: git status',
@@ -100,13 +100,13 @@ suite('QuickFixAddon', () => {
 						pull
 						push`;
 					const actions = [{
-						id: `quickFix.command`,
+						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git pull',
 						tooltip: 'Run: git pull',
 						command: 'git pull'
 					}, {
-						id: `quickFix.command`,
+						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git push',
 						tooltip: 'Run: git push',
@@ -120,7 +120,7 @@ suite('QuickFixAddon', () => {
 				The most similar commands are
 						checkout`;
 					assertMatchOptions(getQuickFixesForCommand(createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService)?.fixes, [{
-						id: `quickFix.command`,
+						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git checkout .',
 						tooltip: 'Run: git checkout .',
@@ -135,7 +135,7 @@ suite('QuickFixAddon', () => {
 			const output = 'error: did you mean `--all` (with two dashes)?';
 			const exitCode = 1;
 			const actions = [{
-				id: `quickFix.command`,
+				id: 'Git Two Dashes',
 				enabled: true,
 				label: 'Run: git add . --all',
 				tooltip: 'Run: git add . --all',
@@ -213,7 +213,7 @@ suite('QuickFixAddon', () => {
 				git push --set-upstream origin test22`;
 			const exitCode = 128;
 			const actions = [{
-				id: `quickFix.command`,
+				id: 'Git Push Set Upstream',
 				enabled: true,
 				label: 'Run: git push --set-upstream origin test22',
 				tooltip: 'Run: git push --set-upstream origin test22',
@@ -292,7 +292,7 @@ suite('QuickFixAddon', () => {
 			git push --set-upstream origin test22`;
 		const exitCode = 128;
 		const actions = [{
-			id: `quickFix.command`,
+			id: 'Git Push Set Upstream',
 			enabled: true,
 			label: 'Run: git push --set-upstream origin test22',
 			tooltip: 'Run: git push --set-upstream origin test22',

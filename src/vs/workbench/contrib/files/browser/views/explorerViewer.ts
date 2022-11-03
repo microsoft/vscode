@@ -1276,8 +1276,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Reuse duplicate action when user copies
 		const explorerConfig = this.configurationService.getValue<IFilesConfiguration>().explorer;
-		const resourceFileEdits = sources.map(({ resource, isDirectory }) =>
-			(new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, explorerConfig.incrementalNaming), { copy: true })));
+		const resourceFileEdits: ResourceFileEdit[] = [];
+		for (const { resource, isDirectory } of sources) {
+			const allowOverwrite = explorerConfig.incrementalNaming === 'disabled';
+			const newResource = await findValidPasteFileTarget(this.explorerService,
+				this.fileService,
+				this.dialogService,
+				target,
+				{ resource, isDirectory, allowOverwrite },
+				explorerConfig.incrementalNaming
+			);
+			if (!newResource) {
+				continue;
+			}
+			const resourceEdit = new ResourceFileEdit(resource, newResource, { copy: true, overwrite: allowOverwrite });
+			resourceFileEdits.push(resourceEdit);
+		}
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
 			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,

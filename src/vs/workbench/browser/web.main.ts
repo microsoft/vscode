@@ -197,7 +197,7 @@ export class BrowserMain extends Disposable {
 						}
 
 						return new class extends DisposableTunnel implements ITunnel {
-							override localAddress!: string;
+							declare localAddress: string;
 						}({ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }, tunnel.localAddress, () => tunnel.dispose());
 					}
 				},

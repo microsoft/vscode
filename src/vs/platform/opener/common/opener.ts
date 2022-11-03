@@ -33,8 +33,10 @@ export type OpenInternalOptions = {
 
 	/**
 	 * Allow command links to be handled.
+	 *
+	 * If this is an array, then only the commands included in the array can be run.
 	 */
-	readonly allowCommands?: boolean;
+	readonly allowCommands?: boolean | readonly string[];
 };
 
 export type OpenExternalOptions = {

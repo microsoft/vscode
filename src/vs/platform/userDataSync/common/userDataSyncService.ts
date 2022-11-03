@@ -542,19 +542,6 @@ class ProfileSynchronizer extends Disposable {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
-		if (this._profile.isDefault) {
-			this._register(userDataProfilesService.onDidChangeProfiles(() => {
-				if ((userDataProfilesService.defaultProfile.extensionsResource && !this._profile.extensionsResource) ||
-					(!userDataProfilesService.defaultProfile.extensionsResource && this._profile.extensionsResource)) {
-					this._profile = userDataProfilesService.defaultProfile;
-					for (const [synchronizer] of this._enabled) {
-						if (synchronizer instanceof ExtensionsSynchroniser) {
-							synchronizer.profile = this._profile;
-						}
-					}
-				}
-			}));
-		}
 		this._register(userDataSyncEnablementService.onDidChangeResourceEnablement(([syncResource, enablement]) => this.onDidChangeResourceEnablement(syncResource, enablement)));
 		this._register(toDisposable(() => this._enabled.splice(0, this._enabled.length).forEach(([, , disposable]) => disposable.dispose())));
 		for (const syncResource of ALL_SYNC_RESOURCES) {
