@@ -41,7 +41,12 @@
 	background-image: none !important;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper,
+.monaco-workbench .editor-instance .terminal-wrapper {
+	display: block;
+	height: 100%;
+	box-sizing: border-box;
+	background-color: var(--vscode-terminal-background);
+}
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: block;
 	height: 100%;
