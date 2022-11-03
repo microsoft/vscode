@@ -101,7 +101,6 @@ import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-m
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { DefaultExtensionsProfileInitHandler } from 'vs/platform/extensionManagement/electron-main/defaultExtensionsProfileInit';
 import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
@@ -557,9 +556,6 @@ export class CodeApplication extends Disposable {
 
 		// Auth Handler
 		this._register(instantiationService.createInstance(ProxyAuthHandler));
-
-		// Default Extensions Profile Init Handler
-		this._register(instantiationService.createInstance(DefaultExtensionsProfileInitHandler));
 
 		// Transient profiles handler
 		this._register(instantiationService.createInstance(UserDataTransientProfilesHandler));

@@ -180,15 +180,27 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.backupLocal(stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
 			const promises: Promise<any>[] = [];
 			for (const profile of local.added) {
-				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName }));
+				promises.push((async () => {
+					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
+					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName });
+					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
+				})());
 			}
 			for (const profile of local.removed) {
-				promises.push(this.userDataProfilesService.removeProfile(profile));
+				promises.push((async () => {
+					this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
+					await this.userDataProfilesService.removeProfile(profile);
+					this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
+				})());
 			}
 			for (const profile of local.updated) {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
-					promises.push(this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName }));
+					promises.push((async () => {
+						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
+						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName });
+						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
+					})());
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
 				}
