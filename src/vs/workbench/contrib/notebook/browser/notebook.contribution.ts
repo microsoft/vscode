@@ -910,5 +910,10 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.audioCuesEnabled]: {
+			description: nls.localize('notebook.audioCuesEnabled', "Whether to emit audio cues on cell execution completed"),
+			type: 'boolean',
+			default: false,
+		}
 	}
 });
