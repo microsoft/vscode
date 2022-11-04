@@ -814,15 +814,8 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		dropdownActions.push(new SubmenuAction('split.profile', localize('splitTerminal', 'Split Terminal'), submenuActions));
 		dropdownActions.push(new Separator());
 	}
-
-	for (const [, configureActions] of dropdownMenu.getActions()) {
-		for (const action of configureActions) {
-			// make sure the action is a MenuItemAction
-			if ('alt' in action) {
-				dropdownActions.push(action);
-			}
-		}
-	}
+	const actions = dropdownMenu.getActions();
+	dropdownActions.push(...Separator.join(...actions.map(a => a[1])));
 
 	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
 	if (defaultSubmenuProfileAction) {
