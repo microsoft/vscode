@@ -29,11 +29,13 @@ if (cmdLine.errors.length > 0) {
 }
 
 const queryAnyDefinition = `
+(method_signature (property_identifier) @ident)
 (method_definition (property_identifier) @ident)
 (public_field_definition (property_identifier) @ident)
 (pair (property_identifier) @ident)
 (object_type (property_signature (property_identifier) @ident))
-(object_type (method_signature (property_identifier) @ident))`;
+(object_type (method_signature (property_identifier) @ident))
+`;
 
 const queryClassPropertiesUsages = `
 ;; method and field
@@ -181,7 +183,7 @@ extractIdentifierInfo().then(async identifierInfo => {
 	// REWRITE
 	const replacementMap = new Map<string, string>();
 	const pool = new ShortIdent();
-	for (let i = 0; i < 3; i++) {
+	for (let i = 0; i < 9; i++) {
 		const { text } = identifierInfo[i];
 		const shortText = pool.next();
 		replacementMap.set(text, shortText);
