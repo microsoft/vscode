@@ -1571,7 +1571,7 @@ export class CommandCenter {
 		repository: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
 		opts: CommitOptions
-	): Promise<boolean> {
+	): Promise<void> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
@@ -1611,7 +1611,7 @@ export class CommandCenter {
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 				} else if (pick !== commit) {
-					return false; // do not commit on cancel
+					return; // do not commit on cancel
 				}
 			}
 		}
@@ -1621,7 +1621,7 @@ export class CommandCenter {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
-				return false;
+				return;
 			}
 
 			// prompt the user if we want to commit all or not
@@ -1635,9 +1635,9 @@ export class CommandCenter {
 				config.update('enableSmartCommit', true, true);
 			} else if (pick === never) {
 				config.update('suggestSmartCommit', false, true);
-				return false;
+				return;
 			} else if (pick !== yes) {
-				return false; // do not commit on cancel
+				return; // do not commit on cancel
 			}
 		}
 
@@ -1683,7 +1683,7 @@ export class CommandCenter {
 			const answer = await window.showInformationMessage(l10n.t('There are no changes to commit.'), commitAnyway);
 
 			if (answer !== commitAnyway) {
-				return false;
+				return;
 			}
 
 			opts.empty = true;
@@ -1692,7 +1692,7 @@ export class CommandCenter {
 		if (opts.noVerify) {
 			if (!config.get<boolean>('allowNoVerifyCommit')) {
 				await window.showErrorMessage(l10n.t('Commits without verification are not allowed, please enable them with the "git.allowNoVerifyCommit" setting.'));
-				return false;
+				return;
 			}
 
 			if (config.get<boolean>('confirmNoVerifyCommit')) {
@@ -1704,7 +1704,7 @@ export class CommandCenter {
 				if (pick === neverAgain) {
 					config.update('confirmNoVerifyCommit', false, true);
 				} else if (pick !== yes) {
-					return false;
+					return;
 				}
 			}
 		}
@@ -1712,7 +1712,7 @@ export class CommandCenter {
 		const message = await getCommitMessage();
 
 		if (!message && !opts.amend && !opts.useEditor) {
-			return false;
+			return;
 		}
 
 		if (opts.all && smartCommitChanges === 'tracked') {
@@ -1738,12 +1738,12 @@ export class CommandCenter {
 			}
 
 			if (!pick) {
-				return false;
+				return;
 			} else if (pick === commitToNewBranch) {
 				const branchName = await this.promptForBranchName(repository);
 
 				if (!branchName) {
-					return false;
+					return;
 				}
 
 				await repository.branch(branchName, true);
@@ -1751,8 +1751,6 @@ export class CommandCenter {
 		}
 
 		await repository.commit(message, opts);
-
-		return true;
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
@@ -1790,11 +1788,7 @@ export class CommandCenter {
 			return _message;
 		};
 
-		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
-
-		if (message && didCommit) {
-			repository.inputBox.value = await repository.getInputTemplate();
-		}
+		await this.smartCommit(repository, getCommitMessage, opts);
 	}
 
 	@command('git.commit', { repository: true })
