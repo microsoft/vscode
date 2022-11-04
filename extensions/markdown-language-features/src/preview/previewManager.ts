@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
@@ -15,8 +14,6 @@ import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview 
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
 import { TopmostLineMonitor } from './topmostLineMonitor';
-
-const localize = nls.loadMessageBundle();
 
 
 export interface DynamicPreviewSettings {
@@ -216,7 +213,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';">
 			</head>
 			<body class="error-container">
-				<p>${localize('preview.restoreError', "An unexpected error occurred while restoring the Markdown preview.")}</p>
+				<p>${vscode.l10n.t("An unexpected error occurred while restoring the Markdown preview.")}</p>
 			</body>
 			</html>`;
 		}
