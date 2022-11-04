@@ -1892,8 +1892,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	readonly onDidChange = this._onDidChange.event;
 
 	layout(width: number, height: number, top: number, left: number): void {
-		// TODO: top and left are not correct?
-
 		this.lastLayout = { width, height, top, left };
 
 		// Layout the title area first to receive the size it occupies
