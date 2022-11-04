@@ -93,7 +93,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
 		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(e => this.onDidChangeExtensionsFromAnotherSource(e)));
-		this.watchForExtensionsFromOtherSources();
+		this.watchForExtensionsNotInstalledBySystem();
 	}
 
 	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
@@ -288,7 +288,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private readonly knownDirectories = new ResourceSet();
-	private async watchForExtensionsFromOtherSources(): Promise<void> {
+	private async watchForExtensionsNotInstalledBySystem(): Promise<void> {
 		this._register(this.extensionsScanner.onExtract(resource => this.knownDirectories.add(resource)));
 		const stat = await this.fileService.resolve(this.extensionsScannerService.userExtensionsLocation);
 		for (const childStat of stat.children ?? []) {
