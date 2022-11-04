@@ -352,7 +352,8 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.tasks.runTask', "Run Task...")
 					},
 					when: TaskExecutionSupportedContext,
-					group: '4_tasks'
+					group: '4_tasks',
+					order: 1
 				},
 			},
 			{
@@ -363,7 +364,8 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.tasks.configureTaskRunner', "Configure Tasks...")
 					},
 					when: TaskExecutionSupportedContext,
-					group: '4_tasks'
+					group: '4_tasks',
+					order: 2
 				},
 			}
 		]
