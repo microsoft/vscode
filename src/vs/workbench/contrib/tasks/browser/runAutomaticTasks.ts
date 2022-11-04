@@ -133,8 +133,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	private async _runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService,
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 
-		const hasShownPromptForAutomaticTasksDeprecated = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
-		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.PROFILE, false);
+		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.PROFILE, false));
 		const { tasks, taskNames, locations } = this._findAutoTasks(taskService, workspaceTaskResult);
 
 		if (taskNames.length === 0) {
@@ -142,7 +141,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
 			this._runTasks(taskService, tasks);
-		} else if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'auto' && !hasShownPromptForAutomaticTasksDeprecated && !hasShownPromptForAutomaticTasks) {
+		} else if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'auto' && !hasShownPromptForAutomaticTasks) {
 			// by default, only prompt once per folder/profile
 			// otherwise, this can be configured via the setting
 			this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
