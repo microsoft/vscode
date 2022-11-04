@@ -5,10 +5,8 @@
 
 import * as vscode from 'vscode';
 import { getLocation, Location, parse } from 'jsonc-parser';
-import * as nls from 'vscode-nls';
 import { provideInstalledExtensionProposals } from './extensionsProposals';
 
-const localize = nls.loadMessageBundle();
 const OVERRIDE_IDENTIFIER_REGEX = /\[([^\[\]]*)\]/g;
 
 export class SettingsDocument {
@@ -107,20 +105,20 @@ export class SettingsDocument {
 		};
 
 
-		completions.push(this.newSimpleCompletionItem(getText('activeEditorShort'), range, localize('activeEditorShort', "the file name (e.g. myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem(getText('activeEditorMedium'), range, localize('activeEditorMedium', "the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem(getText('activeEditorLong'), range, localize('activeEditorLong', "the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem(getText('activeFolderShort'), range, localize('activeFolderShort', "the name of the folder the file is contained in (e.g. myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('activeFolderMedium'), range, localize('activeFolderMedium', "the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('activeFolderLong'), range, localize('activeFolderLong', "the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('rootName'), range, localize('rootName', "name of the workspace (e.g. myFolder or myWorkspace)")));
-		completions.push(this.newSimpleCompletionItem(getText('rootPath'), range, localize('rootPath', "file path of the workspace (e.g. /Users/Development/myWorkspace)")));
-		completions.push(this.newSimpleCompletionItem(getText('folderName'), range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('folderPath'), range, localize('folderPath', "file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('appName'), range, localize('appName', "e.g. VS Code")));
-		completions.push(this.newSimpleCompletionItem(getText('remoteName'), range, localize('remoteName', "e.g. SSH")));
-		completions.push(this.newSimpleCompletionItem(getText('dirty'), range, localize('dirty', "an indicator for when the active editor has unsaved changes")));
-		completions.push(this.newSimpleCompletionItem(getText('separator'), range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
+		completions.push(this.newSimpleCompletionItem(getText('activeEditorShort'), range, vscode.l10n.t("the file name (e.g. myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeEditorMedium'), range, vscode.l10n.t("the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeEditorLong'), range, vscode.l10n.t("the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeFolderShort'), range, vscode.l10n.t("the name of the folder the file is contained in (e.g. myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeFolderMedium'), range, vscode.l10n.t("the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeFolderLong'), range, vscode.l10n.t("the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('rootName'), range, vscode.l10n.t("name of the workspace (e.g. myFolder or myWorkspace)")));
+		completions.push(this.newSimpleCompletionItem(getText('rootPath'), range, vscode.l10n.t("file path of the workspace (e.g. /Users/Development/myWorkspace)")));
+		completions.push(this.newSimpleCompletionItem(getText('folderName'), range, vscode.l10n.t("name of the workspace folder the file is contained in (e.g. myFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('folderPath'), range, vscode.l10n.t("file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('appName'), range, vscode.l10n.t("e.g. VS Code")));
+		completions.push(this.newSimpleCompletionItem(getText('remoteName'), range, vscode.l10n.t("e.g. SSH")));
+		completions.push(this.newSimpleCompletionItem(getText('dirty'), range, vscode.l10n.t("an indicator for when the active editor has unsaved changes")));
+		completions.push(this.newSimpleCompletionItem(getText('separator'), range, vscode.l10n.t("a conditional separator (' - ') that only shows when surrounded by variables with values")));
 
 		return completions;
 	}
@@ -134,15 +132,15 @@ export class SettingsDocument {
 				const range = this.getReplaceRange(location, position);
 
 				completions.push(this.newSnippetCompletionItem({
-					label: localize('assocLabelFile', "Files with Extension"),
-					documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
+					label: vscode.l10n.t("Files with Extension"),
+					documentation: vscode.l10n.t("Map all files matching the glob pattern in their filename to the language with the given identifier."),
 					snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
 					range
 				}));
 
 				completions.push(this.newSnippetCompletionItem({
-					label: localize('assocLabelPath', "Files with Path"),
-					documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
+					label: vscode.l10n.t("Files with Path"),
+					documentation: vscode.l10n.t("Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
 					snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
 					range
 				}));
@@ -163,43 +161,43 @@ export class SettingsDocument {
 			const range = this.getReplaceRange(location, position);
 
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('fileLabel', "Files by Extension"),
-				documentation: localize('fileDescription', "Match all files of a specific file extension."),
+				label: vscode.l10n.t("Files by Extension"),
+				documentation: vscode.l10n.t("Match all files of a specific file extension."),
 				snippet: location.path.length === 2 ? '"**/*.${1:extension}": true' : '{ "**/*.${1:extension}": true }',
 				range
 			}));
 
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('filesLabel', "Files with Multiple Extensions"),
-				documentation: localize('filesDescription', "Match all files with any of the file extensions."),
+				label: vscode.l10n.t("Files with Multiple Extensions"),
+				documentation: vscode.l10n.t("Match all files with any of the file extensions."),
 				snippet: location.path.length === 2 ? '"**/*.{ext1,ext2,ext3}": true' : '{ "**/*.{ext1,ext2,ext3}": true }',
 				range
 			}));
 
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('derivedLabel', "Files with Siblings by Name"),
-				documentation: localize('derivedDescription', "Match files that have siblings with the same name but a different extension."),
+				label: vscode.l10n.t("Files with Siblings by Name"),
+				documentation: vscode.l10n.t("Match files that have siblings with the same name but a different extension."),
 				snippet: location.path.length === 2 ? '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }' : '{ "**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" } }',
 				range
 			}));
 
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('topFolderLabel', "Folder by Name (Top Level)"),
-				documentation: localize('topFolderDescription', "Match a top level folder with a specific name."),
+				label: vscode.l10n.t("Folder by Name (Top Level)"),
+				documentation: vscode.l10n.t("Match a top level folder with a specific name."),
 				snippet: location.path.length === 2 ? '"${1:name}": true' : '{ "${1:name}": true }',
 				range
 			}));
 
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('topFoldersLabel', "Folders with Multiple Names (Top Level)"),
-				documentation: localize('topFoldersDescription', "Match multiple top level folders."),
+				label: vscode.l10n.t("Folders with Multiple Names (Top Level)"),
+				documentation: vscode.l10n.t("Match multiple top level folders."),
 				snippet: location.path.length === 2 ? '"{folder1,folder2,folder3}": true' : '{ "{folder1,folder2,folder3}": true }',
 				range
 			}));
 
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('folderLabel', "Folder by Name (Any Location)"),
-				documentation: localize('folderDescription', "Match a folder with a specific name in any location."),
+				label: vscode.l10n.t("Folder by Name (Any Location)"),
+				documentation: vscode.l10n.t("Match a folder with a specific name in any location."),
 				snippet: location.path.length === 2 ? '"**/${1:name}": true' : '{ "**/${1:name}": true }',
 				range
 			}));
@@ -209,8 +207,8 @@ export class SettingsDocument {
 		else if (location.path.length === 2 && this.isCompletingPropertyValue(location, position)) {
 			const range = this.getReplaceRange(location, position);
 			completions.push(this.newSnippetCompletionItem({
-				label: localize('derivedLabel', "Files with Siblings by Name"),
-				documentation: localize('siblingsDescription', "Match files that have siblings with the same name but a different extension."),
+				label: vscode.l10n.t("Files with Siblings by Name"),
+				documentation: vscode.l10n.t("Match files that have siblings with the same name but a different extension."),
 				snippet: '{ "when": "$(basename).${1:extension}" }',
 				range
 			}));
@@ -224,7 +222,7 @@ export class SettingsDocument {
 			const range = this.getReplaceRange(location, position);
 			const languages = await vscode.languages.getLanguages();
 			return [
-				this.newSimpleCompletionItem(JSON.stringify('${activeEditorLanguage}'), range, localize('activeEditor', "Use the language of the currently active text editor if any")),
+				this.newSimpleCompletionItem(JSON.stringify('${activeEditorLanguage}'), range, vscode.l10n.t("Use the language of the currently active text editor if any")),
 				...languages.map(l => this.newSimpleCompletionItem(JSON.stringify(l), range))
 			];
 		}
