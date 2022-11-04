@@ -466,7 +466,7 @@
 	color: var(--vscode-terminalCommandDecoration-defaultBackground);
 }
 .terminal-command-decoration.quick-fix {
-	color: var(--vscode-editorLightbulb-foreground);
+	color: var(--vscode-editorLightBulb-foreground) !important;
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }
 
