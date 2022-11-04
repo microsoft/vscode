@@ -270,12 +270,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
 								const history = this.history.getHistory();
-								history.forEach(h => suggestions.push({
+								const idxLength = String(history.length).length;
+								history.forEach((h, i) => suggestions.push({
 									label: h,
 									insertText: h,
 									kind: CompletionItemKind.Text,
 									range: computeRange(h.length),
-									sortText: 'ZZZ'
+									sortText: 'ZZZ' + String(history.length - i).padStart(idxLength, '0')
 								}));
 							}
 
