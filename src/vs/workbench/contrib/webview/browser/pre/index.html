@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-lC8sxUeeYqUtmkCpPt/OX/HQdE0JbHG1Z3dzrilsRU0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-jFyDxjOb3XBdk72ii0ggD0YVP/0gCVB58U2Vw6T/7/U=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -86,92 +86,92 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
-	html {
-		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
-	}
+			html {
+				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+			}
 
-	body {
-		background-color: transparent;
-		color: var(--vscode-editor-foreground);
-		font-family: var(--vscode-font-family);
-		font-weight: var(--vscode-font-weight);
-		font-size: var(--vscode-font-size);
-		margin: 0;
-		padding: 0 20px;
-	}
+			body {
+				background-color: transparent;
+				color: var(--vscode-editor-foreground);
+				font-family: var(--vscode-font-family);
+				font-weight: var(--vscode-font-weight);
+				font-size: var(--vscode-font-size);
+				margin: 0;
+				padding: 0 20px;
+			}
 
-	img, video {
-		max-width: 100%;
-		max-height: 100%;
-	}
+			img, video {
+				max-width: 100%;
+				max-height: 100%;
+			}
 
-	a, a code {
-		color: var(--vscode-textLink-foreground);
-	}
+			a, a code {
+				color: var(--vscode-textLink-foreground);
+			}
 
-	a:hover {
-		color: var(--vscode-textLink-activeForeground);
-	}
+			a:hover {
+				color: var(--vscode-textLink-activeForeground);
+			}
 
-	a:focus,
-	input:focus,
-	select:focus,
-	textarea:focus {
-		outline: 1px solid -webkit-focus-ring-color;
-		outline-offset: -1px;
-	}
+			a:focus,
+			input:focus,
+			select:focus,
+			textarea:focus {
+				outline: 1px solid -webkit-focus-ring-color;
+				outline-offset: -1px;
+			}
 
-	code {
-		color: var(--vscode-textPreformat-foreground);
-	}
+			code {
+				color: var(--vscode-textPreformat-foreground);
+			}
 
-	blockquote {
-		background: var(--vscode-textBlockQuote-background);
-		border-color: var(--vscode-textBlockQuote-border);
-	}
+			blockquote {
+				background: var(--vscode-textBlockQuote-background);
+				border-color: var(--vscode-textBlockQuote-border);
+			}
 
-	kbd {
-		color: var(--vscode-editor-foreground);
-		border-radius: 3px;
-		vertical-align: middle;
-		padding: 1px 3px;
+			kbd {
+				color: var(--vscode-editor-foreground);
+				border-radius: 3px;
+				vertical-align: middle;
+				padding: 1px 3px;
 
-		background-color: hsla(0,0%,50%,.17);
-		border: 1px solid rgba(71,71,71,.4);
-		border-bottom-color: rgba(88,88,88,.4);
-		box-shadow: inset 0 -1px 0 rgba(88,88,88,.4);
-	}
-	.vscode-light kbd {
-		background-color: hsla(0,0%,87%,.5);
-		border: 1px solid hsla(0,0%,80%,.7);
-		border-bottom-color: hsla(0,0%,73%,.7);
-		box-shadow: inset 0 -1px 0 hsla(0,0%,73%,.7);
-	}
+				background-color: hsla(0,0%,50%,.17);
+				border: 1px solid rgba(71,71,71,.4);
+				border-bottom-color: rgba(88,88,88,.4);
+				box-shadow: inset 0 -1px 0 rgba(88,88,88,.4);
+			}
+			.vscode-light kbd {
+				background-color: hsla(0,0%,87%,.5);
+				border: 1px solid hsla(0,0%,80%,.7);
+				border-bottom-color: hsla(0,0%,73%,.7);
+				box-shadow: inset 0 -1px 0 hsla(0,0%,73%,.7);
+			}
 
-	::-webkit-scrollbar {
-		width: 10px;
-		height: 10px;
-	}
+			::-webkit-scrollbar {
+				width: 10px;
+				height: 10px;
+			}
 
-	::-webkit-scrollbar-corner {
-		background-color: var(--vscode-editor-background);
-	}
+			::-webkit-scrollbar-corner {
+				background-color: var(--vscode-editor-background);
+			}
 
-	::-webkit-scrollbar-thumb {
-		background-color: var(--vscode-scrollbarSlider-background);
-	}
-	::-webkit-scrollbar-thumb:hover {
-		background-color: var(--vscode-scrollbarSlider-hoverBackground);
-	}
-	::-webkit-scrollbar-thumb:active {
-		background-color: var(--vscode-scrollbarSlider-activeBackground);
-	}
-	::highlight(find-highlight) {
-		background-color: var(--vscode-editor-findMatchHighlightBackground);
-	}
-	::highlight(current-find-highlight) {
-		background-color: var(--vscode-editor-findMatchBackground);
-	}`;
+			::-webkit-scrollbar-thumb {
+				background-color: var(--vscode-scrollbarSlider-background);
+			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: var(--vscode-scrollbarSlider-hoverBackground);
+			}
+			::-webkit-scrollbar-thumb:active {
+				background-color: var(--vscode-scrollbarSlider-activeBackground);
+			}
+			::highlight(find-highlight) {
+				background-color: var(--vscode-editor-findMatchHighlightBackground);
+			}
+			::highlight(current-find-highlight) {
+				background-color: var(--vscode-editor-findMatchBackground);
+			}`;
 
 		/**
 		 * @param {boolean} allowMultipleAPIAcquire
@@ -181,40 +181,40 @@
 		function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 			const encodedState = state ? encodeURIComponent(state) : undefined;
 			return /* js */`
-			globalThis.acquireVsCodeApi = (function() {
-				const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
-				const doPostMessage = (channel, data, transfer) => {
-					originalPostMessage(channel, data, transfer);
-				};
+					globalThis.acquireVsCodeApi = (function() {
+						const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
+						const doPostMessage = (channel, data, transfer) => {
+							originalPostMessage(channel, data, transfer);
+						};
 
-				let acquired = false;
+						let acquired = false;
 
-				let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
+						let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
 
-				return () => {
-					if (acquired && !${allowMultipleAPIAcquire}) {
-						throw new Error('An instance of the VS Code API has already been acquired');
-					}
-					acquired = true;
-					return Object.freeze({
-						postMessage: function(message, transfer) {
-							doPostMessage('onmessage', { message, transfer }, transfer);
-						},
-						setState: function(newState) {
-							state = newState;
-							doPostMessage('do-update-state', JSON.stringify(newState));
-							return newState;
-						},
-						getState: function() {
-							return state;
-						}
-					});
-				};
-			})();
-			delete window.parent;
-			delete window.top;
-			delete window.frameElement;
-		`;
+						return () => {
+							if (acquired && !${allowMultipleAPIAcquire}) {
+								throw new Error('An instance of the VS Code API has already been acquired');
+							}
+							acquired = true;
+							return Object.freeze({
+								postMessage: function(message, transfer) {
+									doPostMessage('onmessage', { message, transfer }, transfer);
+								},
+								setState: function(newState) {
+									state = newState;
+									doPostMessage('do-update-state', JSON.stringify(newState));
+									return newState;
+								},
+								getState: function() {
+									return state;
+								}
+							});
+						};
+					})();
+					delete window.parent;
+					delete window.top;
+					delete window.frameElement;
+				`;
 		}
 
 		/** @type {Promise<void>} */
@@ -279,6 +279,9 @@
 				});
 		});
 
+		/**
+		 *  @type {import('../webviewMessages').WebviewHostMessaging}
+		 */
 		const hostMessaging = new class HostMessaging {
 
 			constructor() {
@@ -300,19 +303,10 @@
 				};
 			}
 
-			/**
-			 * @param {string} channel
-			 * @param {any} data
-			 * @param {any} [transfer]
-			 */
 			postMessage(channel, data, transfer) {
 				this.channel.port1.postMessage({ channel, data }, transfer);
 			}
 
-			/**
-			 * @param {string} channel
-			 * @param {(event: MessageEvent, data: any) => void} handler
-			 */
 			onMessage(channel, handler) {
 				let handlers = this.handlers.get(channel);
 				if (!handlers) {
@@ -367,11 +361,11 @@
 				this.confirmBeforeClose = 'keyboardOnly';
 				this.isModifierKeyDown = false;
 
-				hostMessaging.onMessage('set-confirm-before-close', (_e, /** @type {string} */ data) => {
+				hostMessaging.onMessage('set-confirm-before-close', (_e, data) => {
 					this.confirmBeforeClose = data;
 				});
 
-				hostMessaging.onMessage('content', (_e, /** @type {any} */ data) => {
+				hostMessaging.onMessage('content', (_e, data) => {
 					this.confirmBeforeClose = data.confirmBeforeClose;
 				});
 
@@ -403,11 +397,11 @@
 			}
 
 			onIframeLoaded(/** @type {HTMLIFrameElement} */ frame) {
-				frame.contentWindow.addEventListener('keydown', e => {
+				assertIsDefined(frame.contentWindow).addEventListener('keydown', e => {
 					this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
 				});
 
-				frame.contentWindow.addEventListener('keyup', () => {
+				assertIsDefined(frame.contentWindow).addEventListener('keyup', () => {
 					this.isModifierKeyDown = false;
 				});
 			}
@@ -545,7 +539,7 @@
 							event.view.scrollTo(0, 0);
 						}
 					} else {
-						hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
+						hostMessaging.postMessage('did-click-link', { uri: node.href.baseVal || node.href });
 					}
 					event.preventDefault();
 					return;
@@ -590,6 +584,10 @@
 				} else {
 					return; // let the browser handle this
 				}
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
+				// (No effect in a regular browser tab.)
+				e.preventDefault();
 			}
 
 			hostMessaging.postMessage('did-keydown', {
@@ -665,6 +663,24 @@
 			return hasMeta && e.key.toLowerCase() === 's';
 		}
 
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseTab(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'w';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isNewWindow(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'n';
+		}
+
 		let isHandlingScroll = false;
 
 		/**
@@ -707,7 +723,7 @@
 			isHandlingScroll = true;
 			window.requestAnimationFrame(() => {
 				try {
-					hostMessaging.postMessage('did-scroll', progress);
+					hostMessaging.postMessage('did-scroll', { scrollYPercentage: progress });
 				} catch (e) {
 					// noop
 				}
@@ -727,7 +743,7 @@
 
 			// Only handle drags from outside editor for now
 			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
-				hostMessaging.postMessage('drag-start');
+				hostMessaging.postMessage('drag-start', undefined);
 			}
 		}
 
@@ -811,7 +827,7 @@
 			// Check for CSP
 			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 			if (!csp) {
-				hostMessaging.postMessage('no-csp-found');
+				hostMessaging.postMessage('no-csp-found', undefined);
 			} else {
 				try {
 					// Attempt to rewrite CSPs that hardcode old-style resource endpoint
@@ -941,18 +957,18 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;']
-				if(!isFirefox && options.allowScripts) {
-					allowRules.push('clipboard-read;','clipboard-write;')
+				const allowRules = ['cross-origin-isolated;'];
+				if (!isFirefox && options.allowScripts) {
+					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
 				newFrame.setAttribute('allow', allowRules.join(' '));
 				// We should just be able to use srcdoc, but I wasn't
 				// seeing the service worker applying properly.
 				// Fake load an empty on the correct origin and then write real html
 				// into it to get around this.
-				const fakeUrlParams = new URLSearchParams({id: ID});
-				if(globalThis.crossOriginIsolated) {
-					fakeUrlParams.set('vscode-coi', '3') /*COOP+COEP*/
+				const fakeUrlParams = new URLSearchParams({ id: ID });
+				if (globalThis.crossOriginIsolated) {
+					fakeUrlParams.set('vscode-coi', '3'); /*COOP+COEP*/
 				}
 				newFrame.src = `./fake.html?${fakeUrlParams.toString()}`;
 
@@ -1075,9 +1091,10 @@
 
 						e.preventDefault();
 
+						/** @type { Record<string, boolean>} */
 						let context = {};
 
-						/** @type HTMLElement */
+						/** @type {HTMLElement | null} */
 						let el = e.target;
 						while (true) {
 							if (!el) {
@@ -1093,7 +1110,7 @@
 							try {
 								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
 							} catch (e) {
-								console.error(`Error parsing 'data-vscode-context' as json`, el, e)
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e);
 							}
 
 							el = el.parentElement;
@@ -1114,7 +1131,7 @@
 			});
 
 			// Forward message to the embedded iframe
-			hostMessaging.onMessage('message', (_event, /** @type {{message: any, transfer?: ArrayBuffer[] }} */ data) => {
+			hostMessaging.onMessage('message', (_event, data) => {
 				const pending = getPendingFrame();
 				if (!pending) {
 					const target = getActiveFrame();
@@ -1147,20 +1164,22 @@
 					return;
 				}
 
-				if (!data.previous && lastFindValue !== data.value) {
+				if (!data.previous && lastFindValue !== data.value && target.contentWindow) {
 					// Reset selection so we start search at the head of the last search
 					const selection = target.contentWindow.getSelection();
-					selection.collapse(selection.anchorNode);
+					if (selection) {
+						selection.collapse(selection.anchorNode);
+					}
 				}
 				lastFindValue = data.value;
 
 				const didFind = (/** @type {any} */ (target.contentWindow)).find(
 					data.value,
-			/* caseSensitive*/ false,
-			/* backwards*/ data.previous,
-			/* wrapAround*/ true,
-			/* wholeWord */ false,
-			/* searchInFrames*/ false,
+					/* caseSensitive*/ false,
+					/* backwards*/ data.previous,
+					/* wrapAround*/ true,
+					/* wholeWord */ false,
+					/* searchInFrames*/ false,
 					false);
 				hostMessaging.postMessage('did-find', didFind);
 			});
@@ -1173,17 +1192,19 @@
 
 				lastFindValue = undefined;
 
-				if (!data.clearSelection) {
+				if (!data.clearSelection && target.contentWindow) {
 					const selection = target.contentWindow.getSelection();
-					for (let i = 0; i < selection.rangeCount; i++) {
-						selection.removeRange(selection.getRangeAt(i));
+					if (selection) {
+						for (let i = 0; i < selection.rangeCount; i++) {
+							selection.removeRange(selection.getRangeAt(i));
+						}
 					}
 				}
 			});
 
 			trackFocus({
-				onFocus: () => hostMessaging.postMessage('did-focus'),
-				onBlur: () => hostMessaging.postMessage('did-blur')
+				onFocus: () => hostMessaging.postMessage('did-focus', undefined),
+				onBlur: () => hostMessaging.postMessage('did-blur', undefined)
 			});
 
 			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {

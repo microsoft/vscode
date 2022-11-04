@@ -244,6 +244,41 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			);
 		});
 	});
+
+	test('Test Error Brackets', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹ { () ] ² `);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2))
+					.map(b => ({ level: b.nestingLevel, range: b.range.toString(), isInvalid: b.isInvalid }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						isInvalid: true,
+						range: "[1,2 -> 1,3]",
+					},
+					{
+						level: 1,
+						isInvalid: false,
+						range: "[1,4 -> 1,5]",
+					},
+					{
+						level: 1,
+						isInvalid: false,
+						range: "[1,5 -> 1,6]",
+					},
+					{
+						level: 0,
+						isInvalid: true,
+						range: "[1,7 -> 1,8]"
+					}
+				]
+			);
+		});
+	});
 });
 
 function bracketPairToJSON(pair: BracketPairInfo): unknown {

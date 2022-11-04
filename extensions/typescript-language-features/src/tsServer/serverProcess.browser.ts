@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { memoize } from '../utils/memoize';
@@ -14,7 +13,6 @@ import { ServiceConnection } from '@vscode/sync-api-common/browser';
 // import { Cancellation } from '@vscode/sync-api-common/lib/common/messageCancellation';
 import { Requests, ApiService } from '@vscode/sync-api-service';
 
-const localize = nls.loadMessageBundle();
 
 // slightly more detailed webworker types
 declare const Worker: any;
@@ -106,7 +104,7 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	@memoize
 	private get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel(localize('channelName', 'TypeScript Server Log'));
+		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
 	}
 
 	write(serverRequest: Proto.Request): void {

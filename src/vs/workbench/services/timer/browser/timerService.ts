@@ -547,7 +547,9 @@ export abstract class AbstractTimerService implements ITimerService {
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
 		// Perf marks are a shared resource because anyone can generate them
 		// and because of that we only accept marks that start with 'code/'
-		this._marks.setMarks(source, marks.filter(mark => mark.name.startsWith('code/')));
+		const codeMarks = marks.filter(mark => mark.name.startsWith('code/'));
+		this._marks.setMarks(source, codeMarks);
+		this._reportPerformanceMarks(source, codeMarks);
 	}
 
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
@@ -565,34 +567,30 @@ export abstract class AbstractTimerService implements ITimerService {
 			}
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
+	}
 
-
+	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {
 		// report raw timers as telemetry. each mark is send a separate telemetry
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
-		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
-			type MarkClassification = {
-				owner: 'jrieken';
-				comment: 'Information about a performance marker';
-				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
-				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
-				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The duration between the previous and this marker' };
-				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
-			};
 
-			let lastMark: perf.PerformanceMark = marks[0];
-			for (const mark of marks) {
-				const delta = mark.startTime - lastMark.startTime;
-				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
-					source,
-					name: mark.name,
-					relativeStartTime: delta,
-					startTime: mark.startTime
-				});
-				lastMark = mark;
-			}
+		type Mark = { source: string; name: string; startTime: number };
+		type MarkClassification = {
+			owner: 'jrieken';
+			comment: 'Information about a performance marker';
+			source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
+			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
+		};
+
+		for (const mark of marks) {
+			this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
+				source,
+				name: mark.name,
+				startTime: mark.startTime
+			});
 		}
+
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {

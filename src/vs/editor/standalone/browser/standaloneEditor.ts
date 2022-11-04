@@ -33,6 +33,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 /**
  * Create a new editor under `domElement`.
@@ -235,9 +236,10 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 /**
  * Change the language for a model.
  */
-export function setModelLanguage(model: ITextModel, languageId: string): void {
+export function setModelLanguage(model: ITextModel, mimeTypeOrLanguageId: string): void {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const modelService = StandaloneServices.get(IModelService);
+	const languageId = languageService.getLanguageIdByMimeType(mimeTypeOrLanguageId) || mimeTypeOrLanguageId || PLAINTEXT_LANGUAGE_ID;
 	modelService.setMode(model, languageService.createById(languageId));
 }
 

@@ -7,6 +7,16 @@ import * as spdlog from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
+enum SpdLogLevel {
+	Trace,
+	Debug,
+	Info,
+	Warning,
+	Error,
+	Critical,
+	Off
+}
+
 async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number, donotUseFormatters: boolean): Promise<spdlog.Logger | null> {
 	// Do not crash if spdlog cannot be loaded
 	try {
@@ -37,7 +47,18 @@ function log(logger: spdlog.Logger, level: LogLevel, message: string): void {
 		case LogLevel.Info: logger.info(message); break;
 		case LogLevel.Warning: logger.warn(message); break;
 		case LogLevel.Error: logger.error(message); break;
-		case LogLevel.Critical: logger.critical(message); break;
+		default: throw new Error('Invalid log level');
+	}
+}
+
+function setLogLevel(logger: spdlog.Logger, level: LogLevel): void {
+	switch (level) {
+		case LogLevel.Trace: logger.setLevel(SpdLogLevel.Trace); break;
+		case LogLevel.Debug: logger.setLevel(SpdLogLevel.Debug); break;
+		case LogLevel.Info: logger.setLevel(SpdLogLevel.Info); break;
+		case LogLevel.Warning: logger.setLevel(SpdLogLevel.Warning); break;
+		case LogLevel.Error: logger.setLevel(SpdLogLevel.Error); break;
+		case LogLevel.Off: logger.setLevel(SpdLogLevel.Off); break;
 		default: throw new Error('Invalid log level');
 	}
 }
@@ -59,7 +80,9 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 		this.setLevel(level);
 		this._loggerCreationPromise = this._createSpdLogLogger(name, filepath, rotating, donotUseFormatters);
 		this._register(this.onDidChangeLogLevel(level => {
-			this._logger?.setLevel(level);
+			if (this._logger) {
+				setLogLevel(this._logger, level);
+			}
 		}));
 	}
 
@@ -69,7 +92,7 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 		const logger = await createSpdLogLogger(name, filepath, filesize, filecount, donotUseFormatters);
 		if (logger) {
 			this._logger = logger;
-			this._logger.setLevel(this.getLevel());
+			setLogLevel(this._logger, this.getLevel());
 			for (const { level, message } of this.buffer) {
 				log(this._logger, level, message);
 			}

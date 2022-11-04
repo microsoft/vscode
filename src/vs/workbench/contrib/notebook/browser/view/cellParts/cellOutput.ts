@@ -56,7 +56,7 @@ interface IRenderResult {
 //  |  #output-inner-container
 //  |                        |  #cell-output-toolbar
 //  |                        |  #output-element
-export class CellOutputElement extends Disposable {
+class CellOutputElement extends Disposable {
 	private readonly _renderDisposableStore = this._register(new DisposableStore());
 
 	innerContainer?: HTMLElement;

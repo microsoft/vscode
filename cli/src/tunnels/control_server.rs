@@ -146,7 +146,6 @@ pub struct ServerTermination {
 fn print_listening(log: &log::Logger, tunnel_name: &str) {
 	debug!(log, "VS Code Server is listening for incoming connections");
 
-	let extension_name = "+ms-vscode.remote-server";
 	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
 	let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
 
@@ -159,7 +158,7 @@ fn print_listening(log: &log::Logger, tunnel_name: &str) {
 	let mut addr = url::Url::parse("https://insiders.vscode.dev").unwrap();
 	{
 		let mut ps = addr.path_segments_mut().unwrap();
-		ps.push(extension_name);
+		ps.push("tunnel");
 		ps.push(tunnel_name);
 		for segment in &dir {
 			let as_str = segment.to_string_lossy();

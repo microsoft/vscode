@@ -220,7 +220,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
-	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -374,10 +373,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		this._getTaskSystem();
-		this._waitForSupportedExecutions.then(() => {
-			this.getWorkspaceTasks().then(async () => {
-				this._tasksReconnected = await this._reconnectTasks();
-			});
+		this.getWorkspaceTasks().then(async () => {
+			this._tasksReconnected = await this._reconnectTasks();
 		});
 	}
 
@@ -401,10 +398,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
-	}
-
-	public get onDidReconnectToTerminals(): Event<void> {
-		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -2994,9 +2987,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
 
 				taskGroupTasks = await this._findWorkspaceTasks((task) => {
-					const taskGroup = task.configurationProperties.group;
-					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
-						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
+					const currentTaskGroup = task.configurationProperties.group;
+					if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
+						return (currentTaskGroup._id === taskGroup._id && glob.match(currentTaskGroup.isDefault, relativePath));
 					}
 
 					return false;

@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent } from 'vscode';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n } from 'vscode';
 import { Repository, Operation } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
-import * as nls from 'vscode-nls';
 import { GitErrorCodes } from './api/git';
-
-const localize = nls.loadMessageBundle();
 
 function isRemoteOperation(operation: Operation): boolean {
 	return operation === Operation.Pull || operation === Operation.Push || operation === Operation.Sync || operation === Operation.Fetch;
@@ -51,10 +48,10 @@ export class AutoFetcher {
 			return;
 		}
 
-		const yes: MessageItem = { title: localize('yes', "Yes") };
-		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
-		const askLater: MessageItem = { title: localize('not now', "Ask Me Later") };
-		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to [periodically run 'git fetch']({0})?", 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+		const yes: MessageItem = { title: l10n.t('Yes') };
+		const no: MessageItem = { isCloseAffordance: true, title: l10n.t('No') };
+		const askLater: MessageItem = { title: l10n.t('Ask Me Later') };
+		const result = await window.showInformationMessage(l10n.t('Would you like Code to [periodically run "git fetch"]({0})?', 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
 
 		if (result === askLater) {
 			return;

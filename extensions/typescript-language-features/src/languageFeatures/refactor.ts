@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
 import type * as Proto from '../protocol';
@@ -18,7 +17,6 @@ import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 
 interface DidApplyRefactoringCommand_Args {
@@ -48,7 +46,7 @@ class DidApplyRefactoringCommand implements Command {
 		});
 
 		if (!args.codeAction.edit?.size) {
-			vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
+			vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 			return;
 		}
 
@@ -100,7 +98,7 @@ class SelectRefactorCommand implements Command {
 
 		if (tsAction.edit) {
 			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
-				vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
+				vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 				return;
 			}
 		}
@@ -273,7 +271,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				kind: vscode.CodeActionKind.Refactor,
 				command: {
 					command: LearnMoreAboutRefactoringsCommand.id,
-					title: localize('refactor.documentation.title', "Learn more about JS/TS refactorings")
+					title: vscode.l10n.t("Learn more about JS/TS refactorings")
 				}
 			}
 		]
@@ -441,11 +439,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 
 		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction(
-				localize('extractConstant.disabled.title', "Extract to constant"),
+				vscode.l10n.t("Extract to constant"),
 				Extract_Constant.kind);
 
 			disabledAction.disabled = {
-				reason: localize('extractConstant.disabled.reason', "The current selection cannot be extracted"),
+				reason: vscode.l10n.t("The current selection cannot be extracted"),
 			};
 			disabledAction.isPreferred = true;
 
@@ -454,11 +452,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 
 		if (!actions.some(action => action.kind && Extract_Function.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction(
-				localize('extractFunction.disabled.title', "Extract to function"),
+				vscode.l10n.t("Extract to function"),
 				Extract_Function.kind);
 
 			disabledAction.disabled = {
-				reason: localize('extractFunction.disabled.reason', "The current selection cannot be extracted"),
+				reason: vscode.l10n.t("The current selection cannot be extracted"),
 			};
 			actions.push(disabledAction);
 		}

@@ -174,8 +174,8 @@ suite('Event', function () {
 		let firstCount = 0;
 		let lastCount = 0;
 		const a = new Emitter({
-			onFirstListenerAdd() { firstCount += 1; },
-			onLastListenerRemove() { lastCount += 1; }
+			onWillAddFirstListener() { firstCount += 1; },
+			onDidRemoveLastListener() { lastCount += 1; }
 		});
 
 		assert.strictEqual(firstCount, 0);
@@ -1011,7 +1011,7 @@ suite('Event utils', () => {
 
 	test('dispose is reentrant', () => {
 		const emitter = new Emitter<number>({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				emitter.dispose();
 			}
 		});

@@ -1183,7 +1183,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
+				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -4461,6 +4461,8 @@ class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent,
 		super(EditorOption.wrappingIndent, 'wrappingIndent', WrappingIndent.Same,
 			{
 				'editor.wrappingIndent': {
+					type: 'string',
+					enum: ['none', 'same', 'indent', 'deepIndent'],
 					enumDescriptions: [
 						nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
 						nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
@@ -4468,6 +4470,7 @@ class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent,
 						nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
 					],
 					description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
+					default: 'same'
 				}
 			}
 		);

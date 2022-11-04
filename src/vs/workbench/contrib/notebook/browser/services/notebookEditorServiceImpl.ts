@@ -13,6 +13,7 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -128,14 +129,14 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		targetMap.set(input.resource, widget);
 	}
 
-	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions): IBorrowValue<NotebookEditorWidget> {
+	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension): IBorrowValue<NotebookEditorWidget> {
 
 		let value = this._borrowableEditors.get(group.id)?.get(input.resource);
 
 		if (!value) {
 			// NEW widget
 			const instantiationService = accessor.get(IInstantiationService);
-			const widget = instantiationService.createInstance(NotebookEditorWidget, creationOptions ?? getDefaultNotebookCreationOptions());
+			const widget = instantiationService.createInstance(NotebookEditorWidget, creationOptions ?? getDefaultNotebookCreationOptions(), initialDimension);
 			const token = this._tokenPool++;
 			value = { widget, token };
 

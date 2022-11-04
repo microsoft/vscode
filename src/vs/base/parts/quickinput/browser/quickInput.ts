@@ -1335,7 +1335,7 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 
-		const progressBar = new ProgressBar(container);
+		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const focusTracker = dom.trackFocus(container);
@@ -1792,7 +1792,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private updateLayout() {
-		if (this.ui) {
+		if (this.ui && this.isDisplayed()) {
 			this.ui.container.style.top = `${this.titleBarOffset}px`;
 
 			const style = this.ui.container.style;
@@ -1827,7 +1827,6 @@ export class QuickInputController extends Disposable {
 			this.ui.count.style(this.styles.countBadge);
 			this.ui.ok.style(this.styles.button);
 			this.ui.customButton.style(this.styles.button);
-			this.ui.progressBar.style(this.styles.progressBar);
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];

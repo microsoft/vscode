@@ -102,6 +102,10 @@
 	flex-grow: 1;
 }
 
+.scm-view .scm-provider > .status > .monaco-action-bar > .actions-container {
+	border-color: var(--vscode-sideBar-border);
+}
+
 .scm-view .monaco-list-row {
 	line-height: 22px;
 }
@@ -208,6 +212,10 @@
 	border-radius: 2px !important;
 }
 
+.scm-view .scm-editor-container .monaco-editor .focused .selected-text {
+	background-color: var(--vscode-editor-selectionBackground);
+}
+
 .scm-view .scm-editor {
 	box-sizing: border-box;
 	width: 100%;
@@ -229,6 +237,13 @@
 	flex-wrap: wrap;
 	padding: 0 4px;
 	overflow: hidden;
+	height: 30px;
+	line-height: 20px;
+	border: 1px solid var(--vscode-button-background);
+}
+
+.scm-view .button-container .monaco-description-button:hover {
+	border-color: var(--vscode-button-hoverBackground);
 }
 
 .scm-view .button-container .monaco-description-button > .monaco-button-label {
@@ -250,13 +265,13 @@
 
 .scm-view .button-container .codicon.codicon-cloud-upload,
 .scm-view .button-container .codicon.codicon-sync {
-	line-height: 22px;
+	line-height: 20px;
 	margin: 0 0.4em 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,
 .scm-view .button-container .codicon.codicon-arrow-down {
-	line-height: 22px;
+	line-height: 20px;
 	font-size: small !important;
 	margin: 0 0.2em 0 0;
 }
@@ -292,12 +307,33 @@
 	display: none;
 }
 
+.monaco-workbench .part.panel .scm-view .scm-editor-container {
+	outline: 1px solid var(--vscode-panelInput-border);
+}
+
 .scm-view .scm-editor-container {
 	position: relative;
 	box-sizing: border-box;
 	padding: 1px;
 	outline-offset: -1px;
+	outline: 1px solid var(--vscode-input-border);
 	border-radius: 2px;
+}
+
+.scm-view .scm-editor-container.synthetic-focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.scm-view .scm-editor-container.validation-info {
+	outline: 1px solid var(--vscode-inputValidation-infoBorder) !important;
+}
+
+.scm-view .scm-editor-container.validation-warning {
+	outline: 1px solid var(--vscode-inputValidation-warningBorder) !important;
+}
+
+.scm-view .scm-editor-container.validation-error {
+	outline: 1px solid var(--vscode-inputValidation-errorBorder) !important;
 }
 
 .scm-editor-validation-container {
@@ -307,6 +343,24 @@
 	border-style: solid;
 	border-top: none;
 	padding: 2px;
+}
+
+.scm-editor-validation-container.validation-info {
+	background-color: var(--vscode-inputValidation-infoBackground);
+	border-color: var(--vscode-inputValidation-infoBorder);
+	color: var(--vscode-inputValidation-infoForeground);
+}
+
+.scm-editor-validation-container.validation-warning {
+	background-color: var(--vscode-inputValidation-warningBackground);
+	border-color: var(--vscode-inputValidation-warningBorder);
+	color: var(--vscode-inputValidation-warningForeground);
+}
+
+.scm-editor-validation-container.validation-error {
+	background-color: var(--vscode-inputValidation-errorBackground);
+	border-color: var(--vscode-inputValidation-errorBorder);
+	color: var(--vscode-inputValidation-errorForeground);
 }
 
 .scm-editor-validation {
@@ -324,8 +378,14 @@
 }
 
 .scm-editor-validation a {
+	color: var(--vscode-textLink-foreground);
 	-webkit-user-select: none;
 	user-select: none;
+}
+
+.scm-editor-validation a:active,
+.scm-editor-validation a:hover {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .scm-editor-validation-actions {
@@ -343,6 +403,7 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	color: var(--vscode-input-placeholderForeground);
 }
 
 .scm-view .scm-editor-placeholder.hidden {
@@ -351,8 +412,13 @@
 
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
-.scm-view .scm-editor-container .mtk1 {
+.scm-view .scm-editor-container .monaco-editor .margin {
 	color: inherit;
+	background-color: var(--vscode-input-background);
+}
+
+.scm-view .scm-editor-container .mtk1 {
+	color: var(--vscode-input-foreground);
 }
 
 /* Repositories */

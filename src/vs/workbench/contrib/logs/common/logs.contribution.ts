@@ -50,6 +50,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	private registerCommonContributions(): void {
 		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
 		this.registerLogChannel(Constants.editSessionsLogChannelId, nls.localize('editSessionsLog', "Edit Sessions"), this.environmentService.editSessionsLogResource);
+		this.registerLogChannel(Constants.remoteTunnelLogChannelId, nls.localize('remoteTunnelLog', "Remote Tunnel"), this.environmentService.remoteTunnelLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 
 		const registerTelemetryChannel = () => {
