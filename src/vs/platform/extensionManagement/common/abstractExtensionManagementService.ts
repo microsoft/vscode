@@ -503,7 +503,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 			}
 			reportTelemetry(this.telemetryService, 'extensionGallery:uninstall', { extensionData: getLocalExtensionTelemetryData(extension), error });
-			this._onDidUninstallExtension.fire({ identifier: extension.identifier, version: extension.manifest.version, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
+			this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
 		};
 
 		const allTasks: IUninstallExtensionTask[] = [];
