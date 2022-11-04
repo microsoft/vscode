@@ -990,6 +990,8 @@ export class GettingStartedPage extends EditorPane {
 						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
+						'role': 'button',
+						'aria-label': localize('closeAriaLabel', "Hide"),
 					}),
 				),
 				descriptionContent,
