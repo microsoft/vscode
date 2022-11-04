@@ -12,7 +12,8 @@ import {
 	languages,
 	TextDocument,
 	Uri,
-	workspace
+	workspace,
+	l10n
 } from 'vscode';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
@@ -69,7 +70,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 			return [];
 		}
 
-		const title = '$(debug-start) ' + vscode.l10n.t("Debug");
+		const title = '$(debug-start) ' + l10n.t("Debug");
 		const cwd = path.dirname(document.uri.fsPath);
 		if (this.lensLocation === 'top') {
 			return [
