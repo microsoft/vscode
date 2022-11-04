@@ -50,7 +50,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -404,8 +404,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
-				if (e.button !== 0) {
-					return undefined; // only for left mouse click
+				if (e.button !== 0 || (isMacintosh && e.ctrlKey)) {
+					return undefined; // only for left mouse click (ctrl+click on macos is right-click)
 				}
 
 				target = e.target as HTMLElement;
