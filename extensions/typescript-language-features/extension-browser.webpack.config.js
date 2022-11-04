@@ -69,7 +69,7 @@ module.exports = withBrowserDefaults({
 					to: 'typescript/tsserver.web.js',
 					transform: async (_content) => {
 						const dynamicImportCompatPath = path.join(__dirname, 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
-						const tsserver = fs.readFileSync(path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsserver.js'));
+						const tsserver = fs.readFileSync(path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsserverlibrary.js'));
 						const dynamicImport = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
 						// TODO: All this extra work can *probably* be done with webpack tools in some way.
 						const filenames = {
