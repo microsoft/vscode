@@ -1221,12 +1221,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else {
 				executeTaskResult = await this._executeTask(task, resolver, runSource);
 			}
-			this._inProgressTasks.delete(task._label);
 			return executeTaskResult;
 		} catch (error) {
 			this._handleError(error);
-			this._inProgressTasks.delete(task._label);
 			return Promise.reject(error);
+		} finally {
+			this._inProgressTasks.delete(task._label);
 		}
 	}
 
