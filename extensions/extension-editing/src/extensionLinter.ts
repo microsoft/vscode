@@ -10,7 +10,7 @@ import { URL } from 'url';
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
+import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
@@ -21,14 +21,14 @@ function isTrustedSVGSource(uri: Uri): boolean {
 	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
 }
 
-const httpsRequired = vscode.l10n.t("Images must use the HTTPS protocol.");
-const svgsNotValid = vscode.l10n.t("SVGs are not a valid image source.");
-const embeddedSvgsNotValid = vscode.l10n.t("Embedded SVGs are not a valid image source.");
-const dataUrlsNotValid = vscode.l10n.t("Data URLs are not a valid image source.");
-const relativeUrlRequiresHttpsRepository = vscode.l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
-const relativeIconUrlRequiresHttpsRepository = vscode.l10n.t("An icon requires a repository with HTTPS protocol to be specified in this package.json.");
-const relativeBadgeUrlRequiresHttpsRepository = vscode.l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
-const apiProposalNotListed = vscode.l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
+const httpsRequired = l10n.t("Images must use the HTTPS protocol.");
+const svgsNotValid = l10n.t("SVGs are not a valid image source.");
+const embeddedSvgsNotValid = l10n.t("Embedded SVGs are not a valid image source.");
+const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
+const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
+const relativeIconUrlRequiresHttpsRepository = l10n.t("An icon requires a repository with HTTPS protocol to be specified in this package.json.");
+const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
+const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 
 enum Context {
 	ICON,
