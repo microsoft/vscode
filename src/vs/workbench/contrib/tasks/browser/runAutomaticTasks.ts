@@ -133,6 +133,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	private async _runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService,
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 
+		// this used to be per workspace, migrate that value so we don't prompt again
 		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.PROFILE, false));
 		const { tasks, taskNames, locations } = this._findAutoTasks(taskService, workspaceTaskResult);
 
