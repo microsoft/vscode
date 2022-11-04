@@ -22,7 +22,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { AddCursorsAtSearchResultsAction, CancelSearchAction, ClearSearchHistoryCommandAction, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, CopyAllCommandAction, CopyMatchCommandAction, CopyPathCommandAction, ExcludeFolderFromSearchAction, ExecuteWorkspaceSymbolProviderAction, ExpandAllAction, FindInFolderAction, FindInWorkspaceAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, FocusSearchFromResultsAction, OpenMatchAction, OpenMatchToSideAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, RestrictSearchToFolderAction, ShowAllSymbolsAction, TogglePreserveCaseAction, ToggleQueryDetailsAction, ToggleRegexCommandAction, ToggleSearchOnTypeAction, ToggleWholeWordCommandAction, ViewAsListAction, ViewAsTreeAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { AddCursorsAtSearchResultsAction, CancelSearchAction, ClearSearchHistoryCommandAction, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, CopyAllCommandAction, CopyMatchCommandAction, CopyPathCommandAction, ExcludeFolderFromSearchAction, ExecuteWorkspaceSymbolProviderAction, ExpandAllAction, FindInFilesAction, FindInFolderAction, FindInWorkspaceAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, FocusSearchFromResultsAction, OpenMatchAction, OpenMatchToSideAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, RestrictSearchToFolderAction, ShowAllSymbolsAction, ToggleCaseSensitiveCommandAction, TogglePreserveCaseAction, ToggleQueryDetailsAction, ToggleRegexCommandAction, ToggleSearchOnTypeAction, ToggleWholeWordCommandAction, ViewAsListAction, ViewAsTreeAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -39,36 +39,62 @@ registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType
 replaceContributions();
 searchWidgetContributions();
 
-registerAction2(ToggleQueryDetailsAction);
-registerAction2(FocusSearchFromResultsAction);
-registerAction2(OpenMatchAction);
-registerAction2(OpenMatchToSideAction);
-registerAction2(FocusNextInputAction);
-registerAction2(FocusPreviousInputAction);
-registerAction2(ToggleQueryDetailsAction);
+// replace/remove actions
 registerAction2(RemoveAction);
 registerAction2(ReplaceAction);
 registerAction2(ReplaceAllAction);
 registerAction2(ReplaceAllInFolderAction);
-registerAction2(CloseReplaceAction);
-registerAction2(RestrictSearchToFolderAction);
-registerAction2(ExcludeFolderFromSearchAction);
-registerAction2(FindInFolderAction);
-registerAction2(FindInWorkspaceAction);
-registerAction2(CopyMatchCommandAction);
-registerAction2(CopyPathCommandAction);
-registerAction2(CopyAllCommandAction);
-registerAction2(ClearSearchHistoryCommandAction);
 
+// top actionbar icons
+registerAction2(ClearSearchHistoryCommandAction);
 registerAction2(CancelSearchAction);
 registerAction2(RefreshAction);
 registerAction2(CollapseDeepestExpandedLevelAction);
 registerAction2(ExpandAllAction);
 registerAction2(ClearSearchResultsAction);
+
+// find in...
+registerAction2(FindInFilesAction);
+registerAction2(FindInFolderAction);
+registerAction2(FindInWorkspaceAction);
+
+// restrict/exclude folder actions
+registerAction2(RestrictSearchToFolderAction);
+registerAction2(ExcludeFolderFromSearchAction);
+
+// changing search input options
+registerAction2(ToggleQueryDetailsAction);
+registerAction2(CloseReplaceAction);
+registerAction2(ToggleCaseSensitiveCommandAction);
+registerAction2(ToggleWholeWordCommandAction);
+registerAction2(ToggleRegexCommandAction);
+registerAction2(TogglePreserveCaseAction);
+
+// opening matches
+registerAction2(OpenMatchAction);
+registerAction2(OpenMatchToSideAction);
+registerAction2(AddCursorsAtSearchResultsAction);
+
+// toggling focus
+registerAction2(FocusSearchFromResultsAction);
+registerAction2(FocusNextInputAction);
+registerAction2(FocusPreviousInputAction);
+registerAction2(FocusNextSearchResultAction);
+registerAction2(FocusPreviousSearchResultAction);
+registerAction2(ReplaceInFilesAction);
+
+// tree toggle
 registerAction2(ViewAsTreeAction);
 registerAction2(ViewAsListAction);
 
+// copy commands
+registerAction2(CopyMatchCommandAction);
+registerAction2(CopyPathCommandAction);
+registerAction2(CopyAllCommandAction);
+
+// symbol actions
 registerAction2(ShowAllSymbolsAction);
+registerAction2(ExecuteWorkspaceSymbolProviderAction);
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -119,18 +145,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
 
-registerAction2(FocusNextSearchResultAction);
-
-registerAction2(FocusPreviousSearchResultAction);
-
-registerAction2(ReplaceInFilesAction);
-registerAction2(ToggleWholeWordCommandAction);
-registerAction2(ToggleRegexCommandAction);
-registerAction2(TogglePreserveCaseAction);
-
-registerAction2(AddCursorsAtSearchResultsAction);
 // --- Toggle Search On Type
-
 registerAction2(ToggleSearchOnTypeAction);
 
 // Register Quick Access Handler
@@ -388,5 +403,3 @@ configurationRegistry.registerConfiguration({
 		},
 	}
 });
-
-registerAction2(ExecuteWorkspaceSymbolProviderAction);
