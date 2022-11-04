@@ -12,7 +12,6 @@ const fs = require('fs');
 const path = require('path');
 
 const defaultConfig = require('../shared.webpack.config');
-const { fromBuffer } = require('yauzl');
 const withBrowserDefaults = defaultConfig.browser;
 const browserPlugins = defaultConfig.browserPlugins;
 
