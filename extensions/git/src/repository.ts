@@ -1254,18 +1254,6 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const clearInputBoxAndCloseDiffEditors = async () => {
-			if (message) {
-				this.inputBox.value = await this.getInputTemplate();
-			}
-
-			const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
-			const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-				[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
-
-			this.closeDiffEditors(indexResources, workingGroupResources);
-		};
-
 		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
@@ -1276,7 +1264,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.rebaseContinue();
-					await clearInputBoxAndCloseDiffEditors();
+					await this.commitOperationCleanup(message, opts);
 				});
 		} else {
 			// Set post-commit command to render the correct action button
@@ -1298,7 +1286,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.commit(message, opts);
-					await clearInputBoxAndCloseDiffEditors();
+					await this.commitOperationCleanup(message, opts);
 				},
 				(): GitResourceGroups => {
 					let untrackedGroup: Resource[] | undefined = undefined,
@@ -1319,6 +1307,18 @@ export class Repository implements Disposable {
 				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
 			});
 		}
+	}
+
+	private async commitOperationCleanup(message: string | undefined, opts: CommitOptions) {
+		if (message) {
+			this.inputBox.value = await this.getInputTemplate();
+		}
+
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
+		this.closeDiffEditors(indexResources, workingGroupResources);
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
