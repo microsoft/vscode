@@ -20,7 +20,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 
 const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
 export const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
@@ -132,11 +131,6 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
 
 		return renderDisposables;
-	}
-
-	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: IRenderDelegate<ITerminalQuickFix>): void {
-		this.currentShowingContext = undefined;
-		delegate.onHide(cancelled);
 	}
 }
 

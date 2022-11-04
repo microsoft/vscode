@@ -135,7 +135,7 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
 		readonly actions: ActionSet<T>;
-		readonly delegate: any;
+		readonly delegate: IRenderDelegate<T>;
 	};
 
 	constructor(
@@ -149,14 +149,17 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 		super();
 	}
 
-	abstract renderWidget(element: HTMLElement, trigger: any, actions: ActionSet<T>, options: ActionShowOptions, showingActions: readonly T[], delegate: any): IDisposable;
-	abstract onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<T>, didCancel: boolean, delegate: any): void;
+	abstract renderWidget(element: HTMLElement, trigger: any, actions: ActionSet<T>, options: ActionShowOptions, showingActions: readonly T[], delegate: IRenderDelegate<T>): IDisposable;
+	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<T>, didCancel: boolean, delegate: IRenderDelegate<T>): void {
+		this.currentShowingContext = undefined;
+		delegate.onHide(didCancel);
+	}
 
 	get isVisible(): boolean {
 		return !!this.currentShowingContext;
 	}
 
-	public async show(trigger: any, actions: ActionSet<T>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: any): Promise<void> {
+	public async show(trigger: any, actions: ActionSet<T>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<T>): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = this.visibleContextKey.bindTo(this._contextKeyService);
 

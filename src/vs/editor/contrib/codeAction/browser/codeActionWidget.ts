@@ -216,7 +216,8 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		return renderDisposables;
 	}
 
-	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: IRenderDelegate<CodeActionItem>): void {
+	override onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: IRenderDelegate<CodeActionItem>): void {
+		super.onWidgetClosed(trigger, options, actions, cancelled, delegate);
 		type ApplyCodeActionEvent = {
 			codeActionFrom: any;
 			validCodeActions: number;
@@ -236,9 +237,5 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 			validCodeActions: actions.validActions.length,
 			cancelled: cancelled,
 		});
-
-		this.currentShowingContext = undefined;
-
-		delegate.onHide(cancelled);
 	}
 }
