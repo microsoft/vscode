@@ -46,7 +46,7 @@ export class PlaywrightDriver {
 		}
 
 		try {
-			await measureAndLog(this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.options.logger);
+			await measureAndLog(() => this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
@@ -63,7 +63,7 @@ export class PlaywrightDriver {
 				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
 			}
 
-			await measureAndLog(this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
+			await measureAndLog(() => this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
 
 			// To ensure we have a screenshot at the end where
 			// it failed, also trigger one explicitly. Tracing
@@ -95,7 +95,7 @@ export class PlaywrightDriver {
 		try {
 			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
 
-			await measureAndLog(this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
+			await measureAndLog(() => this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
@@ -110,7 +110,7 @@ export class PlaywrightDriver {
 		// Stop tracing
 		try {
 			if (this.options.tracing) {
-				await measureAndLog(this.context.tracing.stop(), 'stop tracing', this.options.logger);
+				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
 			}
 		} catch (error) {
 			// Ignore
@@ -119,7 +119,7 @@ export class PlaywrightDriver {
 		// Web: exit via `close` method
 		if (this.options.web) {
 			try {
-				await measureAndLog(this.application.close(), 'playwright.close()', this.options.logger);
+				await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
 			} catch (error) {
 				this.options.logger.log(`Error closing appliction (${error})`);
 			}
@@ -128,7 +128,7 @@ export class PlaywrightDriver {
 		// Desktop: exit via `driver.exitApplication`
 		else {
 			try {
-				await measureAndLog(this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
+				await measureAndLog(() => this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
 			} catch (error) {
 				this.options.logger.log(`Error exiting appliction (${error})`);
 			}
@@ -136,7 +136,7 @@ export class PlaywrightDriver {
 
 		// Server: via `teardown`
 		if (this.serverProcess) {
-			await measureAndLog(teardown(this.serverProcess, this.options.logger), 'teardown server process', this.options.logger);
+			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
 		}
 	}
 

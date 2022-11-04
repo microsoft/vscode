@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
@@ -16,7 +15,6 @@ import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 interface AutoFix {
 	readonly codes: Set<number>;
@@ -133,7 +131,7 @@ class SourceFixAll extends SourceAction {
 	static readonly kind = vscode.CodeActionKind.SourceFixAll.append('ts');
 
 	constructor() {
-		super(localize('autoFix.label', 'Fix all fixable JS/TS issues'), SourceFixAll.kind);
+		super(vscode.l10n.t("Fix all fixable JS/TS issues"), SourceFixAll.kind);
 	}
 
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
@@ -155,7 +153,7 @@ class SourceRemoveUnused extends SourceAction {
 	static readonly kind = vscode.CodeActionKind.Source.append('removeUnused').append('ts');
 
 	constructor() {
-		super(localize('autoFix.unused.label', 'Remove all unused code'), SourceRemoveUnused.kind);
+		super(vscode.l10n.t("Remove all unused code"), SourceRemoveUnused.kind);
 	}
 
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
@@ -171,7 +169,7 @@ class SourceAddMissingImports extends SourceAction {
 	static readonly kind = vscode.CodeActionKind.Source.append('addMissingImports').append('ts');
 
 	constructor() {
-		super(localize('autoFix.missingImports.label', 'Add all missing imports'), SourceAddMissingImports.kind);
+		super(vscode.l10n.t("Add all missing imports"), SourceAddMissingImports.kind);
 	}
 
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {

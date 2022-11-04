@@ -314,9 +314,10 @@ export class PackageJSONContribution implements IJSONContribution {
 				headers: { agent: USER_AGENT }
 			});
 			const obj = JSON.parse(success.responseText);
+			const version = obj['dist-tags']?.latest || Object.keys(obj.versions).pop() || '';
 			return {
 				description: obj.description || '',
-				version: Object.keys(obj.versions).pop(),
+				version,
 				homepage: obj.homepage || ''
 			};
 		}

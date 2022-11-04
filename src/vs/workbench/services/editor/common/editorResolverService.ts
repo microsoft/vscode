@@ -141,6 +141,11 @@ export interface IEditorResolverService {
 	readonly onDidChangeEditorRegistrations: Event<void>;
 
 	/**
+	 * Given a callback, run the callback pausing the registration emitter
+	 */
+	bufferChangeEvents(callback: Function): void;
+
+	/**
 	 * Registers a specific editor. Editors with the same glob pattern and ID will be grouped together by the resolver.
 	 * This allows for registration of the factories in different locations
 	 * @param globPattern The glob pattern for this registration

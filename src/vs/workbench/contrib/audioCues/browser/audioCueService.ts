@@ -21,7 +21,7 @@ export interface IAudioCueService {
 	playAudioCues(cues: AudioCue[]): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
 
-	playSound(cue: Sound): Promise<void>;
+	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -60,14 +60,24 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		return Math.max(Math.min(volume, 100), 0);
 	}
 
-	public async playSound(sound: Sound): Promise<void> {
+	private playingSounds = new Set<Sound>();
+
+	public async playSound(sound: Sound, allowManyInParallel = false): Promise<void> {
+		if (!allowManyInParallel && this.playingSounds.has(sound)) {
+			return;
+		}
+
+		this.playingSounds.add(sound);
+
 		const url = FileAccess.asBrowserUri(
 			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
 		).toString();
 		const audio = new Audio(url);
 		audio.volume = this.getVolumeInPercent() / 100;
-
+		audio.addEventListener('ended', () => {
+			this.playingSounds.delete(sound);
+		});
 		try {
 			try {
 				// Don't play when loading takes more than 1s, due to loading, decoding or playing issues.
@@ -152,6 +162,9 @@ export class Sound {
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
+	public static readonly taskCompleted = Sound.register({ fileName: 'taskCompleted.mp3' });
+	public static readonly taskFailed = Sound.register({ fileName: 'taskFailed.mp3' });
+	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -199,6 +212,12 @@ export class AudioCue {
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
+	public static readonly terminalQuickFix = AudioCue.register({
+		name: localize('audioCues.terminalQuickFix.name', 'Terminal Quick Fix'),
+		sound: Sound.quickFixes,
+		settingsKey: 'audioCues.terminalQuickFix',
+	});
+
 	public static readonly onDebugBreak = AudioCue.register({
 		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
@@ -209,6 +228,24 @@ export class AudioCue {
 		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.noInlayHints'
+	});
+
+	public static readonly taskCompleted = AudioCue.register({
+		name: localize('audioCues.taskCompleted', 'Task Completed'),
+		sound: Sound.taskCompleted,
+		settingsKey: 'audioCues.taskCompleted'
+	});
+
+	public static readonly taskFailed = AudioCue.register({
+		name: localize('audioCues.taskFailed', 'Task Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.taskFailed'
+	});
+
+	public static readonly terminalBell = AudioCue.register({
+		name: localize('audioCues.terminalBell', 'Terminal Bell'),
+		sound: Sound.terminalBell,
+		settingsKey: 'audioCues.terminalBell'
 	});
 
 	private constructor(

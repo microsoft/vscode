@@ -6,14 +6,17 @@
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITunnelService, AbstractTunnelService, RemoteTunnel, TunnelPrivacyId, isPortPrivileged } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { OS } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class SharedProcessTunnel extends Disposable implements RemoteTunnel {
 
@@ -59,8 +62,10 @@ export class TunnelService extends AbstractTunnelService {
 		@ISharedProcessTunnelService private readonly _sharedProcessTunnelService: ISharedProcessTunnelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@INativeWorkbenchEnvironmentService private readonly _nativeWorkbenchEnvironmentService: INativeWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(logService);
+		super(logService, configurationService);
 
 		// Destroy any shared process tunnels that might still be active
 		lifecycleService.onDidShutdown(() => {
@@ -68,6 +73,10 @@ export class TunnelService extends AbstractTunnelService {
 				this._sharedProcessTunnelService.destroyTunnel(id);
 			});
 		});
+	}
+
+	public isPortPrivileged(port: number): boolean {
+		return isPortPrivileged(port, this.defaultTunnelHost, OS, this._nativeWorkbenchEnvironmentService.os.release);
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
@@ -105,4 +114,4 @@ export class TunnelService extends AbstractTunnelService {
 	}
 }
 
-registerSingleton(ITunnelService, TunnelService);
+registerSingleton(ITunnelService, TunnelService, InstantiationType.Delayed);

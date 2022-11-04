@@ -37,7 +37,7 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 	}
 }
 
-export class WorkerManager extends Disposable {
+class WorkerManager extends Disposable {
 	private _editorWorkerClient: NotebookWorkerClient | null;
 	// private _lastWorkerUsedTime: number;
 
@@ -58,12 +58,12 @@ export class WorkerManager extends Disposable {
 	}
 }
 
-export interface IWorkerClient<W> {
+interface IWorkerClient<W> {
 	getProxyObject(): Promise<W>;
 	dispose(): void;
 }
 
-export class NotebookEditorModelManager extends Disposable {
+class NotebookEditorModelManager extends Disposable {
 	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
@@ -193,7 +193,7 @@ class NotebookWorkerHost implements INotebookWorkerHost {
 	}
 }
 
-export class NotebookWorkerClient extends Disposable {
+class NotebookWorkerClient extends Disposable {
 	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
 	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: NotebookEditorModelManager | null;

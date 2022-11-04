@@ -9,11 +9,12 @@
 		"vscode": "^1.57.0"
 	},
 	"enabledApiProposals": [
-    "notebookWorkspaceEdit",
-    "documentPaste"
+		"documentPaste",
+		"diffContentOptions"
 	],
 	"activationEvents": [
-		"*"
+		"onNotebook:jupyter-notebook",
+		"onCommand:ipynb.newUntitledIpynb"
 	],
 	"extensionKind": [
 		"workspace",
@@ -28,21 +29,21 @@
 		}
 	},
 	"contributes": {
-    "configuration":[
-      {
-        "properties": {
-          "ipynb.experimental.pasteImages.enabled":{
-            "type": "boolean",
-            "scope": "resource",
-            "markdownDescription": "%ipynb.experimental.pasteImages.enabled%",
-            "default": false,
-            "tags": [
-              "experimental"
-            ]
-          }
-        }
-      }
-    ],
+		"configuration": [
+			{
+				"properties": {
+					"ipynb.experimental.pasteImages.enabled": {
+						"type": "boolean",
+						"scope": "resource",
+						"markdownDescription": "%ipynb.experimental.pasteImages.enabled%",
+						"default": false,
+						"tags": [
+							"experimental"
+						]
+					}
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "ipynb.newUntitledIpynb",
@@ -53,6 +54,10 @@
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
 				"title": "Open ipynb file in notebook editor"
+			},
+			{
+				"command": "ipynb.cleanInvalidImageAttachment",
+				"title": "Clean invalid image attachment reference"
 			}
 		],
 		"notebooks": [
@@ -67,16 +72,16 @@
 				"priority": "default"
 			}
 		],
-    "notebookRenderer": [
-      {
-        "id": "vscode.markdown-it-cell-attachment-renderer",
-        "displayName": "Markdown it ipynb Cell Attachment renderer",
-        "entrypoint": {
-          "extends": "vscode.markdown-it-renderer",
-          "path": "./notebook-out/cellAttachmentRenderer.js"
-        }
-      }
-    ],
+		"notebookRenderer": [
+			{
+				"id": "vscode.markdown-it-cell-attachment-renderer",
+				"displayName": "Markdown it ipynb Cell Attachment renderer",
+				"entrypoint": {
+					"extends": "vscode.markdown-it-renderer",
+					"path": "./notebook-out/cellAttachmentRenderer.js"
+				}
+			}
+		],
 		"menus": {
 			"file/newFile": [
 				{
@@ -90,6 +95,10 @@
 				},
 				{
 					"command": "ipynb.openIpynbInNotebookEditor",
+					"when": "false"
+				},
+				{
+					"command": "ipynb.cleanInvalidImageAttachment",
 					"when": "false"
 				}
 			]

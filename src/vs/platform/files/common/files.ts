@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -565,14 +565,6 @@ export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSy
 
 export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadStream);
-}
-
-export interface IFileSystemProviderWithFileReadCapability extends IFileSystemProvider {
-	readFile(resource: URI): Promise<Uint8Array>;
-}
-
-export function hasFileReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadCapability {
-	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
 }
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {

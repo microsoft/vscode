@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-
-export interface IIconRegistry {
-	readonly all: IterableIterator<Codicon>;
-	readonly onDidRegister: Event<Codicon>;
-	get(id: string): Codicon | undefined;
-}
-
 // Selects all codicon names encapsulated in the `$()` syntax and wraps the
 // results with spaces so that screen readers can read the text better.
 export function getCodiconAriaLabel(text: string | undefined) {
@@ -96,7 +88,6 @@ export class Codicon implements CSSIcon {
 	public static readonly circleFilled = new Codicon('circle-filled', { fontCharacter: '\\ea71' });
 	public static readonly primitiveDot = new Codicon('primitive-dot', Codicon.circleFilled.definition);
 	public static readonly closeDirty = new Codicon('close-dirty', Codicon.circleFilled.definition);
-	public static readonly terminalDecorationSuccess = new Codicon('terminal-decoration-success', Codicon.circleFilled.definition);
 	public static readonly debugBreakpoint = new Codicon('debug-breakpoint', Codicon.circleFilled.definition);
 	public static readonly debugBreakpointDisabled = new Codicon('debug-breakpoint-disabled', Codicon.circleFilled.definition);
 	public static readonly debugHint = new Codicon('debug-hint', Codicon.circleFilled.definition);
@@ -221,7 +212,6 @@ export class Codicon implements CSSIcon {
 	public static readonly chromeRestore = new Codicon('chrome-restore', { fontCharacter: '\\eabb' });
 	public static readonly circle = new Codicon('circle', { fontCharacter: '\\eabc' });
 	public static readonly circleOutline = new Codicon('circle-outline', Codicon.circle.definition);
-	public static readonly terminalDecorationIncomplete = new Codicon('terminal-decoration-incomplete', Codicon.circle.definition);
 	public static readonly debugBreakpointUnverified = new Codicon('debug-breakpoint-unverified', Codicon.circle.definition);
 	public static readonly circleSlash = new Codicon('circle-slash', { fontCharacter: '\\eabd' });
 	public static readonly circuitBoard = new Codicon('circuit-board', { fontCharacter: '\\eabe' });
@@ -433,7 +423,6 @@ export class Codicon implements CSSIcon {
 	public static readonly debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
 	public static readonly circleSmallFilled = new Codicon('circle-small-filled', { fontCharacter: '\\eb8a' });
 	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', Codicon.circleSmallFilled.definition);
-	public static readonly terminalDecorationMark = new Codicon('terminal-decoration-mark', Codicon.circleSmallFilled.definition);
 	public static readonly debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
 	public static readonly debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
 	public static readonly debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
@@ -554,7 +543,6 @@ export class Codicon implements CSSIcon {
 	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
 	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
 	public static readonly errorSmall = new Codicon('error-small', { fontCharacter: '\\ebfb' });
-	public static readonly terminalDecorationError = new Codicon('terminal-decoration-error', Codicon.errorSmall.definition);
 	public static readonly arrowCircleDown = new Codicon('arrow-circle-down', { fontCharacter: '\\ebfc' });
 	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
 	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
@@ -602,14 +590,6 @@ export class Codicon implements CSSIcon {
 	public static readonly quickInputBack = new Codicon('quick-input-back', Codicon.arrowLeft.definition);
 }
 
-export function getClassNamesArray(id: string, modifier?: string) {
-	const classNames = ['codicon', 'codicon-' + id];
-	if (modifier) {
-		classNames.push('codicon-modifier-' + modifier);
-	}
-	return classNames;
-}
-
 export interface CSSIcon {
 	readonly id: string;
 }
@@ -634,7 +614,7 @@ export namespace CSSIcon {
 		const [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substr(1));
+			classNames.push('codicon-modifier-' + modifier.substring(1));
 		}
 		return classNames;
 	}

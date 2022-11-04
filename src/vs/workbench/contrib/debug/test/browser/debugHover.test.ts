@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
@@ -14,7 +14,7 @@ import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contr
 suite('Debug - Hover', () => {
 	test('find expression in stack frame', async () => {
 		const model = createMockDebugModel();
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 
 		const thread = new class extends Thread {
 			public override getCallStack(): StackFrame[] {

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
-import * as NotebookImagePaste from './notebookImagePaste';
+import { ensureAllNewCellsHaveCellIds } from './cellIdService';
+import { notebookImagePasteSetup } from './notebookImagePaste';
+import { AttachmentCleaner } from './notebookAttachmentCleaner';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -34,9 +35,13 @@ export function activate(context: vscode.ExtensionContext) {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			custom: false
+			custom: false,
+			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
 		}
-	}));
+	} as vscode.NotebookDocumentContentOptions));
 
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
@@ -78,7 +83,13 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.window.showNotebookDocument(document);
 	}));
 
-	context.subscriptions.push(NotebookImagePaste.imagePasteSetup());
+	context.subscriptions.push(notebookImagePasteSetup());
+
+	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
+	if (enabled) {
+		const cleaner = new AttachmentCleaner();
+		context.subscriptions.push(cleaner);
+	}
 
 	// Update new file contribution
 	vscode.extensions.onDidChange(() => {

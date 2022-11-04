@@ -19,18 +19,26 @@ const buttonClasses = [pinButtonClass, pinnedButtonClass];
  * Shows the quickpick once formatted.
  */
 export async function showWithPinnedItems(storageService: IStorageService, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, filterDuplicates?: boolean): Promise<void> {
+	const itemsWithoutPinned = quickPick.items;
+	let itemsWithPinned = _formatPinnedItems(storageKey, quickPick, storageService, undefined, filterDuplicates);
 	quickPick.onDidTriggerItemButton(async buttonEvent => {
 		const expectedButton = buttonEvent.button.iconClass && buttonClasses.includes(buttonEvent.button.iconClass);
 		if (expectedButton) {
-			quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, buttonEvent.item, filterDuplicates);
+			quickPick.items = itemsWithoutPinned;
+			itemsWithPinned = _formatPinnedItems(storageKey, quickPick, storageService, buttonEvent.item, filterDuplicates);
+			quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
 		}
 	});
 	quickPick.onDidChangeValue(async value => {
-		// don't show pinned items in the search results
-		quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === pinnedButtonClass)) : quickPick.items;
+		if (quickPick.items === itemsWithPinned && value) {
+			quickPick.items = itemsWithoutPinned;
+		} else if (quickPick.items === itemsWithoutPinned && !value) {
+			quickPick.items = itemsWithPinned;
+		}
 	});
-	quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, undefined, filterDuplicates);
-	await quickPick.show();
+
+	quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
+	quickPick.show();
 }
 
 function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem, filterDuplicates?: boolean): QuickPickItem[] {
@@ -73,13 +81,15 @@ function updateButtons(item: QuickPickItem, removePin: boolean): void {
 	if (item.type === 'separator') {
 		return;
 	}
+
 	// remove button classes before adding the new one
-	item.buttons = item.buttons ? item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) : [];
-	item.buttons.unshift({
+	const newButtons = item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) ?? [];
+	newButtons.unshift({
 		iconClass: removePin ? pinButtonClass : pinnedButtonClass,
 		tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
 		alwaysVisible: false
 	});
+	item.buttons = newButtons;
 }
 
 function itemsMatch(itemA: QuickPickItem, itemB: QuickPickItem): boolean {

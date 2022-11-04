@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OperatingSystem, OS } from 'vs/base/common/platform';
+
 export function escapeNonWindowsPath(path: string): string {
 	let newPath = path;
 	if (newPath.indexOf('\\') !== 0) {
@@ -34,4 +36,21 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 		return path;
 	}
 	return `~${separator}${path.slice(userHome.length + 1)}`;
+}
+
+/**
+ * Sanitizes a cwd string, removing any wrapping quotes and making the Windows drive letter
+ * uppercase.
+ * @param cwd The directory to sanitize.
+ */
+export function sanitizeCwd(cwd: string): string {
+	// Sanity check that the cwd is not wrapped in quotes (see #160109)
+	if (cwd.match(/^['"].*['"]$/)) {
+		cwd = cwd.substring(1, cwd.length - 1);
+	}
+	// Make the drive letter uppercase on Windows (see #9448)
+	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
+		return cwd[0].toUpperCase() + cwd.substring(1);
+	}
+	return cwd;
 }

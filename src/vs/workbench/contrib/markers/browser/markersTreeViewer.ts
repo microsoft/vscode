@@ -33,11 +33,10 @@ import { localize } from 'vs/nls';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionKind, CodeActionTriggerSource, CodeActionSet } from 'vs/editor/contrib/codeAction/common/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { applyCodeAction, ApplyCodeActionReason } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -601,15 +600,6 @@ export class MarkerViewModel extends Disposable {
 
 	showLightBulb(): void {
 		this.setQuickFixes(true);
-	}
-
-	showQuickfixes(): void {
-		this.setQuickFixes(false).then(() => this.quickFixAction.run());
-	}
-
-	async getQuickFixes(waitForModel: boolean): Promise<IAction[]> {
-		const codeActions = await this.getCodeActions(waitForModel);
-		return codeActions ? this.toActions(codeActions) : [];
 	}
 
 	private async setQuickFixes(waitForModel: boolean): Promise<void> {

@@ -26,6 +26,9 @@ import { NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CEL
 export class RunToolbar extends CellPart {
 	private toolbar!: ToolBar;
 
+	private primaryMenu: IMenu;
+	private secondaryMenu: IMenu;
+
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
 		readonly contextKeyService: IContextKeyService,
@@ -38,17 +41,17 @@ export class RunToolbar extends CellPart {
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-		const secondaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+		this.primaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
+		this.secondaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 		this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService);
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu);
+			const actions = this.getCellToolbarActions(this.primaryMenu);
 			const primary = actions.primary[0]; // Only allow one primary action
 			this.toolbar.setActions(primary ? [primary] : []);
 		};
 		updateActions();
-		this._register(menu.onDidChange(updateActions));
-		this._register(secondaryMenu.onDidChange(updateActions));
+		this._register(this.primaryMenu.onDidChange(updateActions));
+		this._register(this.secondaryMenu.onDidChange(updateActions));
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
 	}
 
@@ -84,14 +87,12 @@ export class RunToolbar extends CellPart {
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const primaryMenu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-				const primary = this.getCellToolbarActions(primaryMenu).primary[0];
+				const primary = this.getCellToolbarActions(this.primaryMenu).primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
 				}
 
-				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
-				const secondary = this.getCellToolbarActions(menu).secondary;
+				const secondary = this.getCellToolbarActions(this.secondaryMenu).secondary;
 				if (!secondary.length) {
 					return undefined;
 				}

@@ -104,7 +104,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		// Migrate from old format // TODO@joao: remove this migration code a few releases
-		const userKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.APPLICATION, StorageTarget.USER)), key => key.startsWith('scm/input:'));
+		const userKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.USER), key => key.startsWith('scm/input:'));
 
 		for (const key of userKeys) {
 			try {
@@ -130,7 +130,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		// Garbage collect
-		const machineKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE)), key => key.startsWith('scm/input:'));
+		const machineKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
 
 		for (const key of machineKeys) {
 			try {

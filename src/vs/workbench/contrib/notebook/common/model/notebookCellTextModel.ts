@@ -16,7 +16,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, compressOutputItemStreams, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, isTextStreamMime, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -296,6 +296,31 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			output.appendData(items);
 		} else {
 			output.replaceData(items);
+		}
+		if (output.outputs.length > 1 && output.outputs.every(item => isTextStreamMime(item.mime))) {
+			// Look for the mimes in the items, and keep track of their order.
+			// Merge the streams into one output item, per mime type.
+			const mimeOutputs = new Map<string, Uint8Array[]>();
+			const mimeTypes: string[] = [];
+			output.outputs.forEach(item => {
+				let items: Uint8Array[];
+				if (mimeOutputs.has(item.mime)) {
+					items = mimeOutputs.get(item.mime)!;
+				} else {
+					items = [];
+					mimeOutputs.set(item.mime, items);
+					mimeTypes.push(item.mime);
+				}
+				items.push(item.data.buffer);
+			});
+			output.outputs.length = 0;
+			mimeTypes.forEach(mime => {
+				const compressed = compressOutputItemStreams(mimeOutputs.get(mime)!);
+				output.outputs.push({
+					mime,
+					data: compressed
+				});
+			});
 		}
 
 		this._onDidChangeOutputItems.fire();

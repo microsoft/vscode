@@ -118,7 +118,7 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 			return this.modified.matches(otherInput.modified)
 				&& this.original.matches(otherInput.original)
 				&& this.editorId !== undefined
-				&& this.editorId === otherInput.options?.override;
+				&& (this.editorId === otherInput.options?.override || otherInput.options?.override === undefined);
 		}
 
 		return false;
