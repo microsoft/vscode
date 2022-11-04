@@ -127,7 +127,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 	}
 }
 
-export abstract class ActionWidget<T> extends BaseActionWidget<T> {
+export class ActionWidget<T> extends BaseActionWidget<T> {
 
 	currentShowingContext?: {
 		readonly options: ActionShowOptions;
