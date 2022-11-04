@@ -93,7 +93,7 @@ const dtsDeclaredPropertyNames = findAllDtsDefinedProperties();
 // (2) extract all DEFINED properties
 //
 
-type IdenitiferInfo = { text: string; ignoredDts?: boolean; ignoredUndefined?: boolean; occurrences: Occurrence[] };
+type IdenitiferInfo = { text: string; weight: number; ignoredDts?: boolean; ignoredUndefined?: boolean; occurrences: Occurrence[] };
 type Occurrence = { fileName: string; text: string; start: number; end: number; kind?: string };
 
 async function extractDefinitionsAndUsages(fileName: string, occurrences: Map<string, Occurrence[]>, definitions: Set<string>) {
@@ -156,6 +156,7 @@ async function extractIdentifierInfo() {
 	for (const [key, value] of occurrencesByName) {
 		result.push({
 			text: key,
+			weight: key.length * value.length,
 			occurrences: value,
 			ignoredUndefined: !definitionNames.has(key),
 			ignoredDts: dtsDeclaredPropertyNames.has(key)
@@ -163,21 +164,22 @@ async function extractIdentifierInfo() {
 	}
 
 	console.log(`collected ${occurrencesByName.size} OCCURRENCES (and ${definitionNames.size} definitions)`);
-	return result.sort((a, b) => b.occurrences.length - a.occurrences.length);
+	return result.sort((a, b) => b.weight - a.weight);
 }
 
+const banned = new Set<string>(['remoteAuthority']);
 
 extractIdentifierInfo().then(async identifierInfo => {
 
 
 	// PRINT all
 	function toString(info: IdenitiferInfo) {
-		return `(${info.ignoredDts || info.ignoredUndefined ? 'skipping' : 'OK'}) '${info.text}': ${info.occurrences.length} (${info.occurrences.length * info.text.length} bytes)`;
+		return `(${info.ignoredDts || info.ignoredUndefined ? 'skipping' : 'OK'}) '${info.text}': ${info.occurrences.length} (${info.weight} bytes)`;
 	}
 	console.log(identifierInfo.slice(0, 50).map(toString).join('\n'));
 
 	// REMOVE ignored items
-	identifierInfo = identifierInfo.filter(info => !info.ignoredDts && !info.ignoredUndefined);
+	identifierInfo = identifierInfo.filter(info => !info.ignoredDts && !info.ignoredUndefined && !banned.has(info.text));
 	console.log(identifierInfo.slice(0, 50).map(toString).join('\n'));
 
 	// REWRITE
