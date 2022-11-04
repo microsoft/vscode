@@ -7,7 +7,7 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -45,6 +45,7 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/views/viewFilter';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -452,8 +453,7 @@ export abstract class ViewPane extends Pane implements IView {
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar = this._register(new ProgressBar(this.element, getProgressBarStyles()));
 			this.progressBar.hide();
 		}
 
