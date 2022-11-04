@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -351,6 +351,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
+		private globalState: Memento,
 		private logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
@@ -2544,12 +2545,20 @@ export class CommandCenter {
 					return;
 				}
 
-				const branchName = repository.HEAD.name;
-				const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
-				const yes = l10n.t('OK');
-				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				if (this.globalState.get<boolean>('confirmBranchPublish', true)) {
+					const branchName = repository.HEAD.name;
+					const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
+					const yes = l10n.t('OK');
+					const neverAgain = l10n.t('OK, Don\'t Ask Again');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
-				if (pick === yes) {
+					if (pick === yes || pick === neverAgain) {
+						if (pick === neverAgain) {
+							this.globalState.update('confirmBranchPublish', false);
+						}
+						await this.publish(repository);
+					}
+				} else {
 					await this.publish(repository);
 				}
 			}
