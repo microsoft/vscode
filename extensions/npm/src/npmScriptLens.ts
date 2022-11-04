@@ -14,11 +14,9 @@ import {
 	Uri,
 	workspace
 } from 'vscode';
-import * as nls from 'vscode-nls';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
-const localize = nls.loadMessageBundle();
 
 const enum Constants {
 	ConfigKey = 'debug.javascript.codelens.npmScripts',
@@ -71,7 +69,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 			return [];
 		}
 
-		const title = '$(debug-start) ' + localize('codelens.debug', 'Debug');
+		const title = '$(debug-start) ' + vscode.l10n.t("Debug");
 		const cwd = path.dirname(document.uri.fsPath);
 		if (this.lensLocation === 'top') {
 			return [
