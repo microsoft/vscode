@@ -261,12 +261,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		// passive flows (silent or default)
-
-		const validSession = sessions.find(s => this.authenticationService.isAccessAllowed(providerId, s.account.label, extensionId));
-		if (!options.silent && !validSession) {
-			await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+		if (!options.silent) {
+			// If there is a potential session, but the extension doesn't have access to it, use the "grant access" flow,
+			// otherwise request a new one.
+			sessions.length
+				? this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, sessions)
+				: await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
 		}
-		return validSession;
+		return undefined;
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {

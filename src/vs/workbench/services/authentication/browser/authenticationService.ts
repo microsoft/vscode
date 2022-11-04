@@ -551,9 +551,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
 			// provider is now in the map.
 			await new Promise<void>((resolve, _) => {
-				this.onDidRegisterAuthenticationProvider(e => {
+				const dispose = this.onDidRegisterAuthenticationProvider(e => {
 					if (e.id === providerId) {
 						provider = this._authenticationProviders.get(providerId);
+						dispose.dispose();
 						resolve();
 					}
 				});
