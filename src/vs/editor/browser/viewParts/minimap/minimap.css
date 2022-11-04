@@ -18,14 +18,14 @@
 .monaco-editor .minimap-slider .minimap-slider-horizontal {
 	color: var(--vscode-minimapSlider-background) !important;
 }
-.monaco-editor .minimap-slider:hover .minimap-slider-horizontal{
+.monaco-editor .minimap-slider:hover .minimap-slider-horizontal {
 	color: var(--vscode-minimapSlider-hoverBackground) !important;
 }
-.monaco-editor .minimap-slider.active .minimap-slider-horizontal{
+.monaco-editor .minimap-slider.active .minimap-slider-horizontal {
 	color: var(--vscode-minimapSlider-activeBackground) !important;
 }
-.monaco-editor .minimap-shadow-visible{
-	box-shadow: inset -6px 0 6px -6px var(--vscode-minimap-shadow);
+.monaco-editor .minimap-shadow-visible {
+	box-shadow: var(--vscode-minimap-shadow) -6px 0 6px -6px inset;
 }
 .monaco-editor .minimap-shadow-hidden {
 	position: absolute;
@@ -44,10 +44,9 @@
 
 /* 0.5s fade in/out for the minimap */
 .minimap.autohide {
-	opacity: 0.0;
+	opacity: 0;
 	transition: opacity 0.5s;
 }
 .minimap.autohide:hover {
-	opacity: 1.0;
+	opacity: 1;
 }
-
