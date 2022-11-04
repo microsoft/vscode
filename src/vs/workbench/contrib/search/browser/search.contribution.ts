@@ -22,7 +22,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { AddCursorsAtSearchResultsAction, CancelSearchAction, ClearSearchHistoryCommandAction, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, CopyAllCommandAction, CopyMatchCommandAction, CopyPathCommandAction, ExcludeFolderFromSearchAction, ExecuteWorkspaceSymbolProviderAction, ExpandAllAction, FindInFilesAction, FindInFolderAction, FindInWorkspaceAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, FocusSearchFromResultsAction, OpenMatchAction, OpenMatchToSideAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, RestrictSearchToFolderAction, ShowAllSymbolsAction, ToggleCaseSensitiveCommandAction, TogglePreserveCaseAction, ToggleQueryDetailsAction, ToggleRegexCommandAction, ToggleSearchOnTypeAction, ToggleWholeWordCommandAction, ViewAsListAction, ViewAsTreeAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { AddCursorsAtSearchResultsAction, CancelSearchAction, ClearSearchHistoryCommandAction, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, CopyAllCommandAction, CopyMatchCommandAction, CopyPathCommandAction, ExcludeFolderFromSearchAction, ExecuteWorkspaceSymbolProviderAction, ExpandAllAction, FindInFilesAction, FindInFolderAction, FindInWorkspaceAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, FocusSearchFromResultsAction, FocusSearchListCommandAction, OpenMatchAction, OpenMatchToSideAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, RestrictSearchToFolderAction, RevealInSideBarForSearchResultsAction, ShowAllSymbolsAction, ToggleCaseSensitiveCommandAction, TogglePreserveCaseAction, ToggleQueryDetailsAction, ToggleRegexCommandAction, ToggleSearchOnTypeAction, ToggleWholeWordCommandAction, ViewAsListAction, ViewAsTreeAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -58,9 +58,10 @@ registerAction2(FindInFilesAction);
 registerAction2(FindInFolderAction);
 registerAction2(FindInWorkspaceAction);
 
-// restrict/exclude folder actions
+// additional context menu items
 registerAction2(RestrictSearchToFolderAction);
 registerAction2(ExcludeFolderFromSearchAction);
+registerAction2(RevealInSideBarForSearchResultsAction);
 
 // changing search input options
 registerAction2(ToggleQueryDetailsAction);
@@ -81,6 +82,7 @@ registerAction2(FocusNextInputAction);
 registerAction2(FocusPreviousInputAction);
 registerAction2(FocusNextSearchResultAction);
 registerAction2(FocusPreviousSearchResultAction);
+registerAction2(FocusSearchListCommandAction);
 registerAction2(ReplaceInFilesAction);
 
 // tree toggle

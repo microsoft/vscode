@@ -584,7 +584,7 @@ export class FindInWorkspaceAction extends Action2 {
 	}
 }
 
-/** ACTIONS: RESTRICT/EXCLUDE FOLDER ACTIONS... */
+/** ACTIONS: ADDITIONAL CONTEXT MENU ACTIONS */
 
 export class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
@@ -636,6 +636,63 @@ export class ExcludeFolderFromSearchAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor, folderMatch?: FolderMatchWithResource) {
 		searchWithFolderCommand(accessor, false, false, undefined, folderMatch);
+	}
+}
+
+export class RevealInSideBarForSearchResultsAction extends Action2 {
+
+	constructor(
+	) {
+		super({
+			id: Constants.RevealInSideBarForSearchResults,
+			title: {
+				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
+				original: 'Reveal in Explorer View'
+			},
+			category: category,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
+				group: 'search_3',
+				order: 1
+			}]
+		});
+
+	}
+
+	override async run(accessor: ServicesAccessor, args: any): Promise<any> {
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const explorerService = accessor.get(IExplorerService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (!searchView) {
+			return;
+		}
+
+		let fileMatch: FileMatch;
+		if (!(args instanceof FileMatch)) {
+			args = searchView.getControl().getFocus()[0];
+		}
+		if (args instanceof FileMatch) {
+			fileMatch = args;
+		} else {
+			return;
+		}
+
+		paneCompositeService.openPaneComposite(VIEWLET_ID_FILES, ViewContainerLocation.Sidebar, false).then((viewlet) => {
+			if (!viewlet) {
+				return;
+			}
+
+			const explorerViewContainer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
+			const uri = fileMatch.resource;
+			if (uri && contextService.isInsideWorkspace(uri)) {
+				const explorerView = explorerViewContainer.getExplorerView();
+				explorerView.setExpanded(true);
+				explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
+			}
+		});
 	}
 }
 
@@ -848,6 +905,7 @@ export class OpenMatchToSideAction extends Action2 {
 		}
 	}
 }
+
 export class AddCursorsAtSearchResultsAction extends Action2 {
 	constructor() {
 		super({
@@ -984,63 +1042,6 @@ export class ToggleSearchOnTypeAction extends Action2 {
 	}
 }
 
-export class RevealInSideBarForSearchResultsAction extends Action2 {
-
-	constructor(
-	) {
-		super({
-			id: Constants.RevealInSideBarForSearchResults,
-			title: {
-				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
-				original: 'Reveal in Explorer View'
-			},
-			category: category,
-			menu: [{
-				id: MenuId.SearchContext,
-				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
-				group: 'search_3',
-				order: 1
-			}]
-		});
-
-	}
-
-	override async run(accessor: ServicesAccessor, args: any): Promise<any> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const explorerService = accessor.get(IExplorerService);
-		const contextService = accessor.get(IWorkspaceContextService);
-
-		const searchView = getSearchView(accessor.get(IViewsService));
-		if (!searchView) {
-			return;
-		}
-
-		let fileMatch: FileMatch;
-		if (!(args instanceof FileMatch)) {
-			args = searchView.getControl().getFocus()[0];
-		}
-		if (args instanceof FileMatch) {
-			fileMatch = args;
-		} else {
-			return;
-		}
-
-		paneCompositeService.openPaneComposite(VIEWLET_ID_FILES, ViewContainerLocation.Sidebar, false).then((viewlet) => {
-			if (!viewlet) {
-				return;
-			}
-
-			const explorerViewContainer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
-			const uri = fileMatch.resource;
-			if (uri && contextService.isInsideWorkspace(uri)) {
-				const explorerView = explorerViewContainer.getExplorerView();
-				explorerView.setExpanded(true);
-				explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
-			}
-		});
-	}
-}
-
 export class FocusSearchListCommandAction extends Action2 {
 
 	constructor(
@@ -1054,7 +1055,6 @@ export class FocusSearchListCommandAction extends Action2 {
 			category: category,
 			f1: true
 		});
-
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<any> {
@@ -1448,6 +1448,7 @@ function toggleCaseSensitiveCommand(accessor: ServicesAccessor) {
 	const searchView = getSearchView(accessor.get(IViewsService));
 	searchView?.toggleCaseSensitive();
 }
+
 function toggleWholeWordCommand(accessor: ServicesAccessor) {
 	const searchView = getSearchView(accessor.get(IViewsService));
 	searchView?.toggleWholeWords();
