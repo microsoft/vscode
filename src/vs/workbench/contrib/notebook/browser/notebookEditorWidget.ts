@@ -557,6 +557,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			insertToolbarPosition,
 			insertToolbarAlignment,
 			fontSize,
+			outputFontSize,
 			focusIndicatorLeftMargin,
 			focusIndicatorGap
 		} = this._notebookOptions.getLayoutConfiguration();
@@ -571,9 +572,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const fontFamily = this._generateFontFamily();
 
 		styleSheets.push(`
-		:root {
-			--notebook-cell-output-font-size: ${fontSize}px;
-			--notebook-cell-output-font-family: ${fontFamily};
+		.notebook-editor {
+			--notebook-cell-output-font-size: ${outputFontSize}px;
 			--notebook-cell-input-preview-font-size: ${fontSize}px;
 			--notebook-cell-input-preview-font-family: ${fontFamily};
 		}
