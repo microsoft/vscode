@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.codeActionWidget {
+.actionWidget {
 	font-size: 13px;
 	border-radius: 0;
 	min-width: 160px;
@@ -16,23 +16,23 @@
 	color: var(--vscode-editorWidget-foreground);
 }
 
-.codeActionWidget .monaco-list {
+.actionWidget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
 	border: none !important;
 	border-width: 0 !important;
 }
 
-.codeActionWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
+.actionWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
 	height: 100% !important;
 }
 
-.codeActionWidget .monaco-list .monaco-scrollable-element {
+.actionWidget .monaco-list .monaco-scrollable-element {
 	overflow: visible;
 }
 
 /** Styles for each row in the list element **/
-.codeActionWidget .monaco-list .monaco-list-row {
+.actionWidget .monaco-list .monaco-list-row {
 	padding: 0 10px;
 	white-space: nowrap;
 	cursor: pointer;
@@ -40,23 +40,23 @@
 	width: 100%;
 }
 
-.codeActionWidget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
+.actionWidget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
 	background-color: var(--vscode-quickInputList-focusBackground);
 	color: var(--vscode-quickInputList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }
 
-.codeActionWidget .monaco-list-row.group-header {
+.actionWidget .monaco-list-row.group-header {
 	color: var(--vscode-pickerGroup-foreground);
 	font-weight: 600;
 }
 
-.codeActionWidget .monaco-list .group-header,
-.codeActionWidget .monaco-list .option-disabled,
-.codeActionWidget .monaco-list .option-disabled:before,
-.codeActionWidget .monaco-list .option-disabled .focused,
-.codeActionWidget .monaco-list .option-disabled .focused:before {
+.actionWidget .monaco-list .group-header,
+.actionWidget .monaco-list .option-disabled,
+.actionWidget .monaco-list .option-disabled:before,
+.actionWidget .monaco-list .option-disabled .focused,
+.actionWidget .monaco-list .option-disabled .focused:before {
 	cursor: default !important;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
@@ -68,25 +68,25 @@
 	outline: 0 solid !important;
 }
 
-.codeActionWidget .monaco-list-row.action {
+.actionWidget .monaco-list-row.action {
 	display: flex;
 	gap: 6px;
 	align-items: center;
 }
 
-.codeActionWidget .monaco-list-row.action.option-disabled {
+.actionWidget .monaco-list-row.action.option-disabled {
 	color: var(--vscode-disabledForeground);
 }
 
-.codeActionWidget .monaco-list-row.action.option-disabled .codicon {
+.actionWidget .monaco-list-row.action.option-disabled .codicon {
 	opacity: 0.4;
 }
 
-.codeActionWidget .monaco-list-row.action:not(.option-disabled) .codicon {
+.actionWidget .monaco-list-row.action:not(.option-disabled) .codicon {
 	color: inherit;
 }
 
-.codeActionWidget .monaco-list-row.action .title {
+.actionWidget .monaco-list-row.action .title {
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -94,23 +94,23 @@
 
 /* Action bar */
 
-.codeActionWidget .codeActionWidget-action-bar {
+.actionWidget .actionWidget-action-bar {
 	margin-top: 4px;
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
-.codeActionWidget .codeActionWidget-action-bar::before {
+.actionWidget .actionWidget-action-bar::before {
 	display: block;
 	content: "";
 	width: 100%;
 }
 
-.codeActionWidget .codeActionWidget-action-bar .actions-container {
+.actionWidget .actionWidget-action-bar .actions-container {
 	padding: 0 8px;
 }
 
-.codeActionWidget-action-bar .action-label {
+.actionWidget-action-bar .action-label {
 	color: var(--vscode-textLink-activeForeground);
 	font-size: 12px;
 	line-height: 22px;
@@ -118,11 +118,11 @@
 	pointer-events: all;
 }
 
-.codeActionWidget-action-bar .action-item {
+.actionWidget-action-bar .action-item {
 	margin-right: 16px;
 	pointer-events: none;
 }
 
-.codeActionWidget-action-bar .action-label:hover {
+.actionWidget-action-bar .action-label:hover {
 	background-color: transparent !important;
 }

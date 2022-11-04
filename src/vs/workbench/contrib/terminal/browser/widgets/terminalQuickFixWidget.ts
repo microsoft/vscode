@@ -65,7 +65,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 
 	override renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: IRenderDelegate<TerminalQuickFix>): IDisposable {
 		const widget = document.createElement('div');
-		widget.classList.add('codeActionWidget');
+		widget.classList.add('actionWidget');
 		element.appendChild(widget);
 		const onDidSelect = async (action: TerminalQuickFix, preview?: boolean) => {
 			await delegate.onSelect(action, trigger, preview);

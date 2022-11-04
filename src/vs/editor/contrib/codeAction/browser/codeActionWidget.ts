@@ -145,7 +145,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 
 	override renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: IRenderDelegate<CodeActionItem>): IDisposable {
 		const widget = document.createElement('div');
-		widget.classList.add('codeActionWidget');
+		widget.classList.add('actionWidget');
 		element.appendChild(widget);
 		const onDidSelect = (action: CodeActionItem, preview?: boolean) => {
 			this.hide();

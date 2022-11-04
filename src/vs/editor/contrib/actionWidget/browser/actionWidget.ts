@@ -187,7 +187,7 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 		// Action bar
 		let actionBarWidth = 0;
 		if (!options.fromLightbulb) {
-			const actionBar = this.createActionBar('.codeActionWidget-action-bar', actions, options);
+			const actionBar = this.createActionBar('.actionWidget-action-bar', actions, options);
 			if (actionBar) {
 				widget.appendChild(actionBar.getContainer().parentElement!);
 				renderDisposables.add(actionBar);
