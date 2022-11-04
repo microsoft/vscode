@@ -35,30 +35,8 @@ import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { FromWebviewMessage, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-
-const enum WebviewMessageChannels {
-	onmessage = 'onmessage',
-	didClickLink = 'did-click-link',
-	didScroll = 'did-scroll',
-	didFocus = 'did-focus',
-	didBlur = 'did-blur',
-	didLoad = 'did-load',
-	didFind = 'did-find',
-	doUpdateState = 'do-update-state',
-	doReload = 'do-reload',
-	setConfirmBeforeClose = 'set-confirm-before-close',
-	loadResource = 'load-resource',
-	loadLocalhost = 'load-localhost',
-	webviewReady = 'webview-ready',
-	wheel = 'did-scroll-wheel',
-	fatalError = 'fatal-error',
-	noCspFound = 'no-csp-found',
-	didKeydown = 'did-keydown',
-	didKeyup = 'did-keyup',
-	didContextMenu = 'did-context-menu',
-	dragStart = 'drag-start',
-}
 
 interface IKeydownEvent {
 	key: string;
@@ -232,7 +210,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			if (e.data.channel === WebviewMessageChannels.webviewReady) {
+			if (e.data.channel === 'webview-ready') {
 				if (this._messagePort) {
 					return;
 				}
@@ -260,66 +238,63 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 		}));
 
-		this._register(this.on(WebviewMessageChannels.noCspFound, () => {
+		this._register(this.on('no-csp-found', () => {
 			this.handleNoCspFound();
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
+		this._register(this.on('did-click-link', ({ uri }) => {
 			this._onDidClickLink.fire(uri);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any; transfer?: ArrayBuffer[] }) => {
-			this._onMessage.fire({
-				message: data.message,
-				transfer: data.transfer,
-			});
+		this._register(this.on('onmessage', ({ message, transfer }) => {
+			this._onMessage.fire({ message, transfer });
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
-			this._onDidScroll.fire({ scrollYPercentage: scrollYPercentage });
+		this._register(this.on('did-scroll', ({ scrollYPercentage }) => {
+			this._onDidScroll.fire({ scrollYPercentage });
 		}));
 
-		this._register(this.on(WebviewMessageChannels.doReload, () => {
+		this._register(this.on('do-reload', () => {
 			this.reload();
 		}));
 
-		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
+		this._register(this.on('do-update-state', ({ state }) => {
 			this.state = state;
 			this._onDidUpdateState.fire(state);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
+		this._register(this.on('did-focus', () => {
 			this.handleFocusChange(true);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
+		this._register(this.on('did-blur', () => {
 			this.handleFocusChange(false);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+		this._register(this.on('did-scroll-wheel', (event) => {
 			this._onDidWheel.fire(event);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didFind, (didFind: boolean) => {
+		this._register(this.on('did-find', ({ didFind }) => {
 			this._hasFindResult.fire(didFind);
 		}));
 
-		this._register(this.on<{ message: string }>(WebviewMessageChannels.fatalError, (e) => {
+		this._register(this.on('fatal-error', (e) => {
 			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didKeydown, (data: KeyboardEvent) => {
+		this._register(this.on('did-keydown', (data) => {
 			// Electron: workaround for https://github.com/electron/electron/issues/14258
 			// We have to detect keyboard events in the <webview> and dispatch them to our
 			// keybinding service because these events do not bubble to the parent window anymore.
 			this.handleKeyEvent('keydown', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didKeyup, (data: KeyboardEvent) => {
+		this._register(this.on('did-keyup', (data) => {
 			this.handleKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number; context: { [key: string]: unknown } }) => {
+		this._register(this.on('did-context-menu', (data) => {
 			if (!this.element) {
 				return;
 			}
@@ -343,7 +318,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadResource, async (entry: { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string }) => {
+		this._register(this.on('load-resource', async (entry) => {
 			try {
 				// Restore the authority we previously encoded
 				const authority = decodeAuthority(entry.authority);
@@ -363,7 +338,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
+		this._register(this.on('load-localhost', (entry) => {
 			this.localLocalhost(entry.id, entry.origin);
 		}));
 
@@ -376,11 +351,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.confirmBeforeClose')) {
 				this._confirmBeforeClose = configurationService.getValue('window.confirmBeforeClose');
-				this._send(WebviewMessageChannels.setConfirmBeforeClose, this._confirmBeforeClose);
+				this._send('set-confirm-before-close', this._confirmBeforeClose);
 			}
 		}));
 
-		this._register(this.on(WebviewMessageChannels.dragStart, () => {
+		this._register(this.on('drag-start', () => {
 			this._startBlockingIframeDragEvents();
 		}));
 
@@ -456,7 +431,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return this._send('message', { message, transfer });
 	}
 
-	private async _send(channel: string, data?: any, _createElement: Transferable[] = []): Promise<boolean> {
+	private async _send<K extends keyof ToWebviewMessage>(channel: K, data: ToWebviewMessage[K], _createElement: Transferable[] = []): Promise<boolean> {
 		if (this._state.type === WebviewState.Type.Initializing) {
 			let resolve: (x: boolean) => void;
 			const promise = new Promise<boolean>(r => resolve = r);
@@ -585,7 +560,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return false;
 	}
 
-	private on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
+	private on<K extends keyof FromWebviewMessage>(channel: K, handler: (data: FromWebviewMessage[K], e: MessageEvent) => void): IDisposable {
 		let handlers = this._messageHandlers.get(channel);
 		if (!handlers) {
 			handlers = new Set();
@@ -627,7 +602,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	public reload(): void {
 		this.doUpdateContent(this._content);
 
-		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
+		const subscription = this._register(this.on('did-load', () => {
 			this._onDidReload.fire();
 			subscription.dispose();
 		}));
@@ -876,7 +851,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			this._send('focus');
+			this._send('focus', undefined);
 		});
 	}
 
@@ -912,7 +887,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (!this.element) {
 			return;
 		}
-		this._send('find-stop', { keepSelection });
+		this._send('find-stop', { clearSelection: !keepSelection });
 		this._onDidStopFind.fire();
 	}
 
