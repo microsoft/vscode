@@ -6,7 +6,7 @@
 import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer, IRenderDelegate } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -20,6 +20,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 
 const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
 export const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
@@ -40,11 +41,6 @@ export class TerminalQuickFix extends Disposable {
 export const Context = {
 	Visible: new RawContextKey<boolean>('terminalQuickFixMenuVisible', false, localize('terminalQuickFixMenuVisible', "Whether the terminal quick fix menu is visible"))
 };
-
-interface ITerminalQuickFixDelegate {
-	onSelectQuickFix(fix: TerminalQuickFix, trigger: string, preview?: boolean): Promise<any>;
-	onHide(cancelled: boolean): void;
-}
 
 export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 
@@ -69,14 +65,14 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: ITerminalQuickFixDelegate): IDisposable {
+	renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: IRenderDelegate<TerminalQuickFix>): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
 		const onDidSelect = async (action: TerminalQuickFix, preview?: boolean) => {
-			await delegate.onSelectQuickFix(action, trigger, preview);
+			await delegate.onSelect(action, trigger, preview);
 			this.hide();
 		};
 		this.list.value = new QuickFixList(
@@ -138,7 +134,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		return renderDisposables;
 	}
 
-	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: any): void {
+	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<TerminalQuickFix>, cancelled: boolean, delegate: IRenderDelegate<ITerminalQuickFix>): void {
 		this.currentShowingContext = undefined;
 		delegate.onHide(cancelled);
 	}
@@ -162,7 +158,7 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 				keyboardSupport: true,
 				accessibilityProvider: {
 					getAriaLabel: element => {
-						if (element.kind === 'code-action') {
+						if (element.kind === 'action') {
 							let label = stripNewlines(element.item.action.label);
 							if (element.item.action.disabled) {
 								label = localize({ key: 'customQuickFixWidget.labels', comment: ['terminal quick fix labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.disabled);

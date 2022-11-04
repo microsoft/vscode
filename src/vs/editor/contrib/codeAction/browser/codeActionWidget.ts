@@ -9,7 +9,7 @@ import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer, IRenderDelegate } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
@@ -26,11 +26,6 @@ import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver';
 export const Context = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
 };
-
-interface CodeActionWidgetDelegate {
-	onSelectCodeAction(action: CodeActionItem, trigger: CodeActionTrigger, preview?: boolean): Promise<any>;
-	onHide(cancelled: boolean): void;
-}
 
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
@@ -149,7 +144,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
+	renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: IRenderDelegate<CodeActionItem>): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
@@ -157,7 +152,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		element.appendChild(widget);
 		const onDidSelect = (action: CodeActionItem, preview?: boolean) => {
 			this.hide();
-			delegate.onSelectCodeAction(action, trigger, preview);
+			delegate.onSelect(action, trigger, preview);
 		};
 		this.list.value = new CodeActionList(
 			showingCodeActions,
@@ -221,7 +216,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		return renderDisposables;
 	}
 
-	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: any): void {
+	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: IRenderDelegate<CodeActionItem>): void {
 		type ApplyCodeActionEvent = {
 			codeActionFrom: any;
 			validCodeActions: number;

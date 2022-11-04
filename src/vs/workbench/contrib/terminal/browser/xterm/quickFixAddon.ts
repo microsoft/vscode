@@ -244,7 +244,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					return;
 				}
 				TerminalQuickFixWidget.getOrCreateInstance(this._instantiationService).show('click', actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
-					onSelectQuickFix: async (action: TerminalQuickFix, trigger: string, preview?: boolean) => {
+					onSelect: async (action: TerminalQuickFix, trigger: string, preview?: boolean) => {
 						if (preview) {
 							this._commandService.executeCommand(previewSelectedTerminalQuickFixCommand);
 						} else {
