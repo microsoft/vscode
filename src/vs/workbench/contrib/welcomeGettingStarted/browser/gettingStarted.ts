@@ -900,7 +900,7 @@ export class GettingStartedPage extends EditorPane {
 						{
 							'x-dispatch': 'showMoreRecents',
 							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
-						}, 'More...')),
+						}, localize('showAll', "More..."))),
 				renderElement: renderRecent,
 				contextService: this.contextService
 			});
