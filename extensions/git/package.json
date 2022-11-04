@@ -2543,6 +2543,15 @@
           "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
+        },
+        "git.optimisticUpdate": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.optimisticUpdate%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
