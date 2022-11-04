@@ -1292,6 +1292,8 @@ export class GettingStartedPage extends EditorPane {
 						{
 							'data-done-step-id': step.id,
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
+							'role': 'checkbox',
+							'tabindex': '0',
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
