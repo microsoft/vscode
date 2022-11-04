@@ -10,7 +10,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -149,7 +149,61 @@ export abstract class ActionWidget<T> extends BaseActionWidget<T> {
 		super();
 	}
 
-	abstract renderWidget(element: HTMLElement, trigger: any, actions: ActionSet<T>, options: ActionShowOptions, showingActions: readonly T[], delegate: IRenderDelegate<T>): IDisposable;
+	renderWidget(element: HTMLElement, trigger: any, actions: ActionSet<T>, options: ActionShowOptions, showingActions: readonly T[], delegate: IRenderDelegate<T>, widget?: HTMLElement): IDisposable {
+		if (!widget) {
+			throw new Error('No widget provided');
+		}
+		const renderDisposables = new DisposableStore();
+
+		// Invisible div to block mouse interaction in the rest of the UI
+		const menuBlock = document.createElement('div');
+		const block = element.appendChild(menuBlock);
+		block.classList.add('context-view-block');
+		block.style.position = 'fixed';
+		block.style.cursor = 'initial';
+		block.style.left = '0';
+		block.style.top = '0';
+		block.style.width = '100%';
+		block.style.height = '100%';
+		block.style.zIndex = '-1';
+		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+
+		// Invisible div to block mouse interaction with the menu
+		const pointerBlockDiv = document.createElement('div');
+		const pointerBlock = element.appendChild(pointerBlockDiv);
+		pointerBlock.classList.add('context-view-pointerBlock');
+		pointerBlock.style.position = 'fixed';
+		pointerBlock.style.cursor = 'initial';
+		pointerBlock.style.left = '0';
+		pointerBlock.style.top = '0';
+		pointerBlock.style.width = '100%';
+		pointerBlock.style.height = '100%';
+		pointerBlock.style.zIndex = '2';
+
+		// Removes block on click INSIDE widget or ANY mouse movement
+		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
+		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.MOUSE_DOWN, () => pointerBlock.remove()));
+
+		// Action bar
+		let actionBarWidth = 0;
+		if (!options.fromLightbulb) {
+			const actionBar = this.createActionBar('.codeActionWidget-action-bar', actions, options);
+			if (actionBar) {
+				widget.appendChild(actionBar.getContainer().parentElement!);
+				renderDisposables.add(actionBar);
+				actionBarWidth = actionBar.getContainer().offsetWidth;
+			}
+		}
+
+		const width = this.list.value?.layout(actionBarWidth);
+		widget.style.width = `${width}px`;
+
+		const focusTracker = renderDisposables.add(dom.trackFocus(element));
+		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
+
+		return renderDisposables;
+	}
+
 	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<T>, didCancel: boolean, delegate: IRenderDelegate<T>): void {
 		this.currentShowingContext = undefined;
 		delegate.onHide(didCancel);

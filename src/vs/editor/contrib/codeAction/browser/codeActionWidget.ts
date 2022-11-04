@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { ListMenuItem, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
 import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer, IRenderDelegate } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -144,9 +143,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: IRenderDelegate<CodeActionItem>): IDisposable {
-		const renderDisposables = new DisposableStore();
-
+	override renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: ActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: IRenderDelegate<CodeActionItem>): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
@@ -167,53 +164,7 @@ export class CodeActionWidget extends ActionWidget<CodeActionItem> {
 			throw new Error('List has no value');
 		}
 
-		// Invisible div to block mouse interaction in the rest of the UI
-		const menuBlock = document.createElement('div');
-		const block = element.appendChild(menuBlock);
-		block.classList.add('context-view-block');
-		block.style.position = 'fixed';
-		block.style.cursor = 'initial';
-		block.style.left = '0';
-		block.style.top = '0';
-		block.style.width = '100%';
-		block.style.height = '100%';
-		block.style.zIndex = '-1';
-		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
-
-		// Invisible div to block mouse interaction with the menu
-		const pointerBlockDiv = document.createElement('div');
-		const pointerBlock = element.appendChild(pointerBlockDiv);
-		pointerBlock.classList.add('context-view-pointerBlock');
-		pointerBlock.style.position = 'fixed';
-		pointerBlock.style.cursor = 'initial';
-		pointerBlock.style.left = '0';
-		pointerBlock.style.top = '0';
-		pointerBlock.style.width = '100%';
-		pointerBlock.style.height = '100%';
-		pointerBlock.style.zIndex = '2';
-
-		// Removes block on click INSIDE widget or ANY mouse movement
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.MOUSE_DOWN, () => pointerBlock.remove()));
-
-		// Action bar
-		let actionBarWidth = 0;
-		if (!options.fromLightbulb) {
-			const actionBar = this.createActionBar('.codeActionWidget-action-bar', codeActions, options);
-			if (actionBar) {
-				widget.appendChild(actionBar.getContainer().parentElement!);
-				renderDisposables.add(actionBar);
-				actionBarWidth = actionBar.getContainer().offsetWidth;
-			}
-		}
-
-		const width = this.list.value?.layout(actionBarWidth);
-		widget.style.width = `${width}px`;
-
-		const focusTracker = renderDisposables.add(dom.trackFocus(element));
-		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
-
-		return renderDisposables;
+		return super.renderWidget(element, trigger, codeActions, options, showingCodeActions, delegate, widget);
 	}
 
 	override onWidgetClosed(trigger: any, options: ActionShowOptions, actions: CodeActionSet, cancelled: boolean, delegate: IRenderDelegate<CodeActionItem>): void {

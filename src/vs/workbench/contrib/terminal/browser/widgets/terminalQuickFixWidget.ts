@@ -5,13 +5,12 @@
 
 import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer, IRenderDelegate } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as dom from 'vs/base/browser/dom';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -64,9 +63,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 		super(Context.Visible, _commandService, contextViewService, keybindingService, _telemetryService, _contextKeyService);
 	}
 
-	renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: IRenderDelegate<TerminalQuickFix>): IDisposable {
-		const renderDisposables = new DisposableStore();
-
+	override renderWidget(element: HTMLElement, trigger: string, actions: ActionSet<TerminalQuickFix>, options: ActionShowOptions, showingActions: readonly TerminalQuickFix[], delegate: IRenderDelegate<TerminalQuickFix>): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
@@ -83,54 +80,7 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 
 
 		widget.appendChild(this.list.value.domNode);
-
-		// Invisible div to block mouse interaction in the rest of the UI
-		const menuBlock = document.createElement('div');
-		const block = element.appendChild(menuBlock);
-		block.classList.add('context-view-block');
-		block.style.position = 'fixed';
-		block.style.cursor = 'initial';
-		block.style.left = '0';
-		block.style.top = '0';
-		block.style.width = '100%';
-		block.style.height = '100%';
-		block.style.zIndex = '-1';
-		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
-
-		// Invisible div to block mouse interaction with the menu
-		const pointerBlockDiv = document.createElement('div');
-		const pointerBlock = element.appendChild(pointerBlockDiv);
-		pointerBlock.classList.add('context-view-pointerBlock');
-		pointerBlock.style.position = 'fixed';
-		pointerBlock.style.cursor = 'initial';
-		pointerBlock.style.left = '0';
-		pointerBlock.style.top = '0';
-		pointerBlock.style.width = '100%';
-		pointerBlock.style.height = '100%';
-		pointerBlock.style.zIndex = '2';
-
-		// Removes block on click INSIDE widget or ANY mouse movement
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.MOUSE_DOWN, () => pointerBlock.remove()));
-
-		// Action bar
-		let actionBarWidth = 0;
-		if (!options.fromLightbulb) {
-			const actionBar = this.createActionBar('.terminalQuickFixWidget-action-bar', actions, options);
-			if (actionBar) {
-				widget.appendChild(actionBar.getContainer().parentElement!);
-				renderDisposables.add(actionBar);
-				actionBarWidth = actionBar.getContainer().offsetWidth;
-			}
-		}
-
-		const width = this.list.value.layout(actionBarWidth);
-		widget.style.width = `${width}px`;
-
-		const focusTracker = renderDisposables.add(dom.trackFocus(element));
-		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
-
-		return renderDisposables;
+		return super.renderWidget(element, trigger, actions, options, showingActions, delegate, widget);
 	}
 }
 
