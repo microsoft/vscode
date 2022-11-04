@@ -2543,6 +2543,15 @@
           "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
+        },
+        "git.optimisticUpdate": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.optimisticUpdate%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -2730,7 +2739,7 @@
     ]
   },
   "dependencies": {
-    "@joaomoreno/unique-names-generator": "5.0.0",
+    "@joaomoreno/unique-names-generator": "^5.1.0",
     "@vscode/extension-telemetry": "0.6.2",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",

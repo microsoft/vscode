@@ -26,12 +26,6 @@ export interface IColumnSelectData {
 	toViewVisualColumn: number;
 }
 
-export const enum RevealTarget {
-	Primary = 0,
-	TopMost = 1,
-	BottomMost = 2
-}
-
 /**
  * This is an operation type that will be recorded for undo/redo purposes.
  * The goal is to introduce an undo stop when the controller switches between different operation types.
@@ -47,9 +41,6 @@ export const enum EditOperationType {
 
 export interface CharacterMap {
 	[char: string]: string;
-}
-export interface MultipleCharacterMap {
-	[char: string]: string[];
 }
 
 const autoCloseAlways = () => true;

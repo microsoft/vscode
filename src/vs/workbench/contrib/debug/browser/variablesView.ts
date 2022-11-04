@@ -295,7 +295,7 @@ function isStackFrame(obj: any): obj is IStackFrame {
 	return obj instanceof StackFrame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
+class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
 
 	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
 		if (!element) {

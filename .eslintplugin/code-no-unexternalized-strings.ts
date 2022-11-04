@@ -85,6 +85,27 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 			}
 		}
 
+		function visitL10NCall(node: TSESTree.CallExpression) {
+
+			// localize(key, message)
+			const [messageNode] = (<TSESTree.CallExpression>node).arguments;
+
+			// remove message-argument from doubleQuoted list and make
+			// sure it is a string-literal
+			if (isStringLiteral(messageNode)) {
+				doubleQuotedStringLiterals.delete(messageNode);
+			} else if (messageNode.type === AST_NODE_TYPES.ObjectExpression) {
+				for (const prop of messageNode.properties) {
+					if (prop.type === AST_NODE_TYPES.Property) {
+						if (prop.key.type === AST_NODE_TYPES.Identifier && prop.key.name === 'message') {
+							doubleQuotedStringLiterals.delete(prop.value);
+							break;
+						}
+					}
+				}
+			}
+		}
+
 		function reportBadStringsAndBadKeys() {
 			// (1)
 			// report all strings that are in double quotes
@@ -118,6 +139,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 			['Literal']: (node: any) => collectDoubleQuotedStrings(node),
 			['ExpressionStatement[directive] Literal:exit']: (node: any) => doubleQuotedStringLiterals.delete(node),
 			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: any) => visitLocalizeCall(node),
+			['CallExpression[callee.type="MemberExpression"][callee.object.property.name="l10n"][callee.property.name="t"]:exit']: (node: any) => visitL10NCall(node),
 			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: any) => visitLocalizeCall(node),
 			['Program:exit']: reportBadStringsAndBadKeys,
 		};

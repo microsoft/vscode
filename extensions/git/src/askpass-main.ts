@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { l10n } from 'vscode';
 import { IPCClient } from './ipc/ipcClient';
 
 function fatal(err: any): void {
-	console.error(l10n.t('Missing or invalid credentials.'));
+	console.error('Missing or invalid credentials.');
 	console.error(err);
 	process.exit(1);
 }

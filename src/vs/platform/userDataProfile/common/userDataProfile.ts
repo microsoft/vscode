@@ -7,7 +7,6 @@ import { hash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename, joinPath } from 'vs/base/common/resources';
-import { isUndefined } from 'vs/base/common/types';
 import { URI, UriDto } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -45,7 +44,7 @@ export interface IUserDataProfile {
 	readonly keybindingsResource: URI;
 	readonly tasksResource: URI;
 	readonly snippetsHome: URI;
-	readonly extensionsResource: URI | undefined;
+	readonly extensionsResource: URI;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly isTransient?: boolean;
 }
@@ -63,7 +62,7 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& URI.isUri(candidate.keybindingsResource)
 		&& URI.isUri(candidate.tasksResource)
 		&& URI.isUri(candidate.snippetsHome)
-		&& (isUndefined(candidate.extensionsResource) || URI.isUri(candidate.extensionsResource))
+		&& URI.isUri(candidate.extensionsResource)
 	);
 }
 
@@ -138,8 +137,6 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 	};
 }
 
-export const EXTENSIONS_RESOURCE_NAME = 'extensions.json';
-
 export function toUserDataProfile(id: string, name: string, location: URI, options?: IUserDataProfileOptions): IUserDataProfile {
 	return {
 		id,
@@ -152,7 +149,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, optio
 		keybindingsResource: joinPath(location, 'keybindings.json'),
 		tasksResource: joinPath(location, 'tasks.json'),
 		snippetsHome: joinPath(location, 'snippets'),
-		extensionsResource: joinPath(location, EXTENSIONS_RESOURCE_NAME),
+		extensionsResource: joinPath(location, 'extensions.json'),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient
 	};
@@ -184,7 +181,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	readonly _serviceBrand: undefined;
 
 	protected enabled: boolean = false;
-	protected readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = false;
 	readonly profilesHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
@@ -237,7 +233,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			let emptyWindow: IUserDataProfile | undefined;
 			const workspaces = new ResourceMap<IUserDataProfile>();
 			const defaultProfile = toUserDataProfile(hash(this.environmentService.userRoamingDataHome.path).toString(16), localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
-			profiles.unshift({ ...defaultProfile, isDefault: true, extensionsResource: this.defaultProfileShouldIncludeExtensionsResourceAlways || profiles.length > 0 || this.transientProfilesObject.profiles.length > 0 ? defaultProfile.extensionsResource : undefined });
+			profiles.unshift({ ...defaultProfile, isDefault: true });
 			if (profiles.length) {
 				const profileAssicaitions = this.getStoredProfileAssociations();
 				if (profileAssicaitions.workspaces) {

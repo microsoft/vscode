@@ -3,7 +3,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SwcTranspiler = exports.TscTranspiler = void 0;
 const swc = require("@swc/core");
@@ -39,6 +38,7 @@ if (!threads.isMainThread) {
     });
 }
 class OutputFileNameOracle {
+    getOutputFileName;
     constructor(cmdLine, configFilePath) {
         this.getOutputFileName = (file) => {
             try {
@@ -68,10 +68,12 @@ class OutputFileNameOracle {
     }
 }
 class TranspileWorker {
+    static pool = 1;
+    id = TranspileWorker.pool++;
+    _worker = new threads.Worker(__filename);
+    _pending;
+    _durations = [];
     constructor(outFileFn) {
-        this.id = TranspileWorker.pool++;
-        this._worker = new threads.Worker(__filename);
-        this._durations = [];
         this._worker.addListener('message', (res) => {
             if (!this._pending) {
                 console.error('RECEIVING data WITHOUT request');
@@ -142,14 +144,18 @@ class TranspileWorker {
         });
     }
 }
-TranspileWorker.pool = 1;
 class TscTranspiler {
+    _onError;
+    _cmdLine;
+    static P = Math.floor((0, node_os_1.cpus)().length * .5);
+    _outputFileNames;
+    onOutfile;
+    _workerPool = [];
+    _queue = [];
+    _allJobs = [];
     constructor(logFn, _onError, configFilePath, _cmdLine) {
         this._onError = _onError;
         this._cmdLine = _cmdLine;
-        this._workerPool = [];
-        this._queue = [];
-        this._allJobs = [];
         logFn('Transpile', `will use ${TscTranspiler.P} transpile worker`);
         this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
     }
@@ -218,7 +224,6 @@ class TscTranspiler {
     }
 }
 exports.TscTranspiler = TscTranspiler;
-TscTranspiler.P = Math.floor((0, node_os_1.cpus)().length * .5);
 function _isDefaultEmpty(src) {
     return src
         .replace('"use strict";', '')
@@ -226,11 +231,16 @@ function _isDefaultEmpty(src) {
         .trim().length === 0;
 }
 class SwcTranspiler {
+    _logFn;
+    _onError;
+    _cmdLine;
+    onOutfile;
+    _outputFileNames;
+    _jobs = [];
     constructor(_logFn, _onError, configFilePath, _cmdLine) {
         this._logFn = _logFn;
         this._onError = _onError;
         this._cmdLine = _cmdLine;
-        this._jobs = [];
         _logFn('Transpile', `will use SWC to transpile source files`);
         this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
     }
@@ -274,41 +284,40 @@ class SwcTranspiler {
             this._onError(err);
         }));
     }
+    // --- .swcrc
+    static _swcrcAmd = {
+        exclude: '\.js$',
+        jsc: {
+            parser: {
+                syntax: 'typescript',
+                tsx: false,
+                decorators: true
+            },
+            target: 'es2020',
+            loose: false,
+            minify: {
+                compress: false,
+                mangle: false
+            }
+        },
+        module: {
+            type: 'amd',
+            noInterop: true
+        },
+        minify: false,
+    };
+    static _swcrcCommonJS = {
+        ...this._swcrcAmd,
+        module: {
+            type: 'commonjs',
+            importInterop: 'none'
+        }
+    };
+    static _swcrcEsm = {
+        ...this._swcrcAmd,
+        module: {
+            type: 'es6'
+        }
+    };
 }
 exports.SwcTranspiler = SwcTranspiler;
-_a = SwcTranspiler;
-// --- .swcrc
-SwcTranspiler._swcrcAmd = {
-    exclude: '\.js$',
-    jsc: {
-        parser: {
-            syntax: 'typescript',
-            tsx: false,
-            decorators: true
-        },
-        target: 'es2020',
-        loose: false,
-        minify: {
-            compress: false,
-            mangle: false
-        }
-    },
-    module: {
-        type: 'amd',
-        noInterop: true
-    },
-    minify: false,
-};
-SwcTranspiler._swcrcCommonJS = {
-    ..._a._swcrcAmd,
-    module: {
-        type: 'commonjs',
-        importInterop: 'none'
-    }
-};
-SwcTranspiler._swcrcEsm = {
-    ..._a._swcrcAmd,
-    module: {
-        type: 'es6'
-    }
-};

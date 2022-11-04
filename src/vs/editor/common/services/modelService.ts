@@ -26,7 +26,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
-import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
+import { isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from 'vs/editor/common/services/getSemanticTokens';
@@ -116,11 +116,6 @@ interface IRawConfig {
 }
 
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
-
-export interface EditStackPastFutureElements {
-	past: EditStackElement[];
-	future: EditStackElement[];
-}
 
 class DisposedModelInfo {
 	constructor(
@@ -450,7 +445,7 @@ export class ModelService extends Disposable implements IModelService {
 		disposable.dispose();
 	}
 
-	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+	private static _commonPrefix(a: ITextModel, aLen: number, aDelta: number, b: ITextBuffer, bLen: number, bDelta: number): number {
 		const maxResult = Math.min(aLen, bLen);
 
 		let result = 0;
@@ -460,7 +455,7 @@ export class ModelService extends Disposable implements IModelService {
 		return result;
 	}
 
-	private static _commonSuffix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+	private static _commonSuffix(a: ITextModel, aLen: number, aDelta: number, b: ITextBuffer, bLen: number, bDelta: number): number {
 		const maxResult = Math.min(aLen, bLen);
 
 		let result = 0;
@@ -640,10 +635,6 @@ export class ModelService extends Disposable implements IModelService {
 	}
 }
 
-export interface ILineSequence {
-	getLineContent(lineNumber: number): string;
-}
-
 export const SEMANTIC_HIGHLIGHTING_SETTING_ID = 'editor.semanticHighlighting';
 
 export function isSemanticColoringEnabled(model: ITextModel, themeService: IThemeService, configurationService: IConfigurationService): boolean {
@@ -756,7 +747,7 @@ class SemanticTokensResponse {
 	}
 }
 
-export class ModelSemanticColoring extends Disposable {
+class ModelSemanticColoring extends Disposable {
 
 	public static REQUEST_MIN_DELAY = 300;
 	public static REQUEST_MAX_DELAY = 2000;
