@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-scrollable-element > .shadow.top {
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
+
+.monaco-scrollable-element > .shadow.left {
+	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
+}
+
+.monaco-scrollable-element > .shadow.top.left {
+	box-shadow: var(--vscode-scrollbar-shadow) 6px 6px 6px -6px inset;
+}
+
+.monaco-scrollable-element > .scrollbar > .slider {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider.active {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
