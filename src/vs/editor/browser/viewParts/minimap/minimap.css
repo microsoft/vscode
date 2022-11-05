@@ -16,13 +16,13 @@
 }
 /* END cover the case that slider is visible on mouseover */
 .monaco-editor .minimap-slider .minimap-slider-horizontal {
-	color: var(--vscode-minimapSlider-background) !important;
+	color: var(--vscode-minimapSlider-background);
 }
 .monaco-editor .minimap-slider:hover .minimap-slider-horizontal {
-	color: var(--vscode-minimapSlider-hoverBackground) !important;
+	color: var(--vscode-minimapSlider-hoverBackground);
 }
 .monaco-editor .minimap-slider.active .minimap-slider-horizontal {
-	color: var(--vscode-minimapSlider-activeBackground) !important;
+	color: var(--vscode-minimapSlider-activeBackground);
 }
 .monaco-editor .minimap-shadow-visible {
 	box-shadow: var(--vscode-minimap-shadow) -6px 0 6px -6px inset;
