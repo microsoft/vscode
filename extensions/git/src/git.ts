@@ -2067,7 +2067,7 @@ export class Repository {
 	}
 
 	async getHEADFS(): Promise<Ref> {
-		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+		const raw = await fs.readFile(path.join(this.dotGit.path, 'HEAD'), 'utf8');
 
 		// Branch
 		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);
