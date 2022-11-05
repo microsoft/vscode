@@ -228,6 +228,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 		}
 	}
 });
+
 //#endregion
 
 //#region Helpers
@@ -343,4 +344,5 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		}
 	}
 }
+
 //#endregion
