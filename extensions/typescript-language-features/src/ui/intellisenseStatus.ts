@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { CommandManager } from '../commands/commandManager';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
@@ -12,7 +11,6 @@ import { Disposable } from '../utils/dispose';
 import { isSupportedLanguageMode, isTypeScriptDocument, jsTsLanguageModes } from '../utils/languageIds';
 import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';
 
-const localize = nls.loadMessageBundle();
 
 namespace IntellisenseState {
 	export const enum Type { None, Pending, Resolved, SyntaxOnly }
@@ -148,7 +146,7 @@ export class IntellisenseStatus extends Disposable {
 			case IntellisenseState.Type.Pending: {
 				const statusItem = this.ensureStatusItem();
 				statusItem.severity = vscode.LanguageStatusSeverity.Information;
-				statusItem.text = localize('pending.detail', 'Loading IntelliSense status');
+				statusItem.text = vscode.l10n.t("Loading IntelliSense status");
 				statusItem.detail = undefined;
 				statusItem.command = undefined;
 				statusItem.busy = true;
@@ -156,16 +154,16 @@ export class IntellisenseStatus extends Disposable {
 			}
 			case IntellisenseState.Type.Resolved: {
 				const noConfigFileText = this._state.projectType === ProjectType.TypeScript
-					? localize('resolved.detail.noTsConfig', "No tsconfig")
-					: localize('resolved.detail.noJsConfig', "No jsconfig");
+					? vscode.l10n.t("No tsconfig")
+					: vscode.l10n.t("No jsconfig");
 
 				const rootPath = this._client.getWorkspaceRootForResource(this._state.resource);
 				if (!rootPath) {
 					if (this._statusItem) {
 						this._statusItem.text = noConfigFileText;
 						this._statusItem.detail = !vscode.workspace.workspaceFolders
-							? localize('resolved.detail.noOpenedFolders', 'No opened folders')
-							: localize('resolved.detail.notInOpenedFolder', 'File is not part opened folders');
+							? vscode.l10n.t("No opened folders")
+							: vscode.l10n.t("File is not part opened folders");
 						this._statusItem.busy = false;
 					}
 					return;
@@ -182,8 +180,8 @@ export class IntellisenseStatus extends Disposable {
 					statusItem.command = {
 						command: this.createConfigCommandId,
 						title: this._state.projectType === ProjectType.TypeScript
-							? localize('resolved.command.title.createTsconfig', "Create tsconfig")
-							: localize('resolved.command.title.createJsconfig', "Create jsconfig"),
+							? vscode.l10n.t("Create tsconfig")
+							: vscode.l10n.t("Create jsconfig"),
 						arguments: [rootPath],
 					};
 				} else {
@@ -191,7 +189,7 @@ export class IntellisenseStatus extends Disposable {
 					statusItem.detail = undefined;
 					statusItem.command = {
 						command: this.openOpenConfigCommandId,
-						title: localize('resolved.command.title.open', "Open config file"),
+						title: vscode.l10n.t("Open config file"),
 						arguments: [rootPath],
 					};
 				}
@@ -200,11 +198,11 @@ export class IntellisenseStatus extends Disposable {
 			case IntellisenseState.Type.SyntaxOnly: {
 				const statusItem = this.ensureStatusItem();
 				statusItem.severity = vscode.LanguageStatusSeverity.Warning;
-				statusItem.text = localize('syntaxOnly.text', 'Partial Mode');
-				statusItem.detail = localize('syntaxOnly.detail', 'Project Wide IntelliSense not available');
+				statusItem.text = vscode.l10n.t("Partial Mode");
+				statusItem.detail = vscode.l10n.t("Project Wide IntelliSense not available");
 				statusItem.busy = false;
 				statusItem.command = {
-					title: localize('syntaxOnly.command.title.learnMore', "Learn More"),
+					title: vscode.l10n.t("Learn More"),
 					command: 'vscode.open',
 					arguments: [
 						vscode.Uri.parse('https://aka.ms/vscode/jsts/partial-mode'),
@@ -218,7 +216,7 @@ export class IntellisenseStatus extends Disposable {
 	private ensureStatusItem(): vscode.LanguageStatusItem {
 		if (!this._statusItem) {
 			this._statusItem = vscode.languages.createLanguageStatusItem('typescript.projectStatus', jsTsLanguageModes);
-			this._statusItem.name = localize('statusItem.name', "JS/TS IntelliSense Status");
+			this._statusItem.name = vscode.l10n.t("JS/TS IntelliSense Status");
 		}
 		return this._statusItem;
 	}

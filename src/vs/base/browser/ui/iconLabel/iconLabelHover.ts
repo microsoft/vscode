@@ -30,7 +30,7 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 	}
 }
 
-export type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
+type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
 type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
 
 /**
