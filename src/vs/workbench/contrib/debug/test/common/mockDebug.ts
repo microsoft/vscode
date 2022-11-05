@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -571,6 +572,8 @@ export class MockRawSession {
 export class MockDebugAdapter extends AbstractDebugAdapter {
 	private seq = 0;
 
+	private pendingResponses = new Map<string, DeferredPromise<DebugProtocol.Response>>();
+
 	startSession(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -580,8 +583,8 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	sendMessage(message: DebugProtocol.ProtocolMessage): void {
-		setTimeout(() => {
-			if (message.type === 'request') {
+		if (message.type === 'request') {
+			setTimeout(() => {
 				const request = message as DebugProtocol.Request;
 				switch (request.command) {
 					case 'evaluate':
@@ -590,8 +593,13 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 				}
 				this.sendResponseBody(request, {});
 				return;
+			}, 0);
+		} else if (message.type === 'response') {
+			const response = message as DebugProtocol.Response;
+			if (this.pendingResponses.has(response.command)) {
+				this.pendingResponses.get(response.command)!.complete(response);
 			}
-		}, 0);
+		}
 	}
 
 	sendResponseBody(request: DebugProtocol.Request, body: any) {
@@ -612,6 +620,26 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 			type: 'event',
 			event,
 			body
+		};
+		this.acceptMessage(response);
+	}
+
+	waitForResponseFromClient(command: string): Promise<DebugProtocol.Response> {
+		const deferred = new DeferredPromise<DebugProtocol.Response>();
+		if (this.pendingResponses.has(command)) {
+			return this.pendingResponses.get(command)!.p;
+		}
+
+		this.pendingResponses.set(command, deferred);
+		return deferred.p;
+	}
+
+	sendRequestBody(command: string, args: any) {
+		const response: DebugProtocol.Request = {
+			seq: ++this.seq,
+			type: 'request',
+			command,
+			arguments: args
 		};
 		this.acceptMessage(response);
 	}

@@ -68,11 +68,11 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 
 suite('Debug - CallStack', () => {
 	let model: DebugModel;
-	let rawSession: MockRawSession;
+	let mockRawSession: MockRawSession;
 
 	setup(() => {
 		model = createMockDebugModel();
-		rawSession = new MockRawSession();
+		mockRawSession = new MockRawSession();
 	});
 
 	// Threads
@@ -110,7 +110,7 @@ suite('Debug - CallStack', () => {
 		const session = createTestSession(model);
 		model.addSession(session);
 
-		session['raw'] = <any>rawSession;
+		session['raw'] = <any>mockRawSession;
 
 		model.rawUpdate({
 			sessionId: session.getId(),
@@ -190,7 +190,7 @@ suite('Debug - CallStack', () => {
 		const session = createTestSession(model);
 		model.addSession(session);
 
-		session['raw'] = <any>rawSession;
+		session['raw'] = <any>mockRawSession;
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
@@ -233,7 +233,7 @@ suite('Debug - CallStack', () => {
 	});
 
 	test('threads multiple without allThreadsStopped', async () => {
-		const sessionStub = sinon.spy(rawSession, 'stackTrace');
+		const sessionStub = sinon.spy(mockRawSession, 'stackTrace');
 
 		const stoppedThreadId = 1;
 		const stoppedThreadName = 'stoppedThread';
@@ -243,7 +243,7 @@ suite('Debug - CallStack', () => {
 		const session = createTestSession(model);
 		model.addSession(session);
 
-		session['raw'] = <any>rawSession;
+		session['raw'] = <any>mockRawSession;
 
 		// Add the threads
 		model.rawUpdate({
@@ -436,7 +436,7 @@ suite('Debug - CallStack', () => {
 		model.addSession(runningSession);
 		model.addSession(session);
 
-		session['raw'] = <any>rawSession;
+		session['raw'] = <any>mockRawSession;
 
 		model.rawUpdate({
 			sessionId: session.getId(),
