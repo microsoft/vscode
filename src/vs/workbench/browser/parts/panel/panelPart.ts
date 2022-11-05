@@ -19,9 +19,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { contrastBorder, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, badgeBackground, badgeForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { IActivityHoverOptions, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
@@ -1008,3 +1008,19 @@ export class PanelPart extends BasePanelPart {
 		};
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	// Panel Background: since panels can host editors, we apply a background rule if the panel background
+	// color is different from the editor background color. This is a bit of a hack though. The better way
+	// would be to have a way to push the background color onto each editor widget itself somehow.
+	const panelBackground = theme.getColor(PANEL_BACKGROUND);
+	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
+		collector.addRule(`
+			.monaco-workbench .part.panel > .content .monaco-editor,
+			.monaco-workbench .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+				background-color: ${panelBackground};
+			}
+		`);
+	}
+})
