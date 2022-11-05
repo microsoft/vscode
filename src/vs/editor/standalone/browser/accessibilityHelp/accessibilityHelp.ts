@@ -362,25 +362,3 @@ registerEditorCommand(
 		}
 	})
 );
-
-registerThemingParticipant((theme, collector) => {
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
-	}
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetForeground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
-	}
-
-
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
-	}
-
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
-	}
-});
