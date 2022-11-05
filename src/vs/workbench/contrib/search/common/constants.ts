@@ -47,7 +47,6 @@ export const FocusPreviousInputActionId = 'search.focus.previousInputBox';
 export const RestrictSearchToFolderId = 'search.action.restrictSearchToFolder';
 export const FindInFolderId = 'filesExplorer.findInFolder';
 export const FindInWorkspaceId = 'filesExplorer.findInWorkspace';
-export const ExecuteWorkspaceSymbolProviderID = '_executeWorkspaceSymbolProvider';
 
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);

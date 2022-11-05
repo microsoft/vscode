@@ -7,7 +7,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import * as nls from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +21,6 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { AddCursorsAtSearchResultsAction, CancelSearchAction, ClearSearchHistoryCommandAction, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, CopyAllCommandAction, CopyMatchCommandAction, CopyPathCommandAction, ExcludeFolderFromSearchAction, ExecuteWorkspaceSymbolProviderAction, ExpandAllAction, FindInFilesAction, FindInFolderAction, FindInWorkspaceAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, FocusSearchFromResultsAction, FocusSearchListCommandAction, OpenMatchAction, OpenMatchToSideAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, RestrictSearchToFolderAction, RevealInSideBarForSearchResultsAction, ShowAllSymbolsAction, ToggleCaseSensitiveCommandAction, TogglePreserveCaseAction, ToggleQueryDetailsAction, ToggleRegexCommandAction, ToggleSearchOnTypeAction, ToggleWholeWordCommandAction, ViewAsListAction, ViewAsTreeAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -32,71 +30,23 @@ import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/co
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
+import { getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
+import * as Constants from 'vs/workbench/contrib/search/common/constants';
+
+import 'vs/workbench/contrib/search/browser/searchActionsCopy';
+import 'vs/workbench/contrib/search/browser/searchActionsFind';
+import 'vs/workbench/contrib/search/browser/searchActionsNav';
+import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
+import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
+import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
 replaceContributions();
 searchWidgetContributions();
-
-// replace/remove actions
-registerAction2(RemoveAction);
-registerAction2(ReplaceAction);
-registerAction2(ReplaceAllAction);
-registerAction2(ReplaceAllInFolderAction);
-
-// top actionbar icons
-registerAction2(ClearSearchHistoryCommandAction);
-registerAction2(CancelSearchAction);
-registerAction2(RefreshAction);
-registerAction2(CollapseDeepestExpandedLevelAction);
-registerAction2(ExpandAllAction);
-registerAction2(ClearSearchResultsAction);
-
-// find in...
-registerAction2(FindInFilesAction);
-registerAction2(FindInFolderAction);
-registerAction2(FindInWorkspaceAction);
-
-// additional context menu items
-registerAction2(RestrictSearchToFolderAction);
-registerAction2(ExcludeFolderFromSearchAction);
-registerAction2(RevealInSideBarForSearchResultsAction);
-
-// changing search input options
-registerAction2(ToggleQueryDetailsAction);
-registerAction2(CloseReplaceAction);
-registerAction2(ToggleCaseSensitiveCommandAction);
-registerAction2(ToggleWholeWordCommandAction);
-registerAction2(ToggleRegexCommandAction);
-registerAction2(TogglePreserveCaseAction);
-
-// opening matches
-registerAction2(OpenMatchAction);
-registerAction2(OpenMatchToSideAction);
-registerAction2(AddCursorsAtSearchResultsAction);
-
-// toggling focus
-registerAction2(FocusSearchFromResultsAction);
-registerAction2(FocusNextInputAction);
-registerAction2(FocusPreviousInputAction);
-registerAction2(FocusNextSearchResultAction);
-registerAction2(FocusPreviousSearchResultAction);
-registerAction2(FocusSearchListCommandAction);
-registerAction2(ReplaceInFilesAction);
-
-// tree toggle
-registerAction2(ViewAsTreeAction);
-registerAction2(ViewAsListAction);
-
-// copy commands
-registerAction2(CopyMatchCommandAction);
-registerAction2(CopyPathCommandAction);
-registerAction2(CopyAllCommandAction);
-
-// symbol actions
-registerAction2(ShowAllSymbolsAction);
-registerAction2(ExecuteWorkspaceSymbolProviderAction);
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -147,9 +97,6 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
 
-// --- Toggle Search On Type
-registerAction2(ToggleSearchOnTypeAction);
-
 // Register Quick Access Handler
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
 
@@ -166,7 +113,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: SymbolsQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: ShowAllSymbolsAction.ID }]
+	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.ShowAllSymbolsActionId }]
 });
 
 // Configuration
@@ -404,4 +351,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
 		},
 	}
+});
+
+CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async function (accessor, ...args): Promise<IWorkspaceSymbol[]> {
+	const [query] = args;
+	assertType(typeof query === 'string');
+	const result = await getWorkspaceSymbols(query);
+	return result.map(item => item.symbol);
 });

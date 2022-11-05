@@ -27,7 +27,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMatchActionContext, IFileMatchActionContext, IFolderMatchActionContext } from 'vs/workbench/contrib/search/browser/searchActions';
+import { IMatchActionContext, IFileMatchActionContext, IFolderMatchActionContext } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
