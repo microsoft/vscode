@@ -60,10 +60,3 @@ function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding |
 	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
 }
 
-
-
-
-
-
-
-
