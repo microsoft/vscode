@@ -224,7 +224,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		this._reportTelemetry(command, id);
 		const { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -236,9 +235,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			}
 		}
 
+		const start = Date.now();
 		try {
-			return await callback.apply(thisArg, args);
+			const result = await callback.apply(thisArg, args);
+			this._reportTelemetry(command, id, Date.now() - start);
+			return result;
 		} catch (err) {
+			this._reportTelemetry(command, id, Date.now() - start);
 			// The indirection-command from the converter can fail when invoking the actual
 			// command and in that case it is better to blame the correct command
 			if (id === this.converter.delegatingCommandId) {
@@ -263,23 +266,26 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private _reportTelemetry(command: CommandHandler, id: string) {
+	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
 		if (!command.extension || command.extension.isBuiltin) {
 			return;
 		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
 			id: string;
+			duration: number;
 		};
 		type ExtensionActionTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the command execution, to detect performance issues' };
 			owner: 'digitarald';
 			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
 			id: id,
+			duration: duration,
 		});
 	}
 
