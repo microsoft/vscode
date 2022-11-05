@@ -83,6 +83,7 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 const $ = DOM.$;
 
@@ -323,12 +324,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		this._register(editorGroupsService.onDidScroll(() => {
+		this._register(editorGroupsService.onDidScroll(e => {
 			if (!this._shadowElement || !this._isVisible) {
 				return;
 			}
 
-			this.updateShadowElement(this._shadowElement);
+			this.updateShadowElement(this._shadowElement, this._dimension);
 			this.layoutContainerOverShadowElement(this._dimension);
 		}));
 
@@ -1691,7 +1692,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
 			return;
@@ -1703,7 +1704,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement);
+			this.updateShadowElement(shadowElement, dimension, position);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1732,7 +1733,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension);
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1745,19 +1746,36 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
-	private updateShadowElement(shadowElement: HTMLElement) {
-		const containerRect = shadowElement.getBoundingClientRect();
-
+	private updateShadowElement(shadowElement: HTMLElement, dimension?: IDimension, position?: DOM.IDomPosition) {
 		this._shadowElement = shadowElement;
-		this._shadowElementViewInfo = {
-			height: containerRect.height,
-			width: containerRect.width,
-			top: containerRect.top,
-			left: containerRect.left
-		};
+		if (dimension && position) {
+			this._shadowElementViewInfo = {
+				height: dimension.height,
+				width: dimension.width,
+				top: position.top,
+				left: position.left,
+			};
+		} else {
+			// We have to recompute position and size ourselves (which is slow)
+			const containerRect = shadowElement.getBoundingClientRect();
+			this._shadowElementViewInfo = {
+				height: containerRect.height,
+				width: containerRect.width,
+				top: containerRect.top,
+				left: containerRect.left
+			};
+		}
 	}
 
-	private layoutContainerOverShadowElement(dimension?: DOM.Dimension | null): void {
+	private layoutContainerOverShadowElement(dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
+		if (dimension && position) {
+			this._overlayContainer.style.top = `${position.top}px`;
+			this._overlayContainer.style.left = `${position.left}px`;
+			this._overlayContainer.style.width = `${dimension.width}px`;
+			this._overlayContainer.style.height = `${dimension.height}px`;
+			return;
+		}
+
 		if (!this._shadowElementViewInfo) {
 			return;
 		}
