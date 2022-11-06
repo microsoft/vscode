@@ -86,6 +86,9 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		version: info.version,
 		env: environment,
 	});
+
+	commands.executeCommand('setContext', 'git.canStashStagedOnly', git.compareGitVersionTo('2.38') !== -1);
+
 	const model = new Model(git, askpass, context.globalState, logger, telemetryReporter);
 	disposables.push(model);
 

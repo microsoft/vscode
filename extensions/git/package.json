@@ -516,6 +516,11 @@
         "category": "Git"
       },
       {
+        "command": "git.stashStagedOnly",
+        "title": "%command.stashStagedOnly%",
+        "category": "Git"
+      },
+      {
         "command": "git.stash",
         "title": "%command.stash%",
         "category": "Git"
@@ -982,6 +987,10 @@
         {
           "command": "git.stashIncludeUntracked",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashStagedOnly",
+          "when": "config.git.enabled && git.canStashStagedOnly && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stash",
@@ -1809,28 +1818,32 @@
           "group": "stash@2"
         },
         {
-          "command": "git.stashApplyLatest",
+          "command": "git.stashStagedOnly",
           "group": "stash@3"
         },
         {
-          "command": "git.stashApply",
+          "command": "git.stashApplyLatest",
           "group": "stash@4"
         },
         {
-          "command": "git.stashPopLatest",
+          "command": "git.stashApply",
           "group": "stash@5"
         },
         {
-          "command": "git.stashPop",
+          "command": "git.stashPopLatest",
           "group": "stash@6"
         },
         {
-          "command": "git.stashDrop",
+          "command": "git.stashPop",
           "group": "stash@7"
         },
         {
-          "command": "git.stashDropAll",
+          "command": "git.stashDrop",
           "group": "stash@8"
+        },
+        {
+          "command": "git.stashDropAll",
+          "group": "stash@9"
         }
       ],
       "git.tags": [

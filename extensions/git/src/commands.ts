@@ -2896,7 +2896,7 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, onlyIncludeStaged = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -2950,7 +2950,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.createStash(message, includeUntracked);
+		await repository.createStash(message, includeUntracked, onlyIncludeStaged);
 	}
 
 	@command('git.stash', { repository: true })
@@ -2961,6 +2961,11 @@ export class CommandCenter {
 	@command('git.stashIncludeUntracked', { repository: true })
 	stashIncludeUntracked(repository: Repository): Promise<void> {
 		return this._stash(repository, true);
+	}
+
+	@command('git.stashStagedOnly', { repository: true })
+	stashStagedOnly(repository: Repository): Promise<void> {
+		return this._stash(repository, false, true);
 	}
 
 	@command('git.stashPop', { repository: true })
