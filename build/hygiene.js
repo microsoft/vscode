@@ -58,9 +58,11 @@ function hygiene(some, linting = true) {
 				// ASCII punctuation and alphanumerics.
 				'\\u0021-\\u007E',
 				// Box Drawing
-				'┌└├',
+				'\\u2500-\\u257F',
+				// Block Elements
+				'\\u2580-\\u259F',
 				// Geometric Shapes
-				'●◆▼',
+				'\\u25A0-\\u25FF',
 				// Other "ok" chars.
 				'⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•⟪⟫⏎↩√φ',
 			];
