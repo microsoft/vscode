@@ -52,7 +52,16 @@ function hygiene(some, linting = true) {
 				return;
 			}
 			// Please do not add symbols that resemble ASCII letters!
-			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
+			const okCharClass = [
+				// "Normal" whitespace.
+				'\\t\\n\\r\\u0020',
+				// ASCII punctuation and alphanumerics.
+				'\\u0021-\\u007E',
+				// Other "ok" chars.
+				'⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ',
+			];
+			const badUnicode = new RegExp(`([^${okCharClass.join('')}]+)`, 'g');
+			const m = badUnicode.exec(line);
 			if (m) {
 				console.error(
 					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}" (charCode: ${m[0].charCodeAt(0)}). To suppress, use // allow-any-unicode-next-line`
