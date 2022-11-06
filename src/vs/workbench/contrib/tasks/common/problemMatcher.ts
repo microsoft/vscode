@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { asArray } from 'vs/base/common/arrays';
 
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -244,7 +245,7 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 }
 
 async function searchForFileLocation(filename: string, fsProvider: IFileSystemProvider, args: Config.SearchFileLocationArgs): Promise<URI | undefined> {
-	const exclusions = new Set(args.exclude?.map(x => URI.file(x).path) ?? []);
+	const exclusions = new Set(asArray(args.exclude || []).map(x => URI.file(x).path));
 	async function search(dir: URI): Promise<URI | undefined> {
 		if (exclusions.has(dir.path)) {
 			return undefined;
@@ -273,7 +274,7 @@ async function searchForFileLocation(filename: string, fsProvider: IFileSystemPr
 		return undefined;
 	}
 
-	for (const dir of args.include) {
+	for (const dir of asArray(args.include)) {
 		const hit = await search(URI.file(dir));
 		if (hit) {
 			return hit;
@@ -850,7 +851,7 @@ export namespace Config {
 		*  - ["autodetect", "path value"]: the filename is treated
 		*    relative to the given path value, and if it does not
 		*    exist, it is treated as absolute.
-		*  - ["search", { include: []; exclude?: [] }]: The filename
+		*  - ["search", { include: "" | []; exclude?: "" | [] }]: The filename
 		*    needs to be searched under the directories named by the "include"
 		*    property and their nested subdirectories. With "exclude" property
 		*    present, the directories should be removed from the search.
@@ -883,8 +884,8 @@ export namespace Config {
 	}
 
 	export type SearchFileLocationArgs = {
-		include: string[];
-		exclude?: string[];
+		include: string | string[];
+		exclude?: string | string[];
 	};
 
 	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
