@@ -1678,7 +1678,11 @@ export namespace Schemas {
 						type: 'array',
 						items: {
 							type: 'string'
-						}
+						},
+						examples: [
+							['relative', '${workspaceFolder}'],
+							['autoDetect', '${workspaceFolder}'],
+						]
 					},
 					{
 						type: 'array',
