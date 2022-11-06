@@ -57,8 +57,12 @@ function hygiene(some, linting = true) {
 				'\\t\\n\\r\\u0020',
 				// ASCII punctuation and alphanumerics.
 				'\\u0021-\\u007E',
+				// Box Drawing
+				'┌└├',
+				// Geometric Shapes
+				'●◆▼',
 				// Other "ok" chars.
-				'⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ',
+				'⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•⟪⟫⏎↩√φ',
 			];
 			const badUnicode = new RegExp(`([^${okCharClass.join('')}]+)`, 'g');
 			const m = badUnicode.exec(line);
