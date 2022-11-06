@@ -1687,16 +1687,30 @@ export namespace Schemas {
 							{
 								type: 'object',
 								properties: {
-									'include': { type: 'array', items: { type: 'string' } },
-									'exclude': { type: 'array', items: { type: 'string' } },
+									'include': {
+										oneOf: [
+											{ type: 'string' },
+											{ type: 'array', items: { type: 'string' } }
+										]
+									},
+									'exclude': {
+										oneOf: [
+											{ type: 'string' },
+											{ type: 'array', items: { type: 'string' } }
+										]
+									},
 								},
 								required: ['include']
 							}
 						],
 						additionalItems: false,
+						examples: [
+							['search', { 'include': ['${workspaceFolder}'] }],
+							['search', { 'include': ['${workspaceFolder}'], 'exclude': [] }]
+						],
 					}
 				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path of the relative file location.')
+				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path of the relative file location. The search fileLocation mode, performs a deep (and, possibly, heavy) file system search within the directories specified by the include/exclude properties of the second element.')
 			},
 			background: {
 				type: 'object',
