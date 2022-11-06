@@ -18,6 +18,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { asArray } from 'vs/base/common/arrays';
+import { Schemas as NetworkSchemas } from 'vs/base/common/network';
 
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -217,7 +218,7 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 		matcherClone.fileLocation = FileLocationKind.Absolute;
 		return getResource(filename, matcherClone);
 	} else if (kind === FileLocationKind.Search && fileService) {
-		const fsProvider = fileService.getProvider('file');
+		const fsProvider = fileService.getProvider(NetworkSchemas.file);
 		if (fsProvider) {
 			const uri = await searchForFileLocation(filename, fsProvider, matcher.filePrefix as Config.SearchFileLocationArgs);
 			fullPath = uri?.path;
