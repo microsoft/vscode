@@ -264,7 +264,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (validSession) {
 			// Migration. If we have a valid session, but no preference, we'll set the preference to the valid session.
 			// TODO: Remove this after in a few releases.
-			if (!this.storageService.get(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION)) {
+			if (!this.authenticationService.getSessionPreference(providerId, extensionId, scopes)) {
 				if (this.storageService.get(`${extensionName}-${providerId}`, StorageScope.APPLICATION)) {
 					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.APPLICATION);
 				}
