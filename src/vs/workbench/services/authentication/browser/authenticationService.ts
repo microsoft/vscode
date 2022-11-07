@@ -387,7 +387,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void> {
+	updateAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): void {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const index = allowList.findIndex(extension => extension.id === extensionId);
 		if (index === -1) {
@@ -396,8 +396,28 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			allowList[index].allowed = isAllowed;
 		}
 
-		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
 	}
+
+	//#region Session Preference
+
+	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void {
+		// The 3 parts of this key are important:
+		// * Extension id: The extension that has a preference
+		// * Provider id: The provider that the preference is for
+		// * The scopes: The subset of sessions that the preference applies to
+		this.storageService.store(`${extensionId}-${providerId}-${session.scopes.join(' ')}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined {
+		return this.storageService.get(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION, undefined);
+	}
+
+	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void {
+		this.storageService.remove(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION);
+	}
+
+	//#endregion
 
 	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const providerName = this.getLabel(providerId);
@@ -413,7 +433,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const cancelled = choice === 2;
 		const allowed = choice === 0;
 		if (!cancelled) {
-			this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
+			this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
 			this.removeAccessRequest(providerId, extensionId);
 		}
 
@@ -458,10 +478,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				const session = quickPick.selectedItems[0].session ?? await this.createSession(providerId, scopes);
 				const accountName = session.account.label;
 
-				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
-
+				this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, true);
+				this.updateSessionPreference(providerId, extensionId, session);
 				this.removeAccessRequest(providerId, extensionId);
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -551,9 +570,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
 			// provider is now in the map.
 			await new Promise<void>((resolve, _) => {
-				this.onDidRegisterAuthenticationProvider(e => {
+				const dispose = this.onDidRegisterAuthenticationProvider(e => {
 					if (e.id === providerId) {
 						provider = this._authenticationProviders.get(providerId);
+						dispose.dispose();
 						resolve();
 					}
 				});
@@ -594,14 +614,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			id: commandId,
 			handler: async (accessor) => {
 				const authenticationService = accessor.get(IAuthenticationService);
-				const storageService = accessor.get(IStorageService);
 				const session = await authenticationService.createSession(providerId, scopes);
 
-				// Add extension to allow list since user explicitly signed in on behalf of it
-				this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
-
-				// And also set it as the preferred account for the extension
-				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.updateAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
+				this.updateSessionPreference(providerId, extensionId, session);
 			}
 		});
 
