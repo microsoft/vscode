@@ -177,7 +177,8 @@ async function extractIdentifierInfo() {
 
 const banned = new Set<string>([
 	// 'remoteAuthority',
-	// 'viewModel'
+	// 'viewModel',
+	'folders', // JSON-SCHEMA
 ]);
 
 extractIdentifierInfo().then(async identifierInfo => {
