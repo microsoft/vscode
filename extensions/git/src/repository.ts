@@ -1265,7 +1265,8 @@ export class Repository implements Disposable {
 
 					await this.repository.rebaseContinue();
 					await this.commitOperationCleanup(message, opts);
-				});
+				},
+				() => this.commitOperationGetOptimisticResourceGroups(opts));
 		} else {
 			// Set post-commit command to render the correct action button
 			this.commitCommandCenter.postCommitCommand = opts.postCommitCommand;
@@ -1288,19 +1289,7 @@ export class Repository implements Disposable {
 					await this.repository.commit(message, opts);
 					await this.commitOperationCleanup(message, opts);
 				},
-				(): GitResourceGroups => {
-					let untrackedGroup: Resource[] | undefined = undefined,
-						workingTreeGroup: Resource[] | undefined = undefined;
-
-					if (opts.all === 'tracked') {
-						workingTreeGroup = this.workingTreeGroup.resourceStates
-							.filter(r => r.type === Status.UNTRACKED);
-					} else if (opts.all) {
-						untrackedGroup = workingTreeGroup = [];
-					}
-
-					return { indexGroup: [], untrackedGroup, workingTreeGroup };
-				});
+				() => this.commitOperationGetOptimisticResourceGroups(opts));
 
 			// Execute post-commit command
 			await this.run(Operation.PostCommitCommand, async () => {
@@ -1319,6 +1308,20 @@ export class Repository implements Disposable {
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
 		this.closeDiffEditors(indexResources, workingGroupResources);
+	}
+
+	private commitOperationGetOptimisticResourceGroups(opts: CommitOptions): GitResourceGroups {
+		let untrackedGroup: Resource[] | undefined = undefined,
+			workingTreeGroup: Resource[] | undefined = undefined;
+
+		if (opts.all === 'tracked') {
+			workingTreeGroup = this.workingTreeGroup.resourceStates
+				.filter(r => r.type === Status.UNTRACKED);
+		} else if (opts.all) {
+			untrackedGroup = workingTreeGroup = [];
+		}
+
+		return { indexGroup: [], mergeGroup: [], untrackedGroup, workingTreeGroup };
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
