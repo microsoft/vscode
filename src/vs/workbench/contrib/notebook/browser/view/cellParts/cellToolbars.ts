@@ -84,6 +84,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		};
+		this.updateInternalLayoutNow(element);
 	}
 
 	override updateInternalLayoutNow(element: ICellViewModel) {
@@ -163,7 +164,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		return this._model;
 	}
 
-	private _initialize(model: CellTitleToolbarModel): CellTitleToolbarView {
+	private _initialize(model: CellTitleToolbarModel, element: ICellViewModel): CellTitleToolbarView {
 		if (this._view) {
 			return this._view;
 		}
@@ -180,8 +181,8 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			deleteToolbar.setActions(model.deleteActions.primary, model.deleteActions.secondary);
 		}
 
-		this.setupChangeListeners(toolbar, model.titleMenu);
-		this.setupChangeListeners(deleteToolbar, model.deleteMenu);
+		this.setupChangeListeners(toolbar, model.titleMenu, model.actions);
+		this.setupChangeListeners(deleteToolbar, model.deleteMenu, model.deleteActions);
 
 		this._view = {
 			toolbar,
@@ -197,7 +198,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 
 	override didRenderCell(element: ICellViewModel): void {
 		const model = this._initializeModel();
-		const view = this._initialize(model);
+		const view = this._initialize(model, element);
 		this.cellDisposables.add(registerStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
 
 		this.updateContext(view, <INotebookCellActionContext>{
@@ -213,19 +214,21 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		view.deleteToolbar.context = toolbarContext;
 	}
 
-	private setupChangeListeners(toolbar: ToolBar, menu: IMenu): void {
+	private setupChangeListeners(toolbar: ToolBar, menu: IMenu, initActions: { primary: IAction[]; secondary: IAction[] }): void {
 		// #103926
 		let dropdownIsVisible = false;
 		let deferredUpdate: (() => void) | undefined;
 
-		this.updateActions(toolbar, menu);
+		this.updateActions(toolbar, initActions);
 		this._register(menu.onDidChange(() => {
 			if (dropdownIsVisible) {
-				deferredUpdate = () => this.updateActions(toolbar, menu);
+				const actions = getCellToolbarActions(menu);
+				deferredUpdate = () => this.updateActions(toolbar, actions);
 				return;
 			}
 
-			this.updateActions(toolbar, menu);
+			const actions = getCellToolbarActions(menu);
+			this.updateActions(toolbar, actions);
 		}));
 		this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', false);
 		this._register(toolbar.onDidChangeDropdownVisibility(visible => {
@@ -242,10 +245,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		}));
 	}
 
-	private updateActions(toolbar: ToolBar, menu: IMenu) {
-
-		const actions = getCellToolbarActions(menu);
-
+	private updateActions(toolbar: ToolBar, actions: { primary: IAction[]; secondary: IAction[] }) {
 		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
 		toolbar.setActions(actions.primary, actions.secondary);
 		if (hadFocus) {
