@@ -570,16 +570,16 @@ async function resolveNlsConfiguration() {
 		// code is here.
 
 		// The ternary and ts-ignore can both be removed once Electron
-		// officially adopts the getSystemPreferredLanguages API.
+		// officially adopts the getPreferredSystemLanguages API.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
 		/**
 		 * @type string
 		 */
 		// @ts-ignore API not yet available in the official Electron
-		let appLocale = ((product.quality === 'insider' || product.quality === 'exploration') && app?.getSystemPreferredLanguages()?.length) ?
+		let appLocale = ((product.quality === 'insider' || product.quality === 'exploration') && app?.getPreferredSystemLanguages()?.length) ?
 			// @ts-ignore API not yet available in the official Electron
-			app.getSystemPreferredLanguages()[0] : app.getLocale();
+			app.getPreferredSystemLanguages()[0] : app.getLocale();
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
