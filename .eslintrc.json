@@ -72,6 +72,7 @@
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
+		"local/code-declare-service-brand": "warn",
 		"local/code-layering": [
 			"warn",
 			{
@@ -331,7 +332,7 @@
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
-							"@microsoft/1ds-core-js",// node module allowed even in /common/
+							"@microsoft/1ds-core-js", // node module allowed even in /common/
 							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},

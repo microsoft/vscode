@@ -11,7 +11,7 @@ import { MockRawSession, MockDebugAdapter, createMockDebugModel } from 'vs/workb
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { timeout } from 'vs/base/common/async';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -27,7 +27,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl output', () => {
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, 'first line\n', severity.Error);
 		repl.appendToRepl(session, 'second line ', severity.Error);
@@ -85,7 +85,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl output count', () => {
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, 'first line\n', severity.Info);
 		repl.appendToRepl(session, 'first line\n', severity.Info);
@@ -107,11 +107,11 @@ suite('Debug - REPL', () => {
 
 	test('repl merging', () => {
 		// 'mergeWithParent' should be ignored when there is no parent.
-		const parent = createMockSession(model, 'parent', { repl: 'mergeWithParent' });
-		const child1 = createMockSession(model, 'child1', { parentSession: parent, repl: 'separate' });
-		const child2 = createMockSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' });
-		const grandChild = createMockSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
-		const child3 = createMockSession(model, 'child3', { parentSession: parent });
+		const parent = createTestSession(model, 'parent', { repl: 'mergeWithParent' });
+		const child1 = createTestSession(model, 'child1', { parentSession: parent, repl: 'separate' });
+		const child2 = createTestSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' });
+		const grandChild = createTestSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
+		const child3 = createTestSession(model, 'child3', { parentSession: parent });
 
 		let parentChanges = 0;
 		parent.onDidChangeReplElements(() => ++parentChanges);
@@ -150,7 +150,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl expressions', () => {
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		assert.strictEqual(session.getReplElements().length, 0);
 		model.addSession(session);
 
@@ -172,7 +172,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl ordering', async () => {
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		model.addSession(session);
 
 		const adapter = new MockDebugAdapter();
@@ -194,7 +194,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl groups', async () => {
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		const repl = new ReplModel(configurationService);
 
 		repl.appendToRepl(session, 'first global line', severity.Info);
@@ -232,7 +232,7 @@ suite('Debug - REPL', () => {
 	});
 
 	test('repl filter', async () => {
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 		const repl = new ReplModel(configurationService);
 		const replFilter = new ReplFilter();
 

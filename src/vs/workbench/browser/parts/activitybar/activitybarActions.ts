@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
@@ -38,6 +38,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -131,31 +132,31 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		// Context menus are triggered on mouse down so that an item can be picked
-		// and executed with releasing the mouse over it
-
 		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, async (e: MouseEvent) => {
 			EventHelper.stop(e, true);
 			const isLeftClick = e?.button !== 2;
 			// Left-click run
 			if (isLeftClick) {
 				this.run();
-			} else {
-				const disposables = new DisposableStore();
-				const actions = await this.resolveContextMenuActions(disposables);
-
-				const elementPosition = getDomNodePagePosition(this.container);
-				const anchor = {
-					x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
-					y: elementPosition.top + elementPosition.height
-				};
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => actions,
-					onHide: () => disposables.dispose()
-				});
 			}
+		}));
+
+		// The rest of the activity bar uses context menu event for the context menu, so we match this
+		this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, async (e: MouseEvent) => {
+			const disposables = new DisposableStore();
+			const actions = await this.resolveContextMenuActions(disposables);
+
+			const event = new StandardMouseEvent(e);
+			const anchor = {
+				x: event.posx,
+				y: event.posy
+			};
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				onHide: () => disposables.dispose()
+			});
 		}));
 
 		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {

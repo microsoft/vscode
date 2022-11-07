@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
@@ -37,6 +37,9 @@ export class MergeEditorViewModel extends Disposable {
 		super();
 
 		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
+			if (this.model.isApplyingEditInResult) {
+				return;
+			}
 			transaction(tx => {
 				/** @description Mark conflicts touched by manual edits as handled */
 				for (const change of e.changes) {
@@ -151,10 +154,11 @@ export class MergeEditorViewModel extends Disposable {
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
-		tx: ITransaction
+		tx: ITransaction,
+		inputNumber: InputNumber,
 	): void {
 		this.manuallySetActiveModifiedBaseRange.set({ range: baseRange, counter: this.counter++ }, tx);
-		this.model.setState(baseRange, state, true, tx);
+		this.model.setState(baseRange, state, inputNumber, tx);
 	}
 
 	private goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {
@@ -231,7 +235,8 @@ export class MergeEditorViewModel extends Disposable {
 			this.setState(
 				activeModifiedBaseRange,
 				this.model.getState(activeModifiedBaseRange).get().toggle(inputNumber),
-				tx
+				tx,
+				inputNumber,
 			);
 		});
 	}
@@ -243,7 +248,8 @@ export class MergeEditorViewModel extends Disposable {
 				this.setState(
 					range,
 					this.model.getState(range).get().withInputValue(inputNumber, true),
-					tx
+					tx,
+					inputNumber
 				);
 			}
 		});

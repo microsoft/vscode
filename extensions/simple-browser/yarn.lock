@@ -55,8 +55,3 @@ vscode-codicons@^0.0.14:
   version "0.0.14"
   resolved "https://registry.yarnpkg.com/vscode-codicons/-/vscode-codicons-0.0.14.tgz#e0d05418e2e195564ff6f6a2199d70415911c18f"
   integrity sha512-6CEH5KT9ct5WMw7n5dlX7rB8ya4CUI2FSq1Wk36XaW+c5RglFtAanUV0T+gvZVVFhl/WxfjTvFHq06Hz9c1SLA==
-
-vscode-nls@^5.2.0:
-  version "5.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.2.0.tgz#3cb6893dd9bd695244d8a024bdf746eea665cc3f"
-  integrity sha512-RAaHx7B14ZU04EU31pT+rKz2/zSl7xMsfIZuo8pd+KZO6PXtQmpevpq3vxvWNcrGbdmhM/rr5Uw5Mz+NBfhVng==
