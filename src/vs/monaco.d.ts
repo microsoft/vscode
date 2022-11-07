@@ -3218,6 +3218,11 @@ declare namespace monaco.editor {
 		 */
 		multiCursorPaste?: 'spread' | 'full';
 		/**
+		 * Enable word selection with the mouse and a key modifier. This replaces the click link to gesture feature.
+		 * Defaults to false
+		 */
+		wordSelection?: boolean;
+		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
@@ -4540,22 +4545,23 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 116,
 		useShadowDOM = 117,
 		useTabStops = 118,
-		wordSeparators = 119,
-		wordWrap = 120,
-		wordWrapBreakAfterCharacters = 121,
-		wordWrapBreakBeforeCharacters = 122,
-		wordWrapColumn = 123,
-		wordWrapOverride1 = 124,
-		wordWrapOverride2 = 125,
-		wrappingIndent = 126,
-		wrappingStrategy = 127,
-		showDeprecated = 128,
-		inlayHints = 129,
-		editorClassName = 130,
-		pixelRatio = 131,
-		tabFocusMode = 132,
-		layoutInfo = 133,
-		wrappingInfo = 134
+		wordSelection = 119,
+		wordSeparators = 120,
+		wordWrap = 121,
+		wordWrapBreakAfterCharacters = 122,
+		wordWrapBreakBeforeCharacters = 123,
+		wordWrapColumn = 124,
+		wordWrapOverride1 = 125,
+		wordWrapOverride2 = 126,
+		wrappingIndent = 127,
+		wrappingStrategy = 128,
+		showDeprecated = 129,
+		inlayHints = 130,
+		editorClassName = 131,
+		pixelRatio = 132,
+		tabFocusMode = 133,
+		layoutInfo = 134,
+		wrappingInfo = 135
 	}
 
 	export const EditorOptions: {
@@ -4633,6 +4639,7 @@ declare namespace monaco.editor {
 		multiCursorMergeOverlapping: IEditorOption<EditorOption.multiCursorMergeOverlapping, boolean>;
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
+		wordSelection: IEditorOption<EditorOption.wordSelection, boolean>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;

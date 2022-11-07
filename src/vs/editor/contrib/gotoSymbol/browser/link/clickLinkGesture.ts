@@ -34,7 +34,7 @@ export class ClickLinkMouseEvent {
 		this.isLeftClick = source.event.leftButton;
 		this.isMiddleClick = source.event.middleButton;
 		this.isRightClick = source.event.rightButton;
-		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
+		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier) && !opts.isWordSelectionEnabled;
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
 		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
 	}
@@ -50,9 +50,9 @@ export class ClickLinkKeyboardEvent {
 	public readonly hasTriggerModifier: boolean;
 
 	constructor(source: IKeyboardEvent, opts: ClickLinkOptions) {
-		this.keyCodeIsTriggerKey = (source.keyCode === opts.triggerKey);
+		this.keyCodeIsTriggerKey = (source.keyCode === opts.triggerKey && !opts.isWordSelectionEnabled);
 		this.keyCodeIsSideBySideKey = (source.keyCode === opts.triggerSideBySideKey);
-		this.hasTriggerModifier = hasModifier(source, opts.triggerModifier);
+		this.hasTriggerModifier = hasModifier(source, opts.triggerModifier) && !opts.isWordSelectionEnabled;
 	}
 }
 export type TriggerModifier = 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey';
@@ -63,17 +63,20 @@ export class ClickLinkOptions {
 	public readonly triggerModifier: TriggerModifier;
 	public readonly triggerSideBySideKey: KeyCode;
 	public readonly triggerSideBySideModifier: TriggerModifier;
+	public readonly isWordSelectionEnabled: boolean;
 
 	constructor(
 		triggerKey: KeyCode,
 		triggerModifier: TriggerModifier,
 		triggerSideBySideKey: KeyCode,
-		triggerSideBySideModifier: TriggerModifier
+		triggerSideBySideModifier: TriggerModifier,
+		isWordSelectionEnabled: boolean
 	) {
 		this.triggerKey = triggerKey;
 		this.triggerModifier = triggerModifier;
 		this.triggerSideBySideKey = triggerSideBySideKey;
 		this.triggerSideBySideModifier = triggerSideBySideModifier;
+		this.isWordSelectionEnabled = isWordSelectionEnabled;
 	}
 
 	public equals(other: ClickLinkOptions): boolean {
@@ -82,22 +85,23 @@ export class ClickLinkOptions {
 			&& this.triggerModifier === other.triggerModifier
 			&& this.triggerSideBySideKey === other.triggerSideBySideKey
 			&& this.triggerSideBySideModifier === other.triggerSideBySideModifier
+			&& this.isWordSelectionEnabled === other.isWordSelectionEnabled
 		);
 	}
 }
 
-function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey'): ClickLinkOptions {
+function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey', isWordSelectionEnabled: boolean): ClickLinkOptions {
 	if (multiCursorModifier === 'altKey') {
 		if (platform.isMacintosh) {
-			return new ClickLinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Alt, 'altKey');
+			return new ClickLinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Alt, 'altKey', isWordSelectionEnabled);
 		}
-		return new ClickLinkOptions(KeyCode.Ctrl, 'ctrlKey', KeyCode.Alt, 'altKey');
+		return new ClickLinkOptions(KeyCode.Ctrl, 'ctrlKey', KeyCode.Alt, 'altKey', isWordSelectionEnabled);
 	}
 
 	if (platform.isMacintosh) {
-		return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Meta, 'metaKey');
+		return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Meta, 'metaKey', isWordSelectionEnabled);
 	}
-	return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Ctrl, 'ctrlKey');
+	return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Ctrl, 'ctrlKey', isWordSelectionEnabled);
 }
 
 export class ClickLinkGesture extends Disposable {
@@ -124,15 +128,19 @@ export class ClickLinkGesture extends Disposable {
 
 		this._editor = editor;
 		this._alwaysFireExecuteOnMouseUp = alwaysFireOnMouseUp;
-		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
+		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier), this._editor.getOption(EditorOption.wordSelection));
 
 		this._lastMouseMoveEvent = null;
 		this._hasTriggerKeyOnMouseDown = false;
 		this._lineNumberOnMouseDown = 0;
 
+		if (this._editor.getOption(EditorOption.wordSelection)) {
+			return;
+		}
+
 		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.multiCursorModifier)) {
-				const newOpts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
+			if (e.hasChanged(EditorOption.multiCursorModifier) || e.hasChanged(EditorOption.wordSelection)) {
+				const newOpts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier), this._editor.getOption(EditorOption.wordSelection));
 				if (this._opts.equals(newOpts)) {
 					return;
 				}
