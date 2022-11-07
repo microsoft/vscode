@@ -89,7 +89,14 @@ const $ = DOM.$;
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
 	// We inlined the id to avoid loading comment contrib in tests
-	const skipContributions = ['editor.contrib.review', FloatingClickMenu.ID];
+	const skipContributions = [
+		'editor.contrib.review',
+		FloatingClickMenu.ID,
+		'editor.contrib.dirtydiff',
+		'editor.contrib.testingOutputPeek',
+		'editor.contrib.testingDecorations',
+		'store.contrib.stickyScrollController'
+	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {
