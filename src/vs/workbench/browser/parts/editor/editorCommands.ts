@@ -37,6 +37,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -53,6 +55,7 @@ export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
 export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.toggleEditorGroupLock';
+export const OPEN_FILE_IN_EDITOR = 'workbench.action.openFileInEditor';
 export const LOCK_GROUP_COMMAND_ID = 'workbench.action.lockEditorGroup';
 export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.unlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
@@ -1335,6 +1338,27 @@ function registerOtherEditorCommands(): void {
 			if (group && editor) {
 				return group.stickEditor(editor);
 			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OPEN_FILE_IN_EDITOR,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: EditorContextKeys.inDiffEditor,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
+		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			let resource: URI | undefined;
+			const editorService = accessor.get(IEditorService);
+			const originalEditor = (editorService.activeTextEditorControl as IDiffEditor).getOriginalEditor();
+			if (originalEditor.hasTextFocus()) {
+				resource = (editorService.activeEditor as DiffEditorInput).original.resource;
+			} else {
+				// Default back to modified editor
+				resource = (editorService.activeEditor as DiffEditorInput).modified.resource;
+			}
+			editorService.openEditor({
+				resource,
+			});
 		}
 	});
 
