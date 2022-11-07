@@ -105,19 +105,17 @@
 	color: var(--vscode-panelTitle-inactiveForeground);
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-	border-bottom: 1px solid;
-	border-bottom-color: var(--vscode-focusBorder) !important;
-	outline: none;
-}
-
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
 	color: var(--vscode-panelTitle-activeForeground);
-	border-bottom-color: var(--vscode-panelTitle-activeBorder);
-	outline: 1px solid var(--vscode-contrastActiveBorder);
-	border-bottom: none;
-	padding-bottom: 0;
+	border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+	outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid var(--vscode-focusBorder);
+	outline: 1px solid transparent;
 	outline-offset: -1px;
 }
 
