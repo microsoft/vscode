@@ -184,10 +184,10 @@ extractIdentifierInfo().then(async identifierInfo => {
 
 	// REWRITE
 	const replacementMap = new Map<string, string>();
-	const pool = new ShortIdent();
+	const pool = new ShortIdent([dtsDeclaredPropertyNames]);
 	for (let i = 0; i < 9; i++) {
 		const { text } = identifierInfo[i];
-		const shortText = pool.next();
+		const shortText = pool.next(text);
 		replacementMap.set(text, shortText);
 	}
 
@@ -271,12 +271,19 @@ class ShortIdent {
 
 	private _value = 0;
 
-	next(): string {
+	private readonly _ignores: Set<string>;
+
+	constructor(ignores: Set<string>[]) {
+		this._ignores = new Set(...[...ignores, ShortIdent._keywords].flat());
+	}
+
+	next(value: string): string {
+		this._ignores.add(value); // ignore all original names
 		const candidate = ShortIdent.convert(this._value);
 		this._value++;
-		if (ShortIdent._keywords.has(candidate)) {
+		if (this._ignores.has(candidate)) {
 			// try again
-			return this.next();
+			return this.next(value);
 		}
 		return candidate;
 	}
