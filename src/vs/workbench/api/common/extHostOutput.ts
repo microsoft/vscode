@@ -51,10 +51,6 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 
 	append(value: string): void {
 		this.info(value);
-		if (this.visible) {
-			this.logger.flush();
-			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
-		}
 	}
 
 	clear(): void {
@@ -84,6 +80,10 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 	protected log(level: LogLevel, message: string): void {
 		this.offset += VSBuffer.fromString(message).byteLength;
 		log(this.logger, level, message);
+		if (this.visible) {
+			this.logger.flush();
+			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
+		}
 	}
 
 	override dispose(): void {
