@@ -16,12 +16,13 @@ import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupSe
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
+import { TerminalQuickFixProvider } from 'vscode-dts/vscode.proposed.terminalQuickFixProvider';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -36,6 +37,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -50,6 +52,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
@@ -241,6 +244,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $unregisterProfileProvider(id: string): void {
 		this._profileProviders.get(id)?.dispose();
 		this._profileProviders.delete(id);
+	}
+
+	public $registerQuickFixProvider(extensionIdentifier: string, provider: TerminalQuickFixProvider): void {
+		this._quickFixProviders.set(extensionIdentifier, this._terminalQuickFixService.registerQuickFixProvider(extensionIdentifier, provider));
+	}
+
+	public $unregisterQuickFixProvider(extensionIdentifier: string): void {
+		this._quickFixProviders.get(extensionIdentifier)?.dispose();
+		this._quickFixProviders.delete(extensionIdentifier);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {

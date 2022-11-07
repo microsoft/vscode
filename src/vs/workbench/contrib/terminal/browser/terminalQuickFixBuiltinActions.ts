@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { ITerminalQuickFixContribution } from 'vs/platform/terminal/common/terminal';
 import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixAction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
@@ -54,7 +54,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 
 export function gitTwoDashes(): ITerminalQuickFixOptions {
 	return {
-		source: 'builtin',
+		source: 'git',
 		id: 'Git Two Dashes',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
@@ -110,7 +110,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 	};
 }
 
-export function gitPushSetUpstream(): IExtensionTerminalQuickFix {
+export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 	return {
 		id: 'Git Push Set Upstream',
 		commandLineMatcher: GitPushCommandLineRegex,
@@ -120,13 +120,42 @@ export function gitPushSetUpstream(): IExtensionTerminalQuickFix {
 			offset: 0,
 			length: 5
 		},
+		source: 'git',
 		exitStatus: false,
-		commandToRun: 'git push --set-upstream origin ${group:branchName}',
-		extensionIdentifier: 'git'
-	};
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult) => {
+			const matches = matchResult.outputMatch;
+			const commandToRun = 'git push --set-upstream origin ${group:branchName}';
+			if (!matches) {
+				return;
+			}
+			const groups = matches.groups;
+			if (!groups) {
+				return;
+			}
+			const actions: TerminalQuickFixAction[] = [];
+			let fixedCommand = commandToRun;
+			for (const [key, value] of Object.entries(groups)) {
+				const varToResolve = '${group:' + `${key}` + '}';
+				if (!commandToRun.includes(varToResolve)) {
+					return [];
+				}
+				fixedCommand = fixedCommand.replaceAll(varToResolve, value);
+			}
+			if (fixedCommand) {
+				actions.push({
+					type: 'command',
+					id: 'Git Push Set Upstream',
+					command: fixedCommand,
+					addNewLine: true
+				});
+				return actions;
+			}
+			return;
+		}
+	}
 }
 
-export function gitCreatePr(): IExtensionTerminalQuickFix {
+export function gitCreatePr(): ITerminalQuickFixContribution {
 	return {
 		id: 'Git Create Pr',
 		commandLineMatcher: GitPushCommandLineRegex,
@@ -137,7 +166,6 @@ export function gitCreatePr(): IExtensionTerminalQuickFix {
 			length: 5
 		},
 		exitStatus: true,
-		linkToOpen: '${group:link}',
-		extensionIdentifier: 'git'
+		linkToOpen: '${group:link}'
 	};
 }

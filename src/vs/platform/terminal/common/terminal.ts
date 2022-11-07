@@ -11,6 +11,7 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -820,7 +821,7 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 	extensionIdentifier: string;
 }
 
-export interface IExtensionTerminalQuickFix extends ITerminalQuickFixContribution {
+export interface IExtensionTerminalQuickFix extends ITerminalQuickFixOptions {
 	extensionIdentifier: string;
 }
 

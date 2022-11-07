@@ -16,6 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -84,6 +85,14 @@ export interface ITerminalProfileService {
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+}
+
+
+export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
+export interface ITerminalQuickFixService {
+	readonly _serviceBrand: undefined;
+	quickFixes(): ITerminalQuickFixOptions[];
+	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(): ITerminalQuickFixOptions[]; }): IDisposable;
 }
 
 export interface ITerminalProfileProvider {
