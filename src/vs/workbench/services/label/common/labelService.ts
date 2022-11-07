@@ -11,7 +11,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace, Verbosity } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
@@ -287,7 +287,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return pathLib.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (identifier) {
@@ -306,7 +306,6 @@ export class LabelService extends Disposable implements ILabelService {
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
 		}
-
 		// Workspace: Multi Root
 		if (isWorkspaceIdentifier(workspace)) {
 			return this.doGetWorkspaceLabel(workspace.configPath, options);
@@ -315,7 +314,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: Verbosity }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
@@ -334,16 +333,22 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label: string;
-		if (options?.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
-		} else {
-			label = localize('workspaceName', "{0} (Workspace)", filename);
+		switch (options?.verbose) {
+			case Verbosity.SHORT:
+				label = localize('workspaceNameShort', "{0}", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+			case Verbosity.LONG:
+				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				label = localize('workspaceName', "{0} (Workspace)", filename);
+				break;
 		}
 
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: Verbosity }): string {
 		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || posix.sep;
 
 		return this.appendWorkspaceSuffix(label, folderUri);

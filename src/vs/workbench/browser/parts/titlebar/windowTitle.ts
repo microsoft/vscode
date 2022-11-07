@@ -226,6 +226,7 @@ export class WindowTitle extends Disposable {
 		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
 		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
+		const rootNameShort = this.labelService.getWorkspaceLabel(workspace, { verbose: 0 });
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
@@ -243,6 +244,7 @@ export class WindowTitle extends Disposable {
 			activeFolderLong,
 			rootName,
 			rootPath,
+			rootNameShort,
 			folderName,
 			folderPath,
 			dirty,

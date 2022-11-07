@@ -31,7 +31,7 @@ import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DomEmitter } from 'vs/base/browser/event';
 import { isUndefined } from 'vs/base/common/types';
-import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isTemporaryWorkspace, IWorkspaceContextService, Verbosity } from 'vs/platform/workspace/common/workspace';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -399,11 +399,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);

@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, Verbosity } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -127,7 +127,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					// Make sure to add the new workspace to the history to find it again
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
 					await this.workspacesService.addRecentlyOpened([{
-						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
+						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
 						workspace: newWorkspaceIdentifier,
 						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
 					}]);

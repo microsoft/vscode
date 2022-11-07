@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { Verbosity } from 'vs/platform/workspace/common/workspace';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -91,11 +92,11 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: true });
+			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);

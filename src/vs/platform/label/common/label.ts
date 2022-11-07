@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspace, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, Verbosity } from 'vs/platform/workspace/common/workspace';
 
 export const ILabelService = createDecorator<ILabelService>('labelService');
 
@@ -23,7 +23,7 @@ export interface ILabelService {
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
 	getUriBasenameLabel(resource: URI): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: Verbosity }): string;
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';

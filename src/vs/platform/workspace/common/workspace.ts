@@ -76,6 +76,12 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 }
 
+export const enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
 export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
 	readonly folders: IWorkspaceFolder[];
 }

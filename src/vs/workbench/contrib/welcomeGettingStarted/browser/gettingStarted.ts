@@ -26,7 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Verbosity } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
@@ -848,9 +848,9 @@ export class GettingStartedPage extends EditorPane {
 			let windowOpenable: IWindowOpenable;
 			if (isRecentFolder(recent)) {
 				windowOpenable = { folderUri: recent.folderUri };
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
 			} else {
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 

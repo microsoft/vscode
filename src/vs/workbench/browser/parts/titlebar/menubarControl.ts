@@ -42,6 +42,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Verbosity } from 'vs/platform/workspace/common/workspace';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -318,12 +319,12 @@ export abstract class MenubarControl extends Disposable {
 
 		if (isRecentFolder(recent)) {
 			uri = recent.folderUri;
-			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
+			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: Verbosity.LONG });
 			commandId = 'openRecentFolder';
 			openable = { folderUri: uri };
 		} else if (isRecentWorkspace(recent)) {
 			uri = recent.workspace.configPath;
-			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 			commandId = 'openRecentWorkspace';
 			openable = { workspaceUri: uri };
 		} else {
