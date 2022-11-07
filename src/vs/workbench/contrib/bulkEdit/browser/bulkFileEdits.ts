@@ -238,7 +238,7 @@ class DeleteOperation implements IFileOperation {
 				fileStat = await this._fileService.resolve(edit.oldUri, { resolveMetadata: true });
 			} catch (err) {
 				if (!edit.options.ignoreIfNotExists) {
-					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
+					throw new Error(`${edit.oldUri} does not exist and cannot be deleted`);
 				}
 				continue;
 			}

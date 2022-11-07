@@ -935,7 +935,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 				token,
 				waitUntil: (p: Promise<unknown>): void => {
 					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
+						throw new Error('waitUntil cannot be called asynchronously');
 					}
 					if (promiseJoin) {
 						p = promiseJoin(p, listener.callback);

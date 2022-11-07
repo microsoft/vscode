@@ -154,7 +154,7 @@ export class DebugTaskRunner {
 			return Promise.resolve(null);
 		}
 		if (!root) {
-			return Promise.reject(new Error(nls.localize('invalidTaskReference', "Task '{0}' can not be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
+			return Promise.reject(new Error(nls.localize('invalidTaskReference', "Task '{0}' cannot be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
 		}
 		// run a task before starting a debug session
 		const task = await this.taskService.getTask(root, taskId);

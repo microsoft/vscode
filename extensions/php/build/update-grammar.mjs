@@ -15,7 +15,7 @@ function adaptInjectionScope(grammar) {
 	const injections = grammar.injections;
 	const injection = injections[oldInjectionKey];
 	if (!injection) {
-		throw new Error("Can not find PHP injection to patch");
+		throw new Error("Cannot find PHP injection to patch");
 	}
 	delete injections[oldInjectionKey];
 	injections[newInjectionKey] = injection;

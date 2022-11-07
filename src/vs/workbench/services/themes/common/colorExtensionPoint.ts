@@ -32,7 +32,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 					type: 'string',
 					description: nls.localize('contributes.color.id', 'The identifier of the themable color'),
 					pattern: colorIdPattern,
-					patternErrorMessage: nls.localize('contributes.color.id.format', 'Identifiers must only contain letters, digits and dots and can not start with a dot'),
+					patternErrorMessage: nls.localize('contributes.color.id.format', 'Identifiers must only contain letters, digits and dots and cannot start with a dot'),
 				},
 				description: {
 					type: 'string',
@@ -107,15 +107,15 @@ export class ColorExtensionPoint {
 
 				for (const colorContribution of extensionValue) {
 					if (typeof colorContribution.id !== 'string' || colorContribution.id.length === 0) {
-						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined and can not be empty"));
+						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined and cannot be empty"));
 						return;
 					}
 					if (!colorContribution.id.match(colorIdPattern)) {
-						collector.error(nls.localize('invalid.id.format', "'configuration.colors.id' must only contain letters, digits and dots and can not start with a dot"));
+						collector.error(nls.localize('invalid.id.format', "'configuration.colors.id' must only contain letters, digits and dots and cannot start with a dot"));
 						return;
 					}
 					if (typeof colorContribution.description !== 'string' || colorContribution.id.length === 0) {
-						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and can not be empty"));
+						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and cannot be empty"));
 						return;
 					}
 					const defaults = colorContribution.defaults;

@@ -98,7 +98,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			delta.added.forEach(added => {
 				added.value.forEach(rawAdapter => {
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
-						added.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
+						added.collector.error(nls.localize('debugNoType', "Debugger 'type' cannot be omitted and must be of type 'string'."));
 					}
 
 					if (rawAdapter.type !== '*') {

@@ -35,7 +35,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 	if (!parent) {
 		// empty document
 		if (value === undefined) { // delete
-			throw new Error('Can not delete in empty document');
+			throw new Error('Cannot delete in empty document');
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {
@@ -115,7 +115,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 			return withFormatting(text, edit, formattingOptions);
 		}
 	} else {
-		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
+		throw new Error(`Cannot add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
 	}
 }
 

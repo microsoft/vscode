@@ -397,7 +397,7 @@ export class DebugService implements IDebugService {
 						if (launchesMatchingConfigData.length === 1) {
 							launchForName = launchesMatchingConfigData[0];
 						} else {
-							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound!.name));
+							throw new Error(nls.localize('noFolderWithName', "Cannot find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound!.name));
 						}
 					}
 
@@ -538,7 +538,7 @@ export class DebugService implements IDebugService {
 				if (err && err.message) {
 					await this.showError(err.message);
 				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
+					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file cannot be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
 				}
 				if (launch && !initCancellationToken.token.isCancellationRequested) {
 					await launch.openConfigFile({ preserveFocus: true }, initCancellationToken.token);

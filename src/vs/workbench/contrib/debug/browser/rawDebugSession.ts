@@ -261,7 +261,7 @@ export class RawDebugSession implements IDisposable {
 	 */
 	async start(): Promise<void> {
 		if (!this.debugAdapter) {
-			return Promise.reject(new Error(nls.localize('noDebugAdapterStart', "No debug adapter, can not start debug session.")));
+			return Promise.reject(new Error(nls.localize('noDebugAdapterStart', "No debug adapter, cannot start debug session.")));
 		}
 
 		await this.debugAdapter.startSession();
@@ -725,7 +725,7 @@ export class RawDebugSession implements IDisposable {
 					// We are in shutdown silently complete
 					completeDispatch(undefined);
 				} else {
-					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debugger available found. Can not send '{0}'.", command)));
+					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debugger available found. Cannot send '{0}'.", command)));
 				}
 				return;
 			}

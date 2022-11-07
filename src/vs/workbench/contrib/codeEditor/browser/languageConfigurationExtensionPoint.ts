@@ -587,7 +587,7 @@ const schema: IJSONSchema = {
 		},
 		autoCloseBefore: {
 			default: ';:.,=}])> \n\t',
-			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which can not start an expression.'),
+			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which cannot start an expression.'),
 			type: 'string',
 		},
 		surroundingPairs: {

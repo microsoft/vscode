@@ -1387,7 +1387,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	async setLanguage(extension: IExtension): Promise<void> {
 		if (!this.canSetLanguage(extension)) {
-			throw new Error('Can not set language');
+			throw new Error('Cannot set language');
 		}
 		const locale = this.languagePackService.getLocale(extension.gallery!);
 		if (locale === language) {

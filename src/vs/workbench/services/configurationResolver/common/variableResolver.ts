@@ -196,7 +196,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			if (filePath) {
 				return filePath;
 			}
-			throw new VariableError(variableKind, (localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", match)));
+			throw new VariableError(variableKind, (localize('canNotResolveFile', "Variable {0} cannot be resolved. Please open an editor.", match)));
 		};
 
 		// common error handling for all variables that require an open editor
@@ -209,7 +209,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					return folderPath;
 				}
 			}
-			throw new VariableError(variableKind, localize('canNotResolveFolderForFile', "Variable {0}: can not find workspace folder of '{1}'.", match, paths.basename(filePath)));
+			throw new VariableError(variableKind, localize('canNotResolveFolderForFile', "Variable {0}: cannot find workspace folder of '{1}'.", match, paths.basename(filePath)));
 		};
 
 		// common error handling for all variables that require an open folder and accept a folder name argument
@@ -220,7 +220,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				if (folder) {
 					return folder;
 				}
-				throw new VariableError(variableKind, localize('canNotFindFolder', "Variable {0} can not be resolved. No such folder '{1}'.", match, argument));
+				throw new VariableError(variableKind, localize('canNotFindFolder', "Variable {0} cannot be resolved. No such folder '{1}'.", match, argument));
 			}
 
 			if (folderUri) {
@@ -228,9 +228,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			}
 
 			if (this._context.getWorkspaceFolderCount() > 1) {
-				throw new VariableError(variableKind, localize('canNotResolveWorkspaceFolderMultiRoot', "Variable {0} can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
+				throw new VariableError(variableKind, localize('canNotResolveWorkspaceFolderMultiRoot', "Variable {0} cannot be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
 			}
-			throw new VariableError(variableKind, localize('canNotResolveWorkspaceFolder', "Variable {0} can not be resolved. Please open a folder.", match));
+			throw new VariableError(variableKind, localize('canNotResolveWorkspaceFolder', "Variable {0} cannot be resolved. Please open a folder.", match));
 		};
 
 
@@ -248,20 +248,20 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					// For `env` we should do the same as a normal shell does - evaluates undefined envs to an empty string #46436
 					return '';
 				}
-				throw new VariableError(VariableKind.Env, localize('missingEnvVarName', "Variable {0} can not be resolved because no environment variable name is given.", match));
+				throw new VariableError(VariableKind.Env, localize('missingEnvVarName', "Variable {0} cannot be resolved because no environment variable name is given.", match));
 
 			case 'config':
 				if (argument) {
 					const config = this._context.getConfigurationValue(folderUri, argument);
 					if (types.isUndefinedOrNull(config)) {
-						throw new VariableError(VariableKind.Config, localize('configNotFound', "Variable {0} can not be resolved because setting '{1}' not found.", match, argument));
+						throw new VariableError(VariableKind.Config, localize('configNotFound', "Variable {0} cannot be resolved because setting '{1}' not found.", match, argument));
 					}
 					if (types.isObject(config)) {
-						throw new VariableError(VariableKind.Config, localize('configNoString', "Variable {0} can not be resolved because '{1}' is a structured value.", match, argument));
+						throw new VariableError(VariableKind.Config, localize('configNoString', "Variable {0} cannot be resolved because '{1}' is a structured value.", match, argument));
 					}
 					return config;
 				}
-				throw new VariableError(VariableKind.Config, localize('missingConfigName', "Variable {0} can not be resolved because no settings name is given.", match));
+				throw new VariableError(VariableKind.Config, localize('missingConfigName', "Variable {0} cannot be resolved because no settings name is given.", match));
 
 			case 'command':
 				return this.resolveFromMap(VariableKind.Command, match, argument, commandValueMapping, 'command');
@@ -273,11 +273,11 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				if (argument) {
 					const ext = await this._context.getExtension(argument);
 					if (!ext) {
-						throw new VariableError(VariableKind.ExtensionInstallFolder, localize('extensionNotInstalled', "Variable {0} can not be resolved because the extension {1} is not installed.", match, argument));
+						throw new VariableError(VariableKind.ExtensionInstallFolder, localize('extensionNotInstalled', "Variable {0} cannot be resolved because the extension {1} is not installed.", match, argument));
 					}
 					return this.fsPath(ext.extensionLocation);
 				}
-				throw new VariableError(VariableKind.ExtensionInstallFolder, localize('missingExtensionName', "Variable {0} can not be resolved because no extension name is given.", match));
+				throw new VariableError(VariableKind.ExtensionInstallFolder, localize('missingExtensionName', "Variable {0} cannot be resolved because no extension name is given.", match));
 
 			default: {
 
@@ -297,7 +297,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						if (environment.userHome) {
 							return environment.userHome;
 						}
-						throw new VariableError(VariableKind.UserHome, localize('canNotResolveUserHome', "Variable {0} can not be resolved. UserHome path is not defined", match));
+						throw new VariableError(VariableKind.UserHome, localize('canNotResolveUserHome', "Variable {0} cannot be resolved. UserHome path is not defined", match));
 					}
 
 					case 'lineNumber': {
@@ -305,14 +305,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						if (lineNumber) {
 							return lineNumber;
 						}
-						throw new VariableError(VariableKind.LineNumber, localize('canNotResolveLineNumber', "Variable {0} can not be resolved. Make sure to have a line selected in the active editor.", match));
+						throw new VariableError(VariableKind.LineNumber, localize('canNotResolveLineNumber', "Variable {0} cannot be resolved. Make sure to have a line selected in the active editor.", match));
 					}
 					case 'selectedText': {
 						const selectedText = this._context.getSelectedText();
 						if (selectedText) {
 							return selectedText;
 						}
-						throw new VariableError(VariableKind.SelectedText, localize('canNotResolveSelectedText', "Variable {0} can not be resolved. Make sure to have some text selected in the active editor.", match));
+						throw new VariableError(VariableKind.SelectedText, localize('canNotResolveSelectedText', "Variable {0} cannot be resolved. Make sure to have some text selected in the active editor.", match));
 					}
 					case 'file':
 						return getFilePath(VariableKind.File);
@@ -385,7 +385,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			if (typeof v === 'string') {
 				return v;
 			}
-			throw new VariableError(variableKind, localize('noValueForCommand', "Variable {0} can not be resolved because the command has no value.", match));
+			throw new VariableError(variableKind, localize('noValueForCommand', "Variable {0} cannot be resolved because the command has no value.", match));
 		}
 		return match;
 	}

@@ -792,10 +792,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				type: 'info',
 				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
 				defaultId: 0,
-				message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
+				message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI cannot be opened"),
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
-					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true)),
+					localize('uriInvalidDetail', "The URI '{0}' is not valid and cannot be opened.", uri.toString(true)),
 				noLink: true
 			};
 

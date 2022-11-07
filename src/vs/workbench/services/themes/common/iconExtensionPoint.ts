@@ -90,7 +90,7 @@ export class IconExtensionPoint {
 					}
 					const iconContribution = extensionValue[id];
 					if (typeof iconContribution.description !== 'string' || iconContribution.description.length === 0) {
-						collector.error(nls.localize('invalid.icons.description', "'configuration.icons.description' must be defined and can not be empty"));
+						collector.error(nls.localize('invalid.icons.description', "'configuration.icons.description' must be defined and cannot be empty"));
 						return;
 					}
 					const defaultIcon = iconContribution.default;
