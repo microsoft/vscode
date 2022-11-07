@@ -468,14 +468,12 @@ export class CodeCell extends Disposable {
 		const viewLayout = this.templateData.editor.getLayoutInfo();
 		this.viewCell.editorHeight = newHeight;
 		this.relayoutCell();
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this.layoutEditor(
-				{
-					width: viewLayout.width,
-					height: newHeight
-				}
-			);
-		});
+		this.layoutEditor(
+			{
+				width: viewLayout.width,
+				height: newHeight
+			}
+		);
 	}
 
 	relayoutCell() {
