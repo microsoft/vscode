@@ -193,7 +193,10 @@ export class LinkDetector {
 	private decorateLink(link: HTMLElement, uri: URI, onClick: (preserveFocus: boolean) => void) {
 		link.classList.add('link');
 		const followLink = this.tunnelService.canTunnel(uri) ? localize('followForwardedLink', "follow link using forwarded port") : localize('followLink', "follow link");
-		link.title = platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to {0}", followLink) : localize('fileLink', "Ctrl + click to {0}", followLink);
+		const filePath = (!uri.scheme || uri.scheme === Schemas.file) ? uri.fsPath : undefined;
+		link.title = filePath
+			? (platform.isMacintosh ? localize('fileLinkWithPathMac', "Cmd + click to {0}\n({1})", followLink, filePath) : localize('fileLinkWithPath', "Ctrl + click to {0}\n({1})", followLink, filePath))
+			: (platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to {0}", followLink) : localize('fileLink', "Ctrl + click to {0}", followLink));
 		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
