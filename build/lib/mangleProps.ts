@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import { promisify } from 'util';
 
 
-const projectPath = '/Users/jrieken/Code/vscode/src/tsconfig.json';
+const projectPath = join(__dirname, '../../src/tsconfig.json');
 const existingOptions: Partial<ts.CompilerOptions> = {};
 
 const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
@@ -29,6 +29,7 @@ if (cmdLine.errors.length > 0) {
 }
 
 const queryAnyDefinition = `
+(function_signature (identifier) @ident)
 (method_signature (property_identifier) @ident)
 (method_definition (property_identifier) @ident)
 (public_field_definition (property_identifier) @ident)
@@ -49,6 +50,12 @@ const queryClassPropertiesUsages = `
 (object (pair (property_identifier) @usage))
 (object_pattern (shorthand_property_identifier_pattern) @usage-shortHand)
 (object (shorthand_property_identifier) @usage-shortHand)
+
+;; SPECIAL: __decorate-thing
+(call_expression
+	((identifier) @call)(#eq? @call "__decorate")
+	(arguments (string (string_fragment) @usage-string))
+)
 `;
 
 
@@ -136,6 +143,8 @@ async function extractDefinitionsAndUsages(fileName: string, occurrences: Map<st
 	}
 }
 
+const definitionNames = new Set<string>();
+
 async function extractIdentifierInfo() {
 
 	const cwd = cmdLine.options.outDir || dirname(projectPath);
@@ -144,7 +153,6 @@ async function extractIdentifierInfo() {
 
 	// collection all definitions/occurrences
 	const occurrencesByName = new Map<string, Occurrence[]>;
-	const definitionNames = new Set<string>();
 	for (const file of files) {
 		const fileName = join(cwd, file);
 		await extractDefinitionsAndUsages(fileName, occurrencesByName, definitionNames);
@@ -167,7 +175,10 @@ async function extractIdentifierInfo() {
 	return result.sort((a, b) => b.weight - a.weight);
 }
 
-const banned = new Set<string>(['remoteAuthority']);
+const banned = new Set<string>([
+	// 'remoteAuthority',
+	// 'viewModel'
+]);
 
 extractIdentifierInfo().then(async identifierInfo => {
 
@@ -176,22 +187,36 @@ extractIdentifierInfo().then(async identifierInfo => {
 	function toString(info: IdenitiferInfo) {
 		return `(${info.ignoredDts || info.ignoredUndefined ? 'skipping' : 'OK'}) '${info.text}': ${info.occurrences.length} (${info.weight} bytes)`;
 	}
-	console.log(identifierInfo.slice(0, 50).map(toString).join('\n'));
-
-	// REMOVE ignored items
-	identifierInfo = identifierInfo.filter(info => !info.ignoredDts && !info.ignoredUndefined && !banned.has(info.text));
-	console.log(identifierInfo.slice(0, 50).map(toString).join('\n'));
 
 	// REWRITE
 	const replacementMap = new Map<string, string>();
-	const pool = new ShortIdent([dtsDeclaredPropertyNames]);
-	for (let i = 0; i < 9; i++) {
-		const { text } = identifierInfo[i];
-		const shortText = pool.next(text);
-		replacementMap.set(text, shortText);
+	const pool = new ShortIdent([dtsDeclaredPropertyNames, definitionNames]);
+
+	let savings = 0;
+	for (const info of identifierInfo) {
+
+		console.log('\t' + toString(info));
+
+		if (info.ignoredDts || info.ignoredUndefined) {
+			continue;
+		}
+
+		if (banned.has(info.text)) {
+			console.log('BANNED - cannot handle yet');
+			continue;
+		}
+
+		const shortText = pool.next();
+		replacementMap.set(info.text, shortText);
+		savings += info.weight;
+
+		if (replacementMap.size >= 50) {
+			break;
+		}
 	}
 
 	console.log('REPLACEMENT map', Array.from(replacementMap).map(tuple => `${tuple[0]} -> ${tuple[1]}`));
+	console.log(`will SAVE ${savings} bytes`);
 
 	const occurrencesByFileName = new Map<string, Occurrence[]>();
 	for (const info of identifierInfo) {
@@ -214,7 +239,7 @@ extractIdentifierInfo().then(async identifierInfo => {
 async function performReplacements(fileName: string, replacementMap: Map<string, string>, occurrences: Occurrence[]) {
 	const contents = await readFileWithBak(fileName);
 
-	const text = Array.from(contents.toString('utf8'));
+	const text = contents.toString('utf8').split('');
 
 	// sort last first
 	// replace from back (no index math)
@@ -226,8 +251,10 @@ async function performReplacements(fileName: string, replacementMap: Map<string,
 			if (item.kind === 'shortHand') {
 				shortText = `${shortText}: ${item.text}`;
 			}
-			text.splice(item.start, item.end - item.start, shortText + `/*${item.text}*/`);
-			// text.splice(item.end, 0, `/*${shortText}*/`);
+			if (item.kind !== 'string') {
+				shortText += `/*${item.text}*/`;
+			}
+			text.splice(item.start, item.end - item.start, shortText);
 		}
 	}
 
@@ -277,13 +304,12 @@ class ShortIdent {
 		this._ignores = new Set(...[...ignores, ShortIdent._keywords].flat());
 	}
 
-	next(value: string): string {
-		this._ignores.add(value); // ignore all original names
+	next(): string {
 		const candidate = ShortIdent.convert(this._value);
 		this._value++;
 		if (this._ignores.has(candidate)) {
 			// try again
-			return this.next(value);
+			return this.next();
 		}
 		return candidate;
 	}
