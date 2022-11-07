@@ -211,7 +211,7 @@ extractIdentifierInfo().then(async identifierInfo => {
 		replacementMap.set(info.text, shortText);
 		savings += info.weight;
 
-		if (replacementMap.size >= 50) {
+		if (replacementMap.size >= 500) {
 			break;
 		}
 	}
@@ -326,3 +326,9 @@ class ShortIdent {
 		return result;
 	}
 }
+
+
+// TODO
+// P0: check type of occurrence for being ANY -> ignore iff so (hard casts like foo = <Foo>JSON.parse(raw))
+// P0: declare JSON schema types
+// P1: constructor/type names (source_map)
