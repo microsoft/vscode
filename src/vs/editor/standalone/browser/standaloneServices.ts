@@ -834,6 +834,10 @@ class StandaloneBulkEditService implements IBulkEditService {
 			isApplied: totalEdits > 0
 		};
 	}
+
+	whileSuppressingAutosave(task: () => Promise<void>): Promise<void> {
+		return task();
+	}
 }
 
 class StandaloneUriLabelService implements ILabelService {

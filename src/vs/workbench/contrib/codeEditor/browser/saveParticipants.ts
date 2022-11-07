@@ -31,6 +31,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -270,6 +271,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 	) { }
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
@@ -356,19 +358,21 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			}
 		};
 
-		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
-			try {
-				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave);
+		return this.bulkEditService.whileSuppressingAutosave(async () => {
+			for (const codeActionKind of codeActionsOnSave) {
+				const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+				try {
+					for (const action of actionsToRun.validActions) {
+						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+						await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave);
+					}
+				} catch {
+					// Failure to apply a code action should not block other on save actions
+				} finally {
+					actionsToRun.dispose();
 				}
-			} catch {
-				// Failure to apply a code action should not block other on save actions
-			} finally {
-				actionsToRun.dispose();
 			}
-		}
+		});
 	}
 
 	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {

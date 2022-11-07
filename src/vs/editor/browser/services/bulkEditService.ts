@@ -121,4 +121,6 @@ export interface IBulkEditService {
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
 
 	apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
+
+	whileSuppressingAutosave(task: () => Promise<void>): Promise<void>;
 }

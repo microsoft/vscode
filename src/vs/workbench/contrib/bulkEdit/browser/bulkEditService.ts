@@ -157,6 +157,8 @@ export class BulkEditService implements IBulkEditService {
 	private readonly _activeUndoRedoGroups = new LinkedList<UndoRedoGroup>();
 	private _previewHandler?: IBulkEditPreviewHandler;
 
+	private _isSuppressingAutosaveCount = 0;
+
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -244,7 +246,7 @@ export class BulkEditService implements IBulkEditService {
 
 			// when enabled (option AND setting) loop over all dirty working copies and trigger save
 			// for those that were involved in this bulk edit operation.
-			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true) {
+			if (!this._isSuppressingAutosaveCount && options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true) {
 				await this._saveAll(resources);
 			}
 
@@ -286,6 +288,15 @@ export class BulkEditService implements IBulkEditService {
 		});
 
 		return !result.confirmed;
+	}
+
+	async whileSuppressingAutosave(task: () => Promise<void>): Promise<void> {
+		++this._isSuppressingAutosaveCount;
+		try {
+			await task();
+		} finally {
+			--this._isSuppressingAutosaveCount;
+		}
 	}
 }
 
