@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
+/**
+ * A content part is a non-floating element that is rendered inside a cell.
+ * The rendering of the content part is synchronous to avoid flickering.
+ */
 export abstract class CellContentPart extends Disposable {
 	protected currentCell: ICellViewModel | undefined;
 	protected cellDisposables = new DisposableStore();
@@ -64,6 +68,10 @@ export abstract class CellContentPart extends Disposable {
 	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }
 
+/**
+ * An overlay part renders on top of other components.
+ * The rendering of the overlay part might be postponed to the next animation frame to avoid forced reflow.
+ */
 export abstract class CellOverlayPart extends Disposable {
 	protected currentCell: ICellViewModel | undefined;
 	protected cellDisposables = new DisposableStore();
@@ -114,10 +122,10 @@ export abstract class CellOverlayPart extends Disposable {
 	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }
 
-export class CellPartsCollection {
-	private _scheduledOverlayRendering: IDisposable | undefined;
-	private _scheduledOverlayUpdateState: IDisposable | undefined;
-	private _scheduledOverlayUpdateExecutionState: IDisposable | undefined;
+export class CellPartsCollection implements IDisposable {
+	private _scheduledOverlayRendering = new MutableDisposable();
+	private _scheduledOverlayUpdateState = new MutableDisposable();
+	private _scheduledOverlayUpdateExecutionState = new MutableDisposable();
 
 	constructor(
 		private readonly contentParts: readonly CellContentPart[],
@@ -147,10 +155,7 @@ export class CellPartsCollection {
 			part.renderCell(element);
 		}
 
-		// schedule overlay parts rendering
-		this._scheduledOverlayRendering?.dispose();
-
-		this._scheduledOverlayRendering = DOM.modify(() => {
+		this._scheduledOverlayRendering.value = DOM.modify(() => {
 			for (const part of this.overlayParts) {
 				part.renderCell(element);
 			}
@@ -188,9 +193,7 @@ export class CellPartsCollection {
 			part.updateState(viewCell, e);
 		}
 
-		this._scheduledOverlayUpdateState?.dispose();
-
-		this._scheduledOverlayUpdateState = DOM.modify(() => {
+		this._scheduledOverlayUpdateState.value = DOM.modify(() => {
 			for (const part of this.overlayParts) {
 				part.updateState(viewCell, e);
 			}
@@ -202,11 +205,16 @@ export class CellPartsCollection {
 			part.updateForExecutionState(viewCell, e);
 		}
 
-		this._scheduledOverlayUpdateExecutionState?.dispose();
-		this._scheduledOverlayUpdateExecutionState = DOM.modify(() => {
+		this._scheduledOverlayUpdateExecutionState.value = DOM.modify(() => {
 			for (const part of this.overlayParts) {
 				part.updateForExecutionState(viewCell, e);
 			}
 		});
+	}
+
+	dispose() {
+		this._scheduledOverlayRendering?.dispose();
+		this._scheduledOverlayUpdateState?.dispose();
+		this._scheduledOverlayUpdateExecutionState?.dispose();
 	}
 }

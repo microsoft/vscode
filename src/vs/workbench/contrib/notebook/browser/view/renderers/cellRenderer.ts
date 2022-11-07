@@ -180,6 +180,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellContainer))
 		]);
 
+		templateDisposables.add(cellParts);
+
 		const templateData: MarkdownCellRenderTemplate = {
 			rootContainer,
 			cellInputCollapsedContainer,
@@ -323,6 +325,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer))
 		]);
+
+		templateDisposables.add(cellParts);
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
