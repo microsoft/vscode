@@ -39,7 +39,7 @@ impl PreReqChecker {
 	#[cfg(not(target_os = "linux"))]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
 		Platform::env_default().ok_or_else(|| {
-			SetupError("VS Code it not supported on this platform".to_owned()).into()
+			SetupError("VS Code is not supported on this platform".to_owned()).into()
 		})
 	}
 
