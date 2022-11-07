@@ -558,13 +558,16 @@ class ProcAutomaticPortForwarding extends Disposable {
 		for (const value of startingCandidates) {
 			this.initialCandidates.add(makeAddress(value.host, value.port));
 		}
+		this.logService.debug(`ForwardedPorts: (ProcForwarding) Initial candidates set to ${startingCandidates.join(', ')}`);
 	}
 
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {
 		let attributes: Map<number, Attributes> | undefined;
 		const allTunnels: RemoteTunnel[] = [];
+		this.logService.trace(`ForwardedPorts: (ProcForwarding) Attempting to forward ${this.remoteExplorerService.tunnelModel.candidates.length} candidates`);
 		for (const value of this.remoteExplorerService.tunnelModel.candidates) {
 			if (!value.detail) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} missing detail`);
 				continue;
 			}
 
@@ -586,18 +589,22 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 			const portAttributes = attributes?.get(value.port);
 			if (portAttributes?.onAutoForward === OnPortForward.Ignore) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} is ignored`);
 				continue;
 			}
 			const forwarded = await this.remoteExplorerService.forward({ remote: value, source: AutoTunnelSource }, portAttributes ?? null);
 			if (!alreadyForwarded && forwarded) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been forwarded`);
 				this.autoForwarded.add(address);
 			} else if (forwarded) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been notified`);
 				this.notifiedOnly.add(address);
 			}
 			if (forwarded) {
 				allTunnels.push(forwarded);
 			}
 		}
+		this.logService.trace(`ForwardedPorts: (ProcForwarding) Forwarded ${allTunnels.length} candidates`);
 		if (allTunnels.length === 0) {
 			return undefined;
 		}
