@@ -180,6 +180,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
+	let hasLocaleSwitch = false;
+	const isInsiderOrExploration = product.quality === 'insider' || product.quality === 'exploration';
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
 
@@ -195,7 +197,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 			// Locale
 			else if (argvKey === 'locale') {
-				if (product.quality === 'insider' || product.quality === 'exploration') {
+				if (isInsiderOrExploration) {
 					// Pass in the locale to Electron so that the
 					// Windows Control Overlay is rendered correctly.
 					// If the locale is `qps-ploc`, the Microsoft
@@ -204,6 +206,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					const localeToUse = (!argvValue || argvValue === 'qps-ploc') ?
 						'en' : argvValue;
 					app.commandLine.appendSwitch('lang', localeToUse);
+					hasLocaleSwitch = true;
 				}
 			}
 
@@ -236,6 +239,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			}
 		}
 	});
+
+	if (!hasLocaleSwitch && isInsiderOrExploration) {
+		// Default Electron's locale to English
+		app.commandLine.appendSwitch('lang', 'en');
+	}
 
 	/* Following features are disabled from the runtime.
 	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
