@@ -64,18 +64,20 @@ module.exports = withBrowserDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: '../node_modules/typescript/lib/tsserver.js',
+					from: '../node_modules/typescript/lib/tsserverlibrary.js',
 					to: 'typescript/tsserver.web.js',
 					transform: async (content) => {
 						const dynamicImportCompatPath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
+						const hostpath = path.join(__dirname, 'out', 'tsServer', 'webhost.js');
 						const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
-						const output = await Terser.minify(content.toString());
+						const host =  fs.existsSync(hostpath) ? fs.readFileSync(hostpath) : undefined;
+						const output = {code: content.toString() }; // await Terser.minify(content.toString());
 						if (!output.code) {
 							throw new Error('Terser returned undefined code');
 						}
 
-						if (prefix) {
-							return prefix.toString() + '\n' + output.code;
+						if (prefix && host) {
+							return prefix.toString() + '\n' + output.code + '\n' + host;
 						}
 						return output.code;
 					},
