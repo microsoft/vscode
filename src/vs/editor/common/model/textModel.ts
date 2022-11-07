@@ -429,9 +429,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public setValue(value: string | model.ITextSnapshot): void {
 		this._assertNotDisposed();
-		if (value === null) {
-			// There's nothing to do
-			return;
+		if (value === null || value === undefined) {
+			value = '';
 		}
 
 		const { textBuffer, disposable } = createTextBuffer(value, this._options.defaultEOL);
