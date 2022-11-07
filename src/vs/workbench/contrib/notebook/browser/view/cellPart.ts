@@ -122,15 +122,17 @@ export abstract class CellOverlayPart extends Disposable {
 	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }
 
-export class CellPartsCollection implements IDisposable {
-	private _scheduledOverlayRendering = new MutableDisposable();
-	private _scheduledOverlayUpdateState = new MutableDisposable();
-	private _scheduledOverlayUpdateExecutionState = new MutableDisposable();
+export class CellPartsCollection extends Disposable {
+	private _scheduledOverlayRendering = this._register(new MutableDisposable());
+	private _scheduledOverlayUpdateState = this._register(new MutableDisposable());
+	private _scheduledOverlayUpdateExecutionState = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly contentParts: readonly CellContentPart[],
 		private readonly overlayParts: readonly CellOverlayPart[]
-	) { }
+	) {
+		super();
+	}
 
 	concatContentPart(other: readonly CellContentPart[]): CellPartsCollection {
 		return new CellPartsCollection(this.contentParts.concat(other), this.overlayParts);
@@ -167,9 +169,9 @@ export class CellPartsCollection implements IDisposable {
 			part.unrenderCell(element);
 		}
 
-		this._scheduledOverlayRendering?.dispose();
-		this._scheduledOverlayUpdateState?.dispose();
-		this._scheduledOverlayUpdateExecutionState?.dispose();
+		this._scheduledOverlayRendering.value = undefined;
+		this._scheduledOverlayUpdateState.value = undefined;
+		this._scheduledOverlayUpdateExecutionState.value = undefined;
 
 		for (const part of this.overlayParts) {
 			part.unrenderCell(element);
@@ -210,11 +212,5 @@ export class CellPartsCollection implements IDisposable {
 				part.updateForExecutionState(viewCell, e);
 			}
 		});
-	}
-
-	dispose() {
-		this._scheduledOverlayRendering?.dispose();
-		this._scheduledOverlayUpdateState?.dispose();
-		this._scheduledOverlayUpdateExecutionState?.dispose();
 	}
 }
