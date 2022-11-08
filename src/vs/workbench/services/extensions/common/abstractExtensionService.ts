@@ -1226,6 +1226,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 		this._combineImplicitExtensionActivationEvents();
 		perf.mark('code/didHandleExtensionPoints');
+		this._registry.set(availableExtensions);
 	}
 
 	private _combineImplicitExtensionActivationEvents() {

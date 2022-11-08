@@ -116,12 +116,13 @@ export class NotebookProviderInfoStore extends Disposable {
 					if (!existing.extension && extension.description.isBuiltin && builtins.find(builtin => builtin.id === notebookContribution.type)) {
 						// we are registering an extension which is using the same view type which is already cached
 						builtinProvidersFromCache.get(notebookContribution.type)?.dispose();
-						implicitActivationEvents.push(`onNotebookSerializer:${notebookContribution.type}`);
 					} else {
 						extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
 						continue;
 					}
 				}
+
+				implicitActivationEvents.push(`onNotebookSerializer:${notebookContribution.type}`);
 
 				this.add(new NotebookProviderInfo({
 					extension: extension.description.identifier,
