@@ -307,7 +307,9 @@ class NotebookExecutionListeners extends Disposable {
 				const implementsInterrupt = kernel.implementsInterrupt;
 				const handlesToCancel = implementsInterrupt ? [...executingDeletedHandles] : [...executingDeletedHandles, ...pendingDeletedHandles];
 				this._logService.debug(`NotebookExecution#onWillAddRemoveCells, ${JSON.stringify([...handlesToCancel])}`);
-				kernel.cancelNotebookCellExecution(this._notebookModel.uri, handlesToCancel);
+				if (handlesToCancel.length) {
+					kernel.cancelNotebookCellExecution(this._notebookModel.uri, handlesToCancel);
+				}
 			}
 		}
 	}

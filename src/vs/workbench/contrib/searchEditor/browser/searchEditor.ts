@@ -61,7 +61,6 @@ import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchM
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { Iterable } from 'vs/base/common/iterator';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -226,9 +225,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		}
 	}
 
-	private _getContributions(): Iterable<IEditorContributionDescription> {
+	private _getContributions(): IEditorContributionDescription[] {
 		const skipContributions = [UnusualLineTerminatorsDetector.ID];
-		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => skipContributions.indexOf(c.id) === -1);
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 	}
 
 	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
@@ -748,7 +747,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-export const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hcDark: inputBorder, hcLight: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hcDark: inputBorder, hcLight: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
 
 function findNextRange(matchRanges: Range[], currentPosition: Position) {
 	for (const matchRange of matchRanges) {

@@ -37,7 +37,7 @@ export function connectProxyResolver(
 				case LogLevel.Info: extHostLogService.info(message, ...args); break;
 				case LogLevel.Warning: extHostLogService.warn(message, ...args); break;
 				case LogLevel.Error: extHostLogService.error(message, ...args); break;
-				case LogLevel.Critical: extHostLogService.critical(message, ...args); break;
+				case LogLevel.Critical: extHostLogService.error(message, ...args); break;
 				case LogLevel.Off: break;
 				default: never(level, message, args); break;
 			}

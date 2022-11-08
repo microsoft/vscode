@@ -20,7 +20,7 @@ import { encodeBase64 } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/browser/editSessionsStorageService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -49,16 +49,17 @@ import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
-import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
@@ -117,6 +118,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IActivityService private readonly activityService: IActivityService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -290,18 +292,35 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
-				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
+				// First ask the user to pick a destination, if necessary
+				let uri: URI | 'noDestinationUri' | undefined = workspaceUri;
+				let destination;
+				if (!uri) {
+					destination = await that.pickContinueEditSessionDestination();
+				}
+				if (!destination && !uri) {
+					return;
+				}
 
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
-				if (uri === undefined) { return; }
+				// Determine if we need to store an edit session, asking for edit session auth if necessary
+				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
-					ref = await that.storeEditSession(false);
+					ref = await that.progressService.withProgress({
+						location: ProgressLocation.Notification,
+						type: 'syncing',
+						title: localize('store your edit session', 'Storing your edit session...')
+					}, async () => that.storeEditSession(false));
 				}
 
 				// Append the ref to the URI
+				uri = destination ? await that.resolveDestination(destination) : uri;
+				if (uri === undefined) {
+					return;
+				}
+
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
@@ -377,7 +396,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean): Promise<void> {
 		// Edit sessions are not currently supported in empty workspaces
 		// https://github.com/microsoft/vscode/issues/159220
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -397,7 +416,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			} else if (ref !== undefined) {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
 			}
-			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
+			this.logService.info(ref !== undefined ? `Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
 			return;
 		}
 		const editSession = data.editSession;
@@ -409,7 +428,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		try {
-			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, force);
 			if (changes.length === 0) {
 				return;
 			}
@@ -453,7 +472,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private async generateChanges(editSession: EditSession, ref: string) {
+	private async generateChanges(editSession: EditSession, ref: string, force = false) {
 		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 		const conflictingChanges = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
@@ -467,9 +486,32 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				for (const f of workspaceFolders) {
 					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
+
 					if (equals(identity, folder.canonicalIdentity)) {
 						folderRoot = f;
 						break;
+					}
+
+					if (identity !== undefined) {
+						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource);
+						if (match === EditSessionIdentityMatch.Complete) {
+							folderRoot = f;
+							break;
+						} else if (match === EditSessionIdentityMatch.Partial &&
+							this.configurationService.getValue('workbench.experimental.editSessions.partialMatches.enabled') === true
+						) {
+							if (!force) {
+								// Surface partially matching edit session
+								this.notificationService.prompt(
+									Severity.Info,
+									localize('editSessionPartialMatch', 'You have a pending edit session for this workspace. Would you like to resume it?'),
+									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, true) }]
+								);
+							} else {
+								folderRoot = f;
+								break;
+							}
+						}
 					}
 				}
 			} else {
@@ -527,6 +569,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
 		const folders: Folder[] = [];
 		let hasEdits = false;
+
+		// Save all saveable editors before building edit session contents
+		await this.editorService.saveAll();
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
@@ -707,14 +752,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async pickContinueEditSessionDestination(): Promise<URI | 'noDestinationUri' | undefined> {
+	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
 			? this.contextService.getWorkspace().folders[0].name
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
-		quickPick.title = localize('continueEditSessionPick.title', "Continue {0} on", `'${workspaceContext}'`);
-		quickPick.placeholder = localize('continueEditSessionPick.placeholder', 'Choose how you would like to continue working');
+		quickPick.placeholder = localize('continueEditSessionPick.title', "Select option to continue {0} on", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
@@ -731,10 +775,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		quickPick.dispose();
 
-		if (command === undefined) {
-			return undefined;
-		}
+		return command;
+	}
 
+	private async resolveDestination(command: string): Promise<URI | 'noDestinationUri' | undefined> {
 		try {
 			const uri = await this.commandService.executeCommand(command);
 
@@ -875,5 +919,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'onReload',
 			'markdownDeprecationMessage': localize('autoResumeDeprecated', "This setting is deprecated in favor of {0}.", '`#workbench.editSessions.autoResume#`')
 		},
+		'workbench.experimental.editSessions.partialMatches.enabled': {
+			'type': 'boolean',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': false,
+			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
+		}
 	}
 });

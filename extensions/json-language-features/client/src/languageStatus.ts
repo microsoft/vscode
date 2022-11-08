@@ -149,8 +149,7 @@ function showSchemaList(input: ShowSchemasInput) {
 	items.push({ label: localize('schema.showdocs', 'Learn more about JSON schema configuration...'), uri: Uri.parse('https://code.visualstudio.com/docs/languages/json#_json-schemas-and-settings') });
 
 	const quickPick = window.createQuickPick<ShowSchemasItem>();
-	quickPick.title = localize('schemaPicker.title', 'JSON Schemas used for {0}', input.uri);
-	//	quickPick.placeholder = items.length ? localize('schemaPicker.placeholder', 'Select the schema to open') : undefined;
+	quickPick.placeholder = items.length ? localize('schemaPicker.placeholder', 'Select the schema to use for {0}', input.uri) : undefined;
 	quickPick.items = items;
 	quickPick.show();
 	quickPick.onDidAccept(() => {
@@ -181,7 +180,7 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 
 	async function updateLanguageStatus() {
 		const document = window.activeTextEditor?.document;
-		if (document && documentSelector.indexOf(document.languageId) !== -1) {
+		if (document) {
 			try {
 				statusItem.text = '$(loading~spin)';
 				statusItem.detail = localize('pending.detail', 'Loading JSON info');
@@ -205,12 +204,12 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 					arguments: [{ schemas, uri: document.uri.toString() } as ShowSchemasInput]
 				};
 			} catch (e) {
-				statusItem.text = localize('status.error', 'Unable to compute used schemas');
+				statusItem.text = localize('status.error1', 'Unable to compute used schemas: {0}', e.message);
 				statusItem.detail = undefined;
 				statusItem.command = undefined;
 			}
 		} else {
-			statusItem.text = localize('status.notJSON', 'Not a JSON editor');
+			statusItem.text = localize('status.error2', 'Unable to compute used schemas: No document');
 			statusItem.detail = undefined;
 			statusItem.command = undefined;
 		}

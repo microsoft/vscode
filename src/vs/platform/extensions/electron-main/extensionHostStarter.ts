@@ -22,22 +22,27 @@ import * as electron from 'electron';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 declare namespace UtilityProcessProposedApi {
-	interface UtilityProcessConstructorOptions {
+	interface ForkOptions {
 		/**
 		 * Environment key-value pairs. Default is `process.env`.
 		 */
 		env?: NodeJS.ProcessEnv;
 		/**
-		 * List of string arguments passed to the executable. Default is
-		 * `process.execArgv`.
+		 * List of string arguments passed to the executable.
 		 */
 		execArgv?: string[];
 		/**
-		 * Child's stdout and stderr configuration. Default is `pipe`. String value can be
-		 * one of `pipe`, `ignore`, `inherit`, for more details on these values you can
-		 * refer to stdio documentation from Node.js. Currently this option does not allow
-		 * configuring stdin and is always set to `ignore`. For example, the supported
-		 * values will be processed as following:
+		 * Current working directory of the child process.
+		 */
+		cwd?: string;
+		/**
+		 * Allows configuring the mode for `stdout` and `stderr` of the child process.
+		 * Default is `inherit`. String value can be one of `pipe`, `ignore`, `inherit`,
+		 * for more details on these values you can refer to stdio documentation from
+		 * Node.js. Currently this option only supports configuring `stdout` and `stderr`
+		 * to either `pipe`, `inherit` or `ignore`. Configuring `stdin` is not supported;
+		 * `stdin` will always be ignored. For example, the supported values will be
+		 * processed as following:
 		 */
 		stdio?: (Array<'pipe' | 'ignore' | 'inherit'>) | (string);
 		/**
@@ -61,30 +66,42 @@ declare namespace UtilityProcessProposedApi {
 
 		// Docs: https://electronjs.org/docs/api/utility-process
 
+		static fork(modulePath: string, args?: string[], options?: ForkOptions): UtilityProcess;
 		/**
-		 * Emitted after the child process ends. `code` contains the exit code for the
-		 * process obtained from waitpid on posix, or GetExitCodeProcess on windows.
+		 * Emitted after the child process ends.
 		 */
-		on(event: 'exit', listener: (event: Electron.Event,
+		on(event: 'exit', listener: (
+			/**
+			 * Contains the exit code for the process obtained from waitpid on posix, or
+			 * GetExitCodeProcess on windows.
+			 */
 			code: number) => void): this;
-		once(event: 'exit', listener: (event: Electron.Event,
+		once(event: 'exit', listener: (
+			/**
+			 * Contains the exit code for the process obtained from waitpid on posix, or
+			 * GetExitCodeProcess on windows.
+			 */
 			code: number) => void): this;
-		addListener(event: 'exit', listener: (event: Electron.Event,
+		addListener(event: 'exit', listener: (
+			/**
+			 * Contains the exit code for the process obtained from waitpid on posix, or
+			 * GetExitCodeProcess on windows.
+			 */
 			code: number) => void): this;
-		removeListener(event: 'exit', listener: (event: Electron.Event,
+		removeListener(event: 'exit', listener: (
+			/**
+			 * Contains the exit code for the process obtained from waitpid on posix, or
+			 * GetExitCodeProcess on windows.
+			 */
 			code: number) => void): this;
 		/**
 		 * Emitted when the child process sends a message using
 		 * `process.parentPort.postMessage()`.
 		 */
-		on(event: 'message', listener: (event: Electron.Event,
-			message: any) => void): this;
-		once(event: 'message', listener: (event: Electron.Event,
-			message: any) => void): this;
-		addListener(event: 'message', listener: (event: Electron.Event,
-			message: any) => void): this;
-		removeListener(event: 'message', listener: (event: Electron.Event,
-			message: any) => void): this;
+		on(event: 'message', listener: (message: any) => void): this;
+		once(event: 'message', listener: (message: any) => void): this;
+		addListener(event: 'message', listener: (message: any) => void): this;
+		removeListener(event: 'message', listener: (message: any) => void): this;
 		/**
 		 * Emitted once the child process has spawned successfully.
 		 */
@@ -93,13 +110,9 @@ declare namespace UtilityProcessProposedApi {
 		addListener(event: 'spawn', listener: Function): this;
 		removeListener(event: 'spawn', listener: Function): this;
 		/**
-		 * UtilityProcess
-		 */
-		constructor(modulePath: string, args?: string[], options?: UtilityProcessConstructorOptions);
-		/**
-		 * Terminates the process gracefully. On POSIX, it uses SIGTERM but will ensure to
-		 * reap the process on exit. This function returns true if kill succeeds, and false
-		 * otherwise.
+		 * Terminates the process gracefully. On POSIX, it uses SIGTERM but will ensure the
+		 * process is reaped on exit. This function returns true if the kill is successful,
+		 * and false otherwise.
 		 */
 		kill(): boolean;
 		/**
@@ -112,26 +125,27 @@ declare namespace UtilityProcessProposedApi {
 		/**
 		 * A `Integer | undefined` representing the process identifier (PID) of the child
 		 * process. If the child process fails to spawn due to errors, then the value is
-		 * `undefined`.
+		 * `undefined`. When the child process exits, then the value is `undefined` after
+		 * the `exit` event is emitted.
 		 */
 		pid: (number) | (undefined);
 		/**
-		 * A `NodeJS.ReadableStream | null | undefined` that represents the child process's
-		 * stderr. If the child was spawned with options.stdio[2] set to anything other
-		 * than 'pipe', then this will be `null`. The property will be `undefined` if the
-		 * child process could not be successfully spawned.
+		 * A `NodeJS.ReadableStream | null` that represents the child process's stderr. If
+		 * the child was spawned with options.stdio[2] set to anything other than 'pipe',
+		 * then this will be `null`. When the child process exits, then the value is `null`
+		 * after the `exit` event is emitted.
 		 */
-		stderr: (NodeJS.ReadableStream) | (null) | (undefined);
+		stderr: (NodeJS.ReadableStream) | (null);
 		/**
-		 * A `NodeJS.ReadableStream | null | undefined` that represents the child process's
-		 * stdout. If the child was spawned with options.stdio[1] set to anything other
-		 * than 'pipe', then this will be `null`. The property will be `undefined` if the
-		 * child process could not be successfully spawned.
+		 * A `NodeJS.ReadableStream | null` that represents the child process's stdout. If
+		 * the child was spawned with options.stdio[1] set to anything other than 'pipe',
+		 * then this will be `null`. When the child process exits, then the value is `null`
+		 * after the `exit` event is emitted.
 		 */
-		stdout: (NodeJS.ReadableStream) | (null) | (undefined);
+		stdout: (NodeJS.ReadableStream) | (null);
 	}
 }
-const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).UtilityProcess);
+const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).utilityProcess);
 const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
@@ -425,6 +439,7 @@ class UtilityExtensionHostProcess extends Disposable {
 		const execArgv: string[] = opts.execArgv || [];
 		const env: { [key: string]: any } = { ...opts.env };
 		const allowLoadingUnsignedLibraries: boolean = true;
+		const stdio: (Array<'pipe' | 'ignore' | 'inherit'>) | (string) = 'pipe';
 
 		// Make sure all values are strings, otherwise the process will not start
 		for (const key of Object.keys(env)) {
@@ -433,7 +448,13 @@ class UtilityExtensionHostProcess extends Disposable {
 
 		this._logService.info(`UtilityProcess<${this.id}>: Creating new...`);
 
-		this._process = new UtilityProcess(modulePath, args, { serviceName, env, execArgv, allowLoadingUnsignedLibraries });
+		this._process = UtilityProcess.fork(modulePath, args, {
+			serviceName,
+			env,
+			execArgv,
+			allowLoadingUnsignedLibraries,
+			stdio
+		});
 
 		const stdoutDecoder = new StringDecoder('utf-8');
 		this._process.stdout?.on('data', (chunk) => {
@@ -454,7 +475,7 @@ class UtilityExtensionHostProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<void>(this._process, 'spawn')(() => {
 			this._logService.info(`UtilityProcess<${this.id}>: received spawn event.`);
 		}));
-		const onExit = Event.fromNodeEventEmitter<number>(this._process, 'exit', (_, code: number) => code);
+		const onExit = Event.fromNodeEventEmitter<number>(this._process, 'exit', (code: number) => code);
 		this._register(onExit((code: number) => {
 			this._logService.info(`UtilityProcess<${this.id}>: received exit event with code ${code}.`);
 			this._hasExited = true;

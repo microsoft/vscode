@@ -38,9 +38,9 @@ export interface Subcommand<T> {
 
 export type OptionDescriptions<T> = {
 	[P in keyof T]:
-	T[P] extends boolean ? Option<'boolean'> :
-	T[P] extends string ? Option<'string'> :
-	T[P] extends string[] ? Option<'string[]'> :
+	T[P] extends boolean | undefined ? Option<'boolean'> :
+	T[P] extends string | undefined ? Option<'string'> :
+	T[P] extends string[] | undefined ? Option<'string[]'> :
 	Subcommand<T[P]>
 };
 
@@ -249,7 +249,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
 		return <T>{
-			[firstArg]: subcommandOptions
+			[firstArg]: subcommandOptions,
+			_: []
 		};
 	}
 

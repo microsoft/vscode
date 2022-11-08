@@ -53,7 +53,7 @@ import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransfo
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
@@ -119,7 +119,7 @@ suite('ExtHostLanguageFeatures', function () {
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { }, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
 		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService, new class extends mock<IExtHostTelemetry>() { });

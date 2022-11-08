@@ -39,9 +39,6 @@ export class ExtHostNotebookEditor {
 		if (!this._editor) {
 			const that = this;
 			this._editor = {
-				get document() {
-					return that.notebookData.apiNotebook;
-				},
 				get notebook() {
 					return that.notebookData.apiNotebook;
 				},

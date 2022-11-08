@@ -187,6 +187,7 @@ impl ServerParamsRaw {
 				commit: c.clone(),
 				quality: self.quality,
 				target,
+				name: String::new(),
 				platform: self.platform,
 			});
 		}
@@ -238,7 +239,7 @@ pub enum AnyCodeServer {
 
 pub enum CodeServerOrigin {
 	/// A new code server, that opens the barrier when it exits.
-	New(Child),
+	New(Box<Child>),
 	/// An existing code server with a PID.
 	Existing(u32),
 }
@@ -351,7 +352,7 @@ fn install_server(
 
 	unzip_downloaded_release(compressed_file, &paths.server_dir, SilentCopyProgress())?;
 
-	match fs::remove_file(&compressed_file) {
+	match fs::remove_file(compressed_file) {
 		Ok(()) => {}
 		Err(e) => {
 			if e.kind() != ErrorKind::NotFound {
@@ -686,7 +687,7 @@ where
 		}
 	});
 
-	let origin = CodeServerOrigin::New(child);
+	let origin = CodeServerOrigin::New(Box::new(child));
 	(origin, listen_rx)
 }
 

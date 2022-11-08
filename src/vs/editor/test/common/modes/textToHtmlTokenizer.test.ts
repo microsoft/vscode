@@ -293,7 +293,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class Mode extends Disposable {
 
-	private readonly languageId = 'textToHtmlTokenizerMode';
+	public readonly languageId = 'textToHtmlTokenizerMode';
 
 	constructor(
 		@ILanguageService languageService: ILanguageService

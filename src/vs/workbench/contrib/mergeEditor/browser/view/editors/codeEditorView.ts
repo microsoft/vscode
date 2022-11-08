@@ -66,7 +66,12 @@ export abstract class CodeEditorView extends Disposable {
 
 	protected readonly showDeletionMarkers = observableFromEvent<boolean>(
 		this.configurationService.onDidChangeConfiguration,
-		() => /** @description showDeletionMarkers */ this.configurationService.getValue('mergeEditor.showDeletionMarkers')
+		() => /** @description showDeletionMarkers */ this.configurationService.getValue('mergeEditor.showDeletionMarkers') ?? true
+	);
+
+	protected readonly useSimplifiedDecorations = observableFromEvent<boolean>(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description useSimplifiedDecorations */ this.configurationService.getValue('mergeEditor.useSimplifiedDecorations') ?? false
 	);
 
 	public readonly editor = this.instantiationService.createInstance(
@@ -108,7 +113,7 @@ export abstract class CodeEditorView extends Disposable {
 
 	}
 
-	protected getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
+	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
 		return undefined;
 	}
 }

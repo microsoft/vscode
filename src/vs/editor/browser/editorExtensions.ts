@@ -24,7 +24,6 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Iterable } from 'vs/base/common/iterator';
 
 
 export type ServicesAccessor = InstantiationServicesAccessor;
@@ -249,7 +248,12 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+	public static runEditorCommand(
+		accessor: ServicesAccessor,
+		args: any,
+		precondition: ContextKeyExpression | undefined,
+		runner: (accessor: ServicesAccessor | null, editor: ICodeEditor, args: any) => void | Promise<void>
+	): void | Promise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
 		// Find the editor with text focus or active
@@ -261,13 +265,17 @@ export abstract class EditorCommand extends Command {
 
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(withNullAsUndefined(this.precondition))) {
+			if (!kbService.contextMatchesRules(withNullAsUndefined(precondition))) {
 				// precondition does not hold
 				return;
 			}
 
-			return this.runEditorCommand(editorAccessor, editor!, args);
+			return runner(editorAccessor, editor, args);
 		});
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		return EditorCommand.runEditorCommand(accessor, args, this.precondition, (accessor, editor, args) => this.runEditorCommand(accessor, editor, args));
 	}
 
 	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
@@ -491,15 +499,15 @@ export namespace EditorExtensionsRegistry {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
 
-	export function getEditorContributions(): Iterable<IEditorContributionDescription> {
+	export function getEditorContributions(): IEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
-	export function getSomeEditorContributions(ids: string[]): Iterable<IEditorContributionDescription> {
-		return Iterable.filter(EditorContributionRegistry.INSTANCE.getEditorContributions(), c => ids.indexOf(c.id) >= 0);
+	export function getSomeEditorContributions(ids: string[]): IEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
 	}
 
-	export function getDiffEditorContributions(): Iterable<IDiffEditorContributionDescription> {
+	export function getDiffEditorContributions(): IDiffEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
 	}
 }
@@ -529,16 +537,16 @@ class EditorContributionRegistry {
 		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor });
 	}
 
-	public getEditorContributions(): Iterable<IEditorContributionDescription> {
-		return this.editorContributions;
+	public getEditorContributions(): IEditorContributionDescription[] {
+		return this.editorContributions.slice(0);
 	}
 
 	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
 		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
 	}
 
-	public getDiffEditorContributions(): Iterable<IDiffEditorContributionDescription> {
-		return this.diffEditorContributions;
+	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {
+		return this.diffEditorContributions.slice(0);
 	}
 
 	public registerEditorAction(action: EditorAction) {

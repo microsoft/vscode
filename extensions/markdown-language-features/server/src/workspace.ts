@@ -64,6 +64,10 @@ class VsCodeDocument implements md.ITextDocument {
 		throw new Error('Document has been closed');
 	}
 
+	hasInMemoryDoc(): boolean {
+		return !!this.inMemoryDoc;
+	}
+
 	isDetached(): boolean {
 		return !this.onDiskDoc && !this.inMemoryDoc;
 	}
@@ -166,12 +170,23 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			if (doc.isDetached()) {
 				// The document has been fully closed
 				this.doDeleteDocument(uri);
-			} else {
-				// The document still exists on disk
-				// To be safe, tell the service that the document has changed because the
-				// in-memory doc contents may be different than the disk doc contents.
-				this._onDidChangeMarkdownDocument.fire(doc);
+				return;
 			}
+
+			// Check that if file has been deleted on disk.
+			// This can happen when directories are renamed / moved. VS Code's file system watcher does not
+			// notify us when this happens.
+			if (!(await this.statBypassingCache(uri))) {
+				if (this._documentCache.get(uri) === doc && !doc.hasInMemoryDoc()) {
+					this.doDeleteDocument(uri);
+					return;
+				}
+			}
+
+			// The document still exists on disk
+			// To be safe, tell the service that the document has changed because the
+			// in-memory doc contents may be different than the disk doc contents.
+			this._onDidChangeMarkdownDocument.fire(doc);
 		});
 
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {
@@ -329,10 +344,19 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
 		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: stat', `${resource}`);
-		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
+		if (this._documentCache.has(resource)) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.fs_stat, { uri: resource.toString() });
+		return this.statBypassingCache(resource);
+	}
+
+	private async statBypassingCache(resource: URI): Promise<md.FileStat | undefined> {
+		const uri = resource.toString();
+		if (this.documents.get(uri)) {
+			return { isDirectory: false };
+		}
+		const fsResult = await this.connection.sendRequest(protocol.fs_stat, { uri });
+		return fsResult ?? undefined; // Force convert null to undefined
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {

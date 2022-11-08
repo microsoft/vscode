@@ -10,7 +10,7 @@ import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -158,7 +158,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 	}
 
 	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
-		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
 		const mainItem: QuickPickItem = element.item ? element.item : element.separator!;
 
@@ -206,27 +205,31 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
 
 		// Actions
-		data.actionBar.clear();
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => {
+			data.actionBar.push(buttons.map((button, index): IAction => {
 				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
 				if (button.alwaysVisible) {
 					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 				}
-				const action = new Action(`id-${index}`, '', cssClasses, true, async () => {
-					mainItem.type !== 'separator'
-						? element.fireButtonTriggered({
-							button,
-							item: mainItem
-						})
-						: element.fireSeparatorButtonTriggered({
-							button,
-							separator: mainItem
-						});
-				});
-				action.tooltip = button.tooltip || '';
-				return action;
+				return {
+					id: `id-${index}`,
+					class: cssClasses,
+					enabled: true,
+					label: '',
+					tooltip: button.tooltip || '',
+					run: () => {
+						mainItem.type !== 'separator'
+							? element.fireButtonTriggered({
+								button,
+								item: mainItem
+							})
+							: element.fireSeparatorButtonTriggered({
+								button,
+								separator: mainItem
+							});
+					}
+				};
 			}), { icon: true, label: false });
 			data.entry.classList.add('has-actions');
 		} else {
@@ -236,6 +239,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
+		data.actionBar.clear();
 	}
 
 	disposeTemplate(data: IListElementTemplateData): void {
@@ -310,6 +314,7 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
+
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {

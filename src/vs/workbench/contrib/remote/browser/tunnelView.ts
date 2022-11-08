@@ -56,6 +56,7 @@ import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
 class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
@@ -68,7 +69,7 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 	}
 }
 
-export interface ITunnelViewModel {
+interface ITunnelViewModel {
 	readonly onForwardedPortsChanged: Event<void>;
 	readonly all: TunnelItem[];
 	readonly input: TunnelItem;
@@ -727,8 +728,8 @@ class TunnelItem implements ITunnelItem {
 	}
 }
 
-export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
-export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
+const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
+const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
 const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacyId | string | undefined>('tunnelPrivacy', undefined, true);
 const TunnelPrivacyEnabledContextKey = new RawContextKey<boolean>('tunnelPrivacyEnabled', false, true);
 const TunnelProtocolContextKey = new RawContextKey<TunnelProtocol | undefined>('tunnelProtocol', TunnelProtocol.Http, true);
@@ -1330,7 +1331,8 @@ export namespace OpenPortInPreviewAction {
 	export async function run(model: TunnelModel, openerService: IOpenerService, externalOpenerService: IExternalUriOpenerService, key: string) {
 		const tunnel = model.forwarded.get(key) || model.detected.get(key);
 		if (tunnel) {
-			const sourceUri = URI.parse(`http://${tunnel.remoteHost}:${tunnel.remotePort}`);
+			const remoteHost = tunnel.remoteHost.includes(':') ? `[${tunnel.remoteHost}]` : tunnel.remoteHost;
+			const sourceUri = URI.parse(`http://${remoteHost}:${tunnel.remotePort}`);
 			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
 			if (opener) {
 				return opener.openExternalUri(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
@@ -1624,7 +1626,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	},
 	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
 }));
-const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '._open',
 	order: 1,
@@ -1777,7 +1778,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		isForwardedOrDetectedExpr)
 }));
 
-export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
+const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,

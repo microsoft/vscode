@@ -13,13 +13,11 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
-import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
-import { OutputChannelLogger } from './log';
-import TelemetryReporter from '@vscode/extension-telemetry';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -362,6 +360,7 @@ export interface ICloneOptions {
 	readonly parentPath: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
+	readonly ref?: string;
 }
 
 export class Git {
@@ -375,14 +374,11 @@ export class Git {
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
-	private readonly telemetryReporter: TelemetryReporter;
-
-	constructor(options: IGitOptions, telemetryReporter: TelemetryReporter) {
+	constructor(options: IGitOptions) {
 		this.path = options.gitPath;
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
-		this.telemetryReporter = telemetryReporter;
 
 		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
 			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
@@ -401,8 +397,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }, outputChannelLogger: OutputChannelLogger): Repository {
-		return new Repository(this, repository, dotGit, outputChannelLogger);
+	open(repository: string, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+		return new Repository(this, repository, dotGit, logger);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -455,6 +451,9 @@ export class Git {
 			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
+			}
+			if (options.ref) {
+				command.push('--branch', options.ref);
 			}
 			await this.exec(options.parentPath, command, {
 				cancellationToken,
@@ -552,7 +551,7 @@ export class Git {
 		if (options.log !== false) {
 			const startTime = Date.now();
 			child.on('exit', (_) => {
-				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]${child.killed ? ' (cancelled)' : ''}\n`);
 			});
 		}
 
@@ -560,9 +559,7 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
-		const startSpawn = Date.now();
 		const child = this.spawn(args, options);
-		const durSpawn = Date.now() - startSpawn;
 
 		options.onSpawn?.(child);
 
@@ -588,16 +585,6 @@ export class Git {
 				this.log(`${bufferResult.stderr}\n`);
 			}
 		}
-
-		/* __GDPR__
-			"git.execDuration" : {
-				"owner": "lszomoru",
-				"comment": "Time it takes to spawn and execute a git command",
-				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
-				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" }
-			}
-		*/
-		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
 
 		let encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -915,7 +902,7 @@ export class Repository {
 		private _git: Git,
 		private repositoryRoot: string,
 		readonly dotGit: { path: string; commonPath?: string },
-		private outputChannelLogger: OutputChannelLogger
+		private logger: LogOutputChannel
 	) { }
 
 	get git(): Git {
@@ -1937,25 +1924,32 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden' }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
-		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const disposables: IDisposable[] = [];
+
+		const env = { GIT_OPTIONAL_LOCKS: '0' };
+		const args = ['status', '-z'];
+
+		if (opts?.untrackedChanges === 'hidden') {
+			args.push('-uno');
+		} else {
+			args.push('-uall');
+		}
+
+		if (opts?.ignoreSubmodules) {
+			args.push('--ignore-submodules');
+		}
+
+		const child = this.stream(args, { env });
+
+		let result = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
-			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z'];
 
-			if (opts?.untrackedChanges === 'hidden') {
-				args.push('-uno');
-			} else {
-				args.push('-uall');
-			}
-
-			if (opts?.ignoreSubmodules) {
-				args.push('--ignore-submodules');
-			}
-
-			const child = this.stream(args, { env });
-
-			const onExit = (exitCode: number) => {
+			const onClose = (exitCode: number) => {
 				if (exitCode !== 0) {
 					const stderr = stderrData.join('');
 					return e(new GitError({
@@ -1976,7 +1970,7 @@ export class Repository {
 				parser.update(raw);
 
 				if (limit !== 0 && parser.status.length > limit) {
-					child.removeListener('exit', onExit);
+					child.removeListener('close', onClose);
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
@@ -1992,8 +1986,52 @@ export class Repository {
 			child.stderr!.on('data', raw => stderrData.push(raw as string));
 
 			child.on('error', cpErrorHandler(e));
-			child.on('exit', onExit);
+			child.on('close', onClose);
 		});
+
+		if (opts?.cancellationToken) {
+			const cancellationPromise = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((_, e) => {
+				disposables.push(onceEvent(opts.cancellationToken!.onCancellationRequested)(() => {
+					try {
+						child.kill();
+					} catch (err) {
+						// noop
+					}
+
+					e(new CancellationError());
+				}));
+			});
+
+			result = Promise.race([result, cancellationPromise]);
+		}
+
+		try {
+			const { status, statusLength, didHitLimit } = await result;
+			return { status, statusLength, didHitLimit };
+		}
+		finally {
+			dispose(disposables);
+		}
+	}
+
+	async getHEADBranch(): Promise<Branch | undefined> {
+		let HEAD: Branch | undefined;
+
+		try {
+			HEAD = await this.getHEAD();
+
+			if (HEAD.name) {
+				try {
+					HEAD = await this.getBranch(HEAD.name);
+				} catch (err) {
+					// noop
+				}
+			}
+		} catch (err) {
+			// noop
+		}
+
+		return HEAD;
 	}
 
 	async getHEAD(): Promise<Ref> {
@@ -2003,7 +2041,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			this.outputChannelLogger.logWarning(err.message);
+			this.logger.warn(err.message);
 		}
 
 		try {
@@ -2029,7 +2067,7 @@ export class Repository {
 	}
 
 	async getHEADFS(): Promise<Ref> {
-		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+		const raw = await fs.readFile(path.join(this.dotGit.path, 'HEAD'), 'utf8');
 
 		// Branch
 		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);

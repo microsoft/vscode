@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
+import * as vscode from 'vscode';
 import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 
-const localize = nls.loadMessageBundle();
 
 export const enum TypeScriptVersionSource {
 	Bundled = 'bundled',
@@ -54,8 +53,7 @@ export class TypeScriptVersion {
 
 	public get displayName(): string {
 		const version = this.apiVersion;
-		return version ? version.displayName : localize(
-			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
+		return version ? version.displayName : vscode.l10n.t("Could not load the TypeScript version at this path");
 	}
 }
 
