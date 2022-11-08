@@ -261,8 +261,19 @@ async function searchForFileLocation(filename: string, fsProvider: IFileSystemPr
 				continue;
 			}
 
-			if (fileType === FileType.File && name === filename) {
-				return URI.joinPath(dir, name);
+			if (fileType === FileType.File) {
+				/**
+				 * Note that sometimes the given `filename` could be a relative
+				 * path (not just the "name.ext" part). For example, the
+				 * `filename` can be "/subdir/name.ext". So, just comparing
+				 * `name` as `filename` is not sufficient. The workaround here
+				 * is to form the URI with `dir` and `name` and check if it ends
+				 * with the given `filename`.
+				 */
+				const fullUri = URI.joinPath(dir, name);
+				if (fullUri.path.endsWith(filename)) {
+					return fullUri;
+				}
 			}
 		}
 
