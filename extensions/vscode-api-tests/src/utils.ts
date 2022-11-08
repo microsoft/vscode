@@ -69,7 +69,7 @@ export function delay(ms: number) {
 export function withLogDisabled(runnable: () => Promise<any>): () => Promise<void> {
 	return async (): Promise<void> => {
 		const logLevel = await vscode.commands.executeCommand('_extensionTests.getLogLevel');
-		await vscode.commands.executeCommand('_extensionTests.setLogLevel', 6 /* critical */);
+		await vscode.commands.executeCommand('_extensionTests.setLogLevel', 'off');
 
 		try {
 			await runnable();

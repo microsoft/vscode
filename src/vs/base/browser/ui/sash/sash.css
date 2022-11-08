@@ -111,6 +111,11 @@
 	background: transparent;
 }
 
+.monaco-sash.hover:before,
+.monaco-sash.active:before {
+	background: var(--vscode-sash-hoverBorder);
+}
+
 .monaco-sash.vertical:before {
 	width: var(--sash-hover-size);
 	left: calc(50% - (var(--sash-hover-size) / 2));

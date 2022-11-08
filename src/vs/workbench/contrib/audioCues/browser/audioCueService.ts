@@ -21,7 +21,7 @@ export interface IAudioCueService {
 	playAudioCues(cues: AudioCue[]): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
 
-	playSound(cue: Sound): Promise<void>;
+	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -60,14 +60,24 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		return Math.max(Math.min(volume, 100), 0);
 	}
 
-	public async playSound(sound: Sound): Promise<void> {
+	private playingSounds = new Set<Sound>();
+
+	public async playSound(sound: Sound, allowManyInParallel = false): Promise<void> {
+		if (!allowManyInParallel && this.playingSounds.has(sound)) {
+			return;
+		}
+
+		this.playingSounds.add(sound);
+
 		const url = FileAccess.asBrowserUri(
 			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
 		).toString();
 		const audio = new Audio(url);
 		audio.volume = this.getVolumeInPercent() / 100;
-
+		audio.addEventListener('ended', () => {
+			this.playingSounds.delete(sound);
+		});
 		try {
 			try {
 				// Don't play when loading takes more than 1s, due to loading, decoding or playing issues.

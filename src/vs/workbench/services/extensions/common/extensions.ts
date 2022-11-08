@@ -57,12 +57,17 @@ export class LocalProcessRunningLocation {
 }
 export class LocalWebWorkerRunningLocation {
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
-	public readonly affinity = 0;
+	constructor(
+		public readonly affinity: number
+	) { }
 	public equals(other: ExtensionRunningLocation) {
-		return (this.kind === other.kind);
+		return (this.kind === other.kind && this.affinity === other.affinity);
 	}
 	public asString(): string {
-		return 'LocalWebWorker';
+		if (this.affinity === 0) {
+			return 'LocalWebWorker';
+		}
+		return `LocalWebWorker${this.affinity}`;
 	}
 }
 export class RemoteRunningLocation {

@@ -47,7 +47,7 @@ const NotebookPreloadContribution = Object.freeze({
 	entrypoint: 'entrypoint',
 });
 
-export interface INotebookPreloadContribution {
+interface INotebookPreloadContribution {
 	readonly [NotebookPreloadContribution.type]: string;
 	readonly [NotebookPreloadContribution.entrypoint]: string;
 }

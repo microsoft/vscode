@@ -187,8 +187,6 @@ export class WorkbenchToolBar extends ToolBar {
 					}));
 				}
 
-				// this.getElement().classList.toggle('config', true);
-
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
@@ -196,7 +194,6 @@ export class WorkbenchToolBar extends ToolBar {
 					menuId: this._options?.contextMenu,
 					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
 					contextKeyService: this._contextKeyService,
-					onHide: () => this.getElement().classList.toggle('config', false),
 				});
 			}));
 		}

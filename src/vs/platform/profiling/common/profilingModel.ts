@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/path';
 import type { IV8Profile, IV8ProfileNode } from 'vs/platform/profiling/common/profiling';
 
 // #region
 // https://github.com/microsoft/vscode-js-profile-visualizer/blob/6e7401128ee860be113a916f80fcfe20ac99418e/packages/vscode-js-profile-core/src/cpu/model.ts#L4
 
-interface IProfileModel {
+export interface IProfileModel {
 	nodes: ReadonlyArray<IComputedNode>;
 	locations: ReadonlyArray<ILocation>;
 	samples: ReadonlyArray<number>;
@@ -18,7 +17,7 @@ interface IProfileModel {
 	duration: number;
 }
 
-interface IComputedNode {
+export interface IComputedNode {
 	id: number;
 	selfTime: number;
 	aggregateTime: number;
@@ -27,14 +26,14 @@ interface IComputedNode {
 	locationId: number;
 }
 
-interface ISourceLocation {
+export interface ISourceLocation {
 	lineNumber: number;
 	columnNumber: number;
 	//   source: Dap.Source;
 	relativePath?: string;
 }
 
-interface CdpCallFrame {
+export interface CdpCallFrame {
 	functionName: string;
 	scriptId: string;
 	url: string;
@@ -42,30 +41,30 @@ interface CdpCallFrame {
 	columnNumber: number;
 }
 
-interface CdpPositionTickInfo {
+export interface CdpPositionTickInfo {
 	line: number;
 	ticks: number;
 }
 
-interface INode {
+export interface INode {
 	id: number;
 	//   category: Category;
 	callFrame: CdpCallFrame;
 	src?: ISourceLocation;
 }
 
-interface ILocation extends INode {
+export interface ILocation extends INode {
 	selfTime: number;
 	aggregateTime: number;
 	ticks: number;
 }
 
-interface IAnnotationLocation {
+export interface IAnnotationLocation {
 	callFrame: CdpCallFrame;
 	locations: ISourceLocation[];
 }
 
-interface IProfileNode extends IV8ProfileNode {
+export interface IProfileNode extends IV8ProfileNode {
 	locationId?: number;
 	positionTicks?: (CdpPositionTickInfo & {
 		startLocationId?: number;
@@ -73,7 +72,7 @@ interface IProfileNode extends IV8ProfileNode {
 	})[];
 }
 
-interface ICpuProfileRaw extends IV8Profile {
+export interface ICpuProfileRaw extends IV8Profile {
 	//   $vscode?: IJsDebugAnnotations;
 	nodes: IProfileNode[];
 }
@@ -266,7 +265,7 @@ export const buildModel = (profile: ICpuProfileRaw): IProfileModel => {
 	};
 };
 
-class BottomUpNode {
+export class BottomUpNode {
 	public static root() {
 		return new BottomUpNode({
 			id: -1,
@@ -310,7 +309,7 @@ class BottomUpNode {
 
 }
 
-const processNode = (aggregate: BottomUpNode, node: IComputedNode, model: IProfileModel, initialNode = node) => {
+export const processNode = (aggregate: BottomUpNode, node: IComputedNode, model: IProfileModel, initialNode = node) => {
 	let child = aggregate.children[node.locationId];
 	if (!child) {
 		child = new BottomUpNode(model.locations[node.locationId], aggregate);
@@ -327,15 +326,6 @@ const processNode = (aggregate: BottomUpNode, node: IComputedNode, model: IProfi
 
 //#endregion
 
-function isSpecial(call: CdpCallFrame): boolean {
-	return call.functionName.startsWith('(') && call.functionName.endsWith(')');
-}
-
-function isModel(arg: IV8Profile | IProfileModel): arg is IProfileModel {
-	return Array.isArray((<IProfileModel>arg).locations)
-		&& Array.isArray((<IProfileModel>arg).samples)
-		&& Array.isArray((<IProfileModel>arg).timeDeltas);
-}
 
 export interface BottomUpSample {
 	selfTime: number;
@@ -345,72 +335,4 @@ export interface BottomUpSample {
 	caller: { percentage: number; location: string }[];
 	percentage: number;
 	isSpecial: boolean;
-}
-
-export function bottomUp(profileOrModel: IV8Profile | IProfileModel, topN: number, fullPaths: boolean = false) {
-
-	const model = isModel(profileOrModel)
-		? profileOrModel
-		: buildModel(profileOrModel);
-
-	const root = BottomUpNode.root();
-	for (const node of model.nodes) {
-		processNode(root, node, model);
-		root.addNode(node);
-	}
-
-	const result = Object.values(root.children)
-		.sort((a, b) => b.selfTime - a.selfTime)
-		// .filter(a => !isSpecial(a.callFrame))
-		.slice(0, topN);
-
-
-	const samples: BottomUpSample[] = [];
-
-	function printCallFrame(frame: CdpCallFrame): string {
-		let result = frame.functionName || '(anonymous)';
-		if (frame.url) {
-			result += '#';
-			result += fullPaths ? frame.url : basename(frame.url);
-			if (frame.lineNumber >= 0) {
-				result += ':';
-				result += frame.lineNumber + 1;
-			}
-		}
-		return result;
-	}
-
-	for (const node of result) {
-
-		const sample: BottomUpSample = {
-			selfTime: node.selfTime / 1000,
-			totalTime: node.aggregateTime / 1000,
-			location: printCallFrame(node.callFrame),
-			url: node.callFrame.url,
-			caller: [],
-			percentage: Math.round(node.selfTime / (model.duration / 100)),
-			isSpecial: isSpecial(node.callFrame)
-		};
-
-		// follow the heaviest caller paths
-		const stack = [node];
-		while (stack.length) {
-			const node = stack.pop()!;
-			let top: BottomUpNode | undefined;
-			for (const candidate of Object.values(node.children)) {
-				if (!top || top.selfTime < candidate.selfTime) {
-					top = candidate;
-				}
-			}
-			if (top) {
-				const percentage = Math.round(top.selfTime / (node.selfTime / 100));
-				sample.caller.push({ percentage, location: printCallFrame(top.callFrame) });
-				stack.push(top);
-			}
-		}
-
-		samples.push(sample);
-	}
-
-	return samples;
 }

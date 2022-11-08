@@ -70,6 +70,7 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
+		readonly servicePPEUrl?: string;
 		readonly searchUrl?: string;
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
@@ -89,6 +90,7 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
+	readonly trustedExtensionAuthAccess?: readonly string[];
 
 	readonly crashReporter?: {
 		readonly companyName: string;

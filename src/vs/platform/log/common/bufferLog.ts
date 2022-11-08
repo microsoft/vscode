@@ -17,7 +17,6 @@ function getLogFunction(logger: ILogger, level: LogLevel): Function {
 		case LogLevel.Info: return logger.info;
 		case LogLevel.Warning: return logger.warn;
 		case LogLevel.Error: return logger.error;
-		case LogLevel.Critical: return logger.critical;
 		default: throw new Error('Invalid log level');
 	}
 }
@@ -74,10 +73,6 @@ export class BufferLogService extends AbstractLogger implements ILogService {
 
 	error(message: string | Error, ...args: any[]): void {
 		this._log(LogLevel.Error, message, ...args);
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		this._log(LogLevel.Critical, message, ...args);
 	}
 
 	override dispose(): void {

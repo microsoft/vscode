@@ -73,7 +73,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'singleTerminal',
 		},
 		[TerminalSettingId.TabsShowActiveTerminal]: {
-			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
+			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view. This is particularly useful when the title within the tabs aren\'t visible.'),
 			type: 'string',
 			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
 			enumDescriptions: [
@@ -157,7 +157,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.FontFamily]: {
-			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to {0}'s value.", '`#editor.fontFamily#`'),
+			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string'
 		},
 		// TODO: Support font ligatures
@@ -174,12 +174,12 @@ const terminalConfiguration: IConfigurationNode = {
 			maximum: 100
 		},
 		[TerminalSettingId.LetterSpacing]: {
-			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
+			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal. This is an integer value which represents the number of additional pixels to add between characters."),
 			type: 'number',
 			default: DEFAULT_LETTER_SPACING
 		},
 		[TerminalSettingId.LineHeight]: {
-			description: localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
+			description: localize('terminal.integrated.lineHeight', "Controls the line height of the terminal. This number is multiplied by the terminal font size to get the actual line-height in pixels."),
 			type: 'number',
 			default: DEFAULT_LINE_HEIGHT
 		},
@@ -258,7 +258,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		[TerminalSettingId.Scrollback]: {
-			description: localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
+			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer."),
 			type: 'number',
 			default: 1000
 		},
@@ -344,7 +344,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
+			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled. This shows up as a visual bell next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
@@ -451,8 +451,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['6', '11'],
 			enumDescriptions: [
-				localize('terminal.integrated.unicodeVersion.six', "Version 6 of unicode, this is an older version which should work better on older systems."),
-				localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode, this version provides better support on modern systems that use modern versions of unicode.")
+				localize('terminal.integrated.unicodeVersion.six', "Version 6 of unicode; this is an older version which should work better on older systems."),
+				localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of unicode; this version provides better support on modern systems that use modern versions of unicode.")
 			],
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
@@ -505,7 +505,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.PersistentSessionReviveProcess]: {
-			markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shutdown (eg. on window or application close), this determines when the previous terminal session contents/history should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
+			markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shut down (eg. on window or application close), this determines when the previous terminal session contents/history should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
 			type: 'string',
 			enum: ['onExit', 'onExitAndWindowClose', 'never'],
 			markdownEnumDescriptions: [
@@ -521,7 +521,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that, when encountered in the terminal, will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
 				oneOf: [{

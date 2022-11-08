@@ -221,6 +221,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					enableWebSQL: false,
 					spellcheck: false,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+					autoplayPolicy: 'user-gesture-required',
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
@@ -1100,7 +1101,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// macOS: traffic lights
 		else if (isMacintosh && options.height !== undefined) {
-			this._win.setTrafficLightPosition({ x: 7, y: (options.height - 15) / 2 }); // 15px is the height of the traffic lights
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			this._win.setTrafficLightPosition({ x: verticalOffset, y: verticalOffset });
 		}
 	}
 
