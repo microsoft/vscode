@@ -510,15 +510,21 @@ exports.createXlfFilesForCoreBundle = createXlfFilesForCoreBundle;
 function createL10nBundleForExtension(extensionFolderName) {
     const result = (0, event_stream_1.through)();
     gulp.src([
-        `extensions/${extensionFolderName}/src/**/*.ts`,
+        // For source code of extensions
+        `extensions/${extensionFolderName}/src/**/*.{ts,tsx}`,
+        // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+        `extensions/${extensionFolderName}/node_modules/**/*.{js,jsx}`
     ]).pipe((0, event_stream_1.writeArray)((err, files) => {
         if (err) {
             result.emit('error', err);
             return;
         }
-        const json = (0, l10n_dev_1.getL10nJson)(files.map(file => {
-            return file.contents.toString('utf8');
-        }));
+        const json = (0, l10n_dev_1.getL10nJson)(files
+            .filter(file => file.isBuffer())
+            .map(file => ({
+            contents: file.contents.toString('utf8'),
+            extension: path.extname(file.path)
+        })));
         if (Object.keys(json).length > 0) {
             result.emit('data', new File({
                 path: `extensions/${extensionFolderName}/bundle.l10n.json`,
