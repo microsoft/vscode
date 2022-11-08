@@ -1098,7 +1098,7 @@ export class SearchResult extends Disposable {
 	private _query: ITextQuery | null = null;
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => void = () => { };
-	private _notebookEditors: Set<NotebookEditor>;
+	// private _notebookEditors: Set<NotebookEditor>;
 	private _isDirty = false;
 
 	constructor(
@@ -1123,7 +1123,7 @@ export class SearchResult extends Disposable {
 		}));
 
 
-		this._notebookEditors = new Set<NotebookEditor>();
+		// this._notebookEditors = new Set<NotebookEditor>();
 	}
 
 	async batchReplace(elementsToReplace: RenderableMatch[]) {
@@ -1218,38 +1218,42 @@ export class SearchResult extends Disposable {
 	private onDidVisibleEditorsChange(): void {
 		const visibleNotebookEditors = this.editorService.visibleEditorPanes
 			.map((editor) => ((editor instanceof NotebookEditor) ? (editor as NotebookEditor) : null))
-			.filter((editor2): editor2 is NotebookEditor => (NotebookEditor !== null));
+			.filter((editor2): editor2 is NotebookEditor => (editor2 !== null));
 
 		if (visibleNotebookEditors.length === 0) {
 			return;
 		}
 
-		const oldEditors = this._notebookEditors.values();
+		// const oldEditors = this._notebookEditors.values();
 
-		const oldEditorsToUnbind = [];
-		const oldEditorsToKeepBound = [];
-		for (const editor of oldEditors) {
-			if (visibleNotebookEditors.includes(editor)) {
-				oldEditorsToKeepBound.push(editor);
-			} else {
-				oldEditorsToUnbind.push(editor);
-			}
-		}
+		// const oldEditorsToUnbind = [];
+		// const oldEditorsToKeepBound = [];
+		// for (const editor of oldEditors) {
+		// 	if (visibleNotebookEditors.includes(editor)) {
+		// 		oldEditorsToKeepBound.push(editor);
+		// 	}
+		// 	// else {
+		// 	// 	oldEditorsToUnbind.push(editor);
+		// 	// }
+		// }
 
-		for (const editor of oldEditorsToUnbind) {
-			const widget = editor.getControl();
-			// doesn't currently work because these fields are usually undefined by now on the editor
-			if (editor.input && editor.input.resource && widget) {
-				this.onNotebookEditorRemoved(widget, editor.input.resource);
-				this._notebookEditors.delete(editor);
-			}
-		}
+		// for (const editor of oldEditorsToUnbind) {
+		// 	const widget = editor.getControl();
+		// 	// doesn't currently work because these fields are usually undefined by now on the editor
+		// 	if (editor.input && editor.input.resource && widget) {
+		// 		this.onNotebookEditorRemoved(widget, editor.input.resource);
+		// 		this._notebookEditors.delete(editor);
+		// 	}
+		// }
 
 		for (const editor of visibleNotebookEditors) {
 			const widget = editor.getControl();
 			if (editor.input && editor.input.resource && widget) {
-				this.onNotebookEditorAdded(widget, editor.input.resource);
-				this._notebookEditors.add(editor);
+				const uri = editor.input.resource;
+				if (uri) {
+					this.onNotebookEditorAdded(widget, uri);
+					widget.onDidDispose(() => this.onNotebookEditorRemoved(widget, uri));
+				}
 			}
 		}
 	}

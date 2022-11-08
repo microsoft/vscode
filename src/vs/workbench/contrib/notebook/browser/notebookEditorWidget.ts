@@ -146,6 +146,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
 
 
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	readonly onDidDispose = this._onDidDispose.event;
+
 	//#endregion
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
@@ -2926,6 +2929,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._baseCellEditorOptions.forEach(v => v.dispose());
 		this._baseCellEditorOptions.clear();
 
+		this._onDidDispose.fire();
 		super.dispose();
 
 		// unref
