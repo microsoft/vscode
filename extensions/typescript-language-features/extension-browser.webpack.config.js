@@ -71,7 +71,7 @@ module.exports = withBrowserDefaults({
 						const hostpath = path.join(__dirname, 'out', 'tsServer', 'webServer.js');
 						const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
 						const host =  fs.existsSync(hostpath) ? fs.readFileSync(hostpath) : undefined;
-						const output = {code: content.toString() }; // await Terser.minify(content.toString());
+						const output = await Terser.minify(content.toString());
 						if (!output.code) {
 							throw new Error('Terser returned undefined code');
 						}

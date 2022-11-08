@@ -177,7 +177,6 @@ class MainProcessLogger extends BaseLogger {
 	}
 }
 
-// TODO: rename one or the other web systems
 function serverCreateWebSystem(host: WebHost, args: string[], getExecutingFilePath: () => string):
 	ts.server.ServerHost & {
 		importPlugin?(root: string, moduleName: string): Promise<ts.server.ModuleImportResult>;
