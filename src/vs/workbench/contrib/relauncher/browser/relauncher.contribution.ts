@@ -66,18 +66,25 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		if (isNative) {
+
 			// Titlebar style
 			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
+
 			// Windows: Window Controls Overlay
 			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled));
+
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
+
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
+
 			// macOS: Native fullscreen
 			processChanged(isMacintosh && this.nativeFullScreen.handleChange(config.window?.nativeFullScreen));
+
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
+
 			// Update channel
 			processChanged(this.updateMode.handleChange(config.update?.mode));
 
@@ -91,12 +98,14 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Workspace trust
 			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
-
 		}
+
 		// Profiles
 		processChanged(this.productService.quality === 'stable' && this.settingsProfilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
+
 		// Experiments
 		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));
+
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
 
@@ -128,12 +137,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 }
 
 interface TypeNameToType {
-	boolean: boolean;
-	string: string;
+	readonly boolean: boolean;
+	readonly string: string;
 }
 
 class ChangeObserver<T> {
-	public static create<TTypeName extends 'boolean' | 'string'>(typeName: TTypeName): ChangeObserver<TypeNameToType[TTypeName]> {
+
+	static create<TTypeName extends 'boolean' | 'string'>(typeName: TTypeName): ChangeObserver<TypeNameToType[TTypeName]> {
 		return new ChangeObserver(typeName);
 	}
 
@@ -149,6 +159,7 @@ class ChangeObserver<T> {
 			this.lastValue = value;
 			return true;
 		}
+
 		return false;
 	}
 }
