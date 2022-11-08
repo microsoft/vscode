@@ -98,7 +98,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 
 		this._register(this.commentService.onDidSetAllCommentThreads(e => {
-			this.totalComments = e.commentThreads.length;
+			this.totalComments += e.commentThreads.length;
 		}));
 
 		this._register(this.commentService.onDidUpdateCommentThreads(e => {

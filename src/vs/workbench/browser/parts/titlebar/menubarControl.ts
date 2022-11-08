@@ -41,6 +41,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -646,6 +647,12 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onVisibilityChange.fire(visible);
 	}
 
+	private toActionsArray(menu: IMenu): IAction[] {
+		const result: IAction[] = [];
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
+		return result;
+	}
+
 	private reinstallDisposables = this._register(new DisposableStore());
 	private setupCustomMenubar(firstTime: boolean): void {
 		// If there is no container, we cannot setup the menubar
@@ -704,67 +711,48 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		// Update the menu actions
-		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
+		const updateActions = (menuActions: readonly IAction[], target: IAction[], topLevelTitle: string) => {
 			target.splice(0);
-			const groups = menu.getActions();
 
-			for (const group of groups) {
-				const [, actions] = group;
+			for (const menuItem of menuActions) {
+				this.insertActionsBefore(menuItem, target);
 
-				for (const action of actions) {
-					this.insertActionsBefore(action, target);
-
+				if (menuItem instanceof Separator) {
+					target.push(menuItem);
+				} else if (menuItem instanceof SubmenuItemAction || menuItem instanceof MenuItemAction) {
 					// use mnemonicTitle whenever possible
-					let title = typeof action.item.title === 'string'
-						? action.item.title
-						: action.item.title.mnemonicTitle ?? action.item.title.value;
+					let title = typeof menuItem.item.title === 'string'
+						? menuItem.item.title
+						: menuItem.item.title.mnemonicTitle ?? menuItem.item.title.value;
 
-					if (action instanceof SubmenuItemAction) {
-						let submenu = this.menus[action.item.submenu.id];
-						if (!submenu) {
-							submenu = this.mainMenuDisposables.add(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
-							this.mainMenuDisposables.add(submenu.onDidChange(() => {
-								if (!this.focusInsideMenubar) {
-									const actions: IAction[] = [];
-									updateActions(menu, actions, topLevelTitle);
-									if (this.menubar && this.topLevelTitles[topLevelTitle]) {
-										this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
-									}
-								}
-							}, this));
-						}
-
+					if (menuItem instanceof SubmenuItemAction) {
 						const submenuActions: SubmenuAction[] = [];
-						updateActions(submenu, submenuActions, topLevelTitle);
+						updateActions(menuItem.actions, submenuActions, topLevelTitle);
 
 						if (submenuActions.length > 0) {
-							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
+							target.push(new SubmenuAction(menuItem.id, mnemonicMenuLabel(title), submenuActions));
 						}
 					} else {
-						if (isICommandActionToggleInfo(action.item.toggled)) {
-							title = action.item.toggled.mnemonicTitle ?? action.item.toggled.title ?? title;
+						if (isICommandActionToggleInfo(menuItem.item.toggled)) {
+							title = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
 						}
 
-						const newAction = new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
-						newAction.tooltip = action.tooltip;
-						newAction.checked = action.checked;
+						const newAction = new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id));
+						newAction.tooltip = menuItem.tooltip;
+						newAction.checked = menuItem.checked;
 						target.push(newAction);
 					}
 				}
 
-				target.push(new Separator());
 			}
 
 			// Append web navigation menu items to the file menu when not compact
-			if (menu === this.menus.File && this.currentCompactMenuMode === undefined) {
+			if (topLevelTitle === 'File' && this.currentCompactMenuMode === undefined) {
 				const webActions = this.getWebNavigationActions();
 				if (webActions.length) {
 					target.push(...webActions);
-					target.push(new Separator()); // to account for pop below
 				}
 			}
-
-			target.pop();
 		};
 
 		for (const title of Object.keys(this.topLevelTitles)) {
@@ -773,7 +761,7 @@ export class CustomMenubarControl extends MenubarControl {
 				this.reinstallDisposables.add(menu.onDidChange(() => {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
-						updateActions(menu, actions, title);
+						updateActions(this.toActionsArray(menu), actions, title);
 						this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 					}
 				}));
@@ -783,7 +771,7 @@ export class CustomMenubarControl extends MenubarControl {
 					this.reinstallDisposables.add(this.webNavigationMenu.onDidChange(() => {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
-							updateActions(menu, actions, title);
+							updateActions(this.toActionsArray(menu), actions, title);
 							this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 						}
 					}));
@@ -792,7 +780,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 			const actions: IAction[] = [];
 			if (menu) {
-				updateActions(menu, actions, title);
+				updateActions(this.toActionsArray(menu), actions, title);
 			}
 
 			if (this.menubar) {

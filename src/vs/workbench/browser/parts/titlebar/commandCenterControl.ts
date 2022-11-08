@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventLike, reset } from 'vs/base/browser/dom';
+import { reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -62,9 +63,6 @@ export class CommandCenterControl {
 							super.render(container);
 							container.classList.add('command-center');
 
-							const left = document.createElement('span');
-							left.classList.add('left');
-
 							// icon (search)
 							const searchIcon = renderIcon(Codicon.search);
 							searchIcon.classList.add('search-icon');
@@ -74,22 +72,13 @@ export class CommandCenterControl {
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
 							labelElement.innerText = label;
-							reset(left, searchIcon, labelElement);
+							reset(container, searchIcon, labelElement);
 
-							// icon (dropdown)
-							const right = document.createElement('span');
-							right.classList.add('right');
-							const dropIcon = renderIcon(Codicon.chevronDown);
-							reset(right, dropIcon);
-							reset(container, left, right);
-
-							// hovers
-							this._store.add(setupCustomHover(hoverDelegate, right, localize('all', "Show Search Modes...")));
-							const leftHover = this._store.add(setupCustomHover(hoverDelegate, left, this.getTooltip()));
+							const hover = this._store.add(setupCustomHover(hoverDelegate, container, this.getTooltip()));
 
 							// update label & tooltip when window title changes
 							this._store.add(windowTitle.onDidChange(() => {
-								leftHover.update(this.getTooltip());
+								hover.update(this.getTooltip());
 								labelElement.innerText = this._getLabel();
 							}));
 						}
@@ -118,22 +107,6 @@ export class CommandCenterControl {
 								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
 
 							return title;
-						}
-
-						override onClick(event: EventLike, preserveFocus = false): void {
-
-							if (event instanceof MouseEvent) {
-								let el = event.target;
-								while (el instanceof HTMLElement) {
-									if (el.classList.contains('right')) {
-										quickInputService.quickAccess.show('?');
-										return;
-									}
-									el = el.parentElement;
-								}
-							}
-
-							super.onClick(event, preserveFocus);
 						}
 					}
 
@@ -185,20 +158,27 @@ colors.registerColor(
 // background (inactive and active)
 colors.registerColor(
 	'commandCenter.background',
-	{ dark: null, hcDark: null, light: null, hcLight: null },
+	{
+		dark: Color.white.transparent(0.05), hcDark: null, light: Color.black.transparent(0.05), hcLight: null
+	},
 	localize('commandCenter-background', "Background color of the command center"),
 	false
 );
 colors.registerColor(
 	'commandCenter.activeBackground',
-	{ dark: MENUBAR_SELECTION_BACKGROUND, hcDark: MENUBAR_SELECTION_BACKGROUND, light: MENUBAR_SELECTION_BACKGROUND, hcLight: MENUBAR_SELECTION_BACKGROUND },
+	{ dark: Color.white.transparent(0.08), hcDark: MENUBAR_SELECTION_BACKGROUND, light: Color.black.transparent(0.08), hcLight: MENUBAR_SELECTION_BACKGROUND },
 	localize('commandCenter-activeBackground', "Active background color of the command center"),
 	false
 );
-// border: defaults to active background
+// border: active and inactive. defaults to active background
 colors.registerColor(
-	'commandCenter.border', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), hcDark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), hcLight: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25) },
+	'commandCenter.border', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60), light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60) },
 	localize('commandCenter-border', "Border color of the command center"),
+	false
+);
+colors.registerColor(
+	'commandCenter.activeBorder', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-activeBorder', "Active border color of the command center"),
 	false
 );
 // border: defaults to active background

@@ -300,6 +300,8 @@ impl Platform {
 			Some(Platform::WindowsX64)
 		} else if cfg!(all(target_os = "windows", target_arch = "x86")) {
 			Some(Platform::WindowsX86)
+		} else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+			Some(Platform::WindowsARM64)
 		} else {
 			None
 		}
