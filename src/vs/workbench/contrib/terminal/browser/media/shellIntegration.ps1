@@ -52,8 +52,8 @@ function Global:Prompt() {
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
 	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]633;P;Cwd=$($pwd.ProviderPath)`a"}
-        # Before running the original prompt, put $? back to what it was:
-        if ($FakeCode -ne 0) { Write-Error "failure" -ea ignore }
+	# Before running the original prompt, put $? back to what it was:
+	if ($FakeCode -ne 0) { Write-Error "failure" -ea ignore }
 	# Run the original prompt
 	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
