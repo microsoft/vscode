@@ -1252,10 +1252,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/l10n-dev@0.0.15":
-  version "0.0.15"
-  resolved "https://registry.yarnpkg.com/@vscode/l10n-dev/-/l10n-dev-0.0.15.tgz#677b527987ccd39e32c50956f139736a788061d6"
-  integrity sha512-zLuo/pa+FtnFrVq/7M8VHshgejNZ6TvnRW9/um1pLkg92PZ9glDgmwXUv1AdpBu5KNzgH9odiMKS4YQDkS12wQ==
+"@vscode/l10n-dev@0.0.18":
+  version "0.0.18"
+  resolved "https://registry.yarnpkg.com/@vscode/l10n-dev/-/l10n-dev-0.0.18.tgz#80a8cf6ef13c7fe1796be7b0007d71993bd1832f"
+  integrity sha512-pEKLMnlg7hlxFrZLqcyJe08olmj6KVs2Rof7MVB5rN0D6NOKPBRtkQ176TuMUmW863EDV5WQUgNzOGa2nHBSSQ==
   dependencies:
     deepmerge-json "^1.5.0"
     glob "^8.0.3"
