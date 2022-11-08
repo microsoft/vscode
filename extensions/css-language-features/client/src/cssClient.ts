@@ -151,7 +151,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		const textEditor = window.activeTextEditor;
 		if (textEditor && textEditor.document.uri.toString() === uri) {
 			if (textEditor.document.version !== documentVersion) {
-				window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+				window.showInformationMessage(l10n.t('CSS fix is outdated and can\'t be applied to the document.'));
 			}
 			textEditor.edit(mutator => {
 				for (const edit of edits) {
@@ -159,7 +159,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				}
 			}).then(success => {
 				if (!success) {
-					window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+					window.showErrorMessage(l10n.t('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.'));
 				}
 			});
 		}
