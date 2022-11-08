@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+declare let self: any;
+
+import * as l10n from '@vscode/l10n';
+const translationPackLocation = self.name;
+if (translationPackLocation) {
+	l10n.config({ uri: translationPackLocation });
+}
+
 import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
 import { RuntimeEnvironment, startServer } from '../htmlServer';
-
-declare let self: any;
 
 const messageReader = new BrowserMessageReader(self);
 const messageWriter = new BrowserMessageWriter(self);

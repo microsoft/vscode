@@ -12,10 +12,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.6.tgz#6bef7a2a0ad684cf6e90fcfe31cecabd9ce0a3ae"
   integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
 
-"@vscode/l10n@^0.0.6":
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/@vscode/l10n/-/l10n-0.0.6.tgz#a66c63e14e60d5dcbd2069e379e908731ae61bf1"
-  integrity sha512-67dICn5IGL5+sD6jpcYxnf18uniZGzmAKtXqHMUMUksP+ALv+87Odtp0v0jEp3qmBPyCis4aU6/c/rkalNgANA==
+"@vscode/l10n@^0.0.8":
+  version "0.0.8"
+  resolved "https://registry.yarnpkg.com/@vscode/l10n/-/l10n-0.0.8.tgz#f7ba4740ff69eff13987224823559a593af8a611"
+  integrity sha512-9DZnFZu9BM5I90+3KHWxva3Nz849QfPHM1KcxAbrUOWIUG+wflgbFnzQ/umcQWRqm2JWjLpqNdsxvqUopOFXnQ==
 
 vscode-css-languageservice@^6.1.1:
   version "6.1.1"

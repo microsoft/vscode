@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, Uri } from 'vscode';
+import { ExtensionContext, Uri, l10n } from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor, SchemaRequestService } from '../jsonClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
 declare const Worker: {
-	new(stringUrl: string): any;
+	new(stringUrl: string, options?: { name?: string }): any;
 };
 
 declare function fetch(uri: string, options: any): any;
@@ -20,7 +20,8 @@ let client: BaseLanguageClient | undefined;
 export async function activate(context: ExtensionContext) {
 	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/jsonServerMain.js');
 	try {
-		const worker = new Worker(serverMain.toString());
+		const l10nPath = l10n.uri?.toString() ?? '';
+		const worker = new Worker(serverMain.toString(), { name: l10nPath });
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
 			return new LanguageClient(id, name, clientOptions, worker);
 		};
