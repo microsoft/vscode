@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
+import { IImplicitActivationEvents, IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -56,10 +56,31 @@ export class ExtensionMessageCollector {
 	}
 }
 
+export class ExtensionActivationEventsCollector {
+	private readonly _implicitActivationEventsHandler: (info: IImplicitActivationEvents) => void;
+	private readonly _extension: IExtensionDescription;
+
+	constructor(
+		implicitActivationEventsHandler: (info: IImplicitActivationEvents) => void,
+		extension: IExtensionDescription
+	) {
+		this._implicitActivationEventsHandler = implicitActivationEventsHandler;
+		this._extension = extension;
+	}
+
+	public addImplicitActivationEvents(events: string[]) {
+		this._implicitActivationEventsHandler({
+			implicitActivationEvents: events,
+			extensionId: this._extension.identifier,
+		});
+	}
+}
+
 export interface IExtensionPointUser<T> {
 	description: IExtensionDescription;
 	value: T;
 	collector: ExtensionMessageCollector;
+	implicitActivationEventsCollector: ExtensionActivationEventsCollector;
 }
 
 export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;

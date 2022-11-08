@@ -15,8 +15,8 @@ import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementServ
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, RemoteRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, RemoteRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, IImplicitActivationEvents } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationEventsCollector, ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { createExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -153,6 +153,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _installedExtensionsReady: Barrier;
 	private readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
+	private readonly _extensionsImplicitActivationEvents: Map<string, Set<string>>;
 	private readonly _allRequestedActivateEvents = new Set<string>();
 	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
@@ -206,6 +207,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
+		this._extensionsImplicitActivationEvents = new Map<string, Set<string>>();
 		this._proposedApiController = _instantiationService.createInstance(ProposedApiController);
 
 		this._extensionHostManagers = [];
@@ -1211,17 +1213,46 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+		const implicitActivationEventsHandler = (info: IImplicitActivationEvents) => this._handleImplicitExtensionActivationEvents(info);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
 		perf.mark('code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
 				perf.mark(`code/willHandleExtensionPoint/${extensionPoint.name}`);
-				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
+				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler, implicitActivationEventsHandler);
 				perf.mark(`code/didHandleExtensionPoint/${extensionPoint.name}`);
 			}
 		}
+		this._combineImplicitExtensionActivationEvents();
 		perf.mark('code/didHandleExtensionPoints');
+	}
+
+	private _combineImplicitExtensionActivationEvents() {
+		for (const [extensionKey, implicitActivationEvents] of this._extensionsImplicitActivationEvents.entries()) {
+			const extensionDescription = this._registry.getExtensionDescription(extensionKey);
+			if (!extensionDescription) {
+				continue;
+			}
+
+			for (const activationEvents of (extensionDescription?.activationEvents ?? [])) {
+				implicitActivationEvents.add(activationEvents);
+			}
+			extensionDescription.activationEvents = Array.from(implicitActivationEvents);
+		}
+	}
+
+	private _handleImplicitExtensionActivationEvents(extensionActivationEventsInfo: IImplicitActivationEvents) {
+		const extensionKey = ExtensionIdentifier.toKey(extensionActivationEventsInfo.extensionId);
+
+		if (!this._extensionsImplicitActivationEvents.has(extensionKey)) {
+			this._extensionsImplicitActivationEvents.set(extensionKey, new Set());
+		}
+		const implicitActivationEvents = this._extensionsImplicitActivationEvents.get(extensionKey);
+
+		for (const activationEvent of extensionActivationEventsInfo.implicitActivationEvents) {
+			implicitActivationEvents?.add(activationEvent);
+		}
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {
@@ -1273,14 +1304,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private static _handleExtensionPoint<T extends IExtensionContributions[keyof IExtensionContributions]>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
+	private static _handleExtensionPoint<T extends IExtensionContributions[keyof IExtensionContributions]>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void, implicitActivationEventsHandler: (info: IImplicitActivationEvents) => void): void {
 		const users: IExtensionPointUser<T>[] = [];
 		for (const desc of availableExtensions) {
 			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
 				users.push({
 					description: desc,
 					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes] as T,
-					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
+					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name),
+					implicitActivationEventsCollector: new ExtensionActivationEventsCollector(implicitActivationEventsHandler, desc),
 				});
 			}
 		}

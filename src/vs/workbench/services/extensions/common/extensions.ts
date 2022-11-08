@@ -40,6 +40,11 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
+export interface IImplicitActivationEvents {
+	implicitActivationEvents: string[];
+	extensionId: ExtensionIdentifier;
+}
+
 export class LocalProcessRunningLocation {
 	public readonly kind = ExtensionHostKind.LocalProcess;
 	constructor(
