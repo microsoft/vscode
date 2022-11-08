@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
-import { ActionSet, ActionShowOptions, BaseActionWidget, IActionList, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionSet, ActionShowOptions, IActionList, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -127,7 +127,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 	}
 }
 
-export class ActionWidget<T> extends BaseActionWidget<T> {
+export class ActionWidget<T> extends Disposable {
 
 	currentShowingContext?: {
 		readonly options: ActionShowOptions;
@@ -292,6 +292,41 @@ export class ActionWidget<T> extends BaseActionWidget<T> {
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
+	}
+	public showDisabled = false;
+	public list = this._register(new MutableDisposable<IActionList<T>>());
+
+	public acceptSelected(preview?: boolean) {
+		this.list.value?.acceptSelected(preview);
+	}
+
+	public focusPrevious() {
+		this.list?.value?.focusPrevious();
+	}
+
+	public focusNext() {
+		this.list?.value?.focusNext();
+	}
+
+	public hide() {
+		this.list.value?.hide();
+		this.list.clear();
+	}
+
+	public clear() {
+		this.list.clear();
+	}
+
+	public layout(minWidth: number) {
+		this.list?.value?.layout(minWidth);
+	}
+
+	public toMenuItems(actions: readonly T[], showHeaders: boolean): ListMenuItem<T>[] {
+		const list = this.list.value;
+		if (!list) {
+			throw new Error('No list');
+		}
+		return list.toMenuItems(actions, showHeaders);
 	}
 }
 
