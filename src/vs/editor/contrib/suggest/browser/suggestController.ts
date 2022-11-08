@@ -380,9 +380,6 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		// cancel -> stops all listening and closes widget
-		this.model.cancel();
-
 		snippetController.insert(insertText, {
 			overwriteBefore: info.overwriteBefore,
 			overwriteAfter: info.overwriteAfter,
@@ -392,6 +389,9 @@ export class SuggestController implements IEditorContribution {
 			clipboardText: event.model.clipboardText,
 			overtypingCapturer: this._overtypingCapturer.value
 		});
+
+		// cancel -> stops all listening and closes widget
+		this.model.cancel();
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
