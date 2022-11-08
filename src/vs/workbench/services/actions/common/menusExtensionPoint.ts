@@ -662,6 +662,8 @@ commandsExtensionPoint.setHandler(extensions => {
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
 		}));
+
+		extension.implicitActivationEventsCollector.addImplicitActivationEvents([`onCommand:${command}`]);
 	}
 
 	// remove all previous command registrations
