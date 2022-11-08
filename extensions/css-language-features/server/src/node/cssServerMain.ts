@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
+const translationPackLocation = process.env['VSCODE_L10N_BUNDLE_LOCATION'];
+if (translationPackLocation) {
+	l10n.config({ uri: translationPackLocation });
+}
+
 import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
 import { formatError } from '../utils/runner';
 import { RuntimeEnvironment, startServer } from '../cssServer';
