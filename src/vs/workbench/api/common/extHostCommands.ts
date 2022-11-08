@@ -237,11 +237,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		const start = Date.now();
 		try {
-			const result = await callback.apply(thisArg, args);
-			this._reportTelemetry(command, id, Date.now() - start);
-			return result;
+			return await callback.apply(thisArg, args);
 		} catch (err) {
-			this._reportTelemetry(command, id, Date.now() - start);
 			// The indirection-command from the converter can fail when invoking the actual
 			// command and in that case it is better to blame the correct command
 			if (id === this.converter.delegatingCommandId) {
@@ -264,6 +261,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			};
 		}
+		finally {
+			this._reportTelemetry(command, id, Date.now() - start);
+		}
 	}
 
 	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
@@ -278,7 +278,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		type ExtensionActionTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
-			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the command execution, to detect performance issues' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The duration of the command execution, to detect performance issues' };
 			owner: 'digitarald';
 			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};
