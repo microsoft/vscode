@@ -292,25 +292,35 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
+				// First ask the user to pick a destination, if necessary
+				let uri: URI | 'noDestinationUri' | undefined = workspaceUri;
+				let destination;
+				if (!uri) {
+					destination = await that.pickContinueEditSessionDestination();
+				}
+				if (!destination && !uri) {
+					return;
+				}
+
+				// Determine if we need to store an edit session, asking for edit session auth if necessary
 				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
-					ref = await that.storeEditSession(false);
-				}
-
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
-				if (uri === undefined) {
-					// If the user didn't end up picking a Continue On destination
-					// and we stored an edit session, clean up the stored edit session
-					if (ref !== undefined) {
-						void that.editSessionsStorageService.delete(ref);
-					}
-					return;
+					ref = await that.progressService.withProgress({
+						location: ProgressLocation.Notification,
+						type: 'syncing',
+						title: localize('store your edit session', 'Storing your edit session...')
+					}, async () => that.storeEditSession(false));
 				}
 
 				// Append the ref to the URI
+				uri = destination ? await that.resolveDestination(destination) : uri;
+				if (uri === undefined) {
+					return;
+				}
+
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
@@ -406,7 +416,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			} else if (ref !== undefined) {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
 			}
-			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
+			this.logService.info(ref !== undefined ? `Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
 			return;
 		}
 		const editSession = data.editSession;
@@ -742,7 +752,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async pickContinueEditSessionDestination(): Promise<URI | 'noDestinationUri' | undefined> {
+	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
@@ -765,10 +775,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		quickPick.dispose();
 
-		if (command === undefined) {
-			return undefined;
-		}
+		return command;
+	}
 
+	private async resolveDestination(command: string): Promise<URI | 'noDestinationUri' | undefined> {
 		try {
 			const uri = await this.commandService.executeCommand(command);
 

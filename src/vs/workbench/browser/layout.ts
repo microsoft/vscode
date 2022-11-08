@@ -1078,6 +1078,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
 		// if WCO is visible, we have to show the title bar
 		if (isWCOVisible()) {
 			return true;

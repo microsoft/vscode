@@ -22,6 +22,10 @@ export class TextModelDiffs extends Disposable {
 	private readonly barrier = new ReentrancyBarrier();
 	private isDisposed = false;
 
+	public get isApplyingChange() {
+		return this.barrier.isActive;
+	}
+
 	constructor(
 		private readonly baseTextModel: ITextModel,
 		private readonly textModel: ITextModel,

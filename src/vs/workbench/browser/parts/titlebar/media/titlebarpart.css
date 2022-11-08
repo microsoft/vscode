@@ -148,6 +148,7 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center:HOVER {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder);
 }
 
 /* Menubar */
@@ -156,6 +157,10 @@
 	z-index: 2500;
 	min-width: 36px;
 	flex-wrap: nowrap;
+}
+
+.monaco-workbench.web .part.titlebar>.titlebar-container>.menubar {
+	margin-left: 4px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container.counter-zoom > .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container {

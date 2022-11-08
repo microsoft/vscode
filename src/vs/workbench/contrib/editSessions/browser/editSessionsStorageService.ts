@@ -35,7 +35,7 @@ type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthentication
 const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
-	_serviceBrand = undefined;
+	declare _serviceBrand: undefined;
 
 	private serverConfiguration = this.productService['editSessions.store'];
 	private storeClient: EditSessionsStoreClient | undefined;

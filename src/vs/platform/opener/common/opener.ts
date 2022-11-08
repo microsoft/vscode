@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -116,17 +116,6 @@ export interface IOpenerService {
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
-
-export const NullOpenerService = Object.freeze({
-	_serviceBrand: undefined,
-	registerOpener() { return Disposable.None; },
-	registerValidator() { return Disposable.None; },
-	registerExternalUriResolver() { return Disposable.None; },
-	setDefaultExternalOpener() { },
-	registerExternalOpener() { return Disposable.None; },
-	async open() { return false; },
-	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-} as IOpenerService);
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
 	if (URI.isUri(target)) {

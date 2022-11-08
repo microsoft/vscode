@@ -48,7 +48,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	private _rootElement!: HTMLElement;
-	private _dimension?: DOM.Dimension;
+	private _pagePosition?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 
 	private readonly _inputListener = this._register(new MutableDisposable());
 
@@ -180,7 +180,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._dimension);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');
@@ -190,8 +190,8 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 			this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
 
-			if (this._dimension) {
-				this._widget.value!.layout(this._dimension, this._rootElement);
+			if (this._pagePosition) {
+				this._widget.value!.layout(this._pagePosition.dimension, this._rootElement, this._pagePosition.position);
 			}
 
 			// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
@@ -395,10 +395,10 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 		return;
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
 		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
-		this._dimension = dimension;
+		this._pagePosition = { dimension, position };
 
 		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
 			return;
@@ -414,7 +414,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			return;
 		}
 
-		this._widget.value.layout(this._dimension, this._rootElement);
+		this._widget.value.layout(dimension, this._rootElement, position);
 	}
 
 	//#endregion
