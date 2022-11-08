@@ -37,8 +37,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		const [codeWindow] = await this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
 			cli: pargs,
-			useNamedProfile: pargs.profile,
-			useTempProfile: pargs['profile-temp']
+			forceProfile: pargs.profile,
+			forceTempProfile: pargs['profile-temp']
 		});
 
 		if (!debugRenderer) {

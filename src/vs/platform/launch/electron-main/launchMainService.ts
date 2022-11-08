@@ -121,8 +121,8 @@ export class LaunchMainService implements ILaunchMainService {
 			userEnv,
 			waitMarkerFileURI,
 			remoteAuthority,
-			useNamedProfile: args.profile,
-			useTempProfile: args['profile-temp']
+			forceProfile: args.profile,
+			forceTempProfile: args['profile-temp']
 		};
 
 		// Special case extension development
@@ -135,7 +135,7 @@ export class LaunchMainService implements ILaunchMainService {
 			let openNewWindow = false;
 
 			// Force new window
-			if (args['new-window'] || args['unity-launch'] || baseConfig.useNamedProfile || baseConfig.useTempProfile) {
+			if (args['new-window'] || args['unity-launch'] || baseConfig.forceProfile || baseConfig.forceTempProfile) {
 				openNewWindow = true;
 			}
 

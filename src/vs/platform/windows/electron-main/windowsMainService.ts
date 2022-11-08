@@ -76,8 +76,8 @@ interface IOpenBrowserWindowOptions {
 	readonly windowToUse?: ICodeWindow;
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
-	readonly useNamedProfile?: string;
-	readonly useTempProfile?: boolean;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 interface IPathResolveOptions {
@@ -530,8 +530,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					forceNewWindow: true,
 					remoteAuthority: filesToOpen.remoteAuthority,
 					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
-					useNamedProfile: openConfig.useNamedProfile,
-					useTempProfile: openConfig.useTempProfile
+					forceProfile: openConfig.forceProfile,
+					forceTempProfile: openConfig.forceTempProfile
 				}), true);
 			}
 		}
@@ -678,8 +678,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen,
 			windowToUse,
 			emptyWindowBackupInfo,
-			useNamedProfile: openConfig.useNamedProfile,
-			useTempProfile: openConfig.useTempProfile
+			forceProfile: openConfig.forceProfile,
+			forceTempProfile: openConfig.forceTempProfile
 		});
 	}
 
@@ -700,8 +700,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
 			windowToUse,
-			useNamedProfile: openConfig.useNamedProfile,
-			useTempProfile: openConfig.useTempProfile
+			forceProfile: openConfig.forceProfile,
+			forceTempProfile: openConfig.forceTempProfile
 		});
 	}
 
@@ -1307,8 +1307,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI,
 			remoteAuthority,
-			useNamedProfile: openConfig.useNamedProfile,
-			useTempProfile: openConfig.useTempProfile
+			forceProfile: openConfig.forceProfile,
+			forceTempProfile: openConfig.forceTempProfile
 		};
 
 		return this.open(openArgs);
@@ -1505,9 +1505,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private async resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions): Promise<IUserDataProfile> {
 		let profile: IUserDataProfile | undefined;
 		if (this.userDataProfilesMainService.isEnabled()) {
-			if (options.useNamedProfile) {
-				profile = this.userDataProfilesMainService.profiles.find(p => p.name === options.useNamedProfile) ?? await this.userDataProfilesMainService.createNamedProfile(options.useNamedProfile);
-			} else if (options.useTempProfile) {
+			if (options.forceProfile) {
+				profile = this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? await this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
+			} else if (options.forceTempProfile) {
 				profile = await this.userDataProfilesMainService.createTransientProfile();
 			}
 		}

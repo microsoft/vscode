@@ -97,8 +97,8 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	 * - a workspace that is neither `file://` nor `vscode-remote://`
 	 */
 	readonly remoteAuthority?: string;
-	readonly useNamedProfile?: string;
-	readonly useTempProfile?: boolean;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
