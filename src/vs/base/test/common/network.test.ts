@@ -30,10 +30,10 @@ suite('network', () => {
 	});
 
 	(isWeb ? test.skip : test)('FileAccess: moduleId (native)', () => {
-		const browserUri = FileAccess.asBrowserUri('vs/base/test/node/network.test', require);
+		const browserUri = FileAccess.asBrowserUri('vs/base/test/node/network.test');
 		assert.strictEqual(browserUri.scheme, Schemas.vscodeFileResource);
 
-		const fileUri = FileAccess.asFileUri('vs/base/test/node/network.test', require);
+		const fileUri = FileAccess.asFileUri('vs/base/test/node/network.test');
 		assert.strictEqual(fileUri.scheme, Schemas.file);
 	});
 

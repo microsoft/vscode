@@ -161,7 +161,7 @@ export class TextMateWorker {
 		});
 		const vscodeTextmate = await import('vscode-textmate');
 		const vscodeOniguruma = await import('vscode-oniguruma');
-		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
+		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true));
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.
 		// We therefore use the non-streaming compiler :(.
