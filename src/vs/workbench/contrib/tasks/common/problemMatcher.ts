@@ -286,7 +286,7 @@ async function searchForFileLocation(filename: string, fsProvider: IFileSystemPr
 		return undefined;
 	}
 
-	for (const dir of asArray(args.include)) {
+	for (const dir of asArray(args.include || [])) {
 		const hit = await search(URI.file(dir));
 		if (hit) {
 			return hit;
@@ -863,10 +863,12 @@ export namespace Config {
 		*  - ["autodetect", "path value"]: the filename is treated
 		*    relative to the given path value, and if it does not
 		*    exist, it is treated as absolute.
-		*  - ["search", { include: "" | []; exclude?: "" | [] }]: The filename
+		*  - ["search", { include?: "" | []; exclude?: "" | [] }]: The filename
 		*    needs to be searched under the directories named by the "include"
 		*    property and their nested subdirectories. With "exclude" property
-		*    present, the directories should be removed from the search.
+		*    present, the directories should be removed from the search. When
+		*    `include` is not unprovided, the current workspace directory should
+		*    be used as the default.
 		*/
 		fileLocation?: string | string[] | ['search', SearchFileLocationArgs];
 
@@ -896,7 +898,7 @@ export namespace Config {
 	}
 
 	export type SearchFileLocationArgs = {
-		include: string | string[];
+		include?: string | string[];
 		exclude?: string | string[];
 	};
 
@@ -1455,6 +1457,8 @@ export class ProblemMatcherParser extends Parser {
 				fileLocation = kind;
 				if ((kind === FileLocationKind.Relative) || (kind === FileLocationKind.AutoDetect)) {
 					filePrefix = '${workspaceFolder}';
+				} else if (kind === FileLocationKind.Search) {
+					filePrefix = { include: ['${workspaceFolder}'] };
 				}
 			}
 		} else if (Types.isStringArray(description.fileLocation)) {
@@ -1468,9 +1472,12 @@ export class ProblemMatcherParser extends Parser {
 					filePrefix = values[1];
 				}
 			}
-		} else if (Array.isArray(description.fileLocation) && FileLocationKind.fromString(description.fileLocation[0]) === FileLocationKind.Search) {
-			fileLocation = FileLocationKind.Search;
-			filePrefix = description.fileLocation[1];
+		} else if (Array.isArray(description.fileLocation)) {
+			const kind = FileLocationKind.fromString(description.fileLocation[0]);
+			if (kind === FileLocationKind.Search) {
+				fileLocation = FileLocationKind.Search;
+				filePrefix = description.fileLocation[1] ?? { include: ['${workspaceFolder}'] };
+			}
 		}
 
 		const pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
@@ -1684,7 +1691,7 @@ export namespace Schemas {
 				oneOf: [
 					{
 						type: 'string',
-						enum: ['absolute', 'relative', 'autoDetect']
+						enum: ['absolute', 'relative', 'autoDetect', 'search']
 					},
 					{
 						type: 'array',
@@ -1726,7 +1733,7 @@ export namespace Schemas {
 						],
 					}
 				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path of the relative file location. The search fileLocation mode, performs a deep (and, possibly, heavy) file system search within the directories specified by the include/exclude properties of the second element.')
+				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path of the relative file location. The search fileLocation mode, performs a deep (and, possibly, heavy) file system search within the directories specified by the include/exclude properties of the second element (or the current workspace directory if not specified).')
 			},
 			background: {
 				type: 'object',
