@@ -120,7 +120,7 @@ class VariableResolver {
 	}
 }
 
-class VerifiedTask {
+export class VerifiedTask {
 	readonly task: Task;
 	readonly resolver: ITaskResolver;
 	readonly trigger: string;
