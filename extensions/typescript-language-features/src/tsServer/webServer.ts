@@ -6,20 +6,15 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='dom' />
 // BEGIN misc internals
-// TODO: Might reference this as ts.sys or some other way, might rewrite stuff to not depend on it
-declare const sys: ts.System & {
-	tryEnableSourceMapsForHost?(): void;
-	getEnvironmentVariable(name: string): string;
-};
 const hasArgument: (argumentName: string) => boolean = (ts as any).server.hasArgument;
 const findArgument: (argumentName: string) => string | undefined = (ts as any).server.findArgument;
 const nowString: () => string = (ts as any).server.nowString;
-const noop = () => {};
+const noop = () => { };
 const perfLogger = {
 	logEvent: noop,
-	logErrEvent(_: any) {},
-	logPerfEvent(_: any) {},
-	logInfoEvent(_: any) {},
+	logErrEvent(_: any) { },
+	logPerfEvent(_: any) { },
+	logInfoEvent(_: any) { },
 	logStartCommand: noop,
 	logStopCommand: noop,
 	logStartUpdateProgram: noop,
@@ -47,7 +42,18 @@ const combinePaths: (path: string, ...paths: (string | undefined)[]) => string =
 const dynamicImport: ((id: string) => Promise<any>) | undefined = (ts as any).server.dynamicImport;
 const noopFileWatcher: ts.FileWatcher = { close: noop };
 const returnNoopFileWatcher = () => noopFileWatcher;
-const getLogLevel: (level: string | undefined) => ts.server.LogLevel | undefined = (ts as any).server.getLogLevel;
+function getLogLevel(level: string | undefined) {
+	if (level) {
+		const l = level.toLowerCase();
+		for (const name in ts.server.LogLevel) {
+			if (isNaN(+name) && l === name.toLowerCase()) {
+				return ts.server.LogLevel[name] as any as ts.server.LogLevel;
+			}
+		}
+	}
+	return undefined;
+}
+
 const notImplemented: () => never = (ts as any).notImplemented;
 const returnFalse: () => false = (ts as any).returnFalse;
 const returnUndefined: () => undefined = (ts as any).returnUndefined;
@@ -437,7 +443,7 @@ function startWebSession(options: StartSessionOptions, logger: ts.server.Logger,
 	class WorkerSession extends ServerWorkerSession {
 		constructor() {
 			super(
-				sys as ts.server.ServerHost & {tryEnableSourceMapsForHost?(): void; getEnvironmentVariable(name: string): string },
+				ts.sys as ts.server.ServerHost & { tryEnableSourceMapsForHost?(): void; getEnvironmentVariable(name: string): string },
 				{ writeMessage },
 				options,
 				logger,
@@ -487,7 +493,7 @@ function start({ args, logger, cancellationToken, serverMode, unknownServerMode,
 	logger.info(`Starting TS Server`);
 	logger.info(`Version: Moved from Typescript 5.0.0-dev`);
 	logger.info(`Arguments: ${args.join(' ')}`);
-	logger.info(`Platform: ${platform} NodeVersion: N/A CaseSensitive: ${sys.useCaseSensitiveFileNames}`);
+	logger.info(`Platform: ${platform} NodeVersion: N/A CaseSensitive: ${ts.sys.useCaseSensitiveFileNames}`);
 	logger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} hasUnknownServerMode: ${unknownServerMode}`);
 
 	setStackTraceLimit();
@@ -496,8 +502,8 @@ function start({ args, logger, cancellationToken, serverMode, unknownServerMode,
 		(ts as any).Debug.enableDebugInfo();
 	}
 
-	if (sys.tryEnableSourceMapsForHost && /^development$/i.test(sys.getEnvironmentVariable('NODE_ENV'))) {
-		sys.tryEnableSourceMapsForHost();
+	if ((ts as any).sys.tryEnableSourceMapsForHost && /^development$/i.test((ts as any).sys.getEnvironmentVariable('NODE_ENV'))) {
+		(ts as any).sys.tryEnableSourceMapsForHost();
 	}
 
 	// Overwrites the current console messages to instead write to
