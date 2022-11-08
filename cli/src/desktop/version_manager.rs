@@ -138,6 +138,18 @@ impl CodeVersionManager {
 	pub async fn get_entrypoint_for_install_dir(path: &Path) -> Option<PathBuf> {
 		use tokio::sync::mpsc;
 
+		// Check whether the user is supplying a path to the CLI directly (e.g. #164622)
+		if let Ok(true) = path.metadata().map(|m| m.is_file()) {
+			let result = std::process::Command::new(path)
+				.args(["--version"])
+				.output()
+				.map(|o| o.status.success());
+
+			if let Ok(true) = result {
+				return Some(path.to_owned());
+			}
+		}
+
 		let (tx, mut rx) = mpsc::channel(1);
 
 		// Look for all the possible paths in parallel
@@ -574,6 +586,39 @@ mod tests {
 			CodeVersionManager::get_entrypoint_for_install_dir(&dir.path().join("invalid"))
 				.await
 				.is_none()
+		);
+	}
+
+	#[tokio::test]
+	async fn test_gets_entrypoint_as_binary() {
+		let dir = tempfile::tempdir().expect("expected to make temp dir");
+
+		#[cfg(windows)]
+		let binary_file_path = {
+			let path = dir.path().join("code.cmd");
+			File::create(&path).expect("expected to create file");
+			path
+		};
+
+		#[cfg(unix)]
+		let binary_file_path = {
+			use std::fs;
+			use std::os::unix::fs::PermissionsExt;
+
+			let path = dir.path().join("code");
+			{
+				let mut f = File::create(&path).expect("expected to create file");
+				f.write_all(b"#!/bin/sh")
+					.expect("expected to write to file");
+			}
+			fs::set_permissions(&path, fs::Permissions::from_mode(0o777))
+				.expect("expected to set permissions");
+			path
+		};
+
+		assert_eq!(
+			CodeVersionManager::get_entrypoint_for_install_dir(&binary_file_path).await,
+			Some(binary_file_path)
 		);
 	}
 }

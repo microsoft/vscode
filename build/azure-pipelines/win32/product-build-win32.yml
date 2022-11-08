@@ -86,14 +86,13 @@ steps:
 
   - powershell: |
       if (!(Test-Path ".build")) { New-Item -Path ".build" -ItemType Directory }
-      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $(VSCODE_ARCH) > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/arch, .build/yarnlockhash"
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache

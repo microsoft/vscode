@@ -32,7 +32,7 @@ export const enum State {
 
 export type Edge = [State, number, State];
 
-export class Uint8Matrix {
+class Uint8Matrix {
 
 	private readonly _data: Uint8Array;
 	public readonly rows: number;

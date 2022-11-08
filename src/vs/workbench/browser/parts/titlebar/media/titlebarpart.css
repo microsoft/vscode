@@ -134,37 +134,21 @@
 	border-color: var(--vscode-commandCenter-inactiveBorder) !important;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left {
-	display: inline-flex;
-	justify-content: center;
-	width: 100%;
-	margin: auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left .search-icon {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .search-icon {
 	font-size: 14px;
 	opacity: .8;
 	margin: auto 3px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left .search-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .search-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .right {
-	margin-left: auto;
-	padding: 2px 2px 0 0;
-	width: 16px;
-	flex-shrink: 0;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left:HOVER,
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .right:HOVER {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center:HOVER {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder);
 }
 
 /* Menubar */

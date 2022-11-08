@@ -163,11 +163,6 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
-export interface IDataLinkClickEvent {
-	readonly dataURL: string;
-	readonly downloadName?: string;
-}
-
 export interface WebviewMessageReceivedEvent {
 	readonly message: any;
 	readonly transfer?: readonly ArrayBuffer[];
@@ -304,32 +299,32 @@ export interface IOverlayWebview extends IWebview {
  */
 export class WebviewOriginStore {
 
-	private readonly memento: Memento;
-	private readonly state: MementoObject;
+	private readonly _memento: Memento;
+	private readonly _state: MementoObject;
 
 	constructor(
 		rootStorageKey: string,
 		@IStorageService storageService: IStorageService,
 	) {
-		this.memento = new Memento(rootStorageKey, storageService);
-		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._memento = new Memento(rootStorageKey, storageService);
+		this._state = this._memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	public getOrigin(viewType: string, additionalKey: string | undefined): string {
-		const key = this.getKey(viewType, additionalKey);
+		const key = this._getKey(viewType, additionalKey);
 
-		const existing = this.state[key];
+		const existing = this._state[key];
 		if (existing && typeof existing === 'string') {
 			return existing;
 		}
 
 		const newOrigin = generateUuid();
-		this.state[key] = newOrigin;
-		this.memento.saveMemento();
+		this._state[key] = newOrigin;
+		this._memento.saveMemento();
 		return newOrigin;
 	}
 
-	private getKey(viewType: string, additionalKey: string | undefined): string {
+	private _getKey(viewType: string, additionalKey: string | undefined): string {
 		return JSON.stringify({ viewType, key: additionalKey });
 	}
 }
@@ -341,16 +336,16 @@ export class WebviewOriginStore {
  */
 export class ExtensionKeyedWebviewOriginStore {
 
-	private readonly store: WebviewOriginStore;
+	private readonly _store: WebviewOriginStore;
 
 	constructor(
 		rootStorageKey: string,
 		@IStorageService storageService: IStorageService,
 	) {
-		this.store = new WebviewOriginStore(rootStorageKey, storageService);
+		this._store = new WebviewOriginStore(rootStorageKey, storageService);
 	}
 
 	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
-		return this.store.getOrigin(viewType, extId.value);
+		return this._store.getOrigin(viewType, extId.value);
 	}
 }

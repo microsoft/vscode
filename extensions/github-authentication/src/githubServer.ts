@@ -8,7 +8,7 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './experimentationService';
-import { AuthProviderType } from './github';
+import { AuthProviderType, UriEventHandler } from './github';
 import { Log } from './common/logger';
 import { isSupportedEnvironment } from './common/env';
 import { LoopbackAuthServer } from './authServer';
@@ -21,23 +21,11 @@ const NETWORK_ERROR = 'network error';
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
-class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
-	constructor(private readonly Logger: Log) {
-		super();
-	}
-
-	public handleUri(uri: vscode.Uri) {
-		this.Logger.trace('Handling Uri...');
-		this.fire(uri);
-	}
-}
-
-export interface IGitHubServer extends vscode.Disposable {
+export interface IGitHubServer {
 	login(scopes: string): Promise<string>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(token: string): Promise<void>;
 	friendlyName: string;
-	type: AuthProviderType;
 }
 
 interface IGitHubDeviceCodeResponse {
@@ -73,38 +61,35 @@ async function getScopes(token: string, serverUri: vscode.Uri, logger: Log): Pro
 export class GitHubServer implements IGitHubServer {
 	readonly friendlyName: string;
 
-	private _pendingNonces = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, { promise: Promise<string>; cancel: vscode.EventEmitter<void> }>();
-	private _disposable: vscode.Disposable | undefined;
-	private static _uriHandler: UriEventHandler | undefined;
+	private readonly _pendingNonces = new Map<string, string[]>();
+	private readonly _codeExchangePromises = new Map<string, { promise: Promise<string>; cancel: vscode.EventEmitter<void> }>();
+	private readonly _type: AuthProviderType;
+
 	private _redirectEndpoint: string | undefined;
 
 	constructor(
-		public readonly type: AuthProviderType,
-		private readonly _supportDeviceCodeFlow: boolean,
 		private readonly _logger: Log,
-		private readonly _telemetryReporter: ExperimentationTelemetry
+		private readonly _telemetryReporter: ExperimentationTelemetry,
+		private readonly _uriHandler: UriEventHandler,
+		private readonly _supportDeviceCodeFlow: boolean,
+		private readonly _ghesUri?: vscode.Uri
 	) {
-		this.friendlyName = type === AuthProviderType.github ? 'GitHub' : 'GitHub Enterprise';
-
-		if (!GitHubServer._uriHandler) {
-			GitHubServer._uriHandler = new UriEventHandler(this._logger);
-			this._disposable = vscode.window.registerUriHandler(GitHubServer._uriHandler);
-		}
+		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+		this.friendlyName = this._type === AuthProviderType.github ? 'GitHub' : _ghesUri?.authority!;
 	}
 
 	get baseUri() {
-		if (this.type === AuthProviderType.github) {
+		if (this._type === AuthProviderType.github) {
 			return vscode.Uri.parse('https://github.com/');
 		}
-		return vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true);
+		return this._ghesUri!;
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {
 		if (this._redirectEndpoint) {
 			return this._redirectEndpoint;
 		}
-		if (this.type === AuthProviderType.github) {
+		if (this._type === AuthProviderType.github) {
 			const proxyEndpoints = await vscode.commands.executeCommand<{ [providerId: string]: string } | undefined>('workbench.getCodeExchangeProxyEndpoints');
 			// If we are running in insiders vscode.dev, then ensure we use the redirect route on that.
 			this._redirectEndpoint = REDIRECT_URL_STABLE;
@@ -137,10 +122,6 @@ export class GitHubServer implements IGitHubServer {
 			this._redirectEndpoint = 'https://vscode-auth.github.com/';
 		}
 		return this._redirectEndpoint;
-	}
-
-	dispose() {
-		this._disposable?.dispose();
 	}
 
 	// TODO@joaomoreno TODO@TylerLeonhardt
@@ -246,7 +227,7 @@ export class GitHubServer implements IGitHubServer {
 			// before completing it.
 			let codeExchangePromise = this._codeExchangePromises.get(scopes);
 			if (!codeExchangePromise) {
-				codeExchangePromise = promiseFromEvent(GitHubServer._uriHandler!.event, this.handleUri(scopes));
+				codeExchangePromise = promiseFromEvent(this._uriHandler!.event, this.handleUri(scopes));
 				this._codeExchangePromises.set(scopes, codeExchangePromise);
 			}
 
@@ -467,7 +448,7 @@ export class GitHubServer implements IGitHubServer {
 		const endpointUrl = proxyEndpoints?.github ? `${proxyEndpoints.github}login/oauth/access_token` : GITHUB_TOKEN_URL;
 
 		const body = new URLSearchParams([['code', code]]);
-		if (this.type === AuthProviderType.githubEnterprise) {
+		if (this._type === AuthProviderType.githubEnterprise) {
 			body.append('github_enterprise', this.baseUri.toString(true));
 			body.append('redirect_uri', await this.getRedirectEndpoint());
 		}
@@ -495,11 +476,11 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private getServerUri(path: string = '') {
-		if (this.type === AuthProviderType.github) {
+		if (this._type === AuthProviderType.github) {
 			return vscode.Uri.parse('https://api.github.com').with({ path });
 		}
 		// GHES
-		const apiUri = vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true);
+		const apiUri = this.baseUri;
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
@@ -553,7 +534,7 @@ export class GitHubServer implements IGitHubServer {
 			return;
 		}
 
-		if (this.type === AuthProviderType.github) {
+		if (this._type === AuthProviderType.github) {
 			return await this.checkEduDetails(token);
 		}
 

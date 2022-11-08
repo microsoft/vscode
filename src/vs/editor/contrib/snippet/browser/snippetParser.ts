@@ -165,6 +165,13 @@ export abstract class Marker {
 		return this._children;
 	}
 
+	get rightMostDescendant(): Marker {
+		if (this._children.length > 0) {
+			return this._children[this._children.length - 1].rightMostDescendant;
+		}
+		return this;
+	}
+
 	get snippet(): TextmateSnippet | undefined {
 		let candidate: Marker = this;
 		while (true) {

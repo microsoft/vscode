@@ -610,7 +610,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._register(editor.onMouseDown(event => {
 			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
 				const lineNumber = event.target.position.lineNumber;
-				const change = this._diffComputationResult?.changes.find(c => c.modifiedStartLineNumber === lineNumber - 1 || c.modifiedStartLineNumber === lineNumber);
+				const viewZone = event.target as editorBrowser.IMouseTargetViewZone | undefined;
+				const change = this._diffComputationResult?.changes.find(c =>
+					// delete change
+					viewZone?.detail.afterLineNumber === c.modifiedStartLineNumber ||
+					// other changes
+					(c.modifiedEndLineNumber > 0 && c.modifiedStartLineNumber === lineNumber));
 				if (change) {
 					this.revertChange(change);
 				}
@@ -1208,7 +1213,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());
 		const foreignModified = this._modifiedEditorState.getForeignViewZones(this._modifiedEditor.getWhitespaces());
 
-		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._options.ignoreTrimWhitespace, this._options.renderIndicators, this._options.renderMarginRevertIcon, foreignOriginal, foreignModified);
+		const renderMarginRevertIcon = this._options.renderMarginRevertIcon && !this._modifiedEditor.getOption(EditorOption.readOnly);
+		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._options.ignoreTrimWhitespace, this._options.renderIndicators, renderMarginRevertIcon, foreignOriginal, foreignModified);
 
 		try {
 			this._currentlyChangingViewZones = true;

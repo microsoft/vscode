@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -351,6 +351,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
+		private globalState: Memento,
 		private logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
@@ -452,10 +453,12 @@ export class CommandCenter {
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
+			current.uri = toGitUri(uri, head.hash);
 
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
+			incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -541,7 +544,7 @@ export class CommandCenter {
 				canSelectMany: false,
 				defaultUri: Uri.file(defaultCloneDirectory),
 				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select Repository Location')
+				openLabel: l10n.t('Select as Repository Destination')
 			});
 
 			if (!uris || uris.length === 0) {
@@ -1568,7 +1571,7 @@ export class CommandCenter {
 		repository: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
 		opts: CommitOptions
-	): Promise<boolean> {
+	): Promise<void> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
@@ -1608,7 +1611,7 @@ export class CommandCenter {
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 				} else if (pick !== commit) {
-					return false; // do not commit on cancel
+					return; // do not commit on cancel
 				}
 			}
 		}
@@ -1618,7 +1621,7 @@ export class CommandCenter {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
-				return false;
+				return;
 			}
 
 			// prompt the user if we want to commit all or not
@@ -1632,9 +1635,9 @@ export class CommandCenter {
 				config.update('enableSmartCommit', true, true);
 			} else if (pick === never) {
 				config.update('suggestSmartCommit', false, true);
-				return false;
+				return;
 			} else if (pick !== yes) {
-				return false; // do not commit on cancel
+				return; // do not commit on cancel
 			}
 		}
 
@@ -1680,7 +1683,7 @@ export class CommandCenter {
 			const answer = await window.showInformationMessage(l10n.t('There are no changes to commit.'), commitAnyway);
 
 			if (answer !== commitAnyway) {
-				return false;
+				return;
 			}
 
 			opts.empty = true;
@@ -1689,7 +1692,7 @@ export class CommandCenter {
 		if (opts.noVerify) {
 			if (!config.get<boolean>('allowNoVerifyCommit')) {
 				await window.showErrorMessage(l10n.t('Commits without verification are not allowed, please enable them with the "git.allowNoVerifyCommit" setting.'));
-				return false;
+				return;
 			}
 
 			if (config.get<boolean>('confirmNoVerifyCommit')) {
@@ -1701,7 +1704,7 @@ export class CommandCenter {
 				if (pick === neverAgain) {
 					config.update('confirmNoVerifyCommit', false, true);
 				} else if (pick !== yes) {
-					return false;
+					return;
 				}
 			}
 		}
@@ -1709,7 +1712,7 @@ export class CommandCenter {
 		const message = await getCommitMessage();
 
 		if (!message && !opts.amend && !opts.useEditor) {
-			return false;
+			return;
 		}
 
 		if (opts.all && smartCommitChanges === 'tracked') {
@@ -1735,12 +1738,12 @@ export class CommandCenter {
 			}
 
 			if (!pick) {
-				return false;
+				return;
 			} else if (pick === commitToNewBranch) {
 				const branchName = await this.promptForBranchName(repository);
 
 				if (!branchName) {
-					return false;
+					return;
 				}
 
 				await repository.branch(branchName, true);
@@ -1748,8 +1751,6 @@ export class CommandCenter {
 		}
 
 		await repository.commit(message, opts);
-
-		return true;
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
@@ -1787,11 +1788,7 @@ export class CommandCenter {
 			return _message;
 		};
 
-		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
-
-		if (message && didCommit) {
-			repository.inputBox.value = await repository.getInputTemplate();
-		}
+		await this.smartCommit(repository, getCommitMessage, opts);
 	}
 
 	@command('git.commit', { repository: true })
@@ -2005,8 +2002,8 @@ export class CommandCenter {
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
 		quickpick.placeholder = opts?.detached
-			? l10n.t('Select a ref to checkout in detached mode')
-			: l10n.t('Select a ref to checkout');
+			? l10n.t('Select a branch or tag to checkout in detached mode')
+			: l10n.t('Select a branch or tag to checkout');
 
 		quickpick.show();
 
@@ -2542,12 +2539,20 @@ export class CommandCenter {
 					return;
 				}
 
-				const branchName = repository.HEAD.name;
-				const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
-				const yes = l10n.t('OK');
-				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				if (this.globalState.get<boolean>('confirmBranchPublish', true)) {
+					const branchName = repository.HEAD.name;
+					const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
+					const yes = l10n.t('OK');
+					const neverAgain = l10n.t('OK, Don\'t Ask Again');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
-				if (pick === yes) {
+					if (pick === yes || pick === neverAgain) {
+						if (pick === neverAgain) {
+							this.globalState.update('confirmBranchPublish', false);
+						}
+						await this.publish(repository);
+					}
+				} else {
 					await this.publish(repository);
 				}
 			}

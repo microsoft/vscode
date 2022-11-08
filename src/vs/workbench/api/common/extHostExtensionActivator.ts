@@ -150,7 +150,7 @@ export class HostExtension extends ActivatedExtension {
 	}
 }
 
-export class FailedExtension extends ActivatedExtension {
+class FailedExtension extends ActivatedExtension {
 	constructor(activationError: Error) {
 		super(true, activationError, ExtensionActivationTimes.NONE, { activate: undefined, deactivate: undefined }, undefined, []);
 	}

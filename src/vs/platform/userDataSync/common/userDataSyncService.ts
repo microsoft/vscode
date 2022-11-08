@@ -225,6 +225,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			const profileSynchronizer = this.getOrCreateActiveProfileSynchronizer(profile, syncProfile);
 			this._syncErrors.push(...await this.syncProfile(profileSynchronizer, manifest, merge, executionId, token));
 		}
+		// Dispose & Delete profile synchronizers which do not exist anymore
+		for (const [key, profileSynchronizerItem] of this.activeProfileSynchronizers.entries()) {
+			if (this.userDataProfilesService.profiles.some(p => p.id === profileSynchronizerItem[0].profile.id)) {
+				continue;
+			}
+			profileSynchronizerItem[1].dispose();
+			this.activeProfileSynchronizers.delete(key);
+		}
 	}
 
 	private async applyManualSync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
@@ -472,6 +480,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	getOrCreateActiveProfileSynchronizer(profile: IUserDataProfile, syncProfile: ISyncUserDataProfile | undefined): ProfileSynchronizer {
 		let activeProfileSynchronizer = this.activeProfileSynchronizers.get(profile.id);
+		if (activeProfileSynchronizer && activeProfileSynchronizer[0].collection !== syncProfile?.collection) {
+			this.logService.error('Profile synchronizer collection does not match with the remote sync profile collection');
+			activeProfileSynchronizer[1].dispose();
+			activeProfileSynchronizer = undefined;
+			this.activeProfileSynchronizers.delete(profile.id);
+		}
 		if (!activeProfileSynchronizer) {
 			const disposables = new DisposableStore();
 			const profileSynchronizer = disposables.add(this.instantiationService.createInstance(ProfileSynchronizer, profile, syncProfile?.collection));
@@ -525,11 +539,9 @@ class ProfileSynchronizer extends Disposable {
 	private _onDidChangeConflicts = this._register(new Emitter<IUserDataSyncResourceConflicts[]>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
-	get profile(): IUserDataProfile { return this._profile; }
-
 	constructor(
-		private _profile: IUserDataProfile,
-		private readonly collection: string | undefined,
+		readonly profile: IUserDataProfile,
+		readonly collection: string | undefined,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -542,19 +554,6 @@ class ProfileSynchronizer extends Disposable {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
-		if (this._profile.isDefault) {
-			this._register(userDataProfilesService.onDidChangeProfiles(() => {
-				if ((userDataProfilesService.defaultProfile.extensionsResource && !this._profile.extensionsResource) ||
-					(!userDataProfilesService.defaultProfile.extensionsResource && this._profile.extensionsResource)) {
-					this._profile = userDataProfilesService.defaultProfile;
-					for (const [synchronizer] of this._enabled) {
-						if (synchronizer instanceof ExtensionsSynchroniser) {
-							synchronizer.profile = this._profile;
-						}
-					}
-				}
-			}));
-		}
 		this._register(userDataSyncEnablementService.onDidChangeResourceEnablement(([syncResource, enablement]) => this.onDidChangeResourceEnablement(syncResource, enablement)));
 		this._register(toDisposable(() => this._enabled.splice(0, this._enabled.length).forEach(([, , disposable]) => disposable.dispose())));
 		for (const syncResource of ALL_SYNC_RESOURCES) {
@@ -581,7 +580,7 @@ class ProfileSynchronizer extends Disposable {
 			return;
 		}
 		if (syncResource === SyncResource.Profiles) {
-			if (!this._profile.isDefault) {
+			if (!this.profile.isDefault) {
 				return;
 			}
 			if (!this.userDataProfilesService.isEnabled()) {
@@ -621,13 +620,13 @@ class ProfileSynchronizer extends Disposable {
 
 	createSynchronizer(syncResource: SyncResource): IUserDataSynchroniser & IDisposable {
 		switch (syncResource) {
-			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this._profile, this.collection);
-			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this._profile, this.collection);
-			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser, this._profile, this.collection);
-			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser, this._profile, this.collection);
-			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser, this._profile, this.collection);
-			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser, this._profile, this.collection);
-			case SyncResource.Profiles: return this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, this._profile, this.collection);
+			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this.profile, this.collection);
+			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile, this.collection);
+			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser, this.profile, this.collection);
+			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser, this.profile, this.collection);
+			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser, this.profile, this.collection);
+			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser, this.profile, this.collection);
+			case SyncResource.Profiles: return this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, this.profile, this.collection);
 		}
 	}
 
