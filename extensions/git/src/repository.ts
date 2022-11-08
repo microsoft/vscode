@@ -2054,6 +2054,11 @@ export class Repository implements Disposable {
 
 	private async _updateModelState(optimisticResourcesGroups?: GitResourceGroups, cancellationToken?: CancellationToken): Promise<void> {
 		try {
+			// Optimistically update resource groups
+			if (optimisticResourcesGroups) {
+				this._updateResourceGroupsState(optimisticResourcesGroups);
+			}
+
 			const config = workspace.getConfiguration('git');
 			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
 			if (sort !== 'alphabetically' && sort !== 'committerdate') {
@@ -2079,13 +2084,10 @@ export class Repository implements Disposable {
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
-			// Optimistically update the resource states
-			if (optimisticResourcesGroups) {
-				this._updateResourceGroupsState(optimisticResourcesGroups);
-			}
-
-			// Update resource states based on status information
+			// Update resource states based on status data
 			this._updateResourceGroupsState(await this.getStatus(cancellationToken));
+
+			this._onDidChangeStatus.fire();
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -2105,8 +2107,6 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
-
-		this._onDidChangeStatus.fire();
 	}
 
 	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {
