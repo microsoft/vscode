@@ -85,7 +85,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
 		env: environment,
-	}, telemetryReporter);
+	});
 	const model = new Model(git, askpass, context.globalState, logger, telemetryReporter);
 	disposables.push(model);
 

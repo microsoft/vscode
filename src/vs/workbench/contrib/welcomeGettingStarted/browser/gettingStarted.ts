@@ -900,7 +900,7 @@ export class GettingStartedPage extends EditorPane {
 						{
 							'x-dispatch': 'showMoreRecents',
 							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
-						}, 'More...')),
+						}, localize('showAll', "More..."))),
 				renderElement: renderRecent,
 				contextService: this.contextService
 			});
@@ -990,6 +990,8 @@ export class GettingStartedPage extends EditorPane {
 						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
+						'role': 'button',
+						'aria-label': localize('closeAriaLabel', "Hide"),
 					}),
 				),
 				descriptionContent,
@@ -1292,6 +1294,8 @@ export class GettingStartedPage extends EditorPane {
 						{
 							'data-done-step-id': step.id,
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
+							'role': 'checkbox',
+							'tabindex': '0',
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
