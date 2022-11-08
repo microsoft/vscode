@@ -100,7 +100,9 @@ export class NotebookProviderInfoStore extends Disposable {
 			builtinProvidersFromCache.set(builtin.id, this.add(builtin));
 		});
 
+
 		for (const extension of extensions) {
+			const implicitActivationEvents: string[] = [];
 			for (const notebookContribution of extension.value) {
 
 				if (!notebookContribution.type) {
@@ -114,6 +116,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					if (!existing.extension && extension.description.isBuiltin && builtins.find(builtin => builtin.id === notebookContribution.type)) {
 						// we are registering an extension which is using the same view type which is already cached
 						builtinProvidersFromCache.get(notebookContribution.type)?.dispose();
+						implicitActivationEvents.push(`onNotebookSerializer:${notebookContribution.type}`);
 					} else {
 						extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
 						continue;
@@ -129,7 +132,9 @@ export class NotebookProviderInfoStore extends Disposable {
 					providerDisplayName: extension.description.displayName ?? extension.description.identifier.value,
 					exclusive: false
 				}));
+
 			}
+			extension.implicitActivationEventsCollector.addImplicitActivationEvents(implicitActivationEvents);
 		}
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -606,20 +611,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		const info = this._notebookProviderInfoStore?.get(viewType);
-		const waitFor: Promise<any>[] = [Event.toPromise(Event.filter(this.onAddViewType, () => {
-			return this._notebookProviders.has(viewType);
-		}))];
-
-		if (info && info.extension) {
-			const extensionManifest = await this._extensionService.getExtension(info.extension.value);
-			if (extensionManifest?.activationEvents && extensionManifest.activationEvents.indexOf(`onNotebook:${viewType}`) >= 0) {
-				waitFor.push(this._extensionService._activateById(info.extension, { startup: false, activationEvent: `onNotebook:${viewType}}`, extensionId: info.extension }));
-			}
-		}
-
-		await Promise.race(waitFor);
+		await this._extensionService.activateByEvent(`onNotebookSerializer:${viewType}`);
 
 		return this._notebookProviders.has(viewType);
 	}
