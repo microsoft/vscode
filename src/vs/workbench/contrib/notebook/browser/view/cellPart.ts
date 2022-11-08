@@ -74,7 +74,7 @@ export abstract class CellContentPart extends Disposable {
  */
 export abstract class CellOverlayPart extends Disposable {
 	protected currentCell: ICellViewModel | undefined;
-	protected cellDisposables = new DisposableStore();
+	protected readonly cellDisposables = this._register(new DisposableStore());
 
 	constructor() {
 		super();
