@@ -131,7 +131,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
+		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current working changes...') }));
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -149,10 +149,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload';
 
 			if (this.environmentService.editSessionId !== undefined) {
-				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
+				this.logService.info(`Resuming roaming changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
-				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
+				this.logService.info('Resuming roaming changes, reason: roaming changes enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
@@ -203,7 +203,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return this.accountsMenuBadgeDisposable.clear();
 		}
 
-		const badge = new NumberBadge(1, () => localize('check for pending edit sessions', 'Check for pending edit sessions'));
+		const badge = new NumberBadge(1, () => localize('check for pending edit sessions', 'Check for pending roaming changes'));
 		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: 1 });
 	}
 
@@ -212,7 +212,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				type: 'syncing',
-				title: localize('store edit session', 'Storing edit session...')
+				title: localize('store edit session', 'Storing working changes...')
 			}, async () => this.storeEditSession(false));
 		}
 	}
@@ -264,7 +264,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.showEditSessions',
-					title: { value: localize('show edit session', "Show Edit Sessions"), original: 'Show Edit Sessions' },
+					title: { value: localize('show edit session', "Show Roaming Changes"), original: 'Show Roaming Changes' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true
 				});
@@ -311,7 +311,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					ref = await that.progressService.withProgress({
 						location: ProgressLocation.Notification,
 						type: 'syncing',
-						title: localize('store your edit session', 'Storing your edit session...')
+						title: localize('store your edit session', 'Storing your working changes...')
 					}, async () => that.storeEditSession(false));
 				}
 
@@ -335,7 +335,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					that.logService.info(`Opening ${uri.toString()}`);
 					await that.openerService.open(uri, { openExternal: true });
 				} else if (ref === undefined && shouldStoreEditSession) {
-					that.logService.warn(`Failed to store edit session when invoking ${continueWorkingOnCommand.id}.`);
+					that.logService.warn(`Failed to store working changes when invoking ${continueWorkingOnCommand.id}.`);
 				}
 			}
 		}));
@@ -347,7 +347,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resumeLatest',
-					title: { value: localize('resume latest.v2', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
+					title: { value: localize('resume latest.v2', "Resume Latest Roaming Changes"), original: 'Resume Latest Roaming Changes' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
 				});
@@ -373,7 +373,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.storeCurrent',
-					title: { value: localize('store current.v2', "Store Current Edit Session"), original: 'Store Current Edit Session' },
+					title: { value: localize('store current.v2', "Roam Current Working Changes"), original: 'Roam Current Working Changes' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
 				});
@@ -382,7 +382,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			async run(accessor: ServicesAccessor): Promise<void> {
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
-					title: localize('storing edit session', 'Storing edit session...')
+					title: localize('storing edit session', 'Storing working changes...')
 				}, async () => {
 					type StoreEvent = {};
 					type StoreClassification = {
@@ -403,7 +403,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return;
 		}
 
-		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
+		this.logService.info(ref !== undefined ? `Resuming roaming changes with ref ${ref}...` : 'Resuming roaming changes...');
 
 		if (silent && !(await this.editSessionsStorageService.initialize(false, true))) {
 			return;
@@ -412,9 +412,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		const data = await this.editSessionsStorageService.read(ref);
 		if (!data) {
 			if (ref === undefined && !silent) {
-				this.notificationService.info(localize('no edit session', 'There are no edit sessions to resume.'));
+				this.notificationService.info(localize('no edit session', 'There are no roaming changes to resume.'));
 			} else if (ref !== undefined) {
-				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
+				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume roaming changes for ID {0}.', ref));
 			}
 			this.logService.info(ref !== undefined ? `Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
 			return;
@@ -423,7 +423,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		ref = data.ref;
 
 		if (editSession.version > EditSessionSchemaVersion) {
-			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume this edit session.", this.productService.nameLong));
+			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume your roaming changes.", this.productService.nameLong));
 			return;
 		}
 
@@ -468,7 +468,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.logService.info(`Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
 			this.logService.error('Failed to resume edit session, reason: ', (ex as Error).toString());
-			this.notificationService.error(localize('resume failed', "Failed to resume your edit session."));
+			this.notificationService.error(localize('resume failed', "Failed to resume your working changes."));
 		}
 	}
 
@@ -504,7 +504,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 								// Surface partially matching edit session
 								this.notificationService.prompt(
 									Severity.Info,
-									localize('editSessionPartialMatch', 'You have a pending edit session for this workspace. Would you like to resume it?'),
+									localize('editSessionPartialMatch', 'You have pending roaming changes for this workspace. Would you like to resume them?'),
 									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, true) }]
 								);
 							} else {
@@ -620,7 +620,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		if (!hasEdits) {
 			this.logService.info('Skipping storing edit session as there are no edits to store.');
 			if (fromStoreCommand) {
-				this.notificationService.info(localize('no edits to store', 'Skipped storing edit session as there are no edits to store.'));
+				this.notificationService.info(localize('no edits to store', 'Skipped storing working changes as there are no edits to store.'));
 			}
 			return undefined;
 		}
@@ -646,11 +646,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					case UserDataSyncErrorCode.TooLarge:
 						// Uploading a payload can fail due to server size limits
 						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('editSessions.upload.failed', { reason: 'TooLarge' });
-						this.notificationService.error(localize('payload too large', 'Your edit session exceeds the size limit and cannot be stored.'));
+						this.notificationService.error(localize('payload too large', 'Your working changes exceed the size limit and cannot be stored.'));
 						break;
 					default:
 						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('editSessions.upload.failed', { reason: 'unknown' });
-						this.notificationService.error(localize('payload failed', 'Your edit session cannot be stored.'));
+						this.notificationService.error(localize('payload failed', 'Your working changes cannot be stored.'));
 						break;
 				}
 			}
