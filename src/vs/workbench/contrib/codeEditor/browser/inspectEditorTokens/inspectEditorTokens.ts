@@ -126,9 +126,7 @@ class InspectEditorTokens extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = InspectEditorTokensController.get(editor);
-		if (controller) {
-			controller.toggle();
-		}
+		controller?.toggle();
 	}
 }
 

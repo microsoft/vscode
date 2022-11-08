@@ -141,13 +141,14 @@ export class Toggle extends Widget {
 			}
 		});
 
-		this.ignoreGesture(this.domNode);
+		this._register(this.ignoreGesture(this.domNode));
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;
 				this._onChange.fire(true);
 				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
 				return;
 			}
 

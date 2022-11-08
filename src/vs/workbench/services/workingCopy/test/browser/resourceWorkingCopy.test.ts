@@ -14,6 +14,7 @@ import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('ResourceWorkingCopy', function () {
 
@@ -55,21 +56,23 @@ suite('ResourceWorkingCopy', function () {
 	});
 
 	test('orphaned tracking', async () => {
-		assert.strictEqual(workingCopy.isOrphaned(), false);
+		runWithFakedTimers({}, async () => {
+			assert.strictEqual(workingCopy.isOrphaned(), false);
 
-		let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+			accessor.fileService.notExistsSet.set(resource, true);
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.isOrphaned(), true);
+			await onDidChangeOrphanedPromise;
+			assert.strictEqual(workingCopy.isOrphaned(), true);
 
-		onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.delete(resource);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
+			onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+			accessor.fileService.notExistsSet.delete(resource);
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.isOrphaned(), false);
+			await onDidChangeOrphanedPromise;
+			assert.strictEqual(workingCopy.isOrphaned(), false);
+		});
 	});
 
 

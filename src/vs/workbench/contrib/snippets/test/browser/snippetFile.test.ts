@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { generateUuid } from 'vs/base/common/uuid';
 
 suite('Snippets', function () {
 
@@ -24,12 +25,12 @@ suite('Snippets', function () {
 		assert.strictEqual(bucket.length, 0);
 
 		file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
-			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bar.comment'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bar.strings'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bazz', 'bazz'], 'BazzSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(false, ['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['bar.comment'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['bar.strings'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['bazz', 'bazz'], 'BazzSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
 		]);
 
 		bucket = [];
@@ -56,8 +57,8 @@ suite('Snippets', function () {
 	test('SnippetFile#select - any scope', function () {
 
 		const file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
-			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(false, [], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
 		]);
 
 		const bucket: Snippet[] = [];
@@ -69,7 +70,7 @@ suite('Snippets', function () {
 	test('Snippet#needsClipboard', function () {
 
 		function assertNeedsClipboard(body: string, expected: boolean): void {
-			const snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			const snippet = new Snippet(false, ['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User, generateUuid());
 			assert.strictEqual(snippet.needsClipboard, expected);
 
 			assert.strictEqual(SnippetParser.guessNeedsClipboard(body), expected);
@@ -86,7 +87,7 @@ suite('Snippets', function () {
 	test('Snippet#isTrivial', function () {
 
 		function assertIsTrivial(body: string, expected: boolean): void {
-			const snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			const snippet = new Snippet(false, ['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User, generateUuid());
 			assert.strictEqual(snippet.isTrivial, expected);
 		}
 

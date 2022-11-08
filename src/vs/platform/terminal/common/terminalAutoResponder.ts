@@ -6,6 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 
 /**
@@ -26,7 +27,8 @@ export class TerminalAutoResponder extends Disposable {
 	constructor(
 		proc: ITerminalChildProcess,
 		matchWord: string,
-		response: string
+		response: string,
+		logService: ILogService
 	) {
 		super();
 
@@ -43,6 +45,7 @@ export class TerminalAutoResponder extends Disposable {
 				}
 				// Auto reply and reset
 				if (this._pointer === matchWord.length) {
+					logService.debug(`Auto reply match: "${matchWord}", response: "${response}"`);
 					proc.input(response);
 					this._throttled = true;
 					timeout(1000).then(() => this._throttled = false);

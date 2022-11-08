@@ -127,6 +127,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	}
 }
 
+DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
+
 flakySuite('Disk File Service', function () {
 
 	const testSchema = 'test';
@@ -1792,6 +1794,15 @@ flakySuite('Disk File Service', function () {
 
 	test('writeFile - default', async () => {
 		return testWriteFile();
+	});
+
+	test('writeFile - flush on write', async () => {
+		DiskFileSystemProvider.configureFlushOnWrite(true);
+		try {
+			return await testWriteFile();
+		} finally {
+			DiskFileSystemProvider.configureFlushOnWrite(false);
+		}
 	});
 
 	test('writeFile - buffered', async () => {

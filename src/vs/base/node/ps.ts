@@ -52,7 +52,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/;
 			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/;
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/;
-			const UTILITY_EXTENSION_HOST_HINT = /--vscode-utility-kind=extension-host/;
+			const UTILITY_EXTENSION_HOST_HINT = /--utility-sub-type=node.mojom.NodeService/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
 			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;

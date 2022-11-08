@@ -5,14 +5,6 @@
 
 import * as vscode from 'vscode';
 
-export class MultiDisposeError extends Error {
-	constructor(
-		public readonly errors: any[]
-	) {
-		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
-	}
-}
-
 export function disposeAll(disposables: Iterable<vscode.Disposable>) {
 	const errors: any[] = [];
 
@@ -27,7 +19,7 @@ export function disposeAll(disposables: Iterable<vscode.Disposable>) {
 	if (errors.length === 1) {
 		throw errors[0];
 	} else if (errors.length > 1) {
-		throw new MultiDisposeError(errors);
+		throw new AggregateError(errors, 'Encountered errors while disposing of store');
 	}
 }
 
@@ -59,24 +51,5 @@ export abstract class Disposable {
 
 	protected get isDisposed() {
 		return this._isDisposed;
-	}
-}
-
-export class DisposableStore extends Disposable {
-	private readonly items = new Set<IDisposable>();
-
-	public override dispose() {
-		super.dispose();
-		disposeAll(this.items);
-		this.items.clear();
-	}
-
-	public add<T extends IDisposable>(item: T): T {
-		if (this.isDisposed) {
-			console.warn('Adding to disposed store. Item will be leaked');
-		}
-
-		this.items.add(item);
-		return item;
 	}
 }

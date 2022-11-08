@@ -13,13 +13,14 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { attachInputBoxStyler, attachKeybindingLabelStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -27,6 +28,7 @@ import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/br
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises, timeout } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { getKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
@@ -167,9 +169,6 @@ export class DefineKeybindingWidget extends Widget {
 	private _onShowExistingKeybindings = this._register(new Emitter<string | null>());
 	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
 
-	private disposables = this._register(new DisposableStore());
-	private keybindingLabelStylers = this.disposables.add(new DisposableStore());
-
 	constructor(
 		parent: HTMLElement | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -263,6 +262,7 @@ export class DefineKeybindingWidget extends Widget {
 			const existingElement = dom.$('span.existingText');
 			const text = numberOfExisting === 1 ? nls.localize('defineKeybinding.oneExists', "1 existing command has this keybinding", numberOfExisting) : nls.localize('defineKeybinding.existing', "{0} existing commands have this keybinding", numberOfExisting);
 			dom.append(existingElement, document.createTextNode(text));
+			aria.alert(text);
 			this._showExistingKeybindingsNode.appendChild(existingElement);
 			existingElement.onmousedown = (e) => { e.preventDefault(); };
 			existingElement.onmouseup = (e) => { e.preventDefault(); };
@@ -277,17 +277,13 @@ export class DefineKeybindingWidget extends Widget {
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
-		this.keybindingLabelStylers.clear();
-
-		const firstLabel = new KeybindingLabel(this._outputNode, OS);
+		const firstLabel = new KeybindingLabel(this._outputNode, OS, getKeybindingLabelStyles());
 		firstLabel.set(withNullAsUndefined(this._firstPart));
-		this.keybindingLabelStylers.add(attachKeybindingLabelStyler(firstLabel, this.themeService));
 
 		if (this._chordPart) {
 			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-			const chordLabel = new KeybindingLabel(this._outputNode, OS);
+			const chordLabel = new KeybindingLabel(this._outputNode, OS, getKeybindingLabelStyles());
 			chordLabel.set(this._chordPart);
-			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(chordLabel, this.themeService));
 		}
 
 		const label = this.getUserSettingsLabel();

@@ -30,10 +30,10 @@ export interface IEditorCloseHandler {
 	 * should be used besides dirty state, this method should be
 	 * implemented to show a different dialog.
 	 *
-	 * @param editors if more than one editor is closed, will pass in
-	 * each editor of the same kind to be able to show a combined dialog.
+	 * @param editors All editors of the same kind that are being closed. Should be used
+	 * to show a combined dialog.
 	 */
-	confirm(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+	confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
 }
 
 /**
@@ -262,12 +262,9 @@ export abstract class EditorInput extends AbstractEditorInput {
 		// Untyped inputs: go into properties
 		const otherInputEditorId = otherInput.options?.override;
 
-		if (this.editorId === undefined) {
-			return false; // untyped inputs can only match for editors that have adopted `editorId`
-		}
-
-		if (this.editorId !== otherInputEditorId) {
-			return false; // untyped input uses another `editorId`
+		// If the overrides are both defined and don't match that means they're separate inputs
+		if (this.editorId !== otherInputEditorId && otherInputEditorId !== undefined && this.editorId !== undefined) {
+			return false;
 		}
 
 		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));

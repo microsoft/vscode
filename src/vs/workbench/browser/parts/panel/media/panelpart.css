@@ -34,3 +34,42 @@
 .monaco-workbench.noeditorarea .part.panel.left {
 	border-right-width: 0; /* no border when editor area is hiden */
 }
+
+.monaco-workbench .part.panel > .content .monaco-editor,
+.monaco-workbench .part.panel > .content .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-panel-background) !important;
+}
+
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label,
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+	color: var(--vscode-panelTitle-activeForeground) !important;
+}
+
+.monaco-workbench .part.panel .monaco-inputbox {
+	border-color: var(--vscode-panelInput-border) !important;
+}
+
+.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-top-color: var(--vscode-focusBorder) !important;
+}
+
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+	outline: none;
+}
+
+.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
+}
+
+.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
+.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+	outline: var(--vscode-contrastActiveBorder, unset) solid 1px !important;
+}
+
+.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
+	outline: var(--vscode-contrastActiveBorder, unset) dashed 1px !important;
+}
+
+

@@ -8,6 +8,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -90,6 +91,10 @@ export interface RunTestForControllerRequest {
 	testIds: string[];
 }
 
+export interface RunTestForControllerResult {
+	error?: string;
+}
+
 /**
  * Location with a fully-instantiated Range and URI.
  */
@@ -158,13 +163,22 @@ export interface ITestOutputMessage {
 	message: string;
 	type: TestMessageType.Output;
 	offset: number;
+	length: number;
+	marker?: number;
 	location: IRichLocation | undefined;
 }
+
+/**
+ * Gets the TTY marker ID for either starting or ending
+ * an ITestOutputMessage.marker of the given ID.
+ */
+export const getMarkId = (marker: number, start: boolean) => `${start ? 's' : 'e'}${marker}`;
 
 export namespace ITestOutputMessage {
 	export interface Serialized {
 		message: string;
 		offset: number;
+		length: number;
 		type: TestMessageType.Output;
 		location: IRichLocation.Serialize | undefined;
 	}
@@ -173,6 +187,7 @@ export namespace ITestOutputMessage {
 		message: message.message,
 		type: TestMessageType.Output,
 		offset: message.offset,
+		length: message.length,
 		location: message.location && IRichLocation.serialize(message.location),
 	});
 
@@ -180,6 +195,7 @@ export namespace ITestOutputMessage {
 		message: message.message,
 		type: TestMessageType.Output,
 		offset: message.offset,
+		length: message.length,
 		location: message.location && IRichLocation.deserialize(message.location),
 	});
 }
@@ -208,6 +224,12 @@ export namespace ITestTaskState {
 		duration: number | undefined;
 		messages: ITestMessage.Serialized[];
 	}
+
+	export const serializeWithoutMessages = (state: ITestTaskState): Serialized => ({
+		state: state.state,
+		duration: state.duration,
+		messages: [],
+	});
 
 	export const serialize = (state: ITestTaskState): Serialized => ({
 		state: state.state,
@@ -312,38 +334,34 @@ export const enum TestItemExpandState {
 }
 
 /**
- * TestItem-like shape, butm with an ID and children as strings.
+ * TestItem-like shape, but with an ID and children as strings.
  */
 export interface InternalTestItem {
 	/** Controller ID from whence this test came */
 	controllerId: string;
 	/** Expandability state */
 	expand: TestItemExpandState;
-	/** Parent ID, if any */
-	parent: string | null;
 	/** Raw test item properties */
 	item: ITestItem;
 }
 
 export namespace InternalTestItem {
 	export interface Serialized {
-		controllerId: string;
 		expand: TestItemExpandState;
-		parent: string | null;
 		item: ITestItem.Serialized;
 	}
 
 	export const serialize = (item: InternalTestItem): Serialized => ({
-		controllerId: item.controllerId,
 		expand: item.expand,
-		parent: item.parent,
 		item: ITestItem.serialize(item.item)
 	});
 
 	export const deserialize = (serialized: Serialized): InternalTestItem => ({
-		controllerId: serialized.controllerId,
+		// the `controllerId` is derived from the test.item.extId. It's redundant
+		// in the non-serialized InternalTestItem too, but there just because it's
+		// checked against in many hot paths.
+		controllerId: TestId.root(serialized.item.extId),
 		expand: serialized.expand,
-		parent: serialized.parent,
 		item: ITestItem.deserialize(serialized.item)
 	});
 }
@@ -420,23 +438,41 @@ export interface TestResultItem extends InternalTestItem {
 	computedState: TestResultState;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
+	/** Whether this test item is outdated */
+	retired?: boolean;
 }
 
 export namespace TestResultItem {
 	/** Serialized version of the TestResultItem */
 	export interface Serialized extends InternalTestItem.Serialized {
-		children: string[];
 		tasks: ITestTaskState.Serialized[];
 		ownComputedState: TestResultState;
 		computedState: TestResultState;
+		retired?: boolean;
 	}
 
-	export const serialize = (original: TestResultItem, children: string[]): Serialized => ({
+	export const serializeWithoutMessages = (original: TestResultItem): Serialized => ({
 		...InternalTestItem.serialize(original),
-		children,
+		ownComputedState: original.ownComputedState,
+		computedState: original.computedState,
+		tasks: original.tasks.map(ITestTaskState.serializeWithoutMessages),
+		retired: original.retired,
+	});
+
+	export const serialize = (original: TestResultItem): Serialized => ({
+		...InternalTestItem.serialize(original),
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serialize),
+		retired: original.retired,
+	});
+
+	export const deserialize = (serialized: Serialized): TestResultItem => ({
+		...InternalTestItem.deserialize(serialized),
+		ownComputedState: serialized.ownComputedState,
+		computedState: serialized.computedState,
+		tasks: serialized.tasks.map(ITestTaskState.deserialize),
+		retired: true,
 	});
 }
 
@@ -448,7 +484,7 @@ export interface ISerializedTestResults {
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage.Serialized[] }[];
+	tasks: { id: string; name: string | undefined }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */
@@ -502,6 +538,8 @@ export const enum TestDiffOpType {
 	Add,
 	/** Shallow-updates an existing test */
 	Update,
+	/** Ranges of some tests in a document were synced, so it should be considered up-to-date */
+	DocumentSynced,
 	/** Removes a test (and all its children) */
 	Remove,
 	/** Changes the number of controllers who are yet to publish their collection roots. */
@@ -521,7 +559,8 @@ export type TestsDiffOp =
 	| { op: TestDiffOpType.Retire; itemId: string }
 	| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 	| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
-	| { op: TestDiffOpType.RemoveTag; id: string };
+	| { op: TestDiffOpType.RemoveTag; id: string }
+	| { op: TestDiffOpType.DocumentSynced; uri: URI; docv?: number };
 
 export namespace TestsDiffOp {
 	export type Serialized =
@@ -531,13 +570,16 @@ export namespace TestsDiffOp {
 		| { op: TestDiffOpType.Retire; itemId: string }
 		| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 		| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
-		| { op: TestDiffOpType.RemoveTag; id: string };
+		| { op: TestDiffOpType.RemoveTag; id: string }
+		| { op: TestDiffOpType.DocumentSynced; uri: UriComponents; docv?: number };
 
 	export const deserialize = (u: Serialized): TestsDiffOp => {
 		if (u.op === TestDiffOpType.Add) {
 			return { op: u.op, item: InternalTestItem.deserialize(u.item) };
 		} else if (u.op === TestDiffOpType.Update) {
 			return { op: u.op, item: ITestItemUpdate.deserialize(u.item) };
+		} else if (u.op === TestDiffOpType.DocumentSynced) {
+			return { op: u.op, uri: URI.revive(u.uri), docv: u.docv };
 		} else {
 			return u;
 		}
@@ -647,13 +689,14 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 			switch (op.op) {
 				case TestDiffOpType.Add: {
 					const internalTest = InternalTestItem.deserialize(op.item);
-					if (!internalTest.parent) {
+					const parentId = TestId.parentId(internalTest.item.extId)?.toString();
+					if (!parentId) {
 						const created = this.createItem(internalTest);
 						this.roots.add(created);
 						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
-					} else if (this.items.has(internalTest.parent)) {
-						const parent = this.items.get(internalTest.parent)!;
+					} else if (this.items.has(parentId)) {
+						const parent = this.items.get(parentId)!;
 						parent.children.add(internalTest.item.extId);
 						const created = this.createItem(internalTest, parent);
 						this.items.set(internalTest.item.extId, created);
@@ -693,8 +736,9 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						break;
 					}
 
-					if (toRemove.parent) {
-						const parent = this.items.get(toRemove.parent)!;
+					const parentId = TestId.parentId(toRemove.item.extId)?.toString();
+					if (parentId) {
+						const parent = this.items.get(parentId)!;
 						parent.children.delete(toRemove.item.extId);
 					} else {
 						this.roots.delete(toRemove);

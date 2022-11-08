@@ -27,6 +27,7 @@ class ViewCursorRenderData {
 	constructor(
 		public readonly top: number,
 		public readonly left: number,
+		public readonly paddingLeft: number,
 		public readonly width: number,
 		public readonly height: number,
 		public readonly textContent: string,
@@ -150,13 +151,15 @@ export class ViewCursor {
 			}
 
 			let left = visibleRange.left;
+			let paddingLeft = 0;
 			if (width >= 2 && left >= 1) {
-				// try to center cursor
-				left -= 1;
+				// shift the cursor a bit between the characters
+				paddingLeft = 1;
+				left -= paddingLeft;
 			}
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, left, width, this._lineHeight, textContent, '');
+			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, '');
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
@@ -197,7 +200,7 @@ export class ViewCursor {
 			height = 2;
 		}
 
-		return new ViewCursorRenderData(top, range.left, width, height, textContent, textContentClassName);
+		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -220,6 +223,7 @@ export class ViewCursor {
 		this._domNode.setDisplay('block');
 		this._domNode.setTop(this._renderData.top);
 		this._domNode.setLeft(this._renderData.left);
+		this._domNode.setPaddingLeft(this._renderData.paddingLeft);
 		this._domNode.setWidth(this._renderData.width);
 		this._domNode.setLineHeight(this._renderData.height);
 		this._domNode.setHeight(this._renderData.height);
