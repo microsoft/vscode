@@ -199,7 +199,7 @@ class FileAccessImpl {
 	asBrowserUri(uri: URI): URI;
 	asBrowserUri(moduleId: AppResourcePath | ''): URI;
 	asBrowserUri(uriOrModule: URI | AppResourcePath | ''): URI {
-		const uri = this.toUri(uriOrModule);
+		const uri = this.toUri(uriOrModule, require);
 
 		// Handle remote URIs via `RemoteAuthorities`
 		if (uri.scheme === Schemas.vscodeRemote) {
@@ -239,7 +239,7 @@ class FileAccessImpl {
 	asFileUri(uri: URI): URI;
 	asFileUri(moduleId: AppResourcePath | ''): URI;
 	asFileUri(uriOrModule: URI | AppResourcePath | ''): URI {
-		const uri = this.toUri(uriOrModule);
+		const uri = this.toUri(uriOrModule, require);
 
 		// Only convert the URI if it is `vscode-file:` scheme
 		if (uri.scheme === Schemas.vscodeFileResource) {
@@ -257,12 +257,12 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return URI.parse(require.toUrl(uriOrModule));
+		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
 	}
 }
 
