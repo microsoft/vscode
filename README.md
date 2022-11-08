@@ -17,7 +17,7 @@ Once in Visual Studio Code you can enable the feature or add the JSON property:
 ## Extensions
 In order to get an experience similar to Visual Studio download [Visual Studio Keymap](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vs-keybindings) for key bindings.
 
-Is submitted a pull request for a few extra key bindings but they were not merged. You can add these additional key bindings.
+I submitted a pull request for a few extra key bindings but they were not merged. You can add these additional key bindings.
 ```
 {
 		"key": "ctrl+shift+u",
