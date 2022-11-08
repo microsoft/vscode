@@ -287,8 +287,6 @@ export interface IViewDescriptor {
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
-	readonly workspace?: boolean;
-
 	readonly focusCommand?: { id: string; keybindings?: IKeybindings };
 
 	// For contributed remote explorer views
@@ -299,17 +297,11 @@ export interface IViewDescriptor {
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 }
 
-export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+export interface ICustomViewDescriptor extends IViewDescriptor {
 	readonly extensionId: ExtensionIdentifier;
 	readonly originalContainerId: string;
+	readonly treeView?: ITreeView;
 }
-
-export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
-	readonly extensionId: ExtensionIdentifier;
-	readonly originalContainerId: string;
-}
-
-export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
@@ -713,7 +705,7 @@ export interface IRevealOptions {
 }
 
 export interface ITreeViewDescriptor extends IViewDescriptor {
-	treeView: ITreeView;
+	readonly treeView: ITreeView;
 }
 
 export type TreeViewPaneHandleArg = {
