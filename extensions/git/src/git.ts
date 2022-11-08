@@ -688,6 +688,59 @@ export interface Commit {
 	refNames: string[];
 }
 
+export interface GitConfigSection {
+	name: string;
+	subSectionName?: string;
+	properties: { [key: string]: string };
+}
+
+export class GitConfigParser {
+	private readonly _lineSeparator = /\r?\n/;
+
+	private readonly _commentRegex = /^\s*[#;].*/;
+	private readonly _emptyLineRegex = /^\s*$/;
+	private readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
+
+	private readonly _config: { sections: GitConfigSection[] };
+
+	constructor() {
+		this._config = { sections: [] };
+	}
+
+	async parse(configFilePath: string): Promise<void> {
+		const configFileRaw = await fs.readFile(configFilePath, 'utf8');
+
+		this._config.sections = [];
+		let section: GitConfigSection = { name: 'DEFAULT', properties: {} };
+		for (const configFileLine of configFileRaw.split(this._lineSeparator)) {
+			// Ignore empty lines and comments
+			if (this._emptyLineRegex.test(configFileLine) || this._commentRegex.test(configFileLine)) {
+				continue;
+			}
+
+			// Section
+			const sectionMatch = configFileLine.match(this._sectionRegex);
+			if (sectionMatch?.length === 3) {
+				this._config.sections.push(section);
+				section = { name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} };
+
+				continue;
+			}
+
+			// Properties
+			const propertyMatch = configFileLine.match(this._propertyRegex);
+			if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
+				section.properties[propertyMatch[1]] = propertyMatch[2];
+			}
+		}
+	}
+
+	getSections(name: string): GitConfigSection[] {
+		return this._config.sections.filter(s => s.name === name);
+	}
+}
+
 export class GitStatusParser {
 
 	private lastRaw = '';
@@ -2148,6 +2201,9 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
+		const configParser = new GitConfigParser();
+		configParser.parse(path.join(this.dotGit.path, 'config'));
+
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
 		const remotes: MutableRemote[] = [];
