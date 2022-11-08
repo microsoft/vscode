@@ -1673,7 +1673,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
 		}
 		this.splitView.style({
-			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder) ?? Color.transparent : Color.transparent
+			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
 		});
 	}
 
