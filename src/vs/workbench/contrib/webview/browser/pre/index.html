@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-jFyDxjOb3XBdk72ii0ggD0YVP/0gCVB58U2Vw6T/7/U=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-6s2fEapj0jmA7ZDjzz23Uv4xLlM7KX3p9DYidJX7Zmk=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -957,7 +957,7 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
