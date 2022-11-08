@@ -17,6 +17,7 @@ import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabi
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { CancellationToken } from 'vscode';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -91,8 +92,8 @@ export interface ITerminalProfileService {
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
 	readonly _serviceBrand: undefined;
-	quickFixes(): ITerminalQuickFixOptions[];
-	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(): ITerminalQuickFixOptions[]; }): IDisposable;
+	quickFixes(): Promise<ITerminalQuickFixOptions[]>;
+	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(token: CancellationToken): Promise<ITerminalQuickFixOptions[] | null | undefined>; }): IDisposable;
 }
 
 export interface ITerminalProfileProvider {

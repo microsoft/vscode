@@ -24,7 +24,8 @@ import { IDecoration, Terminal } from 'xterm';
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { gitPushSetUpstream, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { CancellationToken } from 'vscode';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	quickFixId: string;
@@ -95,15 +96,17 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 		this._registerGitProvider();
-		for (const contributedFix of this._quickFixService.quickFixes()) {
-			this.registerCommandFinishedListener(contributedFix);
-		}
+		this._quickFixService.quickFixes().then(fixes => {
+			for (const contributedFix of fixes) {
+				this.registerCommandFinishedListener(contributedFix);
+			}
+		});
 	}
 
 	private _registerGitProvider() {
 		this._quickFixService.registerQuickFixProvider('git', {
-			provideQuickFixes() {
-				return [gitTwoDashes(), gitPushSetUpstream()]
+			async provideQuickFixes(token: CancellationToken) {
+				return [gitTwoDashes(), gitPushSetUpstream(), gitCreatePr(), gitSimilar()]
 			}
 		});
 	}

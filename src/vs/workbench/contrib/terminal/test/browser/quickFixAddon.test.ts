@@ -220,7 +220,7 @@ suite('QuickFixAddon', () => {
 				command: 'git push --set-upstream origin test22'
 			}];
 			setup(() => {
-				const command = convertToQuickFixOptions(gitPushSetUpstream());
+				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -261,7 +261,7 @@ suite('QuickFixAddon', () => {
 				uri: URI.parse('https://github.com/meganrogge/xterm.js/pull/new/test22')
 			}];
 			setup(() => {
-				const command = convertToQuickFixOptions(gitCreatePr());
+				const command = gitCreatePr();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -299,8 +299,8 @@ suite('QuickFixAddon', () => {
 			command: 'git push --set-upstream origin test22'
 		}];
 		setup(() => {
-			const pushCommand = convertToQuickFixOptions(gitPushSetUpstream());
-			const prCommand = convertToQuickFixOptions(gitCreatePr());
+			const pushCommand = gitPushSetUpstream();
+			const prCommand = gitCreatePr();
 			quickFixAddon.registerCommandFinishedListener(prCommand);
 			expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand, prCommand]);
 		});

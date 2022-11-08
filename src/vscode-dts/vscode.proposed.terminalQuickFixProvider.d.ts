@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface TerminalQuickFixProvider {
 	/**
 	 * Provides terminal quick fixes.
-	 * @param token A cancellation token.
+	 * @param token A cancellation token indicating the result is no longer needed
 	 * @return an array of terminal quick fixes
 	 */
-	provideQuickFixes(): ITerminalQuickFixOptions[];
+	provideQuickFixes(token: CancellationToken): ITerminalQuickFixOptions[];
 }
 
 export namespace window {
@@ -20,5 +21,5 @@ export namespace window {
 	 * @param provider The provider that provides terminal quick fixes
 	 * @return Disposable that unregisters the provider and its associated quick fixes
 	 */
-	export function registerQuickFixProvider(provider: TerminalQuickFixProvider): Disposable;
+	export function registerQuickFixProvider(quickFixes: ITerminalQuickFixOptions[]): Disposable;
 }

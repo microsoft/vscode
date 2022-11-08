@@ -9,13 +9,17 @@ import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/t
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	_serviceBrand: undefined;
-	quickFixes(): ITerminalQuickFixOptions[] {
+	async quickFixes(): Promise<ITerminalQuickFixOptions[]> {
 		if (!this._providers) {
 			return [];
 		}
 		const resultFixes: ITerminalQuickFixOptions[] = [];
-		for (const [extensionId, fixes] of this._providers.entries()) {
-			for (const fix of fixes) {
+		for (const [extensionId, provider] of this._providers.entries()) {
+			const result = await provider.provideQuickFixes();
+			if (!result) {
+				continue;
+			}
+			for (const fix of result) {
 				fix.source = extensionId;
 				fix.isExtensionContributed = true;
 				resultFixes.push(fix);
@@ -23,11 +27,10 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		}
 		return resultFixes;
 	}
-	private readonly _providers: Map</*ext id*/string, ITerminalQuickFixOptions[]> = new Map();
+	private readonly _providers: Map</*ext id*/string, { provideQuickFixes(): Promise<ITerminalQuickFixOptions[] | null | undefined>; }> = new Map();
 
-	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(): ITerminalQuickFixOptions[]; }): IDisposable {
-		const fixes = provider.provideQuickFixes();
-		this._providers.set(extensionIdentifier, fixes);
+	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(): Promise<ITerminalQuickFixOptions[] | null | undefined>; }): IDisposable {
+		this._providers.set(extensionIdentifier, provider);
 		return toDisposable(() => this._providers.delete(extensionIdentifier));
 	}
 }

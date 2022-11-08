@@ -70,6 +70,7 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplore
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
+import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -477,6 +478,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$registerProcessSupport(isSupported: boolean): void;
 	$registerProfileProvider(id: string, extensionIdentifier: string): void;
 	$unregisterProfileProvider(id: string): void;
+	$registerQuickFixProvider(extensionIdentifier: string): void;
+	$unregisterQuickFixProvider(extensionIdentifier: string): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 
 	// Process
@@ -1832,6 +1835,7 @@ export interface ExtHostTerminalServiceShape {
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
+	$provideTerminalQuickFixes(id: string, token: CancellationToken): Promise<ITerminalQuickFixOptions[] | null | undefined>;
 }
 
 export interface ExtHostSCMShape {

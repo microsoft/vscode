@@ -22,7 +22,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
-import { TerminalQuickFixProvider } from 'vscode-dts/vscode.proposed.terminalQuickFixProvider';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -246,8 +245,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._profileProviders.delete(id);
 	}
 
-	public $registerQuickFixProvider(extensionIdentifier: string, provider: TerminalQuickFixProvider): void {
-		this._quickFixProviders.set(extensionIdentifier, this._terminalQuickFixService.registerQuickFixProvider(extensionIdentifier, provider));
+	public async $registerQuickFixProvider(extensionIdentifier: string): Promise<void> {
+		this._quickFixProviders.set(extensionIdentifier, await this._terminalQuickFixService.registerQuickFixProvider(extensionIdentifier, {
+			provideQuickFixes: async (token) => {
+				return this._proxy.$provideTerminalQuickFixes(extensionIdentifier, token);
+			}
+		}));
 	}
 
 	public $unregisterQuickFixProvider(extensionIdentifier: string): void {

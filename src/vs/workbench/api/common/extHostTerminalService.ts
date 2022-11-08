@@ -25,6 +25,8 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
+import { TerminalQuickFixProvider } from 'vscode-dts/vscode.proposed.terminalQuickFixProvider';
+import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -361,6 +363,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
+	private readonly _quickFixProviders: Map<string, TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
@@ -652,6 +655,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
+
 	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
 			throw new Error(`Terminal profile provider "${id}" already registered`);
@@ -662,6 +666,34 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			this._profileProviders.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
 		});
+	}
+
+	public registerQuickFixProvider(extension: IExtensionDescription, provider: TerminalQuickFixProvider): vscode.Disposable {
+		const id = extension.id;
+		if (!id) {
+			throw new Error('No extension ID');
+		}
+		if (this._quickFixProviders.has(id)) {
+			throw new Error(`Terminal quick fix provider "${id}" already registered`);
+		}
+		this._quickFixProviders.set(id, provider);
+		this._proxy.$registerQuickFixProvider(id);
+		return new VSCodeDisposable(() => {
+			this._quickFixProviders.delete(id);
+			this._proxy.$unregisterQuickFixProvider(id);
+		});
+	}
+
+	public async $provideTerminalQuickFixes(id: string): Promise<ITerminalQuickFixOptions[] | null | undefined> {
+		const token = new CancellationTokenSource().token;
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const provider = this._quickFixProviders.get(id);
+		if (!provider) {
+			return;
+		}
+		return provider.provideQuickFixes(token);
 	}
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {

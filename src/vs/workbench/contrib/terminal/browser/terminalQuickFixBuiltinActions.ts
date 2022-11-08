@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ITerminalQuickFixContribution } from 'vs/platform/terminal/common/terminal';
 import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixAction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
@@ -155,7 +154,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 	}
 }
 
-export function gitCreatePr(): ITerminalQuickFixContribution {
+export function gitCreatePr(): ITerminalQuickFixOptions {
 	return {
 		id: 'Git Create Pr',
 		commandLineMatcher: GitPushCommandLineRegex,
@@ -166,6 +165,23 @@ export function gitCreatePr(): ITerminalQuickFixContribution {
 			length: 5
 		},
 		exitStatus: true,
-		linkToOpen: '${group:link}'
+		source: 'git',
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult) => {
+			const link = matchResult?.outputMatch?.groups?.link;
+			if (!link) {
+				return;
+			}
+			const label = localize("terminal.createPR", "Create PR {0}", link);
+			return {
+				class: undefined,
+				tooltip: label,
+				id: 'terminal.createPR',
+				label,
+				enabled: true,
+				type: 'opener',
+				uri: link,
+				run: () => { }
+			};
+		}
 	};
 }
