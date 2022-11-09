@@ -702,9 +702,9 @@ export class GitConfigParser {
 	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
 	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
 
-	static parse(raw: string, sectionName?: string): GitConfigSection[] {
+	static parse(raw: string, sectionName: string): GitConfigSection[] {
+		let section: GitConfigSection | undefined;
 		const config: { sections: GitConfigSection[] } = { sections: [] };
-		let section: GitConfigSection = { name: 'DEFAULT', properties: {} };
 
 		for (const configFileLine of raw.split(GitConfigParser._lineSeparator)) {
 			// Ignore empty lines and comments
@@ -716,20 +716,25 @@ export class GitConfigParser {
 			// Section
 			const sectionMatch = configFileLine.match(GitConfigParser._sectionRegex);
 			if (sectionMatch?.length === 3) {
-				config.sections.push(section);
-				section = { name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} };
+				if (section) {
+					config.sections.push(section);
+				}
+				section = sectionMatch[1] === sectionName ?
+					{ name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} } : undefined;
 
 				continue;
 			}
 
 			// Properties
-			const propertyMatch = configFileLine.match(GitConfigParser._propertyRegex);
-			if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
-				section.properties[propertyMatch[1]] = propertyMatch[2];
+			if (section) {
+				const propertyMatch = configFileLine.match(GitConfigParser._propertyRegex);
+				if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
+					section.properties[propertyMatch[1]] = propertyMatch[2];
+				}
 			}
 		}
 
-		return sectionName ? config.sections.filter(s => s.name === sectionName) : config.sections;
+		return config.sections;
 	}
 }
 
