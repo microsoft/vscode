@@ -51,10 +51,9 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super({
-			user: 'codeActionWidget',
-			renderers: [new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService))],
-		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, onDidSelect, contextViewService);
+		super('codeActionWidget',
+			[new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService))],
+			codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {

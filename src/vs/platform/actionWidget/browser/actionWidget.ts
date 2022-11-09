@@ -370,7 +370,8 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 	}
 
 	constructor(
-		listCtor: { user: string; renderers: IListRenderer<any, IActionMenuTemplateData>[] },
+		user: string,
+		renderers: IListRenderer<any, IActionMenuTemplateData>[],
 		items: readonly T[],
 		showHeaders: boolean,
 		private readonly previewSelectedActionCommand: string,
@@ -385,22 +386,22 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(listCtor.user, this.domNode, virtualDelegate, [...listCtor.renderers, new HeaderRenderer()], {
+		this.list = new List(user, this.domNode, virtualDelegate, [...renderers, new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === 'action') {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.disabled) {
-							label = localize({ key: 'customQuickFixWidget.labels', comment: [`${listCtor.user} labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
+							label = localize({ key: 'customQuickFixWidget.labels', comment: [`${user} labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
 						}
 						return label;
 					}
 					return null;
 				},
-				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`A ${listCtor.user} option`] }, "Quick Fix Widget"),
+				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`A ${user} option`] }, "Quick Fix Widget"),
 				getRole: () => 'option',
-				getWidgetRole: () => listCtor.user
+				getWidgetRole: () => user
 			},
 		});
 
