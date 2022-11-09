@@ -239,7 +239,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	private _renderWidget(element: HTMLElement, list: ActionList<any>, actions: ActionSet<any>, options: ActionShowOptions): IDisposable {
 		const widget = document.createElement('div');
-		widget.classList.add('actionWidget');
+		widget.classList.add('action-widget');
 		element.appendChild(widget);
 
 		this.list.value = list;
@@ -282,7 +282,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		// Action bar
 		let actionBarWidth = 0;
 		if (!options.fromLightbulb) {
-			const actionBar = this._createActionBar('.actionWidget-action-bar', actions, options);
+			const actionBar = this._createActionBar('.action-widget-action-bar', actions, options);
 			if (actionBar) {
 				widget.appendChild(actionBar.getContainer().parentElement!);
 				renderDisposables.add(actionBar);
