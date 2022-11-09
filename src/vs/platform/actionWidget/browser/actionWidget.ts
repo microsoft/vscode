@@ -67,6 +67,9 @@ interface HeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
+export const acceptSelectedAction = 'acceptSelectedAction';
+export const previewSelectedAction = 'previewSelectedAction';
+
 export class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Header; }
@@ -94,11 +97,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 
 	get templateId(): string { return 'action'; }
 
-	constructor(private readonly _acceptSelectedTerminalQuickFixCommand: string,
-		private readonly _previewSelectedTerminalQuickFixCommand: string,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		private readonly _resolver?: any) {
-	}
+	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService, private readonly _resolver?: any) { }
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
 		container.classList.add(this.templateId);
@@ -143,7 +142,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 			data.container.title = element.label;
 			data.container.classList.add('option-disabled');
 		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(this._acceptSelectedTerminalQuickFixCommand)?.getLabel(), this._keybindingService.lookupKeybinding(this._previewSelectedTerminalQuickFixCommand)?.getLabel());
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedAction)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedAction)?.getLabel());
 			data.container.classList.remove('option-disabled');
 		}
 	}
@@ -373,8 +372,6 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		listCtor: { user: string; renderers: IListRenderer<any, IActionMenuTemplateData>[] },
 		items: readonly T[],
 		showHeaders: boolean,
-		private readonly previewSelectedActionCommand: string,
-		private readonly acceptSelectedActionCommand: string,
 		private readonly onDidSelect: (action: T, preview?: boolean) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
@@ -467,7 +464,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			return;
 		}
 
-		const event = new UIEvent(preview ? this.previewSelectedActionCommand : this.acceptSelectedActionCommand);
+		const event = new UIEvent(preview ? previewSelectedAction : acceptSelectedAction);
 		this.list.setSelection([focusIndex], event);
 	}
 
