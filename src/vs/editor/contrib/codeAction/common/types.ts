@@ -192,8 +192,7 @@ export class CodeActionItem {
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
-	) {
-	}
+	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {
 		if (this.provider?.resolveCodeAction && !this.action.edit) {
