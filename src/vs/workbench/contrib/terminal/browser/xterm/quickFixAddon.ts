@@ -25,9 +25,10 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { previewSelectedTerminalQuickFixCommand, TerminalQuickFix, TerminalQuickFixWidget } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
+import { previewSelectedTerminalQuickFixCommand, QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
+import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -80,7 +81,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -243,7 +245,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				if (!parentElement) {
 					return;
 				}
-				TerminalQuickFixWidget.getOrCreateInstance(this._instantiationService).show('click', actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
+				const delegate = (fix: TerminalQuickFix, preview?: boolean) => {
+					this._actionWidgetService.hide();
+					if (preview) {
+						this._commandService.executeCommand(previewSelectedTerminalQuickFixCommand);
+					} else {
+						fix.action?.run();
+					}
+				};
+				const list = this._instantiationService.createInstance(QuickFixList, actionSet.allActions, true, delegate);
+				this._actionWidgetService.show(undefined, list, actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
 					onSelect: async (action: TerminalQuickFix, trigger: string, preview?: boolean) => {
 						if (preview) {
 							this._commandService.executeCommand(previewSelectedTerminalQuickFixCommand);

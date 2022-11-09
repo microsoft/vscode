@@ -20,7 +20,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 import 'vs/css!./actionWidget';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
+export const Context = {
+	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
+};
 export interface IRenderDelegate<T> {
 	onHide(cancelled: boolean): void;
 	onSelect(action: T, trigger: any, preview?: boolean): Promise<any>;
@@ -44,7 +52,7 @@ export interface IActionList<T> extends IDisposable {
 	hide(): void;
 	focusPrevious(): void;
 	focusNext(): void;
-	layout(minWidth: number): number;
+	layout(minWidth: number): void;
 	toMenuItems(items: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
 	acceptSelected(preview?: boolean): void;
 	domNode: HTMLElement;
@@ -152,31 +160,50 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 	}
 }
 
-export class ActionWidget<T> extends Disposable {
+export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
+export interface IActionWidgetService {
+	focusPrevious(): void;
+	focusNext(): void;
+	layout(minWidth: number): void;
+	toMenuItems(items: readonly any[], showHeaders: boolean): ListMenuItem<any>[];
+	acceptSelected(preview?: boolean): void;
+	renderWidget(element: HTMLElement, list: ActionList<any>, trigger: any, actions: ActionSet<any>, options: any, delegate: IRenderDelegate<any>): IDisposable;
+	hide(): void;
+	isVisible: boolean;
+	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
+}
 
+export class ActionWidgetService extends Disposable {
+	declare readonly _serviceBrand: undefined;
+	get isVisible() { return Context.Visible.getValue(this._contextKeyService) || false; }
+	public showDisabled = false;
 	currentShowingContext?: {
 		readonly options: ActionShowOptions;
 		readonly trigger: any;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
-		readonly actions: ActionSet<T>;
-		readonly delegate: IRenderDelegate<T>;
+		readonly actions: ActionSet<any>;
+		readonly delegate: IRenderDelegate<any>;
 	};
-
-	constructor(
-		readonly visibleContextKey: RawContextKey<boolean>,
-		@ICommandService readonly _commandService: ICommandService,
+	public list = this._register(new MutableDisposable<ActionList<any>>());
+	constructor(@ICommandService readonly _commandService: ICommandService,
 		@IContextViewService readonly contextViewService: IContextViewService,
 		@IKeybindingService  readonly keybindingService: IKeybindingService,
 		@ITelemetryService readonly _telemetryService: ITelemetryService,
-		@IContextKeyService readonly _contextKeyService: IContextKeyService
-	) {
+		@IContextKeyService readonly _contextKeyService: IContextKeyService) {
 		super();
-	}
 
-	renderWidget(element: HTMLElement, trigger: any, actions: ActionSet<T>, options: ActionShowOptions, showingActions: readonly T[], delegate: IRenderDelegate<T>, widget?: HTMLElement): IDisposable {
-		if (!widget) {
-			throw new Error('No widget provided');
+	}
+	renderWidget(element: HTMLElement, list: ActionList<any>, trigger: any, actions: ActionSet<any>, options: any, delegate: IRenderDelegate<any>): IDisposable {
+		const widget = document.createElement('div');
+		widget.classList.add('actionWidget');
+		element.appendChild(widget);
+
+		this.list.value = list;
+		if (this.list.value) {
+			widget.appendChild(this.list.value.domNode);
+		} else {
+			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
 
@@ -229,56 +256,18 @@ export class ActionWidget<T> extends Disposable {
 		return renderDisposables;
 	}
 
-	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<T>, didCancel: boolean, delegate: IRenderDelegate<T>): void {
-		this.currentShowingContext = undefined;
-		delegate.onHide(didCancel);
-	}
-
-	get isVisible(): boolean {
-		return !!this.currentShowingContext;
-	}
-
-	public async show(trigger: any, actions: ActionSet<T>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<T>): Promise<void> {
-		this.currentShowingContext = undefined;
-		const visibleContext = this.visibleContextKey.bindTo(this._contextKeyService);
-
-		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
-		if (!actionsToShow.length) {
-			visibleContext.reset();
-			return;
+	createActionBar(className: string, inputActions: ActionSet<any>, options: ActionShowOptions): ActionBar | undefined {
+		const actions = this.getActionBarActions(inputActions, options);
+		if (!actions.length) {
+			return undefined;
 		}
 
-		this.currentShowingContext = { trigger, actions, anchor, container, delegate, options };
-
-		this.contextViewService.showContextView({
-			getAnchor: () => anchor,
-			render: (container: HTMLElement) => {
-				visibleContext.set(true);
-				return this.renderWidget(container, trigger, actions, options, actionsToShow, delegate);
-			},
-			onHide: (didCancel: boolean) => {
-				visibleContext.reset();
-				return this.onWidgetClosed(trigger, options, actions, didCancel, delegate);
-			},
-		}, container, false);
+		const container = dom.$(className);
+		const actionBar = new ActionBar(container);
+		actionBar.push(actions, { icon: false, label: true });
+		return actionBar;
 	}
-
-	/**
-	 * Toggles whether the disabled actions in the action widget are visible or not.
-	 */
-	toggleShowDisabled(newShowDisabled: boolean): void {
-		const previousCtx = this.currentShowingContext;
-
-		this.hide();
-
-		this.showDisabled = newShowDisabled;
-
-		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
-		}
-	}
-
-	getActionBarActions(actions: ActionSet<T>, options: ActionShowOptions): IAction[] {
+	getActionBarActions(actions: ActionSet<any>, options: ActionShowOptions): IAction[] {
 		const resultActions = actions.documentation.map((command): IAction => ({
 			id: command.id,
 			label: command.title,
@@ -307,19 +296,50 @@ export class ActionWidget<T> extends Disposable {
 		}
 		return resultActions;
 	}
-	createActionBar(className: string, inputActions: ActionSet<T>, options: ActionShowOptions): ActionBar | undefined {
-		const actions = this.getActionBarActions(inputActions, options);
-		if (!actions.length) {
-			return undefined;
+	/**
+	 * Toggles whether the disabled actions in the action widget are visible or not.
+	 */
+	toggleShowDisabled(newShowDisabled: boolean): void {
+		const previousCtx = this.currentShowingContext;
+
+		this.hide();
+
+		this.showDisabled = newShowDisabled;
+
+		if (previousCtx) {
+			this.show(previousCtx.trigger, this.list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+		}
+	}
+
+	public async show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
+		this.currentShowingContext = undefined;
+		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
+
+		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
+		if (!actionsToShow.length) {
+			visibleContext.reset();
+			return;
 		}
 
-		const container = dom.$(className);
-		const actionBar = new ActionBar(container);
-		actionBar.push(actions, { icon: false, label: true });
-		return actionBar;
+		this.currentShowingContext = { trigger, actions, anchor, container, delegate, options };
+
+		this.contextViewService.showContextView({
+			getAnchor: () => anchor,
+			render: (container: HTMLElement) => {
+				visibleContext.set(true);
+				return this.renderWidget(container, list, trigger, actions, options, delegate);
+			},
+			onHide: (didCancel: boolean) => {
+				visibleContext.reset();
+				return this.onWidgetClosed(trigger, options, actions, didCancel, delegate);
+			},
+		}, container, false);
 	}
-	public showDisabled = false;
-	public list = this._register(new MutableDisposable<IActionList<T>>());
+
+	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<any>, didCancel: boolean, delegate: IRenderDelegate<any>): void {
+		this.currentShowingContext = undefined;
+		delegate.onHide(didCancel);
+	}
 
 	public acceptSelected(preview?: boolean) {
 		this.list.value?.acceptSelected(preview);
@@ -346,7 +366,7 @@ export class ActionWidget<T> extends Disposable {
 		this.list?.value?.layout(minWidth);
 	}
 
-	public toMenuItems(actions: readonly T[], showHeaders: boolean): ListMenuItem<T>[] {
+	public toMenuItems(actions: readonly any[], showHeaders: boolean): ListMenuItem<any>[] {
 		const list = this.list.value;
 		if (!list) {
 			throw new Error('No list');
@@ -354,6 +374,8 @@ export class ActionWidget<T> extends Disposable {
 		return list.toMenuItems(actions, showHeaders);
 	}
 }
+
+registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.Delayed);
 
 export abstract class ActionList<T> extends Disposable implements IActionList<T> {
 
@@ -501,3 +523,117 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 export function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
+
+const weight = KeybindingWeight.EditorContrib + 1000;
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'hideCodeActionWidget',
+			title: {
+				value: localize('hideCodeActionWidget.title', "Hide code action widget"),
+				original: 'Hide code action widget'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IActionWidgetService).hide();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectPrevCodeAction',
+			title: {
+				value: localize('selectPrevCodeAction.title', "Select previous code action"),
+				original: 'Select previous code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.UpArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IActionWidgetService).focusPrevious();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectNextCodeAction',
+			title: {
+				value: localize('selectNextCodeAction.title', "Select next code action"),
+				original: 'Select next code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.DownArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IActionWidgetService).focusNext();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'acceptSelectedCodeAction',
+			title: {
+				value: localize('acceptSelected.title', "Accept selected code action"),
+				original: 'Accept selected code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IActionWidgetService).acceptSelected();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'previewSelectedCodeAction',
+			title: {
+				value: localize('previewSelected.title', "Preview selected code action"),
+				original: 'Preview selected code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IActionWidgetService).acceptSelected(true);
+	}
+});
+

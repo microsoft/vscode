@@ -12,14 +12,14 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { ActionShowOptions } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionShowOptions, IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
+import { CodeActionList } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
@@ -36,6 +36,7 @@ export class CodeActionUi extends Disposable {
 		},
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
 
@@ -46,7 +47,7 @@ export class CodeActionUi extends Disposable {
 			return widget;
 		});
 
-		this._register(this._editor.onDidLayoutChange(() => CodeActionWidget.INSTANCE?.hide()));
+		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
 	}
 
 	override dispose() {
@@ -114,7 +115,7 @@ export class CodeActionUi extends Disposable {
 			this.showCodeActionList(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false, showHeaders: this.shouldShowHeaders() });
 		} else {
 			// auto magically triggered
-			if (CodeActionWidget.INSTANCE?.isVisible) {
+			if (this._actionWidgetService.isVisible) {
 				// TODO: Figure out if we should update the showing menu?
 				actions.dispose();
 			} else {
@@ -158,8 +159,11 @@ export class CodeActionUi extends Disposable {
 		}
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
-
-		CodeActionWidget.getOrCreateInstance(this._instantiationService).show(trigger, actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
+		const onDidSelect = (action: any, trigger?: any, preview?: boolean) => {
+			this._actionWidgetService.hide();
+			this.delegate.applyCodeAction(action, true, !!preview ? preview : false);
+		};
+		this._actionWidgetService.show(trigger, this._instantiationService.createInstance(CodeActionList, actions.allActions, options.showHeaders || false, onDidSelect), actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
 			onSelect: async (action: CodeActionItem, trigger: CodeActionTrigger, preview?: boolean) => {
 				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
 			},
