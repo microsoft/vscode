@@ -1044,7 +1044,6 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
 
 	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
-	$updateKernelDetectionTask(handle: number): Promise<void>;
 	$removeKernelDetectionTask(handle: number): void;
 }
 

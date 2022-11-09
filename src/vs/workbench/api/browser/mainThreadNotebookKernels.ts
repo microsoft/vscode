@@ -302,10 +302,6 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._kernelDetectionTasks.set(handle, [kernelDetectionTask, registration]);
 	}
 
-	async $updateKernelDetectionTask(handle: number): Promise<void> {
-		// throw new Error('Method not implemented.');
-	}
-
 	$removeKernelDetectionTask(handle: number): void {
 		const tuple = this._kernelDetectionTasks.get(handle);
 		if (tuple) {

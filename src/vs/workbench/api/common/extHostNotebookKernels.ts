@@ -282,12 +282,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy.$addKernelDetectionTask(handle, viewType);
 
 		const detectionTask: vscode.NotebookControllerDetectionTask = {
-			start() {
-				that._proxy.$updateKernelDetectionTask(handle);
-			},
-			end() {
-				that._proxy.$updateKernelDetectionTask(handle);
-			},
 			dispose: () => {
 				this._kernelDetectionTask.delete(handle);
 				that._proxy.$removeKernelDetectionTask(handle);
