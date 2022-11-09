@@ -71,19 +71,24 @@ class Parser {
 	private parseList(
 		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
 	): AstNode | null {
-		const items = new Array<AstNode>();
+		const items: AstNode[] = [];
 
 		while (true) {
-			const token = this.tokenizer.peek();
-			if (
-				!token ||
-				(token.kind === TokenKind.ClosingBracket &&
-					token.bracketIds.intersects(openedBracketIds))
-			) {
-				break;
+			let child = this.tryReadChildFromCache(openedBracketIds);
+
+			if (!child) {
+				const token = this.tokenizer.peek();
+				if (
+					!token ||
+					(token.kind === TokenKind.ClosingBracket &&
+						token.bracketIds.intersects(openedBracketIds))
+				) {
+					break;
+				}
+
+				child = this.parseChild(openedBracketIds);
 			}
 
-			const child = this.parseChild(openedBracketIds);
 			if (child.kind === AstNodeKind.List && child.childrenLength === 0) {
 				continue;
 			}
@@ -96,9 +101,7 @@ class Parser {
 		return result;
 	}
 
-	private parseChild(
-		openedBracketIds: SmallImmutableSet<number>,
-	): AstNode {
+	private tryReadChildFromCache(openedBracketIds: SmallImmutableSet<number>): AstNode | undefined {
 		if (this.oldNodeReader) {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
 			if (!lengthIsZero(maxCacheableLength)) {
@@ -119,7 +122,12 @@ class Parser {
 				}
 			}
 		}
+		return undefined;
+	}
 
+	private parseChild(
+		openedBracketIds: SmallImmutableSet<number>,
+	): AstNode {
 		this._itemsConstructed++;
 
 		const token = this.tokenizer.read()!;
