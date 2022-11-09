@@ -5,14 +5,11 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionList, ActionListItemKind, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-
-const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
-export const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
 
 export class TerminalQuickFix extends Disposable {
 	action?: IAction;
@@ -34,11 +31,7 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(
-			'quickFixWidget',
-			[new ActionItemRenderer<TerminalQuickFix>(acceptSelectedTerminalQuickFixCommand, previewSelectedTerminalQuickFixCommand, keybindingService)],
-			fixes, showHeaders, previewSelectedTerminalQuickFixCommand, acceptSelectedTerminalQuickFixCommand, onDidSelect, contextViewService
-		);
+		super('quickFixWidget', fixes, showHeaders, onDidSelect, contextViewService, keybindingService);
 	}
 
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): ListMenuItem<TerminalQuickFix>[] {

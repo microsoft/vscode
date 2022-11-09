@@ -102,9 +102,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 
 	get templateId(): string { return 'action'; }
 
-	constructor(private readonly _acceptSelectedTerminalQuickFixCommand: string,
-		private readonly _previewSelectedTerminalQuickFixCommand: string,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		private readonly _resolver?: any) {
 	}
 
@@ -151,7 +149,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 			data.container.title = element.label;
 			data.container.classList.add('option-disabled');
 		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(this._acceptSelectedTerminalQuickFixCommand)?.getLabel(), this._keybindingService.lookupKeybinding(this._previewSelectedTerminalQuickFixCommand)?.getLabel());
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding('acceptSelectedCodeAction')?.getLabel(), this._keybindingService.lookupKeybinding('previewSelectedCodeAction')?.getLabel());
 			data.container.classList.remove('option-disabled');
 		}
 	}
@@ -375,7 +373,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		return list.toMenuItems(actions, showHeaders);
 	}
 }
-
 registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.Delayed);
 
 export abstract class ActionList<T> extends Disposable implements IActionList<T> {
@@ -394,13 +391,11 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 	constructor(
 		user: string,
-		renderers: IListRenderer<any, IActionMenuTemplateData>[],
 		items: readonly T[],
 		showHeaders: boolean,
-		private readonly previewSelectedActionCommand: string,
-		private readonly acceptSelectedActionCommand: string,
 		private readonly onDidSelect: (action: T, preview?: boolean) => void,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -409,7 +404,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(user, this.domNode, virtualDelegate, [...renderers, new HeaderRenderer()], {
+		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<any>(this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -491,7 +486,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			return;
 		}
 
-		const event = new UIEvent(preview ? this.previewSelectedActionCommand : this.acceptSelectedActionCommand);
+		const event = new UIEvent(preview ? 'previewSelectedAction' : 'acceptSelectedAction');
 		this.list.setSelection([focusIndex], event);
 	}
 
@@ -517,7 +512,6 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			this.list.setFocus([]);
 		}
 	}
-
 	public abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
 }
 

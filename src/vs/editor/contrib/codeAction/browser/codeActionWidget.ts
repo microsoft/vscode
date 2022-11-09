@@ -5,14 +5,12 @@
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
-import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { ActionList, ActionListItemKind, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver';
 
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
@@ -42,9 +40,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super('codeActionWidget',
-			[new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService))],
-			codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, onDidSelect, contextViewService);
+		super('codeActionWidget', codeActions, showHeaders, onDidSelect, contextViewService, keybindingService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {
