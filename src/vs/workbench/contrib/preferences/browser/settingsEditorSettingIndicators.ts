@@ -111,6 +111,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private createScopeOverridesIndicator(): SettingIndicator {
+		// Don't add .setting-indicator class here, because it gets conditionally added later.
 		const otherOverridesElement = $('span.setting-item-overrides');
 		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
 		return {
@@ -202,7 +203,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
-			this.scopeOverridesIndicator.element.classList.add('with-custom-hover');
+			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
 			this.scopeOverridesIndicator.label.text = '$(warning) ' + localize('policyLabelText', "Setting value not applied");
 			const contentFallback = localize('policyDescription', "This setting is managed by your organization and its applied value cannot be changed.");
@@ -227,7 +228,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			// If the setting is an application-scoped setting, there are no overrides so we can use this
 			// indicator to display that information instead.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
-			this.scopeOverridesIndicator.element.classList.add('with-custom-hover');
+			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
 			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
 			this.scopeOverridesIndicator.label.text = applicationSettingText;
@@ -237,10 +238,11 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			if ((MODIFIED_INDICATOR_USE_INLINE_ONLY && element.overriddenScopeList.length) ||
 				(element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length)) {
+				// This branch renders some info inline!
 				// Render inline if we have the flag and there are scope overrides to render,
 				// or if there is only one scope override to render and no language overrides.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
-				this.scopeOverridesIndicator.element.classList.remove('with-custom-hover');
+				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
 				this.scopeOverridesIndicator.hover.value = undefined;
 
 				// Just show all the text in the label.
@@ -272,7 +274,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// show the text in a custom hover only if
 				// the feature flag isn't on.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
-				this.scopeOverridesIndicator.element.classList.add('with-custom-hover');
+				this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 				const scopeOverridesLabelText = element.isConfigured ?
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
 					localize('configuredElsewhere', "Modified elsewhere");
