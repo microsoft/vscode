@@ -688,13 +688,13 @@ export interface Commit {
 	refNames: string[];
 }
 
-export interface GitConfigSection {
+interface GitConfigSection {
 	name: string;
 	subSectionName?: string;
 	properties: { [key: string]: string };
 }
 
-export class GitConfigParser {
+class GitConfigParser {
 	private static readonly _lineSeparator = /\r?\n/;
 
 	private static readonly _commentRegex = /^\s*[#;].*/;
