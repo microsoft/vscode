@@ -204,12 +204,6 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
 	},
 	{
-		key: 'notebook/cell/executePrimary',
-		id: MenuId.NotebookCellExecutePrimary,
-		description: localize('notebook.cell.executePrimary', "The contributed primary notebook cell execution button"),
-		proposed: 'notebookEditor'
-	},
-	{
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),

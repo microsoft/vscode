@@ -9,7 +9,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
+	const telemetryReporter = new TelemetryReporter(aiKey);
 
 	const loginService = new AzureActiveDirectoryService(context);
 	await loginService.initialize();

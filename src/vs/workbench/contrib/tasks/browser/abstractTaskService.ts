@@ -218,6 +218,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _taskRunningState: IContextKey<boolean>;
 
+	private _inProgressTasks: Set<string> = new Set();
+
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _waitForSupportedExecutions: Promise<void>;
@@ -1203,6 +1205,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
+		if (this._inProgressTasks.has(task._label)) {
+			this._logService.info('Prevented duplicate task from running', task._label);
+			return;
+		}
+		this._inProgressTasks.add(task._label);
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1218,6 +1225,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		} catch (error) {
 			this._handleError(error);
 			return Promise.reject(error);
+		} finally {
+			this._inProgressTasks.delete(task._label);
 		}
 	}
 

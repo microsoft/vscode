@@ -5,13 +5,11 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { nulToken } from '../utils/cancellation';
 import { TypeScriptServiceConfiguration } from './configuration';
 
-const localize = nls.loadMessageBundle();
 
 export const enum ProjectType {
 	TypeScript,
@@ -121,14 +119,14 @@ export async function openProjectConfigOrPromptToCreate(
 
 	const CreateConfigItem: vscode.MessageItem = {
 		title: projectType === ProjectType.TypeScript
-			? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
-			: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+			? vscode.l10n.t("Configure tsconfig.json")
+			: vscode.l10n.t("Configure jsconfig.json"),
 	};
 
 	const selected = await vscode.window.showInformationMessage(
 		(projectType === ProjectType.TypeScript
-			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
-			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
+			? vscode.l10n.t("File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.", 'https://go.microsoft.com/fwlink/?linkid=841896')
+			: vscode.l10n.t("File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.", 'https://go.microsoft.com/fwlink/?linkid=759670')
 		),
 		CreateConfigItem);
 
@@ -147,9 +145,7 @@ export async function openProjectConfigForFile(
 	const rootPath = client.getWorkspaceRootForResource(resource);
 	if (!rootPath) {
 		vscode.window.showInformationMessage(
-			localize(
-				'typescript.projectConfigNoWorkspace',
-				'Please open a folder in VS Code to use a TypeScript or JavaScript project'));
+			vscode.l10n.t("Please open a folder in VS Code to use a TypeScript or JavaScript project"));
 		return;
 	}
 
@@ -157,9 +153,7 @@ export async function openProjectConfigForFile(
 	// TSServer errors when 'projectInfo' is invoked on a non js/ts file
 	if (!file || !await client.toPath(resource)) {
 		vscode.window.showWarningMessage(
-			localize(
-				'typescript.projectConfigUnsupportedFile',
-				'Could not determine TypeScript or JavaScript project. Unsupported file type'));
+			vscode.l10n.t("Could not determine TypeScript or JavaScript project. Unsupported file type"));
 		return;
 	}
 
@@ -171,7 +165,7 @@ export async function openProjectConfigForFile(
 	}
 
 	if (res?.type !== 'response' || !res.body) {
-		vscode.window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
+		vscode.window.showWarningMessage(vscode.l10n.t("Could not determine TypeScript or JavaScript project"));
 		return;
 	}
 	return openProjectConfigOrPromptToCreate(projectType, client, rootPath, res.body.configFileName);

@@ -85,7 +85,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
 		env: environment,
-	}, telemetryReporter);
+	});
 	const model = new Model(git, askpass, context.globalState, logger, telemetryReporter);
 	disposables.push(model);
 
@@ -106,7 +106,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const cc = new CommandCenter(git, model, logger, telemetryReporter);
+	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
 		new GitFileSystemProvider(model),
@@ -178,8 +178,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	const logger = window.createOutputChannel('Git', { log: true });
 	disposables.push(logger);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
-	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
+	const { aiKey } = require('../package.json') as { aiKey: string };
+	const telemetryReporter = new TelemetryReporter(aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
 	const config = workspace.getConfiguration('git', null);

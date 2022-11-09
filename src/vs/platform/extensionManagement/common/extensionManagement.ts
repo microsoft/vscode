@@ -372,7 +372,6 @@ export interface UninstallExtensionEvent {
 
 export interface DidUninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
-	readonly version?: string;
 	readonly error?: string;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;

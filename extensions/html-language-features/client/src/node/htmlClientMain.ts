@@ -19,7 +19,7 @@ let client: AsyncDisposable | undefined;
 export async function activate(context: ExtensionContext) {
 
 	const clientPackageJSON = getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
 
 	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
 	const serverModule = context.asAbsolutePath(serverMain);

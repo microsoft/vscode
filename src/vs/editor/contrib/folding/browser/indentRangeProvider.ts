@@ -13,7 +13,7 @@ import { FoldingLimitReporter, RangeProvider } from './folding';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_DEFAULT = 5000;
 
-export const ID_INDENT_PROVIDER = 'indent';
+const ID_INDENT_PROVIDER = 'indent';
 
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = ID_INDENT_PROVIDER;
@@ -35,7 +35,7 @@ export class IndentRangeProvider implements RangeProvider {
 }
 
 // public only for testing
-export class RangesCollector {
+class RangesCollector {
 	private readonly _startIndexes: number[];
 	private readonly _endIndexes: number[];
 	private readonly _indentOccurrences: number[];
