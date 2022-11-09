@@ -161,15 +161,12 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
 	_serviceBrand: undefined;
-	focusPrevious(): void;
-	focusNext(): void;
-	layout(minWidth: number): void;
-	toMenuItems(items: readonly any[], showHeaders: boolean): ListMenuItem<any>[];
-	acceptSelected(preview?: boolean): void;
-	renderWidget(element: HTMLElement, list: ActionList<any>, trigger: any, actions: ActionSet<any>, options: any, delegate: IRenderDelegate<any>): IDisposable;
+	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
-	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
+	acceptSelected(preview?: boolean): void;
+	focusPrevious(): void;
+	focusNext(): void;
 }
 
 export class ActionWidgetService extends Disposable implements IActionWidgetService {
@@ -193,7 +190,54 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		super();
 
 	}
-	renderWidget(element: HTMLElement, list: ActionList<any>, trigger: any, actions: ActionSet<any>, options: any, delegate: IRenderDelegate<any>): IDisposable {
+
+	public async show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
+		this.currentShowingContext = undefined;
+		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
+
+		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
+		if (!actionsToShow.length) {
+			visibleContext.reset();
+			return;
+		}
+
+		this.currentShowingContext = { trigger, actions, anchor, container, delegate, options };
+
+		this.contextViewService.showContextView({
+			getAnchor: () => anchor,
+			render: (container: HTMLElement) => {
+				visibleContext.set(true);
+				return this._renderWidget(container, list, trigger, actions, options, delegate);
+			},
+			onHide: (didCancel: boolean) => {
+				visibleContext.reset();
+				return this._onWidgetClosed(trigger, options, actions, didCancel, delegate);
+			},
+		}, container, false);
+	}
+
+	acceptSelected(preview?: boolean) {
+		this.list.value?.acceptSelected(preview);
+	}
+
+	focusPrevious() {
+		this.list?.value?.focusPrevious();
+	}
+
+	focusNext() {
+		this.list?.value?.focusNext();
+	}
+
+	hide() {
+		this.list.value?.hide();
+		this.list.clear();
+	}
+
+	clear() {
+		this.list.clear();
+	}
+
+	private _renderWidget(element: HTMLElement, list: ActionList<any>, trigger: any, actions: ActionSet<any>, options: any, delegate: IRenderDelegate<any>): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('actionWidget');
 		element.appendChild(widget);
@@ -238,7 +282,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		// Action bar
 		let actionBarWidth = 0;
 		if (!options.fromLightbulb) {
-			const actionBar = this.createActionBar('.actionWidget-action-bar', actions, options);
+			const actionBar = this._createActionBar('.actionWidget-action-bar', actions, options);
 			if (actionBar) {
 				widget.appendChild(actionBar.getContainer().parentElement!);
 				renderDisposables.add(actionBar);
@@ -255,8 +299,8 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		return renderDisposables;
 	}
 
-	createActionBar(className: string, inputActions: ActionSet<any>, options: ActionShowOptions): ActionBar | undefined {
-		const actions = this.getActionBarActions(inputActions, options);
+	private _createActionBar(className: string, inputActions: ActionSet<any>, options: ActionShowOptions): ActionBar | undefined {
+		const actions = this._getActionBarActions(inputActions, options);
 		if (!actions.length) {
 			return undefined;
 		}
@@ -266,7 +310,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
 	}
-	getActionBarActions(actions: ActionSet<any>, options: ActionShowOptions): IAction[] {
+	private _getActionBarActions(actions: ActionSet<any>, options: ActionShowOptions): IAction[] {
 		const resultActions = actions.documentation.map((command): IAction => ({
 			id: command.id,
 			label: command.title,
@@ -283,14 +327,14 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 				enabled: true,
 				tooltip: '',
 				class: undefined,
-				run: () => this.toggleShowDisabled(false)
+				run: () => this._toggleShowDisabled(false)
 			} : {
 				id: 'showMoreActions',
 				label: localize('showMoreActions', 'Show Disabled'),
 				enabled: true,
 				tooltip: '',
 				class: undefined,
-				run: () => this.toggleShowDisabled(true)
+				run: () => this._toggleShowDisabled(true)
 			});
 		}
 		return resultActions;
@@ -298,7 +342,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	/**
 	 * Toggles whether the disabled actions in the action widget are visible or not.
 	 */
-	toggleShowDisabled(newShowDisabled: boolean): void {
+	private _toggleShowDisabled(newShowDisabled: boolean): void {
 		const previousCtx = this.currentShowingContext;
 
 		this.hide();
@@ -310,68 +354,11 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 	}
 
-	public async show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
-		this.currentShowingContext = undefined;
-		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
-
-		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
-		if (!actionsToShow.length) {
-			visibleContext.reset();
-			return;
-		}
-
-		this.currentShowingContext = { trigger, actions, anchor, container, delegate, options };
-
-		this.contextViewService.showContextView({
-			getAnchor: () => anchor,
-			render: (container: HTMLElement) => {
-				visibleContext.set(true);
-				return this.renderWidget(container, list, trigger, actions, options, delegate);
-			},
-			onHide: (didCancel: boolean) => {
-				visibleContext.reset();
-				return this.onWidgetClosed(trigger, options, actions, didCancel, delegate);
-			},
-		}, container, false);
-	}
-
-	onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<any>, didCancel: boolean, delegate: IRenderDelegate<any>): void {
+	private _onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<any>, didCancel: boolean, delegate: IRenderDelegate<any>): void {
 		this.currentShowingContext = undefined;
 		delegate.onHide(didCancel);
 	}
 
-	public acceptSelected(preview?: boolean) {
-		this.list.value?.acceptSelected(preview);
-	}
-
-	public focusPrevious() {
-		this.list?.value?.focusPrevious();
-	}
-
-	public focusNext() {
-		this.list?.value?.focusNext();
-	}
-
-	public hide() {
-		this.list.value?.hide();
-		this.list.clear();
-	}
-
-	public clear() {
-		this.list.clear();
-	}
-
-	public layout(minWidth: number) {
-		this.list?.value?.layout(minWidth);
-	}
-
-	public toMenuItems(actions: readonly any[], showHeaders: boolean): ListMenuItem<any>[] {
-		const list = this.list.value;
-		if (!list) {
-			throw new Error('No list');
-		}
-		return list.toMenuItems(actions, showHeaders);
-	}
 }
 registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.Delayed);
 
