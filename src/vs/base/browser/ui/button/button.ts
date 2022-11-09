@@ -14,7 +14,6 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import 'vs/css!./button';
 
@@ -37,11 +36,15 @@ export interface IButtonStyles {
 	readonly buttonBorder?: CSSValueString;
 }
 
-const defaultOptions: IButtonStyles = {
+export const defaultOptions: IButtonStyles = {
 	buttonBackground: '#0E639C',
 	buttonHoverBackground: '#006BB3',
 	buttonSeparator: Color.white.toString(),
-	buttonForeground: Color.white.toString()
+	buttonForeground: Color.white.toString(),
+	buttonBorder: undefined,
+	buttonSecondaryBackground: undefined,
+	buttonSecondaryForeground: undefined,
+	buttonSecondaryHoverBackground: undefined
 };
 
 export interface IButton extends IDisposable {
@@ -68,11 +71,10 @@ export class Button extends Disposable implements IButton {
 
 	private focusTracker: IFocusTracker;
 
-	constructor(container: HTMLElement, options: IButtonOptions = Object.create(null)) {
+	constructor(container: HTMLElement, options: IButtonOptions) {
 		super();
 
 		this.options = options;
-		mixin(options, defaultOptions, false);
 
 		this._element = document.createElement('a');
 		this._element.classList.add('monaco-button');
@@ -316,7 +318,7 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 	private _labelElement: HTMLElement;
 	private _descriptionElement: HTMLElement;
 
-	constructor(container: HTMLElement, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options: IButtonOptions) {
 		super(container, options);
 
 		this._element.classList.add('monaco-description-button');
@@ -365,13 +367,13 @@ export class ButtonBar extends Disposable {
 		return this._buttons;
 	}
 
-	addButton(options?: IButtonOptions): IButton {
+	addButton(options: IButtonOptions): IButton {
 		const button = this._register(new Button(this.container, options));
 		this.pushButton(button);
 		return button;
 	}
 
-	addButtonWithDescription(options?: IButtonOptions): IButtonWithDescription {
+	addButtonWithDescription(options: IButtonOptions): IButtonWithDescription {
 		const button = this._register(new ButtonWithDescription(this.container, options));
 		this.pushButton(button);
 		return button;
