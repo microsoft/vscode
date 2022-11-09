@@ -15,6 +15,7 @@
     "onLanguage:handlebars"
   ],
   "enabledApiProposals": [
+    "telemetryLogger",
     "extensionsAny"
   ],
   "main": "./client/out/node/htmlClientMain",
@@ -258,7 +259,7 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.6.2",
+    "@vscode/extension-telemetry": "0.7.0-preview",
     "vscode-languageclient": "^8.1.0-next.1",
     "vscode-uri": "^3.0.6"
   },

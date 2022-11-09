@@ -50,8 +50,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		uriHandler: UriEventHandler,
 		ghesUri?: vscode.Uri
 	) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
+		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
+		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 
