@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Keybinding } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
+import { isWindows, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IFileMatch } from 'vs/workbench/services/search/common/search';
 import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from 'vs/workbench/contrib/search/browser/searchActions';
-import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -109,7 +109,37 @@ suite('Search Actions', () => {
 			resource: URI.file('somepath' + ++counter),
 			results: []
 		};
-		return instantiationService.createInstance(FileMatch, null, null, null, null, rawMatch, null);
+
+		const searchModel = instantiationService.createInstance(SearchModel);
+		const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
+			type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: ''
+			}
+		}, searchModel.searchResult, searchModel, null);
+		return instantiationService.createInstance(FileMatch, {
+			pattern: ''
+		}, undefined, undefined, folderMatch, rawMatch, null);
+	}
+
+	function createFileUriFromPathFromRoot(path?: string): URI {
+		const rootName = getRootName();
+		if (path) {
+			return URI.file(`${rootName}${path}`);
+		} else {
+			if (isWindows) {
+				return URI.file(`${rootName}/`);
+			} else {
+				return URI.file(rootName);
+			}
+		}
+	}
+
+	function getRootName(): string {
+		if (isWindows) {
+			return 'c:';
+		} else {
+			return '';
+		}
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {
