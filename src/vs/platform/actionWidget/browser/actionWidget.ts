@@ -207,11 +207,11 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this._renderWidget(container, list, trigger, actions, options, delegate);
+				return this._renderWidget(container, list, actions, options);
 			},
 			onHide: (didCancel: boolean) => {
 				visibleContext.reset();
-				return this._onWidgetClosed(trigger, options, actions, didCancel, delegate);
+				return this._onWidgetClosed(didCancel, delegate);
 			},
 		}, container, false);
 	}
@@ -237,7 +237,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this.list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<any>, trigger: any, actions: ActionSet<any>, options: any, delegate: IRenderDelegate<any>): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<any>, actions: ActionSet<any>, options: ActionShowOptions): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('actionWidget');
 		element.appendChild(widget);
@@ -354,7 +354,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 	}
 
-	private _onWidgetClosed(trigger: any, options: ActionShowOptions, actions: ActionSet<any>, didCancel: boolean, delegate: IRenderDelegate<any>): void {
+	private _onWidgetClosed(didCancel: boolean, delegate: IRenderDelegate<any>): void {
 		this.currentShowingContext = undefined;
 		delegate.onHide(didCancel);
 	}
