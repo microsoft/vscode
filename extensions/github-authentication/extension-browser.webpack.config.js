@@ -17,13 +17,14 @@ module.exports = withBrowserDefaults({
 		extension: './src/extension.ts',
 	},
 	externals: {
-		'keytar': 'commonjs keytar',
+		'node-fetch': ['_', 'fetch'],
 	},
 	resolve: {
 		alias: {
-			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
 			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js'),
-			'./authServer': path.resolve(__dirname, 'src/env/browser/authServer'),
+			'./node/authServer': path.resolve(__dirname, 'src/browser/authServer'),
+			'./node/crypto': path.resolve(__dirname, 'src/browser/crypto'),
+			'./node/fetch': path.resolve(__dirname, 'src/browser/fetch')
 		}
 	}
 });

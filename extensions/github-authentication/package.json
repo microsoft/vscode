@@ -66,14 +66,12 @@
   },
   "dependencies": {
     "node-fetch": "2.6.7",
-    "uuid": "8.1.0",
     "@vscode/extension-telemetry": "0.7.0-preview",
     "vscode-tas-client": "^0.1.47"
   },
   "devDependencies": {
     "@types/node": "16.x",
-    "@types/node-fetch": "^2.5.7",
-    "@types/uuid": "8.0.0"
+    "@types/node-fetch": "^2.5.7"
   },
   "repository": {
     "type": "git",
