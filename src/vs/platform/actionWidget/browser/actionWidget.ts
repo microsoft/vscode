@@ -394,7 +394,7 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(this._keybindingService, resolver), new HeaderRenderer()], {
+		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
