@@ -6,8 +6,7 @@
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, IRenderDelegate, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
@@ -54,29 +53,8 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 	) {
 		super({
 			user: 'codeActionWidget',
-			renderers: [
-				new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService)),
-				new HeaderRenderer(),
-			],
-			options: {
-				keyboardSupport: false,
-				accessibilityProvider: {
-					getAriaLabel: element => {
-						if (element.kind === ActionListItemKind.Action) {
-							let label = stripNewlines(element.item.action.title);
-							if (element.item.action.disabled) {
-								label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.action.disabled);
-							}
-							return label;
-						}
-						return null;
-					},
-					getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
-					getRole: () => 'option',
-					getWidgetRole: () => 'code-action-widget'
-				},
-			}
-		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, (element: ListMenuItem<CodeActionItem>) => { return element.kind === ActionListItemKind.Action && !element.item?.action.disabled; }, onDidSelect, contextViewService);
+			renderers: [new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService))],
+		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {

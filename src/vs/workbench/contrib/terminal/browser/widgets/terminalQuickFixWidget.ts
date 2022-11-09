@@ -5,7 +5,7 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, IRenderDelegate, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -78,7 +78,6 @@ export class TerminalQuickFixWidget extends ActionWidget<TerminalQuickFix> {
 			this.keybindingService,
 			this.contextViewService);
 
-
 		widget.appendChild(this.list.value.domNode);
 		return super.renderWidget(element, trigger, actions, options, showingActions, delegate, widget);
 	}
@@ -94,29 +93,8 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 	) {
 		super({
 			user: 'quickFixWidget',
-			renderers: [
-				new ActionItemRenderer<TerminalQuickFix>(acceptSelectedTerminalQuickFixCommand, previewSelectedTerminalQuickFixCommand, keybindingService),
-				new HeaderRenderer(),
-			],
-			options: {
-				keyboardSupport: true,
-				accessibilityProvider: {
-					getAriaLabel: element => {
-						if (element.kind === 'action') {
-							let label = stripNewlines(element.item.action.label);
-							if (element.item.action.disabled) {
-								label = localize({ key: 'customQuickFixWidget.labels', comment: ['terminal quick fix labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.item.disabled);
-							}
-							return label;
-						}
-						return null;
-					},
-					getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: ['A terminal quick fix Option'] }, "Terminal Quick Fix Widget"),
-					getRole: () => 'option',
-					getWidgetRole: () => 'terminal-quickfix-widget'
-				},
-			}
-		}, fixes, showHeaders, previewSelectedTerminalQuickFixCommand, acceptSelectedTerminalQuickFixCommand, (element: ListMenuItem<TerminalQuickFix>) => { return element.kind !== 'header' && !element.item?.disabled; }, onDidSelect, contextViewService);
+			renderers: [new ActionItemRenderer<TerminalQuickFix>(acceptSelectedTerminalQuickFixCommand, previewSelectedTerminalQuickFixCommand, keybindingService)],
+		}, fixes, showHeaders, previewSelectedTerminalQuickFixCommand, acceptSelectedTerminalQuickFixCommand, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): ListMenuItem<TerminalQuickFix>[] {

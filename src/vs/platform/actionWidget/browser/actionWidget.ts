@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -19,6 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
+import 'vs/css!./actionWidget';
 
 export interface IRenderDelegate<T> {
 	onHide(cancelled: boolean): void;
@@ -364,13 +365,16 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 
 	private readonly allMenuItems: ListMenuItem<T>[];
 
+	private focusCondition(element: ListMenuItem<T>): boolean {
+		return !element.disabled && element.kind === ActionListItemKind.Action;
+	}
+
 	constructor(
-		listCtor: { user: string; renderers: IListRenderer<any, any>[]; options?: IListOptions<any> },
+		listCtor: { user: string; renderers: IListRenderer<any, IActionMenuTemplateData>[] },
 		items: readonly T[],
 		showHeaders: boolean,
 		private readonly previewSelectedActionCommand: string,
 		private readonly acceptSelectedActionCommand: string,
-		private readonly focusCondition: (element: ListMenuItem<T>) => boolean,
 		private readonly onDidSelect: (action: T, preview?: boolean) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
@@ -381,7 +385,24 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(listCtor.user, this.domNode, virtualDelegate, listCtor.renderers, listCtor.options);
+		this.list = new List(listCtor.user, this.domNode, virtualDelegate, [...listCtor.renderers, new HeaderRenderer()], {
+			keyboardSupport: true,
+			accessibilityProvider: {
+				getAriaLabel: element => {
+					if (element.kind === 'action') {
+						let label = element.label ? stripNewlines(element?.label) : '';
+						if (element.disabled) {
+							label = localize({ key: 'customQuickFixWidget.labels', comment: [`${listCtor.user} labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
+						}
+						return label;
+					}
+					return null;
+				},
+				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`A ${listCtor.user} option`] }, "Quick Fix Widget"),
+				getRole: () => 'option',
+				getWidgetRole: () => listCtor.user
+			},
+		});
 
 		this._register(this.list.onMouseClick(e => this.onListClick(e)));
 		this._register(this.list.onMouseOver(e => this.onListHover(e)));
