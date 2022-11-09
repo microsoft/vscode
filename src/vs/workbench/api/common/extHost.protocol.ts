@@ -1566,7 +1566,7 @@ export interface ISuggestDataDto {
 	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
 	[ISuggestDataDtoField.kindModifier]?: languages.CompletionItemTag[];
 	// Command
-	[ISuggestDataDtoField.commandIdent]?: number;
+	[ISuggestDataDtoField.commandIdent]?: string;
 	[ISuggestDataDtoField.commandId]?: string;
 	[ISuggestDataDtoField.commandArguments]?: any[];
 	// not-standard
@@ -1640,7 +1640,7 @@ export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
-export type ICommandDto = { $ident?: number } & languages.Command;
+export type ICommandDto = { $ident?: string } & languages.Command;
 
 export interface ICodeActionDto {
 	cacheId?: ChainedCacheId;

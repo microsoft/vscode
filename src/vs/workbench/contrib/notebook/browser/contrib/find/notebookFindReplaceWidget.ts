@@ -765,7 +765,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 // theming
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
-	:root {
+	.notebook-editor {
 		--notebook-find-width: ${NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH}px;
 		--notebook-find-horizontal-padding: ${NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING}px;
 	}

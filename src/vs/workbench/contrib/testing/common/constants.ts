@@ -47,7 +47,7 @@ export const labelForTestInState = (label: string, state: TestResultState) => lo
 	comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 }, '{0} ({1})', stripIcons(label), testStateNames[state]);
 
-export const testConfigurationGroupNames: { [K in TestRunProfileBitset]: string } = {
+export const testConfigurationGroupNames: Partial<Record<TestRunProfileBitset, string | undefined>> = {
 	[TestRunProfileBitset.Debug]: localize('testGroup.debug', 'Debug'),
 	[TestRunProfileBitset.Run]: localize('testGroup.run', 'Run'),
 	[TestRunProfileBitset.Coverage]: localize('testGroup.coverage', 'Coverage'),
