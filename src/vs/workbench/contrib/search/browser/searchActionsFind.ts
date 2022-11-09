@@ -209,7 +209,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, args: IFindInFilesArgs = {}): Promise<any> {
-		FindInFilesCommand(accessor, args);
+		findInFilesCommand(accessor, args);
 	}
 });
 
@@ -347,7 +347,7 @@ function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
 }
 
-export function FindInFilesCommand(accessor: ServicesAccessor, args: IFindInFilesArgs = {}) {
+export function findInFilesCommand(accessor: ServicesAccessor, args: IFindInFilesArgs = {}) {
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
 	const mode = searchConfig.mode;
 	if (mode === 'view') {
