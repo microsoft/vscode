@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { ActionSet, ActionShowOptions } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
@@ -13,6 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { ActionSet, ActionShowOptions } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

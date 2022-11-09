@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionSet, ActionShowOptions, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer, IRenderDelegate } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionSet, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';

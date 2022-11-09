@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ListMenuItem, ActionShowOptions, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionWidget, HeaderRenderer, IRenderDelegate } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';

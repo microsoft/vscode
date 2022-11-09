@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
-import { ActionSet, ActionShowOptions, IActionList, ListMenuItem, stripNewlines } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -23,6 +22,43 @@ import { Codicon } from 'vs/base/common/codicons';
 export interface IRenderDelegate<T> {
 	onHide(cancelled: boolean): void;
 	onSelect(action: T, trigger: any, preview?: boolean): Promise<any>;
+}
+
+
+export interface ActionSet<T> extends IDisposable {
+	readonly validActions: readonly T[];
+	readonly allActions: readonly T[];
+	readonly hasAutoFix: boolean;
+
+	readonly documentation: readonly {
+		id: string;
+		title: string;
+		tooltip?: string;
+		arguments?: any[];
+	}[];
+}
+export interface ActionShowOptions {
+	readonly includeDisabledActions: boolean;
+	readonly fromLightbulb?: boolean;
+	readonly showHeaders?: boolean;
+}
+
+export interface ListMenuItem<T> {
+	item?: T;
+	kind?: any;
+	group?: any;
+	disabled?: boolean | string;
+	label?: string;
+}
+
+export interface IActionList<T> extends IDisposable {
+	hide(): void;
+	focusPrevious(): void;
+	focusNext(): void;
+	layout(minWidth: number): number;
+	toMenuItems(items: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
+	acceptSelected(preview?: boolean): void;
+	domNode: HTMLElement;
 }
 
 export interface IActionMenuTemplateData {
@@ -450,4 +486,8 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 	}
 
 	public abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
+}
+
+export function stripNewlines(str: string): string {
+	return str.replace(/\r\n|\r|\n/g, ' ');
 }
