@@ -166,7 +166,12 @@ export class ExtHostTelemetryLogger {
 	}
 
 	private logEvent(eventName: string, data?: Record<string, any>): void {
-		eventName = this._extension.identifier.value + '/' + eventName;
+		// If it's a built-in extension (vscode publisher) we don't prefix the publisher and only the ext name
+		if (this._extension.publisher === 'vscode') {
+			eventName = this._extension.name + '/' + eventName;
+		} else {
+			eventName = this._extension.identifier.value + '/' + eventName;
+		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
 		this._appender.logEvent(eventName, data);
 		this._logger.trace(eventName, data);
