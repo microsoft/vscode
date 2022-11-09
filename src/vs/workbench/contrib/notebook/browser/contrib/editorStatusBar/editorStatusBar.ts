@@ -249,10 +249,34 @@ registerAction2(class extends Action2 {
 			});
 		}
 
-		const pick = await quickInputService.pick(quickPickItems, {
-			placeHolder: selected
-				? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
-				: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
+		const quickPick = quickInputService.createQuickPick<IQuickPickItem | KernelPick | SourcePick>();
+		quickPick.items = quickPickItems;
+		quickPick.canSelectMany = false;
+		quickPick.placeholder = selected
+			? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
+			: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }));
+
+		quickPick.busy = notebookKernelService.getKernelDetectionTasks(notebook).length > 0;
+
+		const detectionState = notebookKernelService.onDidChangeKernelDetectionTasks(() => {
+			quickPick.busy = notebookKernelService.getKernelDetectionTasks(notebook).length > 0;
+		});
+
+		const pick = await new Promise<IQuickPickItem | KernelPick | SourcePick>((resolve, reject) => {
+			quickPick.onDidAccept(() => {
+				const item = quickPick.selectedItems[0];
+				if (item) {
+					resolve(item);
+				} else {
+					reject();
+				}
+
+				quickPick.hide();
+			});
+
+			quickPick.onDidHide(() => reject());
+
+			quickPick.show();
 		});
 
 		if (pick) {
@@ -286,6 +310,8 @@ registerAction2(class extends Action2 {
 				pick.action.runAction();
 			}
 		}
+
+		detectionState.dispose();
 
 		return false;
 	}

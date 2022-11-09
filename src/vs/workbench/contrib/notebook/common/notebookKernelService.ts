@@ -67,6 +67,10 @@ export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEv
 	connectionState?: true;
 }
 
+export interface INotebookKernelDetectionTask {
+	readonly notebookType: string;
+}
+
 export interface ISourceAction {
 	readonly action: IAction;
 	readonly onDidChangeState: Event<void>;
@@ -114,6 +118,12 @@ export interface INotebookKernelService {
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
+
+	//#region Kernel detection tasks
+	readonly onDidChangeKernelDetectionTasks: Event<string>;
+	registerNotebookKernelDetectionTask(task: INotebookKernelDetectionTask): IDisposable;
+	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[];
+	//#endregion
 
 	//#region Kernel source actions
 	readonly onDidChangeSourceActions: Event<INotebookSourceActionChangeEvent>;
