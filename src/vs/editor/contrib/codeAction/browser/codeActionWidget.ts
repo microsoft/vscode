@@ -5,7 +5,7 @@
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionList, ActionListItemKind, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionList, ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
@@ -43,9 +43,9 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 		super('codeActionWidget', codeActions, showHeaders, onDidSelect, contextViewService, keybindingService);
 	}
 
-	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {
+	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): IListMenuItem<CodeActionItem>[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action): ListMenuItem<CodeActionItem> => {
+			return inputCodeActions.map((action): IListMenuItem<CodeActionItem> => {
 				return {
 					kind: ActionListItemKind.Action,
 					item: action,
@@ -69,7 +69,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 			}
 		}
 
-		const allMenuItems: ListMenuItem<CodeActionItem>[] = [];
+		const allMenuItems: IListMenuItem<CodeActionItem>[] = [];
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.actions.length) {
 				allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });

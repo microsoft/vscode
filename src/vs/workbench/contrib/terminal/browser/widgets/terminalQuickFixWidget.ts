@@ -5,7 +5,7 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ActionList, ActionListItemKind, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionList, ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
@@ -34,7 +34,7 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 		super('quickFixWidget', fixes, showHeaders, onDidSelect, contextViewService, keybindingService);
 	}
 
-	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): ListMenuItem<TerminalQuickFix>[] {
+	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {
 		const menuItems: TerminalQuickFixListItem[] = [];
 		menuItems.push({
 			kind: ActionListItemKind.Header,
@@ -63,6 +63,6 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 	}
 }
 
-interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
+interface TerminalQuickFixListItem extends IListMenuItem<TerminalQuickFix> {
 	readonly item?: TerminalQuickFix;
 }

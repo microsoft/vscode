@@ -34,13 +34,13 @@ export interface IRenderDelegate<T> {
 	onSelect(action: T, trigger: any, preview?: boolean): Promise<any>;
 }
 
-export interface ActionShowOptions {
+export interface IActionShowOptions {
 	readonly includeDisabledActions: boolean;
 	readonly fromLightbulb?: boolean;
 	readonly showHeaders?: boolean;
 }
 
-export interface ListMenuItem<T> {
+export interface IListMenuItem<T> {
 	item?: T;
 	kind?: any;
 	group?: any;
@@ -53,7 +53,7 @@ export interface IActionList<T> extends IDisposable {
 	focusPrevious(): void;
 	focusNext(): void;
 	layout(minWidth: number): void;
-	toMenuItems(items: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
+	toMenuItems(items: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 	acceptSelected(preview?: boolean): void;
 	domNode: HTMLElement;
 }
@@ -70,16 +70,16 @@ export enum ActionListItemKind {
 	Header = 'header'
 }
 
-interface HeaderTemplateData {
+interface IHeaderTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
 }
 
-export class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, HeaderTemplateData> {
+export class HeaderRenderer<T extends IListMenuItem<T>> implements IListRenderer<T, IHeaderTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Header; }
 
-	renderTemplate(container: HTMLElement): HeaderTemplateData {
+	renderTemplate(container: HTMLElement): IHeaderTemplateData {
 		container.classList.add('group-header');
 
 		const text = document.createElement('span');
@@ -88,17 +88,17 @@ export class HeaderRenderer<T extends ListMenuItem<T>> implements IListRenderer<
 		return { container, text };
 	}
 
-	renderElement(element: ListMenuItem<T>, _index: number, templateData: HeaderTemplateData): void {
+	renderElement(element: IListMenuItem<T>, _index: number, templateData: IHeaderTemplateData): void {
 		templateData.text.textContent = element.group.title;
 	}
 
-	disposeTemplate(_templateData: HeaderTemplateData): void {
+	disposeTemplate(_templateData: IHeaderTemplateData): void {
 		// noop
 	}
 }
 
 
-export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRenderer<T, IActionMenuTemplateData> {
+export class ActionItemRenderer<T extends IListMenuItem<T>> implements IListRenderer<T, IActionMenuTemplateData> {
 
 	get templateId(): string { return 'action'; }
 
@@ -161,7 +161,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
 	_serviceBrand: undefined;
-	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
+	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
 	acceptSelected(preview?: boolean): void;
@@ -174,7 +174,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	get isVisible() { return Context.Visible.getValue(this._contextKeyService) || false; }
 	public showDisabled = false;
 	currentShowingContext?: {
-		readonly options: ActionShowOptions;
+		readonly options: IActionShowOptions;
 		readonly trigger: any;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
@@ -191,7 +191,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	}
 
-	public async show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
+	public async show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
 
@@ -237,7 +237,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this.list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<any>, actions: ActionSet<any>, options: ActionShowOptions): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<any>, actions: ActionSet<any>, options: IActionShowOptions): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		element.appendChild(widget);
@@ -299,7 +299,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		return renderDisposables;
 	}
 
-	private _createActionBar(className: string, inputActions: ActionSet<any>, options: ActionShowOptions): ActionBar | undefined {
+	private _createActionBar(className: string, inputActions: ActionSet<any>, options: IActionShowOptions): ActionBar | undefined {
 		const actions = this._getActionBarActions(inputActions, options);
 		if (!actions.length) {
 			return undefined;
@@ -310,7 +310,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
 	}
-	private _getActionBarActions(actions: ActionSet<any>, options: ActionShowOptions): IAction[] {
+	private _getActionBarActions(actions: ActionSet<any>, options: IActionShowOptions): IAction[] {
 		const resultActions = actions.documentation.map((command): IAction => ({
 			id: command.id,
 			label: command.title,
@@ -365,14 +365,14 @@ registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.D
 export abstract class ActionList<T> extends Disposable implements IActionList<T> {
 
 	public readonly domNode: HTMLElement;
-	public list: List<ListMenuItem<T>>;
+	public list: List<IListMenuItem<T>>;
 
 	readonly actionLineHeight = 24;
 	readonly headerLineHeight = 26;
 
-	private readonly allMenuItems: ListMenuItem<T>[];
+	private readonly allMenuItems: IListMenuItem<T>[];
 
-	private focusCondition(element: ListMenuItem<T>): boolean {
+	private focusCondition(element: IListMenuItem<T>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
@@ -387,7 +387,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		const virtualDelegate: IListVirtualDelegate<ListMenuItem<T>> = {
+		const virtualDelegate: IListVirtualDelegate<IListMenuItem<T>> = {
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
@@ -477,7 +477,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		this.list.setSelection([focusIndex], event);
 	}
 
-	private onListSelection(e: IListEvent<ListMenuItem<T>>): void {
+	private onListSelection(e: IListEvent<IListMenuItem<T>>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -490,16 +490,16 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<ListMenuItem<T>>): void {
+	private onListHover(e: IListMouseEvent<IListMenuItem<T>>): void {
 		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
-	private onListClick(e: IListMouseEvent<ListMenuItem<T>>): void {
+	private onListClick(e: IListMouseEvent<IListMenuItem<T>>): void {
 		if (e.element && this.focusCondition(e.element)) {
 			this.list.setFocus([]);
 		}
 	}
-	public abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): ListMenuItem<T>[];
+	public abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 }
 
 export function stripNewlines(str: string): string {
