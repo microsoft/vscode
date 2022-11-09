@@ -146,12 +146,13 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 		} else {
 			dom.show(data.keybinding.element);
 		}
-
+		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedAction)?.getLabel();
+		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedAction)?.getLabel();
 		if (element.disabled) {
 			data.container.title = element.label;
 			data.container.classList.add('option-disabled');
-		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedAction)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedAction)?.getLabel());
+		} else if (actionTitle && previewTitle) {
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			data.container.classList.remove('option-disabled');
 		}
 	}
