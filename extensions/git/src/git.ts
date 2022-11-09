@@ -706,6 +706,11 @@ export class GitConfigParser {
 		let section: GitConfigSection | undefined;
 		const config: { sections: GitConfigSection[] } = { sections: [] };
 
+		const addSection = (section?: GitConfigSection) => {
+			if (!section) { return; }
+			config.sections.push(section);
+		};
+
 		for (const configFileLine of raw.split(GitConfigParser._lineSeparator)) {
 			// Ignore empty lines and comments
 			if (GitConfigParser._emptyLineRegex.test(configFileLine) ||
@@ -716,9 +721,7 @@ export class GitConfigParser {
 			// Section
 			const sectionMatch = configFileLine.match(GitConfigParser._sectionRegex);
 			if (sectionMatch?.length === 3) {
-				if (section) {
-					config.sections.push(section);
-				}
+				addSection(section);
 				section = sectionMatch[1] === sectionName ?
 					{ name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} } : undefined;
 
@@ -733,6 +736,8 @@ export class GitConfigParser {
 				}
 			}
 		}
+
+		addSection(section);
 
 		return config.sections;
 	}
@@ -811,56 +816,16 @@ export interface Submodule {
 }
 
 export function parseGitmodules(raw: string): Submodule[] {
-	const regex = /\r?\n/g;
-	let position = 0;
-	let match: RegExpExecArray | null = null;
-
 	const result: Submodule[] = [];
-	let submodule: Partial<Submodule> = {};
 
-	function parseLine(line: string): void {
-		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
-
-		if (sectionMatch) {
-			if (submodule.name && submodule.path && submodule.url) {
-				result.push(submodule as Submodule);
-			}
-
-			const name = sectionMatch[1];
-
-			if (name) {
-				submodule = { name };
-				return;
-			}
+	for (const submoduleSection of GitConfigParser.parse(raw, 'submodule')) {
+		if (submoduleSection.subSectionName && submoduleSection.properties['path'] && submoduleSection.properties['url']) {
+			result.push({
+				name: submoduleSection.subSectionName,
+				path: submoduleSection.properties['path'],
+				url: submoduleSection.properties['url']
+			});
 		}
-
-		if (!submodule) {
-			return;
-		}
-
-		const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(line);
-
-		if (!propertyMatch) {
-			return;
-		}
-
-		const [, key, value] = propertyMatch;
-
-		switch (key) {
-			case 'path': submodule.path = value; break;
-			case 'url': submodule.url = value; break;
-		}
-	}
-
-	while (match = regex.exec(raw)) {
-		parseLine(raw.substring(position, match.index));
-		position = match.index + match[0].length;
-	}
-
-	parseLine(raw.substring(position));
-
-	if (submodule.name && submodule.path && submodule.url) {
-		result.push(submodule as Submodule);
 	}
 
 	return result;
@@ -2264,7 +2229,7 @@ export class Repository {
 	}
 
 	private async getRemotesFS(): Promise<Remote[]> {
-		const raw = await fs.readFile(path.join(this.dotGit.path, 'config'), 'utf8');
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
 		return parseGitRemotes(raw);
 	}
 
