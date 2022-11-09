@@ -266,7 +266,6 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 	$setBadge(treeViewId: string, badge: IViewBadge | undefined): void;
 	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer>;
-	$disposeTree(treeViewId: string): Promise<void>;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {

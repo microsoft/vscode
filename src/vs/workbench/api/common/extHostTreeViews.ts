@@ -957,6 +957,5 @@ class ExtHostTreeView<T> extends Disposable {
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();
-		this.proxy.$disposeTree(this.viewId);
 	}
 }
