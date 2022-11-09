@@ -17,7 +17,7 @@ import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { QuickFixAction, CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
-import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
@@ -26,7 +26,6 @@ import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 
 const $ = dom.$;
 

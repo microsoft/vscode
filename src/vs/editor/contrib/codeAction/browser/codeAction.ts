@@ -17,7 +17,6 @@ import * as languages from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -25,7 +24,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types';
+import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';

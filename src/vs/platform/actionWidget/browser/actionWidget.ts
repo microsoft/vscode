@@ -18,25 +18,13 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
+import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 
 export interface IRenderDelegate<T> {
 	onHide(cancelled: boolean): void;
 	onSelect(action: T, trigger: any, preview?: boolean): Promise<any>;
 }
 
-
-export interface ActionSet<T> extends IDisposable {
-	readonly validActions: readonly T[];
-	readonly allActions: readonly T[];
-	readonly hasAutoFix: boolean;
-
-	readonly documentation: readonly {
-		id: string;
-		title: string;
-		tooltip?: string;
-		arguments?: any[];
-	}[];
-}
 export interface ActionShowOptions {
 	readonly includeDisabledActions: boolean;
 	readonly fromLightbulb?: boolean;

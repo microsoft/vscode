@@ -12,18 +12,15 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { ActionSet, ActionShowOptions } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionShowOptions } from 'vs/platform/actionWidget/browser/actionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeActionAutoApply, CodeActionItem, CodeActionTrigger } from '../common/types';
+import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-export interface CodeActionSet extends ActionSet<CodeActionItem> {
-	readonly validActions: readonly CodeActionItem[];
-	readonly allActions: readonly CodeActionItem[];
-}
+
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());

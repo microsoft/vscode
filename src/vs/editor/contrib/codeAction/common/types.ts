@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
@@ -210,4 +211,7 @@ export class CodeActionItem {
 	}
 }
 
-
+export interface CodeActionSet extends ActionSet<CodeActionItem> {
+	readonly validActions: readonly CodeActionItem[];
+	readonly allActions: readonly CodeActionItem[];
+}

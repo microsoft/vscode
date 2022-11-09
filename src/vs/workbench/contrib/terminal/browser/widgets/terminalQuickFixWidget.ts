@@ -5,7 +5,7 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionSet, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/platform/actionWidget/browser/actionWidget';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -18,6 +18,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 
 const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
 export const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';

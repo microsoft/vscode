@@ -17,7 +17,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { acceptSelectedCodeActionCommand, applyCodeAction, ApplyCodeActionReason, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, previewSelectedCodeActionCommand, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionSet, CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
+import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionWidget, Context } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
@@ -28,7 +28,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(

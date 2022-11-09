@@ -9,8 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
 import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/platform/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
-import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
