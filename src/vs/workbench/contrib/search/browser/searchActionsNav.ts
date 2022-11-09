@@ -410,7 +410,7 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<any> {
-		return focusNextSearchResult(accessor);
+		return await focusNextSearchResult(accessor);
 	}
 });
 
@@ -433,7 +433,7 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<any> {
-		return focusPreviousSearchResult(accessor);
+		return await focusPreviousSearchResult(accessor);
 	}
 });
 
@@ -459,7 +459,7 @@ registerAction2(class ReplaceInFilesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<any> {
-		return findOrReplaceInFiles(accessor, true);
+		return await findOrReplaceInFiles(accessor, true);
 	}
 });
 

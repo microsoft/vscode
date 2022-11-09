@@ -25,21 +25,11 @@ import { category, getElementsToOperateOnInfo, getSearchView } from 'vs/workbenc
 
 
 //#region Interfaces
-interface ISearchActionContext {
+export interface ISearchActionContext {
 	readonly viewer: WorkbenchCompressibleObjectTree<RenderableMatch>;
+	readonly element: RenderableMatch;
 }
 
-export interface IMatchActionContext extends ISearchActionContext {
-	readonly element: Match;
-}
-
-export interface IFileMatchActionContext extends ISearchActionContext {
-	readonly element: FileMatch;
-}
-
-export interface IFolderMatchActionContext extends ISearchActionContext {
-	readonly element: FolderMatch;
-}
 
 export interface IFindInFilesArgs {
 	query?: string;
@@ -86,25 +76,15 @@ registerAction2(class RemoveAction extends Action2 {
 					order: 2,
 				},
 				{
-					id: MenuId.SearchFolderMatchContext,
+					id: MenuId.SearchActionMenu,
 					group: 'inline',
 					order: 2,
 				},
-				{
-					id: MenuId.SearchFileMatchContext,
-					group: 'inline',
-					order: 2,
-				},
-				{
-					id: MenuId.SearchMatchContext,
-					group: 'inline',
-					order: 2,
-				}
 			]
 		});
 	}
 
-	run(accessor: ServicesAccessor, context: IMatchActionContext | IFileMatchActionContext | IFolderMatchActionContext | undefined): void {
+	run(accessor: ServicesAccessor, context: ISearchActionContext | undefined): void {
 		const viewsService = accessor.get(IViewsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const searchView = getSearchView(viewsService);
@@ -186,8 +166,8 @@ registerAction2(class ReplaceAction extends Action2 {
 					order: 1
 				},
 				{
-					id: MenuId.SearchMatchContext,
-					when: Constants.ReplaceActiveKey,
+					id: MenuId.SearchActionMenu,
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
 					group: 'inline',
 					order: 1
 				}
@@ -195,7 +175,7 @@ registerAction2(class ReplaceAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context: IMatchActionContext | undefined): Promise<any> {
+	override async run(accessor: ServicesAccessor, context: ISearchActionContext | undefined): Promise<any> {
 		return performReplace(accessor, context);
 	}
 });
@@ -226,8 +206,8 @@ registerAction2(class ReplaceAllAction extends Action2 {
 					order: 1
 				},
 				{
-					id: MenuId.SearchFileMatchContext,
-					when: Constants.ReplaceActiveKey,
+					id: MenuId.SearchActionMenu,
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
 					group: 'inline',
 					order: 1
 				}
@@ -235,7 +215,7 @@ registerAction2(class ReplaceAllAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context: IFileMatchActionContext | undefined): Promise<any> {
+	override async run(accessor: ServicesAccessor, context: ISearchActionContext | undefined): Promise<any> {
 		return performReplace(accessor, context);
 	}
 });
@@ -265,8 +245,8 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 					order: 1
 				},
 				{
-					id: MenuId.SearchFolderMatchContext,
-					when: Constants.ReplaceActiveKey,
+					id: MenuId.SearchActionMenu,
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
 					group: 'inline',
 					order: 1
 				}
@@ -274,7 +254,7 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context: IFolderMatchActionContext | undefined): Promise<any> {
+	override async run(accessor: ServicesAccessor, context: ISearchActionContext | undefined): Promise<any> {
 		return performReplace(accessor, context);
 	}
 });
@@ -284,7 +264,7 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 //#region Helpers
 
 function performReplace(accessor: ServicesAccessor,
-	context: IMatchActionContext | IFileMatchActionContext | IFolderMatchActionContext | undefined): void {
+	context: ISearchActionContext | undefined): void {
 	const configurationService = accessor.get(IConfigurationService);
 	const viewsService = accessor.get(IViewsService);
 

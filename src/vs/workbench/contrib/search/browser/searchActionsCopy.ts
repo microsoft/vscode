@@ -43,7 +43,7 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, match: RenderableMatch | undefined): Promise<any> {
-		copyMatchCommand(accessor, match);
+		await copyMatchCommand(accessor, match);
 	}
 });
 
@@ -77,7 +77,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, fileMatch: FileMatch | FolderMatchWithResource | undefined): Promise<any> {
-		copyPathCommand(accessor, fileMatch);
+		await copyPathCommand(accessor, fileMatch);
 	}
 });
 
@@ -103,7 +103,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<any> {
-		copyAllCommand(accessor);
+		await copyAllCommand(accessor);
 	}
 });
 

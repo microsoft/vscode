@@ -27,7 +27,10 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMatchActionContext, IFileMatchActionContext, IFolderMatchActionContext } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
+import { ISearchActionContext } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { FileFocusKey, FolderFocusKey, MatchFocusKey } from 'vs/workbench/contrib/search/common/constants';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -89,6 +92,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -125,7 +129,9 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const disposableElements = new DisposableStore();
 		disposables.add(disposableElements);
 
-		const actions = disposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchFolderMatchContext, {
+		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true]]);
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
@@ -177,7 +183,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
-		templateData.actions.context = <IFolderMatchActionContext>{ viewer: this.searchView.getControl(), element: folder };
+		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: folder };
 	}
 }
 
@@ -193,6 +199,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -210,7 +217,9 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		disposables.add(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
-		const actions = disposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchFileMatchContext, {
+		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true]]);
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
@@ -239,7 +248,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
-		templateData.actions.context = <IFileMatchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
@@ -261,6 +270,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -280,7 +290,10 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
 
 		const disposables = new DisposableStore();
-		const actions = disposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchMatchContext, {
+
+		const contextKeyService = this.contextKeyService.createOverlay([[MatchFocusKey.key, true]]);
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
@@ -324,7 +337,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
 		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
 
-		templateData.actions.context = <IMatchActionContext>{ viewer: this.searchView.getControl(), element: match };
+		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: match };
 
 	}
 
