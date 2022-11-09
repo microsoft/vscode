@@ -571,6 +571,15 @@ export class SuggestWidget implements IDisposable {
 		});
 	}
 
+	focusSelected(): void {
+		const selection = this._list.getSelection();
+		if (selection.length !== 1) {
+			this._list.setFocus([0]);
+		} else {
+			this._list.setFocus([selection[0]]);
+		}
+	}
+
 	selectNextPage(): boolean {
 		switch (this._state) {
 			case State.Hidden:
