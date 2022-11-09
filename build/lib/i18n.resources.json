@@ -485,10 +485,6 @@
 		{
 			"name": "vs/workbench/services/userDataProfile",
 			"project": "vscode-profiles"
-		},
-		{
-			"name": "vs/workbench/contrib/actionWidget",
-			"project": "vscode-workbench"
 		}
 	]
 }

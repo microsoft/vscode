@@ -7,6 +7,7 @@ import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles
 import { Codicon } from 'vs/base/common/codicons';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, IRenderDelegate, ListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
+import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
@@ -52,8 +53,8 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 	) {
 		super({
 			user: 'codeActionWidget',
-			renderers: [new ActionItemRenderer(keybindingService, new CodeActionKeybindingResolver(keybindingService))],
-		}, codeActions, showHeaders, onDidSelect, contextViewService);
+			renderers: [new ActionItemRenderer(previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, keybindingService, new CodeActionKeybindingResolver(keybindingService))],
+		}, codeActions, showHeaders, previewSelectedCodeActionCommand, acceptSelectedCodeActionCommand, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ListMenuItem<CodeActionItem>[] {

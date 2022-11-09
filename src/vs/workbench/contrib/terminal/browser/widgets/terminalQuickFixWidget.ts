@@ -13,9 +13,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
+
+const acceptSelectedTerminalQuickFixCommand = 'acceptSelectedTerminalQuickFixCommand';
+export const previewSelectedTerminalQuickFixCommand = 'previewSelectedTerminalQuickFixCommand';
+const weight = KeybindingWeight.EditorContrib + 1000;
 
 export class TerminalQuickFix extends Disposable {
 	action?: IAction;
@@ -86,12 +93,12 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 	) {
 		super({
 			user: 'quickFixWidget',
-			renderers: [new ActionItemRenderer<TerminalQuickFix>(keybindingService)],
-		}, fixes, showHeaders, onDidSelect, contextViewService);
+			renderers: [new ActionItemRenderer<TerminalQuickFix>(acceptSelectedTerminalQuickFixCommand, previewSelectedTerminalQuickFixCommand, keybindingService)],
+		}, fixes, showHeaders, previewSelectedTerminalQuickFixCommand, acceptSelectedTerminalQuickFixCommand, onDidSelect, contextViewService);
 	}
 
 	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): ListMenuItem<TerminalQuickFix>[] {
-		const menuItems: ListMenuItem<TerminalQuickFix>[] = [];
+		const menuItems: TerminalQuickFixListItem[] = [];
 		menuItems.push({
 			kind: ActionListItemKind.Header,
 			group: {
@@ -118,3 +125,119 @@ class QuickFixList extends ActionList<TerminalQuickFix> {
 		return menuItems;
 	}
 }
+
+interface TerminalQuickFixListItem extends ListMenuItem<TerminalQuickFix> {
+	readonly item?: TerminalQuickFix;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'hideTerminalQuickFixWidget',
+			title: {
+				value: localize('hideTerminalQuickFixWidget.title', "Hide terminal quick fix widget"),
+				original: 'Hide terminal quick fix widget'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			},
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.hide();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectPrevTerminalQuickFix',
+			title: {
+				value: localize('selectPrevTerminalQuickFix.title', "Select previous terminal quick fix"),
+				original: 'Select previous terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.UpArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.focusPrevious();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectNextTerminalQuickFix',
+			title: {
+				value: localize('selectNextTerminalQuickFix.title', "Select next terminal quick fix"),
+				original: 'Select next terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.DownArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.focusNext();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: acceptSelectedTerminalQuickFixCommand,
+			title: {
+				value: localize('acceptSelected.title', "Accept selected terminal quick fix"),
+				original: 'Accept selected terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.acceptSelected();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: previewSelectedTerminalQuickFixCommand,
+			title: {
+				value: localize('previewSelected.title', "Preview selected terminal quick fix"),
+				original: 'Preview selected terminal quick fix'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			}
+		});
+	}
+
+	run(): void {
+		TerminalQuickFixWidget.INSTANCE?.acceptSelected(true);
+	}
+});
+
