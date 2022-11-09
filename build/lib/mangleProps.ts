@@ -51,10 +51,17 @@ const queryClassPropertiesUsages = `
 (object_pattern (shorthand_property_identifier_pattern) @usage-shortHand)
 (object (shorthand_property_identifier) @usage-shortHand)
 
-;; SPECIAL: __decorate-thing
+;; SPECIALS
+;; __decorate-thing
 (call_expression
 	((identifier) @call)(#eq? @call "__decorate")
 	(arguments (string (string_fragment) @usage-string))
+)
+
+;; stub (TestInstantiationService)
+(call_expression
+	(member_expression (property_identifier) @call)(#eq? @call "stub")
+    (arguments (string (string_fragment) @usage-string))
 )
 `;
 
@@ -155,6 +162,12 @@ async function extractIdentifierInfo() {
 	const occurrencesByName = new Map<string, Occurrence[]>;
 	for (const file of files) {
 		const fileName = join(cwd, file);
+
+		if (fileName.includes('vs/platform/files/test/node/fixtures')) {
+			// SKIP test fixtures because we count the number of children
+			continue;
+		}
+
 		await extractDefinitionsAndUsages(fileName, occurrencesByName, definitionNames);
 	}
 
@@ -179,6 +192,7 @@ const banned = new Set<string>([
 	// 'remoteAuthority',
 	// 'viewModel',
 	'folders', // JSON-SCHEMA
+	'local',
 ]);
 
 extractIdentifierInfo().then(async identifierInfo => {
@@ -211,7 +225,7 @@ extractIdentifierInfo().then(async identifierInfo => {
 		replacementMap.set(info.text, shortText);
 		savings += info.weight;
 
-		if (replacementMap.size >= 500) {
+		if (replacementMap.size >= 50) {
 			break;
 		}
 	}
