@@ -909,6 +909,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.findWidget.hasValue()) {
 			this._container.appendChild(this.findWidget.getValue().getDomNode());
 		}
+		this.xterm?.attachToElement(container);
 		setTimeout(() => this._initDragAndDrop(container));
 	}
 
