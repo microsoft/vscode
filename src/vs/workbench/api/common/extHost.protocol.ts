@@ -1392,6 +1392,7 @@ export interface DataTransferItemDTO {
 	readonly id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
+	readonly uriListData?: ReadonlyArray<string | UriComponents>;
 }
 
 export interface DataTransferDTO {
