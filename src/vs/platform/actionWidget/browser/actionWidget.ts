@@ -136,7 +136,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 			return;
 		}
 		data.text.textContent = stripNewlines(element.label);
-		const binding = this._keybindingResolver?.getResolver()(element.item.action);
+		const binding = this._keybindingResolver?.getResolver()(element.item);
 		if (binding) {
 			data.keybinding.set(binding);
 		}
