@@ -145,12 +145,12 @@ export class ExtHostTelemetryLogger {
 		// TODO @lramos15 should this be up to the implementer and not done here?
 		let updatedData = data.properties ?? data;
 
+		// We don't clean measurements since they are just numbers
+		updatedData = cleanData(updatedData, []);
+
 		if (this._appender.additionalCommonProperties) {
 			updatedData = mixin(updatedData, this._appender.additionalCommonProperties);
 		}
-
-		// We don't clean measurements since they are just numbers
-		updatedData = cleanData(updatedData, []);
 
 		if (!this._appender.ignoreBuiltInCommonProperties) {
 			updatedData = mixin(updatedData, this._commonProperties);
