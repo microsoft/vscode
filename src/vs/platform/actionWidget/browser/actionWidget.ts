@@ -402,13 +402,13 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 					if (element.kind === 'action') {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.disabled) {
-							label = localize({ key: 'customQuickFixWidget.labels', comment: [`${user} labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
+							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
 						}
 						return label;
 					}
 					return null;
 				},
-				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`A ${user} option`] }, "Quick Fix Widget"),
+				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: () => 'option',
 				getWidgetRole: () => user
 			},
