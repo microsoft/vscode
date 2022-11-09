@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { memoize } from '../utils/memoize';
@@ -12,7 +11,6 @@ import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptVersion } from './versionProvider';
 
 
-const localize = nls.loadMessageBundle();
 
 declare const Worker: any;
 declare type Worker = any;
@@ -64,7 +62,7 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	@memoize
 	private get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel(localize('channelName', 'TypeScript Server Log'));
+		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
 	}
 
 	write(serverRequest: Proto.Request): void {

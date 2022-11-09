@@ -492,12 +492,17 @@ class FSProvider {
 }
 exports.FSProvider = FSProvider;
 class CacheEntry {
+    sourceFile;
+    mtime;
     constructor(sourceFile, mtime) {
         this.sourceFile = sourceFile;
         this.mtime = mtime;
     }
 }
 class DeclarationResolver {
+    _fsProvider;
+    ts;
+    _sourceFileCache;
     constructor(_fsProvider) {
         this._fsProvider = _fsProvider;
         this.ts = require('typescript');
@@ -553,6 +558,10 @@ function run3(resolver) {
 }
 exports.run3 = run3;
 class TypeScriptLanguageServiceHost {
+    _ts;
+    _libs;
+    _files;
+    _compilerOptions;
     constructor(ts, libs, files, compilerOptions) {
         this._ts = ts;
         this._libs = libs;

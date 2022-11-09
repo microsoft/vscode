@@ -360,6 +360,7 @@ function sanitizeRenderedMarkdown(
 
 export const allowedMarkdownAttr = [
 	'align',
+	'autoplay',
 	'alt',
 	'class',
 	'controls',

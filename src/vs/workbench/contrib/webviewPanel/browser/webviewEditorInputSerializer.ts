@@ -113,8 +113,8 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			providedId: input.providedId,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
-			extensionLocation: input.extension ? input.extension.location : undefined,
-			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
+			extensionLocation: input.extension?.location,
+			extensionId: input.extension?.id.value,
 			state: input.webview.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 			group: input.group

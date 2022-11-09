@@ -56,6 +56,7 @@ import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -117,6 +118,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IActivityService private readonly activityService: IActivityService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -290,6 +292,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
+				// First ask the user to pick a destination, if necessary
+				let uri: URI | 'noDestinationUri' | undefined = workspaceUri;
+				let destination;
+				if (!uri) {
+					destination = await that.pickContinueEditSessionDestination();
+				}
+				if (!destination && !uri) {
+					return;
+				}
+
+				// Determine if we need to store an edit session, asking for edit session auth if necessary
 				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
 				// Run the store action to get back a ref
@@ -302,17 +315,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					}, async () => that.storeEditSession(false));
 				}
 
-				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
+				// Append the ref to the URI
+				uri = destination ? await that.resolveDestination(destination) : uri;
 				if (uri === undefined) {
-					// If the user didn't end up picking a Continue On destination
-					// and we stored an edit session, clean up the stored edit session
-					if (ref !== undefined) {
-						void that.editSessionsStorageService.delete(ref);
-					}
 					return;
 				}
 
-				// Append the ref to the URI
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
@@ -562,6 +570,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		const folders: Folder[] = [];
 		let hasEdits = false;
 
+		// Save all saveable editors before building edit session contents
+		await this.editorService.saveAll();
+
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
 			const trackedUris = this.getChangedResources(repository); // A URI might appear in more than one resource group
@@ -741,14 +752,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async pickContinueEditSessionDestination(): Promise<URI | 'noDestinationUri' | undefined> {
+	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
 			? this.contextService.getWorkspace().folders[0].name
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
-		quickPick.title = localize('continueEditSessionPick.title', "Continue {0} on", `'${workspaceContext}'`);
-		quickPick.placeholder = localize('continueEditSessionPick.placeholder', 'Choose how you would like to continue working');
+		quickPick.placeholder = localize('continueEditSessionPick.title', "Select option to continue {0} on", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
@@ -765,10 +775,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		quickPick.dispose();
 
-		if (command === undefined) {
-			return undefined;
-		}
+		return command;
+	}
 
+	private async resolveDestination(command: string): Promise<URI | 'noDestinationUri' | undefined> {
 		try {
 			const uri = await this.commandService.executeCommand(command);
 

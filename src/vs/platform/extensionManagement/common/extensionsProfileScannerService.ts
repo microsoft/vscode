@@ -6,6 +6,7 @@
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -29,17 +30,47 @@ export interface IScannedProfileExtension {
 	readonly metadata?: Metadata;
 }
 
+export interface ProfileExtensionsEvent {
+	readonly extensions: readonly IExtension[];
+	readonly profileLocation: URI;
+}
+
+export interface DidAddProfileExtensionsEvent extends ProfileExtensionsEvent {
+	readonly error?: Error;
+}
+
+export interface DidRemoveProfileExtensionsEvent extends ProfileExtensionsEvent {
+	readonly error?: Error;
+}
+
 export const IExtensionsProfileScannerService = createDecorator<IExtensionsProfileScannerService>('IExtensionsProfileScannerService');
 export interface IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
 
+	readonly onAddExtensions: Event<ProfileExtensionsEvent>;
+	readonly onDidAddExtensions: Event<DidAddProfileExtensionsEvent>;
+	readonly onRemoveExtensions: Event<ProfileExtensionsEvent>;
+	readonly onDidRemoveExtensions: Event<DidRemoveProfileExtensionsEvent>;
+
 	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
-	removeExtensionFromProfile(identifier: IExtensionIdentifier, profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
 }
 
 export class ExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
+
+	private readonly _onAddExtensions = this._register(new Emitter<ProfileExtensionsEvent>());
+	readonly onAddExtensions = this._onAddExtensions.event;
+
+	private readonly _onDidAddExtensions = this._register(new Emitter<DidAddProfileExtensionsEvent>());
+	readonly onDidAddExtensions = this._onDidAddExtensions.event;
+
+	private readonly _onRemoveExtensions = this._register(new Emitter<ProfileExtensionsEvent>());
+	readonly onRemoveExtensions = this._onRemoveExtensions.event;
+
+	private readonly _onDidRemoveExtensions = this._register(new Emitter<DidRemoveProfileExtensionsEvent>());
+	readonly onDidRemoveExtensions = this._onDidRemoveExtensions.event;
 
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IScannedProfileExtension[]>>();
 
@@ -54,17 +85,33 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		return this.withProfileExtensions(profileLocation);
 	}
 
-	addExtensionsToProfile(extensions: [IExtension, Metadata][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
-		return this.withProfileExtensions(profileLocation, profileExtensions => {
-			// Remove the existing extension to avoid duplicates
-			profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
-			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata })));
-			return profileExtensions;
-		});
+	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
+		this._onAddExtensions.fire({ extensions: extensions.map(e => e[0]), profileLocation });
+		try {
+			const allExtensions = await this.withProfileExtensions(profileLocation, profileExtensions => {
+				// Remove the existing extension to avoid duplicates
+				profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
+				profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata })));
+				return profileExtensions;
+			});
+			const addedExtensions = allExtensions.filter(e => extensions.some(([extension]) => areSameExtensions(e.identifier, extension.identifier)));
+			this._onDidAddExtensions.fire({ extensions: extensions.map(e => e[0]), profileLocation });
+			return addedExtensions;
+		} catch (error) {
+			this._onDidAddExtensions.fire({ extensions: extensions.map(e => e[0]), error, profileLocation });
+			throw error;
+		}
 	}
 
-	removeExtensionFromProfile(identifier: IExtensionIdentifier, profileLocation: URI): Promise<IScannedProfileExtension[]> {
-		return this.withProfileExtensions(profileLocation, profileExtensions => profileExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier))));
+	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
+		this._onRemoveExtensions.fire({ extensions: [extension], profileLocation });
+		try {
+			await this.withProfileExtensions(profileLocation, profileExtensions => profileExtensions.filter(e => !(areSameExtensions(e.identifier, extension.identifier))));
+			this._onDidRemoveExtensions.fire({ extensions: [extension], profileLocation });
+		} catch (error) {
+			this._onDidRemoveExtensions.fire({ extensions: [extension], error, profileLocation });
+			throw error;
+		}
 	}
 
 	private async withProfileExtensions(file: URI, updateFn?: (extensions: IScannedProfileExtension[]) => IScannedProfileExtension[]): Promise<IScannedProfileExtension[]> {

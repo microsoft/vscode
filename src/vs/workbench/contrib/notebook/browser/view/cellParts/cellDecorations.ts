@@ -5,9 +5,9 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
-export class CellDecorations extends CellPart {
+export class CellDecorations extends CellContentPart {
 	constructor(
 		readonly rootContainer: HTMLElement,
 		readonly decorationContainer: HTMLElement,
