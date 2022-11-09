@@ -16,9 +16,6 @@ module.exports = withBrowserDefaults({
 	entry: {
 		extension: './src/extension.ts',
 	},
-	externals: {
-		'node-fetch': ['_', 'fetch'],
-	},
 	resolve: {
 		alias: {
 			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js'),
