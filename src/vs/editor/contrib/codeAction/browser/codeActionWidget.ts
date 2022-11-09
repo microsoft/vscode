@@ -7,7 +7,7 @@ import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles
 import { Codicon } from 'vs/base/common/codicons';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./codeActionWidget';
-import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/editor/contrib/actionWidget/browser/actionWidget';
+import { ActionItemRenderer, ActionList, ActionListItemKind, ActionShowOptions, ActionWidget, HeaderRenderer, IRenderDelegate, ListMenuItem, stripNewlines } from 'vs/platform/actionWidget/browser/actionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { CodeActionItem, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';

@@ -5,7 +5,6 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
 
@@ -188,13 +187,12 @@ export class CodeActionCommandArgs {
 	) { }
 }
 
-export class CodeActionItem extends Disposable {
+export class CodeActionItem {
 
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
 	) {
-		super();
 	}
 
 	async resolve(token: CancellationToken): Promise<this> {
