@@ -196,11 +196,18 @@ class FileAccessImpl {
 	 *
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
-	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: AppResourcePath | ''): URI;
-	asBrowserUri(uriOrModule: URI | AppResourcePath | ''): URI {
-		const uri = this.toUri(uriOrModule, require);
+	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath, require);
+		return this.uriToBrowserUri(uri);
+	}
 
+	/**
+	 * Returns a URI to use in contexts where the browser is responsible
+	 * for loading (e.g. fetch()) or when used within the DOM.
+	 *
+	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
+	 */
+	uriToBrowserUri(uri: URI): URI {
 		// Handle remote URIs via `RemoteAuthorities`
 		if (uri.scheme === Schemas.vscodeRemote) {
 			return RemoteAuthorities.rewrite(uri);
@@ -236,11 +243,16 @@ class FileAccessImpl {
 	 * Returns the `file` URI to use in contexts where node.js
 	 * is responsible for loading.
 	 */
-	asFileUri(uri: URI): URI;
-	asFileUri(moduleId: AppResourcePath | ''): URI;
-	asFileUri(uriOrModule: URI | AppResourcePath | ''): URI {
-		const uri = this.toUri(uriOrModule, require);
+	asFileUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath, require);
+		return this.uriToFileUri(uri);
+	}
 
+	/**
+	 * Returns the `file` URI to use in contexts where node.js
+	 * is responsible for loading.
+	 */
+	uriToFileUri(uri: URI): URI {
 		// Only convert the URI if it is `vscode-file:` scheme
 		if (uri.scheme === Schemas.vscodeFileResource) {
 			return uri.with({

@@ -174,7 +174,7 @@ export class Extension implements IExtension {
 
 	private get localIconUrl(): string | null {
 		if (this.local && this.local.manifest.icon) {
-			return FileAccess.asBrowserUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
+			return FileAccess.uriToBrowserUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
 		}
 		return null;
 	}

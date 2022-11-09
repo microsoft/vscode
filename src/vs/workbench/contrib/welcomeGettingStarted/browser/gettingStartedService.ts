@@ -281,12 +281,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
-			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
+			: FileAccess.uriToFileUri(joinPath(extension.extensionLocation, path));
 
 		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
-				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
+				: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
@@ -353,7 +353,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						type: 'markdown',
 						path: convertExtensionPathToFileURI(step.media.markdown),
 						base: convertExtensionPathToFileURI(dirname(step.media.markdown)),
-						root: FileAccess.asFileUri(extension.extensionLocation),
+						root: FileAccess.uriToFileUri(extension.extensionLocation),
 					};
 				}
 				else if (step.media.svg) {
@@ -401,7 +401,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				icon: {
 					type: 'image',
 					path: iconStr
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
+						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
 						: DefaultIconPath
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
