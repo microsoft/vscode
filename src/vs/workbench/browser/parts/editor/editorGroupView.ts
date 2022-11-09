@@ -404,8 +404,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
-				if (e.button !== 0 || (isMacintosh && e.ctrlKey)) {
-					return undefined; // only for left mouse click (ctrl+click on macos is right-click)
+				if (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */)) {
+					return undefined;
 				}
 
 				target = e.target as HTMLElement;

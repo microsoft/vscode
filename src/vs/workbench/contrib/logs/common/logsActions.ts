@@ -13,11 +13,18 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOutputChannelDescriptor, IOutputService } from 'vs/workbench/services/output/common/output';
-import { isUndefined } from 'vs/base/common/types';
+import { isNumber } from 'vs/base/common/types';
 import { ILogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
 import { extensionTelemetryLogChannelId, telemetryLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+
+type LogLevelQuickPickItem = IQuickPickItem & { level: LogLevel };
+type LogChannelQuickPickItem = IQuickPickItem & { channel: IOutputChannelDescriptor };
+
+function isLogLevel(thing: unknown): thing is LogLevel {
+	return isNumber(thing);
+}
 
 export class SetLogLevelAction extends Action {
 
@@ -35,13 +42,17 @@ export class SetLogLevelAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		const logChannel = await this.selectLogChannel();
-		if (!isUndefined(logChannel)) {
-			await this.selectLogLevel(logChannel);
+		const logLevelOrChannel = await this.selectLogLevelOrChannel();
+		if (logLevelOrChannel !== null) {
+			if (isLogLevel(logLevelOrChannel)) {
+				this.logService.setLevel(logLevelOrChannel);
+			} else {
+				await this.setLogLevelForChannel(logLevelOrChannel);
+			}
 		}
 	}
 
-	private async selectLogChannel(): Promise<IOutputChannelDescriptor | undefined | null> {
+	private async selectLogLevelOrChannel(): Promise<IOutputChannelDescriptor | LogLevel | null> {
 		const extensionLogs = [], logs = [];
 		for (const channel of this.outputService.getChannelDescriptors()) {
 			if (!channel.log || channel.id === telemetryLogChannelId || channel.id === extensionTelemetryLogChannelId) {
@@ -53,49 +64,68 @@ export class SetLogLevelAction extends Action {
 				logs.push(channel);
 			}
 		}
-		const entries: ({ label: string; channel?: IOutputChannelDescriptor } | IQuickPickSeparator)[] = [];
-		entries.push({ label: nls.localize('all', "All") });
+		const entries: (LogLevelQuickPickItem | LogChannelQuickPickItem | IQuickPickSeparator)[] = [];
+		entries.push({ type: 'separator', label: nls.localize('all', "All") });
+		entries.push(...this.getLogLevelEntries(this.getDefaultLogLevel(null), this.logService.getLevel()));
 		entries.push({ type: 'separator', label: nls.localize('loggers', "Logs") });
+		const logLevel = this.logService.getLevel();
 		for (const channel of logs.sort((a, b) => a.label.localeCompare(b.label))) {
-			entries.push({ label: channel.label, channel });
+			const channelLogLevel = this.logLevelService.getLogLevel(channel.id) ?? logLevel;
+			entries.push({ label: channel.label, channel, description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined });
 		}
 		if (extensionLogs.length && logs.length) {
 			entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
 		}
 		for (const channel of extensionLogs.sort((a, b) => a.label.localeCompare(b.label))) {
-			entries.push({ label: channel.label, channel });
+			const channelLogLevel = this.logLevelService.getLogLevel(channel.id) ?? logLevel;
+			entries.push({ label: channel.label, channel, description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined });
 		}
-		const entry = await this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
-		return entry ? entry.channel ?? null : undefined;
+		const entry = await this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Set Log Level") });
+		if (entry) {
+			if ((<LogLevelQuickPickItem>entry).level) {
+				return (<LogLevelQuickPickItem>entry).level;
+			}
+			if ((<LogChannelQuickPickItem>entry).channel) {
+				return (<LogChannelQuickPickItem>entry).channel;
+			}
+		}
+		return null;
 	}
 
-	private async selectLogLevel(logChannel: IOutputChannelDescriptor | null): Promise<void> {
+	private async setLogLevelForChannel(logChannel: IOutputChannelDescriptor): Promise<void> {
 		const defaultLogLevel = this.getDefaultLogLevel(logChannel);
-		const current = logChannel ? this.logLevelService.getLogLevel(logChannel.id) ?? defaultLogLevel : this.logService.getLevel();
-		const entries = [
-			{ label: this.getLabel(nls.localize('trace', "Trace"), LogLevel.Trace, current), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, defaultLogLevel) },
-			{ label: this.getLabel(nls.localize('debug', "Debug"), LogLevel.Debug, current), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, defaultLogLevel) },
-			{ label: this.getLabel(nls.localize('info', "Info"), LogLevel.Info, current), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, defaultLogLevel) },
-			{ label: this.getLabel(nls.localize('warn', "Warning"), LogLevel.Warning, current), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, defaultLogLevel) },
-			{ label: this.getLabel(nls.localize('err', "Error"), LogLevel.Error, current), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, defaultLogLevel) },
-			{ label: this.getLabel(nls.localize('off', "Off"), LogLevel.Off, current), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, defaultLogLevel) },
-		];
+		const currentLogLevel = this.logLevelService.getLogLevel(logChannel.id) ?? defaultLogLevel;
+		const entries = this.getLogLevelEntries(defaultLogLevel, currentLogLevel);
 
 		const entry = await this.quickInputService.pick(entries, { placeHolder: logChannel ? nls.localize('selectLogLevelFor', " {0}: Select log level", logChannel?.label) : nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.logService.getLevel()] });
 		if (entry) {
-			if (logChannel) {
-				this.logLevelService.setLogLevel(logChannel.id, entry.level);
-			} else {
-				this.logService.setLevel(entry.level);
-			}
+			this.logLevelService.setLogLevel(logChannel.id, entry.level);
 		}
 	}
 
-	private getLabel(label: string, level: LogLevel, current: LogLevel): string {
-		if (level === current) {
-			return `$(check) ${label}`;
+	private getLogLevelEntries(defaultLogLevel: LogLevel, currentLogLevel: LogLevel): LogLevelQuickPickItem[] {
+		return [
+			{ label: this.getLabel(LogLevel.Trace, currentLogLevel), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, defaultLogLevel) },
+			{ label: this.getLabel(LogLevel.Debug, currentLogLevel), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, defaultLogLevel) },
+			{ label: this.getLabel(LogLevel.Info, currentLogLevel), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, defaultLogLevel) },
+			{ label: this.getLabel(LogLevel.Warning, currentLogLevel), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, defaultLogLevel) },
+			{ label: this.getLabel(LogLevel.Error, currentLogLevel), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, defaultLogLevel) },
+			{ label: this.getLabel(LogLevel.Off, currentLogLevel), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, defaultLogLevel) },
+		];
+
+	}
+
+	private getLabel(level: LogLevel, current?: LogLevel): string {
+		let label: string;
+		switch (level) {
+			case LogLevel.Trace: label = nls.localize('trace', "Trace"); break;
+			case LogLevel.Debug: label = nls.localize('debug', "Debug"); break;
+			case LogLevel.Info: label = nls.localize('info', "Info"); break;
+			case LogLevel.Warning: label = nls.localize('warn', "Warning"); break;
+			case LogLevel.Error: label = nls.localize('err', "Error"); break;
+			case LogLevel.Off: label = nls.localize('off', "Off"); break;
 		}
-		return label;
+		return level === current ? `$(check) ${label}` : label;
 	}
 
 	private getDescription(level: LogLevel, defaultLogLevel: LogLevel): string | undefined {

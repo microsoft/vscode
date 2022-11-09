@@ -17,8 +17,7 @@
   ],
   "enabledApiProposals": [
     "telemetryLogger",
-    "idToken",
-    "extensionLog"
+    "idToken"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
