@@ -57,7 +57,7 @@ export class LinkDetector {
 	 * When splitLines is true, each line of the text, even if it contains no links, is wrapped in a <span>
 	 * and added as a child of the returned <span>.
 	 */
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder): HTMLElement {
+	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -67,7 +67,7 @@ export class LinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder));
+			const elements = lines.map(line => this.linkify(line, false, workspaceFolder, includeFulltext));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -85,13 +85,13 @@ export class LinkDetector {
 						container.appendChild(document.createTextNode(part.value));
 						break;
 					case 'web':
-						container.appendChild(this.createWebLink(text, part.value));
+						container.appendChild(this.createWebLink(includeFulltext ? text : undefined, part.value));
 						break;
 					case 'path': {
 						const path = part.captures[0];
 						const lineNumber = part.captures[1] ? Number(part.captures[1]) : 0;
 						const columnNumber = part.captures[2] ? Number(part.captures[2]) : 0;
-						container.appendChild(this.createPathLink(text, part.value, path, lineNumber, columnNumber, workspaceFolder));
+						container.appendChild(this.createPathLink(includeFulltext ? text : undefined, part.value, path, lineNumber, columnNumber, workspaceFolder));
 						break;
 					}
 				}
@@ -102,7 +102,7 @@ export class LinkDetector {
 		return container;
 	}
 
-	private createWebLink(fulltext: string, url: string): Node {
+	private createWebLink(fulltext: string | undefined, url: string): Node {
 		const link = this.createLink(url);
 
 		let uri = URI.parse(url);
@@ -146,7 +146,7 @@ export class LinkDetector {
 		return link;
 	}
 
-	private createPathLink(fulltext: string, text: string, path: string, lineNumber: number, columnNumber: number, workspaceFolder: IWorkspaceFolder | undefined): Node {
+	private createPathLink(fulltext: string | undefined, text: string, path: string, lineNumber: number, columnNumber: number, workspaceFolder: IWorkspaceFolder | undefined): Node {
 		if (path[0] === '/' && path[1] === '/') {
 			// Most likely a url part which did not match, for example ftp://path.
 			return document.createTextNode(text);
