@@ -51,7 +51,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 					item: action,
 					group: uncategorizedCodeActionGroup,
 					disabled: !!action.action.disabled,
-					label: action.action.title
+					label: action.action.disabled || action.action.title
 				};
 			});
 		}
