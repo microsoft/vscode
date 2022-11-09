@@ -2697,14 +2697,23 @@ export class CommandCenter {
 		if (!HEAD) {
 			return;
 		} else if (!HEAD.upstream) {
-			const branchName = HEAD.name;
-			const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName ?? '');
-			const yes = l10n.t('OK');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			if (this.globalState.get<boolean>('confirmBranchPublish', true)) {
+				const branchName = HEAD.name;
+				const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName ?? '');
+				const yes = l10n.t('OK');
+				const neverAgain = l10n.t('OK, Don\'t Ask Again');
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
-			if (pick === yes) {
+				if (pick === yes || pick === neverAgain) {
+					if (pick === neverAgain) {
+						this.globalState.update('confirmBranchPublish', false);
+					}
+					await this.publish(repository);
+				}
+			} else {
 				await this.publish(repository);
 			}
+
 			return;
 		}
 
