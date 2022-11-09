@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { v4 as uuid } from 'uuid';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Keychain } from './common/keychain';
 import { GitHubServer, IGitHubServer } from './githubServer';
 import { arrayEquals } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
+import { crypto } from './node/crypto';
 
 interface SessionData {
 	id: string;
@@ -286,7 +286,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
-			id: uuid(),
+			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
 			account: { label: userInfo.accountName, id: userInfo.id },
 			scopes
