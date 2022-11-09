@@ -130,6 +130,12 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
 
+		// default selector
+		this._selectors.register({
+			priority: 0,
+			select: (model, pos, items) => this._memoryService.select(model, pos, items)
+		});
+
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
@@ -227,18 +233,16 @@ export class SuggestController implements IEditorContribution {
 				return;
 			}
 			let index = -1;
-			if (!e.auto || this.editor.getOption(EditorOption.suggest).selectQuickSuggestions) {
-				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
-					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
-					if (index !== -1) {
-						break;
-					}
-				}
-				if (index === -1) {
-					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+			for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
+				index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				if (index !== -1) {
+					break;
 				}
 			}
-			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
+			if (index === -1) {
+				index = 0;
+			}
+			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto, e.auto && !this.editor.getOption(EditorOption.suggest).selectQuickSuggestions);
 		}));
 		this._toDispose.add(this.model.onDidCancel(e => {
 			if (!e.retrigger) {
