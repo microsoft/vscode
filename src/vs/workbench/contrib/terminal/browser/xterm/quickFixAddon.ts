@@ -25,7 +25,7 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
+import { QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixList';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';

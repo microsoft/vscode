@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
-import { CodeActionList } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
+import { CodeActionList } from 'vs/editor/contrib/codeAction/browser/codeActionList';
 
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
