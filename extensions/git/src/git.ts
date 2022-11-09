@@ -695,49 +695,41 @@ export interface GitConfigSection {
 }
 
 export class GitConfigParser {
-	private readonly _lineSeparator = /\r?\n/;
+	private static readonly _lineSeparator = /\r?\n/;
 
-	private readonly _commentRegex = /^\s*[#;].*/;
-	private readonly _emptyLineRegex = /^\s*$/;
-	private readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
-	private readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
+	private static readonly _commentRegex = /^\s*[#;].*/;
+	private static readonly _emptyLineRegex = /^\s*$/;
+	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
 
-	private readonly _config: { sections: GitConfigSection[] };
-
-	constructor() {
-		this._config = { sections: [] };
-	}
-
-	async parse(configFilePath: string): Promise<void> {
-		const configFileRaw = await fs.readFile(configFilePath, 'utf8');
-
-		this._config.sections = [];
+	static parse(raw: string, sectionName?: string): GitConfigSection[] {
+		const config: { sections: GitConfigSection[] } = { sections: [] };
 		let section: GitConfigSection = { name: 'DEFAULT', properties: {} };
-		for (const configFileLine of configFileRaw.split(this._lineSeparator)) {
+
+		for (const configFileLine of raw.split(GitConfigParser._lineSeparator)) {
 			// Ignore empty lines and comments
-			if (this._emptyLineRegex.test(configFileLine) || this._commentRegex.test(configFileLine)) {
+			if (GitConfigParser._emptyLineRegex.test(configFileLine) ||
+				GitConfigParser._commentRegex.test(configFileLine)) {
 				continue;
 			}
 
 			// Section
-			const sectionMatch = configFileLine.match(this._sectionRegex);
+			const sectionMatch = configFileLine.match(GitConfigParser._sectionRegex);
 			if (sectionMatch?.length === 3) {
-				this._config.sections.push(section);
+				config.sections.push(section);
 				section = { name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} };
 
 				continue;
 			}
 
 			// Properties
-			const propertyMatch = configFileLine.match(this._propertyRegex);
+			const propertyMatch = configFileLine.match(GitConfigParser._propertyRegex);
 			if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
 				section.properties[propertyMatch[1]] = propertyMatch[2];
 			}
 		}
-	}
 
-	getSections(name: string): GitConfigSection[] {
-		return this._config.sections.filter(s => s.name === name);
+		return sectionName ? config.sections.filter(s => s.name === sectionName) : config.sections;
 	}
 }
 
@@ -867,6 +859,26 @@ export function parseGitmodules(raw: string): Submodule[] {
 	}
 
 	return result;
+}
+
+export function parseGitRemotes(raw: string): Remote[] {
+	const remotes: Remote[] = [];
+
+	for (const remoteSection of GitConfigParser.parse(raw, 'remote')) {
+		if (!remoteSection.subSectionName) {
+			continue;
+		}
+
+		remotes.push({
+			name: remoteSection.subSectionName,
+			fetchUrl: remoteSection.properties['url'],
+			pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
+			// https://github.com/microsoft/vscode/issues/45271
+			isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+		});
+	}
+
+	return remotes;
 }
 
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
@@ -2201,9 +2213,20 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
-		const configParser = new GitConfigParser();
-		configParser.parse(path.join(this.dotGit.path, 'config'));
+		try {
+			// Attempt to parse the config file
+			const remotes = await this.getRemotesFS();
+			if (remotes.length === 0) {
+				throw new Error('No remotes found in the git config file.');
+			}
 
+			return remotes;
+		}
+		catch (err) {
+			this.logger.warn(err.message);
+		}
+
+		// Fallback to using git to determine remotes
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
 		const remotes: MutableRemote[] = [];
@@ -2233,6 +2256,11 @@ export class Repository {
 		}
 
 		return remotes;
+	}
+
+	private async getRemotesFS(): Promise<Remote[]> {
+		const raw = await fs.readFile(path.join(this.dotGit.path, 'config'), 'utf8');
+		return parseGitRemotes(raw);
 	}
 
 	async getBranch(name: string): Promise<Branch> {
