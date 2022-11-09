@@ -74,7 +74,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 			if (menuEntry.actions.length) {
 				allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: ActionListItemKind.Action, item: action, group: menuEntry.group, label: action.action.title, disabled: action.action.disabled });
+					allMenuItems.push({ kind: ActionListItemKind.Action, item: action, group: menuEntry.group, label: action.action.title, disabled: !!action.action.disabled });
 				}
 			}
 		}

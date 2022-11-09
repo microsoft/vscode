@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixList';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
+import { IActionWidgetService, previewSelectedAction } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
@@ -248,18 +248,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				const delegate = (fix: TerminalQuickFix, preview?: boolean) => {
 					this._actionWidgetService.hide();
 					if (preview) {
-						this._commandService.executeCommand('previewSelectedCodeAction');
+						this._commandService.executeCommand(previewSelectedAction);
 					} else {
 						fix.action?.run();
 					}
 				};
 				const list = this._instantiationService.createInstance(QuickFixList, actionSet.allActions, true, delegate);
 				this._actionWidgetService.show(undefined, list, actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
-					onSelect: async (action: TerminalQuickFix, trigger: string, preview?: boolean) => {
+					onSelect: async (fix: TerminalQuickFix, preview?: boolean) => {
 						if (preview) {
-							this._commandService.executeCommand('previewSelectedCodeAction');
+							this._commandService.executeCommand(previewSelectedAction);
 						} else {
-							action.action?.run();
+							fix.action?.run();
 						}
 					},
 					onHide: () => {

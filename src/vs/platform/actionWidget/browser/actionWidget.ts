@@ -26,8 +26,11 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
+export const acceptSelectedAction = 'acceptSelectedAction';
+export const previewSelectedAction = 'previewSelectedAction';
+
 export const Context = {
-	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
+	Visible: new RawContextKey<boolean>('actionWidgetVisible', false, localize('actionWidgetVisible', "Whether the action widget list is visible"))
 };
 export interface IRenderDelegate<T> {
 	onHide(cancelled: boolean): void;
@@ -44,7 +47,7 @@ export interface IListMenuItem<T> {
 	item?: T;
 	kind?: any;
 	group?: any;
-	disabled?: boolean | string;
+	disabled?: boolean;
 	label?: string;
 }
 
@@ -149,7 +152,7 @@ export class ActionItemRenderer<T extends IListMenuItem<T>> implements IListRend
 			data.container.title = element.label;
 			data.container.classList.add('option-disabled');
 		} else {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding('acceptSelectedCodeAction')?.getLabel(), this._keybindingService.lookupKeybinding('previewSelectedCodeAction')?.getLabel());
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this._keybindingService.lookupKeybinding(acceptSelectedAction)?.getLabel(), this._keybindingService.lookupKeybinding(previewSelectedAction)?.getLabel());
 			data.container.classList.remove('option-disabled');
 		}
 	}
@@ -579,7 +582,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'acceptSelectedCodeAction',
+			id: acceptSelectedAction,
 			title: {
 				value: localize('acceptSelected.title', "Accept selected code action"),
 				original: 'Accept selected code action'
@@ -601,7 +604,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'previewSelectedCodeAction',
+			id: previewSelectedAction,
 			title: {
 				value: localize('previewSelected.title', "Preview selected code action"),
 				original: 'Preview selected code action'
