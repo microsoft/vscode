@@ -27,8 +27,8 @@ import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {

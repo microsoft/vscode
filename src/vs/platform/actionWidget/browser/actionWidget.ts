@@ -18,13 +18,13 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 import 'vs/css!./actionWidget';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))

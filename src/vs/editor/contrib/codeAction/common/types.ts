@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionSet } from 'vs/base/common/actionWidget/actionWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
+import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
