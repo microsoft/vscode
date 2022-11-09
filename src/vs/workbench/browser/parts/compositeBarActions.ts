@@ -545,7 +545,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	constructor(
 		options: IActivityActionViewItemOptions,
 		private readonly compositeActivityAction: ActivityAction,
-		private readonly toggleCompositePinnedAction: IAction,
+		private readonly toggleCompositePinnedAction: Action,
 		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
 		private readonly contextMenuActionsProvider: () => IAction[],
 		private readonly dndHandler: ICompositeDragAndDrop,
@@ -657,16 +657,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	private showContextMenu(container: HTMLElement): void {
-		const isPinned = this.compositeBar.isPinned(this.activity.id);
-		const toggleCompositePinnedAction = { ...this.toggleCompositePinnedAction };
-		if (isPinned) {
-			toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.activity.name);
-			toggleCompositePinnedAction.checked = false;
-		} else {
-			toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
-		}
-
-		const actions: IAction[] = [toggleCompositePinnedAction];
+		const actions: IAction[] = [this.toggleCompositePinnedAction];
 
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
 		if (compositeContextMenuActions.length) {
@@ -676,6 +667,14 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		if ((<any>this.compositeActivityAction.activity).extensionId) {
 			actions.push(new Separator());
 			actions.push(CompositeActionViewItem.manageExtensionAction);
+		}
+
+		const isPinned = this.compositeBar.isPinned(this.activity.id);
+		if (isPinned) {
+			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.activity.name);
+			this.toggleCompositePinnedAction.checked = false;
+		} else {
+			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
 		}
 
 		const otherActions = this.contextMenuActionsProvider();

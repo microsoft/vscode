@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { Action, IAction, toAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
@@ -151,7 +151,7 @@ export interface ICompositeBarOptions {
 	readonly preventLoopNavigation?: boolean;
 
 	readonly getActivityAction: (compositeId: string) => ActivityAction;
-	readonly getCompositePinnedAction: (compositeId: string) => IAction;
+	readonly getCompositePinnedAction: (compositeId: string) => Action;
 	readonly getOnCompositeClickAction: (compositeId: string) => IAction;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	readonly getContextMenuActionsForComposite: (compositeId: string) => IAction[];
@@ -667,7 +667,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 interface ICompositeBarModelItem extends ICompositeBarItem {
 	readonly activityAction: ActivityAction;
-	readonly pinnedAction: IAction;
+	readonly pinnedAction: Action;
 	readonly activity: ICompositeActivity[];
 }
 
