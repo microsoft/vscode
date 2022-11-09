@@ -24,7 +24,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
+import { ActionSet, IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 
 export const acceptSelectedAction = 'acceptSelectedAction';
 export const previewSelectedAction = 'previewSelectedAction';
@@ -43,7 +43,7 @@ export interface IActionShowOptions {
 	readonly showHeaders?: boolean;
 }
 
-export interface IListMenuItem<T> {
+export interface IListMenuItem<T extends IActionItem> {
 	item?: T;
 	kind?: any;
 	group?: any;
@@ -51,7 +51,7 @@ export interface IListMenuItem<T> {
 	label?: string;
 }
 
-export interface IActionList<T> extends IDisposable {
+export interface IActionList<T extends IActionItem> extends IDisposable {
 	hide(): void;
 	focusPrevious(): void;
 	focusNext(): void;
@@ -78,7 +78,7 @@ interface IHeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-export class HeaderRenderer<T extends IListMenuItem<T>> implements IListRenderer<T, IHeaderTemplateData> {
+export class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IHeaderTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Header; }
 
@@ -91,7 +91,7 @@ export class HeaderRenderer<T extends IListMenuItem<T>> implements IListRenderer
 		return { container, text };
 	}
 
-	renderElement(element: IListMenuItem<T>, _index: number, templateData: IHeaderTemplateData): void {
+	renderElement(element: IListMenuItem<IActionItem>, _index: number, templateData: IHeaderTemplateData): void {
 		templateData.text.textContent = element.group.title;
 	}
 
@@ -101,7 +101,7 @@ export class HeaderRenderer<T extends IListMenuItem<T>> implements IListRenderer
 }
 
 
-export class ActionItemRenderer<T extends IListMenuItem<T>> implements IListRenderer<T, IActionMenuTemplateData> {
+export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IActionMenuTemplateData> {
 
 	get templateId(): string { return 'action'; }
 
@@ -139,7 +139,7 @@ export class ActionItemRenderer<T extends IListMenuItem<T>> implements IListRend
 		data.text.textContent = stripNewlines(element.label);
 		let binding;
 		if (this._resolver) {
-			binding = this._resolver?.getResolver()((element.item as any).action);
+			binding = this._resolver?.getResolver()(element.item.action);
 		}
 		data.keybinding.set(binding);
 		if (!binding) {
@@ -365,17 +365,17 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 }
 registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.Delayed);
 
-export abstract class ActionList<T> extends Disposable implements IActionList<T> {
+export abstract class ActionList<T extends IActionItem> extends Disposable implements IActionList<T> {
 
 	public readonly domNode: HTMLElement;
-	public list: List<IListMenuItem<T>>;
+	public list: List<IListMenuItem<IActionItem>>;
 
 	readonly actionLineHeight = 24;
 	readonly headerLineHeight = 26;
 
-	private readonly allMenuItems: IListMenuItem<T>[];
+	private readonly allMenuItems: IListMenuItem<IActionItem>[];
 
-	private focusCondition(element: IListMenuItem<T>): boolean {
+	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
@@ -383,18 +383,18 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		user: string,
 		items: readonly T[],
 		showHeaders: boolean,
-		private readonly onDidSelect: (action: T, preview?: boolean) => void,
+		private readonly onDidSelect: (action: IActionItem, preview?: boolean) => void,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		const virtualDelegate: IListVirtualDelegate<IListMenuItem<T>> = {
+		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<any>(this._keybindingService), new HeaderRenderer()], {
+		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -480,7 +480,7 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		this.list.setSelection([focusIndex], event);
 	}
 
-	private onListSelection(e: IListEvent<IListMenuItem<T>>): void {
+	private onListSelection(e: IListEvent<IListMenuItem<IActionItem>>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -493,11 +493,11 @@ export abstract class ActionList<T> extends Disposable implements IActionList<T>
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<IListMenuItem<T>>): void {
+	private onListHover(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
 		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
-	private onListClick(e: IListMouseEvent<IListMenuItem<T>>): void {
+	private onListClick(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
 		if (e.element && this.focusCondition(e.element)) {
 			this.list.setFocus([]);
 		}

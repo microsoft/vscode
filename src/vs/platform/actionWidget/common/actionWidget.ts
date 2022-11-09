@@ -17,3 +17,7 @@ export interface ActionSet<T> extends IDisposable {
 		arguments?: any[];
 	}[];
 }
+
+export interface IActionItem {
+	action: any;
+}

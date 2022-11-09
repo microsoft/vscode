@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ActionList, ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 
-export class TerminalQuickFix extends Disposable {
-	action?: IAction;
+export class TerminalQuickFix implements IActionItem {
+	action: IAction;
 	disabled?: boolean;
 	title?: string;
-	constructor(action?: IAction, title?: string, disabled?: boolean) {
-		super();
+	constructor(action: IAction, title?: string, disabled?: boolean) {
 		this.action = action;
 		this.disabled = disabled;
 		this.title = title;
@@ -34,8 +33,8 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 		super('quickFixWidget', fixes, showHeaders, onDidSelect, contextViewService, keybindingService);
 	}
 
-	public toMenuItems(inputActions: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {
-		const menuItems: TerminalQuickFixListItem[] = [];
+	public toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {
+		const menuItems: IListMenuItem<TerminalQuickFix>[] = [];
 		menuItems.push({
 			kind: ActionListItemKind.Header,
 			group: {
@@ -44,25 +43,21 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 				icon: { codicon: Codicon.lightBulb }
 			}
 		});
-		for (const action of showHeaders ? inputActions : inputActions.filter(i => !!i.action)) {
-			if (!action.disabled && action.action) {
+		for (const quickFix of showHeaders ? inputQuickFixes : inputQuickFixes.filter(i => !!i.action)) {
+			if (!quickFix.disabled && quickFix.action) {
 				menuItems.push({
 					kind: ActionListItemKind.Action,
-					item: action,
+					item: quickFix,
 					group: {
 						kind: CodeActionKind.QuickFix,
-						icon: { codicon: action.action.id === 'quickFix.opener' ? Codicon.link : Codicon.run },
-						title: action.action!.label
+						icon: { codicon: quickFix.action.id === 'quickFix.opener' ? Codicon.link : Codicon.run },
+						title: quickFix.action!.label
 					},
 					disabled: false,
-					label: action.title
+					label: quickFix.title
 				});
 			}
 		}
 		return menuItems;
 	}
-}
-
-interface TerminalQuickFixListItem extends IListMenuItem<TerminalQuickFix> {
-	readonly item?: TerminalQuickFix;
 }

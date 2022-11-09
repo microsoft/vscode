@@ -11,6 +11,7 @@ import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbo
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
@@ -36,7 +37,7 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		onDidSelect: (action: CodeActionItem, preview?: boolean) => void,
+		onDidSelect: (action: IActionItem, preview?: boolean) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
