@@ -65,7 +65,7 @@ export interface IActionMenuTemplateData {
 	readonly keybinding: KeybindingLabel;
 }
 
-export enum ActionListItemKind {
+export const enum ActionListItemKind {
 	Action = 'action',
 	Header = 'header'
 }
