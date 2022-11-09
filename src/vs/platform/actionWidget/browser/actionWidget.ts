@@ -174,7 +174,7 @@ export interface IActionWidgetService {
 	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: ActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
 }
 
-export class ActionWidgetService extends Disposable {
+export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	readonly _serviceBrand: undefined;
 	get isVisible() { return Context.Visible.getValue(this._contextKeyService) || false; }
 	public showDisabled = false;
