@@ -162,6 +162,7 @@ export class ActionItemRenderer<T extends ListMenuItem<T>> implements IListRende
 
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
+	_serviceBrand: undefined;
 	focusPrevious(): void;
 	focusNext(): void;
 	layout(minWidth: number): void;
@@ -174,7 +175,7 @@ export interface IActionWidgetService {
 }
 
 export class ActionWidgetService extends Disposable {
-	declare readonly _serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	get isVisible() { return Context.Visible.getValue(this._contextKeyService) || false; }
 	public showDisabled = false;
 	currentShowingContext?: {

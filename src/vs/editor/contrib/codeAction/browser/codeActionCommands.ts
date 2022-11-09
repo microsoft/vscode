@@ -27,8 +27,6 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -101,9 +99,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorProgressService progressService: IEditorProgressService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 
@@ -122,7 +118,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 						}
 					}
 				}
-			}, configurationService, this._instantiationService, actionWidgetService))
+			}))
 		);
 	}
 
