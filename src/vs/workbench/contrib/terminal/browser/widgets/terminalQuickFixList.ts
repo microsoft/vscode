@@ -30,7 +30,7 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super('quickFixWidget', fixes, showHeaders, onDidSelect, contextViewService, keybindingService);
+		super('quickFixWidget', fixes, showHeaders, onDidSelect, undefined, contextViewService, keybindingService);
 	}
 
 	public toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {

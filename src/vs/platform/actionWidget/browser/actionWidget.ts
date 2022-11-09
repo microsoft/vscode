@@ -105,8 +105,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 
 	get templateId(): string { return 'action'; }
 
-	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		private readonly _resolver?: any) {
+	constructor(private readonly _keybindingResolver: any, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
 	}
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -137,11 +136,11 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 			return;
 		}
 		data.text.textContent = stripNewlines(element.label);
-		let binding;
-		if (this._resolver) {
-			binding = this._resolver?.getResolver()(element.item.action);
+		const binding = this._keybindingResolver?.getResolver()(element.item.action);
+		if (binding) {
+			data.keybinding.set(binding);
 		}
-		data.keybinding.set(binding);
+
 		if (!binding) {
 			dom.hide(data.keybinding.element);
 		} else {
@@ -384,8 +383,9 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		items: readonly T[],
 		showHeaders: boolean,
 		private readonly onDidSelect: (action: IActionItem, preview?: boolean) => void,
+		resolver: any,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -394,7 +394,7 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(this._keybindingService), new HeaderRenderer()], {
+		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(this._keybindingService, resolver), new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {

@@ -12,6 +12,8 @@ import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
@@ -39,9 +41,10 @@ export class CodeActionList extends ActionList<CodeActionItem> {
 		showHeaders: boolean,
 		onDidSelect: (action: IActionItem, preview?: boolean) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('codeActionWidget', codeActions, showHeaders, onDidSelect, contextViewService, keybindingService);
+		super('codeActionWidget', codeActions, showHeaders, onDidSelect, instantiationService.createInstance(CodeActionKeybindingResolver), contextViewService, keybindingService);
 	}
 
 	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): IListMenuItem<CodeActionItem>[] {
