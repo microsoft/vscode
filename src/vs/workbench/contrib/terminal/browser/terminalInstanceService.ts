@@ -85,11 +85,13 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	}
 
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> {
-		if (remoteAuthority) {
+		let backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		if (!backend) {
+			// Ensure all backends are initialized and try again
 			await this._lifecycleService.when(LifecyclePhase.Restored);
+			backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 		}
-
-		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		return backend;
 	}
 }
 
