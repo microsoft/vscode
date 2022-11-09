@@ -198,7 +198,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 	}
 
 	if (cancellationToken && cancellationToken.isCancellationRequested) {
-		throw new GitError({ message: 'Cancelled' });
+		throw new CancellationError();
 	}
 
 	const disposables: IDisposable[] = [];
@@ -239,7 +239,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 					// noop
 				}
 
-				e(new GitError({ message: 'Cancelled' }));
+				e(new CancellationError());
 			});
 		});
 
@@ -568,46 +568,56 @@ export class Git {
 		}
 
 		const startExec = Date.now();
-		const bufferResult = await exec(child, options.cancellationToken);
-		const durExec = Date.now() - startExec;
 
-		if (options.log !== false) {
-			// command
-			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
+		try {
+			const bufferResult = await exec(child, options.cancellationToken);
 
-			// stdout
-			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
-				this.log(`${bufferResult.stdout}\n`);
+			if (options.log !== false) {
+				// command
+				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms]\n`);
+
+				// stdout
+				if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
+					this.log(`${bufferResult.stdout}\n`);
+				}
+
+				// stderr
+				if (bufferResult.stderr.length > 0) {
+					this.log(`${bufferResult.stderr}\n`);
+				}
 			}
 
-			// stderr
-			if (bufferResult.stderr.length > 0) {
-				this.log(`${bufferResult.stderr}\n`);
+			let encoding = options.encoding || 'utf8';
+			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
+			const result: IExecutionResult<string> = {
+				exitCode: bufferResult.exitCode,
+				stdout: iconv.decode(bufferResult.stdout, encoding),
+				stderr: bufferResult.stderr
+			};
+
+			if (bufferResult.exitCode) {
+				return Promise.reject<IExecutionResult<string>>(new GitError({
+					message: 'Failed to execute git',
+					stdout: result.stdout,
+					stderr: result.stderr,
+					exitCode: result.exitCode,
+					gitErrorCode: getGitErrorCode(result.stderr),
+					gitCommand: args[0],
+					gitArgs: args
+				}));
 			}
+
+			return result;
 		}
+		catch (ex) {
+			if (ex instanceof CancellationError) {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
+				// TODO @lszomoru - should this return something or its fine to re-throw
+			}
 
-		let encoding = options.encoding || 'utf8';
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-		const result: IExecutionResult<string> = {
-			exitCode: bufferResult.exitCode,
-			stdout: iconv.decode(bufferResult.stdout, encoding),
-			stderr: bufferResult.stderr
-		};
-
-		if (bufferResult.exitCode) {
-			return Promise.reject<IExecutionResult<string>>(new GitError({
-				message: 'Failed to execute git',
-				stdout: result.stdout,
-				stderr: result.stderr,
-				exitCode: result.exitCode,
-				gitErrorCode: getGitErrorCode(result.stderr),
-				gitCommand: args[0],
-				gitArgs: args
-			}));
+			throw ex;
 		}
-
-		return result;
 	}
 
 	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
@@ -2092,7 +2102,11 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const args = ['for-each-ref'];
 
 		if (opts?.count) {
@@ -2113,7 +2127,7 @@ export class Repository {
 			args.push('--contains', opts.contains);
 		}
 
-		const result = await this.exec(args);
+		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
