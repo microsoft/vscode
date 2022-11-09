@@ -5,7 +5,7 @@
 
 import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { RequestType } from 'vscode-languageclient';
+import { FileRename, RequestType } from 'vscode-languageclient';
 import type * as lsp from 'vscode-languageserver-types';
 import type * as md from 'vscode-markdown-languageservice';
 
@@ -30,7 +30,7 @@ export const findMarkdownFilesInWorkspace = new RequestType<{}, string[], any>('
 
 //#region To server
 export const getReferencesToFileInWorkspace = new RequestType<{ uri: string }, lsp.Location[], any>('markdown/getReferencesToFileInWorkspace');
-export const getEditForFileRenames = new RequestType<Array<{ oldUri: string; newUri: string }>, lsp.WorkspaceEdit, any>('markdown/getEditForFileRenames');
+export const getEditForFileRenames = new RequestType<Array<FileRename>, { participatingRenames: readonly FileRename[]; edit: lsp.WorkspaceEdit }, any>('markdown/getEditForFileRenames');
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
 

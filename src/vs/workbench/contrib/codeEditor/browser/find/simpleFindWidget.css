@@ -38,6 +38,10 @@
 	visibility: visible;
 }
 
+.monaco-workbench .simple-find-part.suppress-transition {
+	transition: none;
+}
+
 .monaco-workbench .simple-find-part.visible-transition {
 	top: 0;
 }

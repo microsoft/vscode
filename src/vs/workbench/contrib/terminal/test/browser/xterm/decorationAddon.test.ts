@@ -58,7 +58,7 @@ suite('DecorationAddon', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		const capabilities = new TerminalCapabilityStore();
-		capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability(xterm, new NullLogService()));
+		capabilities.add(TerminalCapability.CommandDetection, instantiationService.createInstance(CommandDetectionCapability, xterm));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
 		xterm.loadAddon(decorationAddon);

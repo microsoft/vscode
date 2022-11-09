@@ -41,6 +41,8 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -777,6 +779,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+	// #region Performance
+
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
+		const win = this.windowById(windowId);
+		if (!win || !win.win) {
+			throw new Error();
+		}
+		const profiler = new WindowProfiler(win.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
+	}
+
+	// #endregion
 
 	//#region Registry (windows)
 

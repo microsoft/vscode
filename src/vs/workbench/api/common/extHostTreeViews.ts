@@ -14,7 +14,7 @@ import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeV
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
+import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem, ViewBadge as ExtHostViewBadge } from 'vs/workbench/api/common/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -100,7 +100,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
-			get onDidChangeCheckboxState() { checkProposedApiEnabled(extension, 'treeItemCheckbox'); return treeView.onDidChangeCheckboxState; },
+			get onDidChangeCheckboxState() {
+				checkProposedApiEnabled(extension, 'treeItemCheckbox');
+				return treeView.onDidChangeCheckboxState;
+			},
 			get message() { return treeView.message; },
 			set message(message: string) {
 				treeView.message = message;
@@ -119,7 +122,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				treeView.badge = badge;
+				if ((badge !== undefined) && ExtHostViewBadge.isViewBadge(badge)) {
+					treeView.badge = {
+						value: Math.floor(Math.abs(badge.value)),
+						tooltip: badge.tooltip
+					};
+				} else if (badge === undefined) {
+					treeView.badge = undefined;
+				}
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
@@ -488,6 +498,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	async setCheckboxState(checkboxUpdates: CheckboxUpdate[]) {
+		type CheckboxUpdateWithItem = { extensionItem: NonNullable<T>; treeItem: vscode.TreeItem2; newState: TreeItemCheckboxState };
 		const items = (await Promise.all(checkboxUpdates.map(async checkboxUpdate => {
 			const extensionItem = this.getExtensionElement(checkboxUpdate.treeItemHandle);
 			if (extensionItem) {
@@ -498,7 +509,7 @@ class ExtHostTreeView<T> extends Disposable {
 				};
 			}
 			return Promise.resolve(undefined);
-		}))).filter((item) => item !== undefined) as { extensionItem: T; treeItem: vscode.TreeItem2; newState: TreeItemCheckboxState }[];
+		}))).filter<CheckboxUpdateWithItem>((item): item is CheckboxUpdateWithItem => item !== undefined);
 
 		items.forEach(item => {
 			item.treeItem.checkboxState = item.newState ? TreeItemCheckboxState.Checked : TreeItemCheckboxState.Unchecked;
@@ -946,5 +957,6 @@ class ExtHostTreeView<T> extends Disposable {
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();
+		this.proxy.$disposeTree(this.viewId);
 	}
 }

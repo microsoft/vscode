@@ -32,7 +32,7 @@ export interface ISerializedFontInfo {
 	readonly maxDigitWidth: number;
 }
 
-class FontMeasurementsImpl extends Disposable {
+export class FontMeasurementsImpl extends Disposable {
 
 	private _cache: FontMeasurementsCache;
 	private _evictUntrustedReadingsTimeout: number;

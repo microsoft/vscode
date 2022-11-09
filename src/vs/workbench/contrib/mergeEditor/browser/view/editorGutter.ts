@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
+import { h, reset } from 'vs/base/browser/dom';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -50,6 +50,12 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		}));
 
 		this._register(autorun('EditorGutter.Render', (reader) => this.render(reader)));
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		reset(this._domNode);
 	}
 
 	private readonly views = new Map<string, ManagedGutterItemView>();

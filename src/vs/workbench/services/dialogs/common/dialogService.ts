@@ -7,7 +7,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { DialogsModel } from 'vs/workbench/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -78,4 +78,4 @@ export class DialogService extends Disposable implements IDialogService {
 	}
 }
 
-registerSingleton(IDialogService, DialogService, true);
+registerSingleton(IDialogService, DialogService, InstantiationType.Delayed);

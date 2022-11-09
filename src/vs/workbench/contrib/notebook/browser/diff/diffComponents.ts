@@ -94,6 +94,7 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	glyphMargin: true,
 	enableSplitViewResizing: false,
 	renderIndicators: true,
+	renderMarginRevertIcon: false,
 	readOnly: false,
 	isInEmbeddedEditor: true,
 	renderOverviewRuler: false,
@@ -1253,6 +1254,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 export class ModifiedElement extends AbstractElementRenderer {
 	private _editor?: DiffEditorWidget;
+	private _editorViewStateChanged: boolean;
 	private _editorContainer!: HTMLElement;
 	private _inputToolbarContainer!: HTMLElement;
 	protected _toolbar!: ToolBar;
@@ -1279,6 +1281,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 		this.cell = cell;
 		this.templateData = templateData;
+		this._editorViewStateChanged = false;
 	}
 
 	init() { }
@@ -1598,7 +1601,26 @@ export class ModifiedElement extends AbstractElementRenderer {
 			modified: modifiedTextModel
 		});
 
-		this._editor!.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState);
+		const handleViewStateChange = () => {
+			this._editorViewStateChanged = true;
+		};
+
+		const handleScrollChange = (e: editorCommon.IScrollEvent) => {
+			if (e.scrollTopChanged || e.scrollLeftChanged) {
+				this._editorViewStateChanged = true;
+			}
+		};
+
+		this._register(this._editor!.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor!.getOriginalEditor().onDidScrollChange(handleScrollChange));
+		this._register(this._editor!.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor!.getModifiedEditor().onDidScrollChange(handleScrollChange));
+
+		const editorViewState = this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
+		if (editorViewState) {
+			console.log('restore view state', this.cell.modified.handle, editorViewState);
+			this._editor!.restoreViewState(editorViewState);
+		}
 
 		const contentHeight = this._editor!.getContentHeight();
 		this.cell.editorHeight = contentHeight;
@@ -1645,7 +1667,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	override dispose() {
-		if (this._editor) {
+		if (this._editor && this._editorViewStateChanged) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
 

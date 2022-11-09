@@ -43,7 +43,9 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		this._terminalService.instances.forEach(instance => instance.xterm?.forceRedraw());
+		for (const instance of this._terminalService.instances) {
+			instance.xterm?.forceRedraw();
+		}
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {

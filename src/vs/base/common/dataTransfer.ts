@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 
-export interface IDataTransferFile {
+interface IDataTransferFile {
 	readonly name: string;
 	readonly uri?: URI;
 	data(): Promise<Uint8Array>;

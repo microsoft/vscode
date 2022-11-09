@@ -28,7 +28,7 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 	return vsDataTransfer;
 }
 
-export function createFileDataTransferItemFromFile(file: File): IDataTransferItem {
+function createFileDataTransferItemFromFile(file: File): IDataTransferItem {
 	const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
 	return createFileDataTransferItem(file.name, uri, async () => {
 		return new Uint8Array(await file.arrayBuffer());

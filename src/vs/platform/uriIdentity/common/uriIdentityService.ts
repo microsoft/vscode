@@ -5,7 +5,7 @@
 
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
 import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
 import { SkipList } from 'vs/base/common/skipList';
@@ -114,4 +114,4 @@ export class UriIdentityService implements IUriIdentityService {
 	}
 }
 
-registerSingleton(IUriIdentityService, UriIdentityService, true);
+registerSingleton(IUriIdentityService, UriIdentityService, InstantiationType.Delayed);

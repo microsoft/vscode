@@ -104,7 +104,6 @@ export class SettingsEditor2 extends EditorPane {
 	private static EDITOR_MIN_WIDTH: number = 500;
 	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
 	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_RESET_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
-	private static MEDIUM_TOTAL_WIDTH: number = 1000;
 
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
@@ -114,6 +113,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:sync',
 		'@tag:usesOnlineServices',
 		'@tag:telemetry',
+		'@tag:accessibility',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
 		`@${FEATURE_SETTING_TAG}scm`,
@@ -441,7 +441,6 @@ export class SettingsEditor2 extends EditorPane {
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
-		this.rootElement.classList.toggle('mid-width', dimension.width < SettingsEditor2.MEDIUM_TOTAL_WIDTH && dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH);
 		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_TOTAL_WIDTH);
 	}
 
@@ -699,7 +698,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		if (!recursed && revealFailed) {
+		if (!recursed && (!targetElement || revealFailed)) {
 			// We'll call this event handler again after clearing the search query,
 			// so that more settings show up in the list.
 			const p = this.triggerSearch('');
@@ -1674,7 +1673,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
 		}
 		this.splitView.style({
-			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder) ?? Color.transparent : Color.transparent
+			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
 		});
 	}
 

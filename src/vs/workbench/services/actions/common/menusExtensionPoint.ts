@@ -13,7 +13,6 @@ import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actio
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -203,12 +202,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'notebook/cell/execute',
 		id: MenuId.NotebookCellExecute,
 		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
-	},
-	{
-		key: 'notebook/cell/executePrimary',
-		id: MenuId.NotebookCellExecutePrimary,
-		description: localize('notebook.cell.executePrimary', "The contributed primary notebook cell execution button"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/toolbar',
@@ -748,7 +741,7 @@ submenusExtensionPoint.setHandler(extensions => {
 	}
 });
 
-const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
+const _apiMenusByKey = new Map(apiMenus.map(menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
 const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 

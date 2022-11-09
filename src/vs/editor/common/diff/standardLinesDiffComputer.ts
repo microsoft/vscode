@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
+import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
+import { optimizeSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
@@ -31,10 +34,10 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const srcDocLines = originalLines.map((l) => getOrCreateHash(l.trim()));
 		const tgtDocLines = modifiedLines.map((l) => getOrCreateHash(l.trim()));
 
-		const sequence1 = new SequenceFromIntArray(srcDocLines);
-		const sequence2 = new SequenceFromIntArray(tgtDocLines);
+		const sequence1 = new LineSequence(srcDocLines, originalLines);
+		const sequence2 = new LineSequence(tgtDocLines, modifiedLines);
 
-		const lineAlignments = (() => {
+		let lineAlignments = (() => {
 			if (sequence1.length + sequence2.length < 1500) {
 				// Use the improved algorithm for small files
 				return this.dynamicProgrammingDiffing.compute(
@@ -55,13 +58,47 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			);
 		})();
 
+		lineAlignments = optimizeSequenceDiffs(sequence1, sequence2, lineAlignments);
+
 		const alignments: RangeMapping[] = [];
+
+		const scanForWhitespaceChanges = (equalLinesCount: number) => {
+			for (let i = 0; i < equalLinesCount; i++) {
+				const seq1Offset = seq1LastStart + i;
+				const seq2Offset = seq2LastStart + i;
+				if (originalLines[seq1Offset] !== modifiedLines[seq2Offset]) {
+					// This is because of whitespace changes, diff these lines
+					const characterDiffs = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+						new OffsetRange(seq1Offset, seq1Offset + 1),
+						new OffsetRange(seq2Offset, seq2Offset + 1)
+					));
+					for (const a of characterDiffs) {
+						alignments.push(a);
+					}
+				}
+			}
+		};
+
+		let seq1LastStart = 0;
+		let seq2LastStart = 0;
+
 		for (const diff of lineAlignments) {
+			assertFn(() => diff.seq1Range.start - seq1LastStart === diff.seq2Range.start - seq2LastStart);
+
+			const equalLinesCount = diff.seq1Range.start - seq1LastStart;
+
+			scanForWhitespaceChanges(equalLinesCount);
+
+			seq1LastStart = diff.seq1Range.endExclusive;
+			seq2LastStart = diff.seq2Range.endExclusive;
+
 			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff);
 			for (const a of characterDiffs) {
 				alignments.push(a);
 			}
 		}
+
+		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
 		const changes: LineRangeMapping[] = lineRangeMappingFromRangeMappings(alignments);
 
@@ -75,7 +112,11 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sourceSlice = new Slice(originalLines, diff.seq1Range);
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
 
-		const diffs = this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
+		const originalDiffs = sourceSlice.length + targetSlice.length < 500
+			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice)
+			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
+
+		const diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, originalDiffs);
 		const result = diffs.map(
 			(d) =>
 				new RangeMapping(
@@ -91,7 +132,9 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 	const changes: LineRangeMapping[] = [];
 	for (const g of group(
 		alignments,
-		(a1, a2) => a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1
+		(a1, a2) =>
+			(a2.originalRange.startLineNumber - (a1.originalRange.endLineNumber - (a1.originalRange.endColumn > 1 ? 0 : 1)) <= 1)
+			|| (a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1)
 	)) {
 		const first = g[0];
 		const last = g[g.length - 1];
@@ -108,6 +151,17 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 			g
 		));
 	}
+
+	assertFn(() => {
+		return checkAdjacentItems(changes,
+			(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&
+				// There has to be an unchanged line in between (otherwise both diffs should have been joined)
+				m1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&
+				m1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,
+		);
+	});
+
+
 	return changes;
 }
 
@@ -128,6 +182,35 @@ function* group<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => 
 	if (currentGroup) {
 		yield currentGroup;
 	}
+}
+
+export class LineSequence implements ISequence {
+	constructor(
+		private readonly trimmedHash: number[],
+		private readonly lines: string[]
+	) { }
+
+	getElement(offset: number): number {
+		return this.trimmedHash[offset];
+	}
+
+	get length(): number {
+		return this.trimmedHash.length;
+	}
+
+	getBoundaryScore(length: number): number {
+		const indentationBefore = length === 0 ? 0 : getIndentation(this.lines[length - 1]);
+		const indentationAfter = length === this.lines.length ? 0 : getIndentation(this.lines[length]);
+		return 1000 - (indentationBefore + indentationAfter);
+	}
+}
+
+function getIndentation(str: string): number {
+	let i = 0;
+	while (i < str.length && (str.charCodeAt(i) === CharCode.Space || str.charCodeAt(i) === CharCode.Tab)) {
+		i++;
+	}
+	return i;
 }
 
 class Slice implements ISequence {
@@ -169,6 +252,24 @@ class Slice implements ISequence {
 		return this.elements.length;
 	}
 
+	public getBoundaryScore(length: number): number {
+		//   a   b   c   ,           d   e   f
+		// 11  0   0   12  15  6   13  0   0   11
+
+		const prevCategory = getCategory(length > 0 ? this.elements[length - 1] : -1);
+		const nextCategory = getCategory(length < this.elements.length ? this.elements[length] : -1);
+
+		let score = 0;
+		if (prevCategory !== nextCategory) {
+			score += 10;
+		}
+
+		score += getCategoryBoundaryScore(prevCategory);
+		score += getCategoryBoundaryScore(nextCategory);
+
+		return score;
+	}
+
 	public translateOffset(offset: number): Position {
 		// find smallest i, so that lineBreakOffsets[i] > offset using binary search
 
@@ -190,4 +291,39 @@ class Slice implements ISequence {
 	public translateRange(range: OffsetRange): Range {
 		return Range.fromPositions(this.translateOffset(range.start), this.translateOffset(range.endExclusive));
 	}
+}
+
+const enum CharBoundaryCategory {
+	Word = 0,
+	End = 1,
+	Other = 2,
+	Space = 3,
+}
+
+function getCategoryBoundaryScore(category: CharBoundaryCategory): number {
+	return category;
+}
+
+function getCategory(charCode: number): CharBoundaryCategory {
+	if (isSpace(charCode)) {
+		return CharBoundaryCategory.Space;
+	} else if (isWordChar(charCode)) {
+		return CharBoundaryCategory.Word;
+	} else if (charCode === -1) {
+		return CharBoundaryCategory.End;
+	} else {
+		return CharBoundaryCategory.Other;
+	}
+}
+
+function isWordChar(charCode: number): boolean {
+	return (
+		(charCode >= CharCode.a && charCode <= CharCode.z)
+		|| (charCode >= CharCode.A && charCode <= CharCode.Z)
+		|| (charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9)
+	);
+}
+
+function isSpace(charCode: number): boolean {
+	return charCode === CharCode.Space || charCode === CharCode.Tab || charCode === CharCode.LineFeed || charCode === CharCode.CarriageReturn;
 }

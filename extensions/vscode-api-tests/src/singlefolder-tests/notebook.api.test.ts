@@ -30,13 +30,15 @@ function sleep(ms: number): Promise<void> {
 	});
 }
 
+const notebookType = 'notebookCoreTest';
+
 export class Kernel {
 
 	readonly controller: vscode.NotebookController;
 
 	readonly associatedNotebooks = new Set<string>();
 
-	constructor(id: string, label: string, viewType: string = 'notebookCoreTest') {
+	constructor(id: string, label: string, viewType: string = notebookType) {
 		this.controller = vscode.notebooks.createNotebookController(id, viewType, label);
 		this.controller.executeHandler = this._execute.bind(this);
 		this.controller.supportsExecutionOrder = true;
@@ -75,15 +77,11 @@ function getFocusedCell(editor?: vscode.NotebookEditor) {
 	return editor ? editor.notebook.cellAt(editor.selections[0].start) : undefined;
 }
 
-const apiTestContentProvider: vscode.NotebookContentProvider = {
-	openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
-		if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
-			return {
-				metadata: {},
-				cells: []
-			};
-		}
-
+const apiTestSerializer: vscode.NotebookSerializer = {
+	serializeNotebook(_data, _token) {
+		return new Uint8Array();
+	},
+	deserializeNotebook(_content, _token) {
 		const dto: vscode.NotebookData = {
 			metadata: { custom: { testMetadata: false } },
 			cells: [
@@ -134,7 +132,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	suiteSetup(function () {
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+		suiteDisposables.push(vscode.workspace.registerNotebookSerializer(notebookType, apiTestSerializer));
 	});
 
 	let defaultKernel: Kernel;
@@ -226,7 +224,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	test('#102411 - untitled notebook creation failed', async function () {
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: notebookType });
 		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 
 		await closeAllEditors();
@@ -248,44 +246,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await saveEvent;
 
 		assert.strictEqual(notebook.isDirty, false);
-	});
-});
-
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
-	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
-	const onDidCallProvide = emitter.event;
-	const suiteDisposables: vscode.Disposable[] = [];
-	suiteTeardown(async function () {
-		assertNoRpc();
-
-		await revertAllDirty();
-		await closeAllEditors();
-
-		disposeAll(suiteDisposables);
-		suiteDisposables.length = 0;
-	});
-
-	suiteSetup(() => {
-		suiteDisposables.push(vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
-			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
-				emitter.fire(cell);
-				return [];
-			}
-		}));
-
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
-	});
-
-	test('provideCellStatusBarItems called on metadata change', async function () {
-		const provideCalled = asPromise(onDidCallProvide);
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await provideCalled;
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.set(notebook.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
-		await vscode.workspace.applyEdit(edit);
-		await provideCalled;
 	});
 });
 

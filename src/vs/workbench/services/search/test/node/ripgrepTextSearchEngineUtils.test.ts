@@ -261,5 +261,39 @@ suite('RipgrepTextSearchEngine', () => {
 					}
 				]);
 		});
+
+		test('multiple submatches without newline in between (#131507)', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foobarbazquux', 4, [{ start: 0, end: 4 }, { start: 6, end: 10 }]),
+				],
+				[
+					{
+						preview: {
+							text: 'foobarbazquux',
+							matches: [new Range(0, 0, 0, 4), new Range(0, 6, 0, 10)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(3, 0, 3, 4), new Range(3, 6, 3, 10)]
+					}
+				]);
+		});
+
+		test('multiple submatches with newline in between (#131507)', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foo\nbar\nbaz\nquux', 4, [{ start: 0, end: 5 }, { start: 8, end: 13 }]),
+				],
+				[
+					{
+						preview: {
+							text: 'foo\nbar\nbaz\nquux',
+							matches: [new Range(0, 0, 1, 1), new Range(2, 0, 3, 1)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(3, 0, 4, 1), new Range(5, 0, 6, 1)]
+					}
+				]);
+		});
 	});
 });

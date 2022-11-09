@@ -8,6 +8,7 @@
 	display: block;
 	padding: 0;
 	box-sizing:	border-box;
+	border-radius: 2px;
 
 	/* Customizable */
 	font-size: inherit;
@@ -21,7 +22,7 @@
 .monaco-inputbox > .ibwrapper > .mirror {
 
 	/* Customizable */
-	padding: 4px;
+	padding: 4px 6px;
 }
 
 .monaco-inputbox > .ibwrapper {

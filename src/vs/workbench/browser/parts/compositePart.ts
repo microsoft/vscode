@@ -24,7 +24,6 @@ import { IProgressIndicator, IEditorProgressService } from 'vs/platform/progress
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -32,6 +31,7 @@ import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface ICompositeTitleLabel {
 
@@ -329,6 +329,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private collectCompositeActions(composite?: Composite): () => void {
 
 		// From Composite
+		const menuIds = composite?.getMenuIds();
 		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
 		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
@@ -337,7 +338,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
 	}
 
 	protected getActiveComposite(): IComposite | undefined {
@@ -457,8 +458,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentContainer = append(parent, $('.content'));
 
-		this.progressBar = this._register(new ProgressBar(contentContainer));
-		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+		this.progressBar = this._register(new ProgressBar(contentContainer, getProgressBarStyles()));
 		this.progressBar.hide();
 
 		return contentContainer;

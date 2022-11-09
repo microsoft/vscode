@@ -17,8 +17,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -306,16 +304,11 @@ export class NotebookEditorToolbar extends Disposable {
 		this._secondaryActions = [];
 		this._buildBody();
 
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
-				if (notebookEditor === this.notebookEditor) {
-					// this is the active editor
-					this._showNotebookActionsinEditorToolbar();
-					return;
-				}
-			}
-		}));
+		this._register(Event.debounce<void, void>(
+			this.editorService.onDidActiveEditorChange,
+			(last, _current) => last,
+			200
+		)(this._updatePerEditorChange, this));
 
 		this._registerNotebookActionsToolbar();
 	}
@@ -336,6 +329,17 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookTopRightToolbarContainer = document.createElement('div');
 		this._notebookTopRightToolbarContainer.classList.add('notebook-toolbar-right');
 		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);
+	}
+
+	private _updatePerEditorChange() {
+		if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+			const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
+			if (notebookEditor === this.notebookEditor) {
+				// this is the active editor
+				this._showNotebookActionsinEditorToolbar();
+				return;
+			}
+		}
 	}
 
 	private _registerNotebookActionsToolbar() {
@@ -614,14 +618,3 @@ export class NotebookEditorToolbar extends Disposable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveBackgroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
-			background-color: ${toolbarActiveBackgroundColor};
-		}
-		`);
-	}
-});

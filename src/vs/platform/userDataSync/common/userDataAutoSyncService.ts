@@ -204,8 +204,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				await this.userDataSyncService.resetLocal();
 			}
 		} catch (error) {
+			this.logService.error(error);
 			if (softTurnOffOnError) {
-				this.logService.error(error);
 				this.updateEnablement(false);
 			} else {
 				throw error;
@@ -411,7 +411,6 @@ class AutoSync extends Disposable {
 			this.syncTask?.stop();
 			this.logService.info('Auto Sync: Stopped');
 		}));
-		this.logService.info('Auto Sync: Started');
 		this.sync(AutoSync.INTERVAL_SYNCING, false);
 	}
 
