@@ -260,26 +260,12 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const menuBlock = document.createElement('div');
 		const block = element.appendChild(menuBlock);
 		block.classList.add('context-view-block');
-		block.style.position = 'fixed';
-		block.style.cursor = 'initial';
-		block.style.left = '0';
-		block.style.top = '0';
-		block.style.width = '100%';
-		block.style.height = '100%';
-		block.style.zIndex = '-1';
 		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
 		// Invisible div to block mouse interaction with the menu
 		const pointerBlockDiv = document.createElement('div');
 		const pointerBlock = element.appendChild(pointerBlockDiv);
 		pointerBlock.classList.add('context-view-pointerBlock');
-		pointerBlock.style.position = 'fixed';
-		pointerBlock.style.cursor = 'initial';
-		pointerBlock.style.left = '0';
-		pointerBlock.style.top = '0';
-		pointerBlock.style.width = '100%';
-		pointerBlock.style.height = '100%';
-		pointerBlock.style.zIndex = '2';
 
 		// Removes block on click INSIDE widget or ANY mouse movement
 		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
