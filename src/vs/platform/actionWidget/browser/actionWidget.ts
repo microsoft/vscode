@@ -472,7 +472,7 @@ export class ActionList<T extends IActionItem> extends Disposable implements IAc
 			return;
 		}
 
-		const event = new UIEvent(preview ? 'previewSelectedAction' : 'acceptSelectedAction');
+		const event = new UIEvent(preview ? 'previewSelectedCodeAction' : 'acceptSelectedCodeAction');
 		this._list.setSelection([focusIndex], event);
 	}
 
