@@ -568,56 +568,55 @@ export class Git {
 		}
 
 		const startExec = Date.now();
+		let bufferResult: IExecutionResult<Buffer>;
 
 		try {
-			const bufferResult = await exec(child, options.cancellationToken);
-
-			if (options.log !== false) {
-				// command
-				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms]\n`);
-
-				// stdout
-				if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
-					this.log(`${bufferResult.stdout}\n`);
-				}
-
-				// stderr
-				if (bufferResult.stderr.length > 0) {
-					this.log(`${bufferResult.stderr}\n`);
-				}
-			}
-
-			let encoding = options.encoding || 'utf8';
-			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-			const result: IExecutionResult<string> = {
-				exitCode: bufferResult.exitCode,
-				stdout: iconv.decode(bufferResult.stdout, encoding),
-				stderr: bufferResult.stderr
-			};
-
-			if (bufferResult.exitCode) {
-				return Promise.reject<IExecutionResult<string>>(new GitError({
-					message: 'Failed to execute git',
-					stdout: result.stdout,
-					stderr: result.stderr,
-					exitCode: result.exitCode,
-					gitErrorCode: getGitErrorCode(result.stderr),
-					gitCommand: args[0],
-					gitArgs: args
-				}));
-			}
-
-			return result;
-		}
-		catch (ex) {
+			bufferResult = await exec(child, options.cancellationToken);
+		} catch (ex) {
 			if (ex instanceof CancellationError) {
 				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
-				// TODO @lszomoru - should this return something or its fine to re-throw
 			}
 
 			throw ex;
 		}
+
+		if (options.log !== false) {
+			// command
+			this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms]\n`);
+
+			// stdout
+			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
+				this.log(`${bufferResult.stdout}\n`);
+			}
+
+			// stderr
+			if (bufferResult.stderr.length > 0) {
+				this.log(`${bufferResult.stderr}\n`);
+			}
+		}
+
+		let encoding = options.encoding || 'utf8';
+		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
+		const result: IExecutionResult<string> = {
+			exitCode: bufferResult.exitCode,
+			stdout: iconv.decode(bufferResult.stdout, encoding),
+			stderr: bufferResult.stderr
+		};
+
+		if (bufferResult.exitCode) {
+			return Promise.reject<IExecutionResult<string>>(new GitError({
+				message: 'Failed to execute git',
+				stdout: result.stdout,
+				stderr: result.stderr,
+				exitCode: result.exitCode,
+				gitErrorCode: getGitErrorCode(result.stderr),
+				gitCommand: args[0],
+				gitArgs: args
+			}));
+		}
+
+		return result;
 	}
 
 	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
