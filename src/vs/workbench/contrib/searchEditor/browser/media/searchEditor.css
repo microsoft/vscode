@@ -34,7 +34,7 @@
 
 .search-editor .search-widget .search-container,
 .search-editor .search-widget .replace-container {
-	margin-left: 18px;
+	margin-left: 17px;
 	display: flex;
 	align-items: center;
 }
@@ -52,7 +52,7 @@
 .search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror,
 .search-editor .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	padding: 3px;
-	padding-left: 4px;
+	padding-left: 6px;
 }
 
 .search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror {
