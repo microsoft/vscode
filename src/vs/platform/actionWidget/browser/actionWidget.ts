@@ -164,7 +164,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
 	_serviceBrand: undefined;
-	show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
+	show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
 	acceptSelected(preview?: boolean): void;
@@ -178,7 +178,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	public showDisabled = false;
 	currentShowingContext?: {
 		readonly options: IActionShowOptions;
-		readonly trigger: any;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
 		readonly actions: ActionSet<any>;
@@ -194,7 +193,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	}
 
-	public async show(trigger: any, list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
+	public async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
 
@@ -204,7 +203,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			return;
 		}
 
-		this.currentShowingContext = { trigger, actions, anchor, container, delegate, options };
+		this.currentShowingContext = { actions, anchor, container, delegate, options };
 
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
@@ -353,7 +352,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this.showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(previousCtx.trigger, this.list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+			this.show(this.list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
 		}
 	}
 

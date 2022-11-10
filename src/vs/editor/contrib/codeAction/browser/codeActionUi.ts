@@ -159,12 +159,12 @@ export class CodeActionUi extends Disposable {
 		}
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
-		const onDidSelect = (action: any, trigger?: any, preview?: boolean) => {
+		const onDidSelect = (action: any, preview?: boolean) => {
 			this._actionWidgetService.hide();
 			this.delegate.applyCodeAction(action, true, !!preview ? preview : false);
 		};
-		this._actionWidgetService.show(trigger, this._instantiationService.createInstance(CodeActionList, actions.allActions, options.showHeaders || false, onDidSelect), actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
-			onSelect: async (action: CodeActionItem, trigger: CodeActionTrigger, preview?: boolean) => {
+		this._actionWidgetService.show(this._instantiationService.createInstance(CodeActionList, actions.allActions, options.showHeaders || false, onDidSelect), actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
+			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
 			},
 			onHide: () => {
