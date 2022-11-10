@@ -33,9 +33,9 @@ export const previewSelectedAction = 'previewSelectedAction';
 export const ActionWidgetContextKeys = {
 	Visible: new RawContextKey<boolean>('actionWidgetVisible', false, localize('actionWidgetVisible', "Whether the action widget list is visible"))
 };
-export interface IRenderDelegate<T> {
-	onHide(cancelled: boolean): void;
-	onSelect(action: T, preview?: boolean): Promise<any>;
+export interface IRenderDelegate<T extends IActionItem> {
+	onHide(didCancel?: boolean): void;
+	onSelect(action: IActionItem, preview?: boolean): Promise<any>;
 }
 
 export interface IActionShowOptions {
@@ -53,7 +53,7 @@ export interface IListMenuItem<T extends IActionItem> {
 }
 
 export interface IActionList<T extends IActionItem> extends IDisposable {
-	hide(): void;
+	hide(didCancel?: boolean): void;
 	focusPrevious(): void;
 	focusNext(): void;
 	layout(minWidth: number): void;
@@ -166,7 +166,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
 	readonly _serviceBrand: undefined;
-	show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
+	show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
 	acceptSelected(preview?: boolean): void;
@@ -183,7 +183,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
 		readonly actions: ActionSet<unknown>;
-		readonly delegate: IRenderDelegate<unknown>;
 	};
 	list = this._register(new MutableDisposable<ActionList<any>>());
 	constructor(@ICommandService readonly _commandService: ICommandService,
@@ -195,7 +194,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	}
 
-	async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
+	async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
@@ -205,7 +204,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			return;
 		}
 
-		this.currentShowingContext = { actions, anchor, container, delegate, options };
+		this.currentShowingContext = { actions, anchor, container, options };
 
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
@@ -213,9 +212,9 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 				visibleContext.set(true);
 				return this._renderWidget(container, list, actions, options);
 			},
-			onHide: (didCancel: boolean) => {
+			onHide: (didCancel) => {
 				visibleContext.reset();
-				return this._onWidgetClosed(didCancel, delegate);
+				return this._onWidgetClosed(didCancel);
 			},
 		}, container, false);
 	}
@@ -354,13 +353,13 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this.showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(this.list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+			this.show(this.list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options);
 		}
 	}
 
-	private _onWidgetClosed(didCancel: boolean, delegate: IRenderDelegate<any>): void {
+	private _onWidgetClosed(didCancel?: boolean): void {
 		this.currentShowingContext = undefined;
-		delegate.onHide(didCancel);
+		this.list.value?.hide(didCancel);
 	}
 
 }
@@ -384,8 +383,8 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		user: string,
 		items: readonly T[],
 		showHeaders: boolean,
-		private readonly onDidSelect: (action: IActionItem, preview?: boolean) => void,
-		resolver: any,
+		private readonly _delegate: IRenderDelegate<T>,
+		resolver: { getResolver(): (action: any) => ResolvedKeybinding | undefined } | undefined,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
@@ -427,7 +426,8 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 
 	abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 
-	hide(): void {
+	hide(didCancel?: boolean): void {
+		this._delegate.onHide(didCancel);
 		this._contextViewService.hideContextView();
 	}
 
@@ -491,7 +491,7 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 
 		const element = e.elements[0];
 		if (element.item && this.focusCondition(element)) {
-			this.onDidSelect(element.item, e.browserEvent?.type === 'previewSelectedEventType');
+			this._delegate.onSelect(element.item, e.browserEvent?.type === 'previewSelectedEventType');
 		} else {
 			this.list.setSelection([]);
 		}

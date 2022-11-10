@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
-import { ActionList, ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionList, ActionListItemKind, IListMenuItem, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
@@ -27,11 +27,11 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 	constructor(
 		fixes: readonly TerminalQuickFix[],
 		showHeaders: boolean,
-		onDidSelect: (fix: TerminalQuickFix, preview?: boolean) => void,
+		delegate: IRenderDelegate<TerminalQuickFix>,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super('quickFixWidget', fixes, showHeaders, onDidSelect, undefined, contextViewService, keybindingService);
+		super('quickFixWidget', fixes, showHeaders, delegate, undefined, contextViewService, keybindingService);
 	}
 
 	public toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {

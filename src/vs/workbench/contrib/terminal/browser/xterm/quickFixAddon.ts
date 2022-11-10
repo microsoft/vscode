@@ -232,12 +232,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					width: rect.width,
 					height: rect.height
 				};
+				// TODO: What's documentation do? Need a vscode command?
 				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
-				const actions = fixes.map(f => new TerminalQuickFix(f, f.label, false));
+				const actions = fixes.map(f => new TerminalQuickFix(f, f.label));
 				const actionSet = {
+					// TODO: Documentation and actions are separate?
 					documentation,
 					allActions: actions,
-					hasAutoFix: true,
+					hasAutoFix: false,
 					validActions: actions,
 					dispose: () => { }
 				} as ActionSet<TerminalQuickFix>;
@@ -245,27 +247,26 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				if (!parentElement) {
 					return;
 				}
-				const delegate = (fix: TerminalQuickFix, preview?: boolean) => {
-					this._actionWidgetService.hide();
-					if (preview) {
-						this._commandService.executeCommand(previewSelectedAction);
-					} else {
-						fix.action?.run();
-					}
-				};
-				const list = this._instantiationService.createInstance(QuickFixList, actionSet.allActions, true, delegate);
-				this._actionWidgetService.show(list, actionSet, anchor, parentElement, { showHeaders: true, includeDisabledActions: false, fromLightbulb: true }, {
+				const delegate = {
 					onSelect: async (fix: TerminalQuickFix, preview?: boolean) => {
 						if (preview) {
 							this._commandService.executeCommand(previewSelectedAction);
 						} else {
 							fix.action?.run();
+							this._actionWidgetService.hide();
 						}
 					},
 					onHide: () => {
 						this._terminal?.focus();
 					},
-				});
+				};
+				const list = this._instantiationService.createInstance(QuickFixList, actionSet.allActions, true, delegate);
+				this._actionWidgetService.show(list, actionSet, anchor, parentElement,
+					{
+						showHeaders: true,
+						includeDisabledActions: false,
+						fromLightbulb: true
+					});
 			}));
 		});
 	}

@@ -12,7 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IActionShowOptions, IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
+import { IActionShowOptions, IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -159,28 +159,27 @@ export class CodeActionUi extends Disposable {
 		}
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
-		const onDidSelect = (action: any, preview?: boolean) => {
-			this._actionWidgetService.hide();
-			this.delegate.applyCodeAction(action, true, !!preview ? preview : false);
+
+		const delegate: IRenderDelegate<CodeActionItem> = {
+			onSelect: async (action: CodeActionItem, preview?: boolean) => {
+				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
+				this._actionWidgetService.hide();
+			},
+			onHide: () => {
+				this._editor?.focus();
+			}
 		};
 		this._actionWidgetService.show(
 			this._instantiationService.createInstance(
 				CodeActionList,
 				actions.allActions,
 				options.showHeaders || false,
-				onDidSelect
+				delegate
 			),
 			actions,
 			anchor,
 			editorDom,
-			{ ...options, showHeaders: this.shouldShowHeaders() }, {
-			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
-			},
-			onHide: () => {
-				this._editor?.focus();
-			},
-		});
+			{ ...options, showHeaders: this.shouldShowHeaders() });
 	}
 
 	private toCoords(position: IPosition): IAnchor {
