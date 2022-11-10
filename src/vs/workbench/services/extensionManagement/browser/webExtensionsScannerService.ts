@@ -25,7 +25,7 @@ import { isString } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -444,7 +444,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
-		return this.addWebExtension(webExtension, profileLocation);
+		const extension = await this.toScannedExtension(webExtension, false);
+		await this.addToInstalledExtensions([webExtension], profileLocation);
+		return extension;
 	}
 
 	async removeExtension(extension: IScannedExtension, profileLocation?: URI): Promise<void> {
@@ -677,7 +679,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			};
 		}
 
-		const packageNLSUri = webExtension.packageNLSUris?.get(Language.value());
+		const packageNLSUri = webExtension.packageNLSUris?.get(Language.value().toLowerCase());
 		if (packageNLSUri || webExtension.fallbackPackageNLSUri) {
 			manifest = packageNLSUri
 				? await this.translateManifest(manifest, packageNLSUri, webExtension.fallbackPackageNLSUri)

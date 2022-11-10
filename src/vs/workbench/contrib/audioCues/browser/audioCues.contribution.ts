@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
@@ -15,7 +15,7 @@ import { AudioCueService, IAudioCueService } from 'vs/workbench/contrib/audioCue
 import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-registerSingleton(IAudioCueService, AudioCueService, false);
+registerSingleton(IAudioCueService, AudioCueService, InstantiationType.Delayed);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);

@@ -83,6 +83,7 @@ export class RawDebugSession implements IDisposable {
 		debugAdapter: IDebugAdapter,
 		public readonly dbgr: IDebugger,
 		private readonly sessionId: string,
+		private readonly name: string,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -168,7 +169,7 @@ export class RawDebugSession implements IDisposable {
 			this._onDidEvent.fire(event);
 		});
 
-		this.debugAdapter.onRequest(request => this.dispatchRequest(request, dbgr));
+		this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 	}
 
 	get onDidExitAdapter(): Event<AdapterEndEvent> {
@@ -608,7 +609,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private async dispatchRequest(request: DebugProtocol.Request, dbgr: IDebugger): Promise<void> {
+	private async dispatchRequest(request: DebugProtocol.Request): Promise<void> {
 
 		const response: DebugProtocol.Response = {
 			type: 'response',
@@ -647,7 +648,7 @@ export class RawDebugSession implements IDisposable {
 				break;
 			case 'runInTerminal':
 				try {
-					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
+					const shellProcessId = await this.dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
 					const resp = response as DebugProtocol.RunInTerminalResponse;
 					resp.body = {};
 					if (typeof shellProcessId === 'number') {
@@ -660,6 +661,28 @@ export class RawDebugSession implements IDisposable {
 					safeSendResponse(response);
 				}
 				break;
+			case 'startDebugging':
+				try {
+					const args = (request.arguments as DebugProtocol.StartDebuggingRequestArguments);
+					const config: IConfig = {
+						...args.configuration,
+						...{
+							request: args.request,
+							type: this.dbgr.type,
+							name: this.name
+						}
+					};
+					const success = await this.dbgr.startDebugging(config, this.sessionId);
+					if (!success) {
+						response.success = false;
+						response.message = 'Failed to start debugging';
+						safeSendResponse(response);
+					}
+				} catch (err) {
+					response.success = false;
+					response.message = err.message;
+					safeSendResponse(response);
+				}
 			default:
 				response.success = false;
 				response.message = `unknown request '${request.command}'`;

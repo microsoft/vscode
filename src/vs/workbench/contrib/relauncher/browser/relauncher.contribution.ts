@@ -28,6 +28,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
 	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } }; enableExperiments?: boolean };
+	_extensionsGallery?: { enablePPE?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -43,6 +44,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private workspaceTrustEnabled: boolean | undefined;
 	private settingsProfilesEnabled: boolean | undefined;
 	private experimentsEnabled: boolean | undefined;
+	private enablePPEExtensionsGallery: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -127,6 +129,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Experiments
 		if (typeof config.workbench?.enableExperiments === 'boolean' && config.workbench.enableExperiments !== this.experimentsEnabled) {
 			this.experimentsEnabled = config.workbench.enableExperiments;
+			changed = true;
+		}
+
+		// Profiles
+		if (this.productService.quality !== 'stable' && typeof config._extensionsGallery?.enablePPE === 'boolean' && config._extensionsGallery?.enablePPE !== this.enablePPEExtensionsGallery) {
+			this.enablePPEExtensionsGallery = config._extensionsGallery?.enablePPE;
 			changed = true;
 		}
 

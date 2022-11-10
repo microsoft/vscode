@@ -10,7 +10,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { isBoolean, isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,7 +32,7 @@ import {
 	ALL_SYNC_RESOURCES, Change, createSyncHeaders, IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError,
 	IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, ISyncUserDataProfile, IUserDataManifest, IUserDataResourceManifest, IUserDataSyncConfiguration,
 	IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService,
-	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE
+	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService
 } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
@@ -93,6 +93,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUserDataSyncResourceProviderService private readonly userDataSyncResourceProviderService: IUserDataSyncResourceProviderService,
 	) {
 		super();
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
@@ -265,27 +266,37 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async resolveContent(resource: URI): Promise<string | null> {
-		for (const profile of this.userDataProfilesService.profiles) {
-			const result = await this.performAction(profile, async synchronizer => {
+		const content = await this.userDataSyncResourceProviderService.resolveContent(resource);
+		if (content) {
+			return content;
+		}
+		for (const profileSynchronizer of this.getActiveProfileSynchronizers()) {
+			for (const synchronizer of profileSynchronizer.enabled) {
 				const content = await synchronizer.resolveContent(resource);
 				if (content) {
 					return content;
 				}
-				return undefined;
-			});
-			if (!isUndefinedOrNull(result)) {
-				return result;
 			}
 		}
 		return null;
 	}
 
-	async replace(profileSyncResource: IUserDataSyncResource, uri: URI): Promise<void> {
+	async replace(syncResourceHandle: ISyncResourceHandle): Promise<void> {
 		this.checkEnablement();
+
+		const profileSyncResource = this.userDataSyncResourceProviderService.resolveUserDataSyncResource(syncResourceHandle);
+		if (!profileSyncResource) {
+			return;
+		}
+
+		const content = await this.resolveContent(syncResourceHandle.uri);
+		if (!content) {
+			return;
+		}
 
 		await this.performAction(profileSyncResource.profile, async synchronizer => {
 			if (profileSyncResource.syncResource === synchronizer.resource) {
-				await synchronizer.replace(uri);
+				await synchronizer.replace(content);
 				return true;
 			}
 			return undefined;
@@ -309,45 +320,24 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		});
 	}
 
-	async getRemoteSyncResourceHandles(syncResource: IUserDataSyncResource): Promise<ISyncResourceHandle[]> {
-		const result = await this.performAction(syncResource.profile, async synchronizer => {
-			if (synchronizer.resource === syncResource.syncResource) {
-				return synchronizer.getRemoteSyncResourceHandles();
-			}
-			return undefined;
-		});
-		return result || [];
+	getRemoteProfiles(): Promise<ISyncUserDataProfile[]> {
+		return this.userDataSyncResourceProviderService.getRemoteSyncedProfiles();
 	}
 
-	async getLocalSyncResourceHandles(syncResource: IUserDataSyncResource): Promise<ISyncResourceHandle[]> {
-		const result = await this.performAction(syncResource.profile, async synchronizer => {
-			if (synchronizer.resource === syncResource.syncResource) {
-				return synchronizer.getLocalSyncResourceHandles();
-			}
-			return undefined;
-		});
-		return result || [];
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]> {
+		return this.userDataSyncResourceProviderService.getRemoteSyncResourceHandles(syncResource, profile);
 	}
 
-	async getAssociatedResources(syncResource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const result = await this.performAction(syncResource.profile, async synchronizer => {
-			if (synchronizer.resource === syncResource.syncResource) {
-				return synchronizer.getAssociatedResources(syncResourceHandle);
-			}
-			return undefined;
-		});
-		return result || [];
+	async getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]> {
+		return this.userDataSyncResourceProviderService.getLocalSyncResourceHandles(syncResource, profile ?? this.userDataProfilesService.defaultProfile);
 	}
 
-	async getMachineId(syncResource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		const result = await this.performAction(syncResource.profile, async synchronizer => {
-			if (synchronizer.resource === syncResource.syncResource) {
-				const result = await synchronizer.getMachineId(syncResourceHandle);
-				return result || null;
-			}
-			return undefined;
-		});
-		return result || undefined;
+	async getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
+		return this.userDataSyncResourceProviderService.getAssociatedResources(syncResourceHandle);
+	}
+
+	async getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.userDataSyncResourceProviderService.getMachineId(syncResourceHandle);
 	}
 
 	async hasLocalData(): Promise<boolean> {
@@ -416,6 +406,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				const defaultProfileSynchronizer = disposables.add(this.instantiationService.createInstance(ProfileSynchronizer, profile, undefined));
 				const result = await this.performActionWithProfileSynchronizer(defaultProfileSynchronizer, action, disposables);
 				return isUndefined(result) ? null : result;
+			}
+
+			if (this.userDataProfilesService.isEnabled()) {
+				return null;
 			}
 
 			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
@@ -543,7 +537,7 @@ class ProfileSynchronizer extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
@@ -555,7 +549,7 @@ class ProfileSynchronizer extends Disposable {
 					this._profile = userDataProfilesService.defaultProfile;
 					for (const [synchronizer] of this._enabled) {
 						if (synchronizer instanceof ExtensionsSynchroniser) {
-							synchronizer.profileLocation = this._profile.extensionsResource;
+							synchronizer.profile = this._profile;
 						}
 					}
 				}
@@ -588,6 +582,9 @@ class ProfileSynchronizer extends Disposable {
 		}
 		if (syncResource === SyncResource.Profiles) {
 			if (!this._profile.isDefault) {
+				return;
+			}
+			if (!this.userDataProfilesService.isEnabled()) {
 				return;
 			}
 			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {

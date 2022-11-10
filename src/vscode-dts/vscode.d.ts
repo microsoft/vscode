@@ -1751,8 +1751,9 @@ declare module 'vscode' {
 
 		/**
 		 * Optional flag indicating if this item is picked initially. This is only honored when using
-		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
-		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * the {@link window.showQuickPick showQuickPick()} API. To do the same thing with
+		 * the {@link window.createQuickPick createQuickPick()} API, simply set the {@link QuickPick.selectedItems}
+		 * to the items you want picked initially.
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
@@ -1771,8 +1772,8 @@ declare module 'vscode' {
 		/**
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
-		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
-		 * the {@link window.showQuickPick()} API.
+		 * created by the {@link window.createQuickPick createQuickPick()} API. Buttons are not rendered when using
+		 * the {@link window.showQuickPick showQuickPick()} API.
 		 *
 		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
@@ -2018,7 +2019,7 @@ declare module 'vscode' {
 		/**
 		 * Selection of the pre-filled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
 		 * otherwise the defined range will be selected.
 		 */
 		valueSelection?: [number, number];
@@ -2751,8 +2752,12 @@ declare module 'vscode' {
 		/**
 		 * Indicates that this markdown string is from a trusted source. Only *trusted*
 		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
+		 *
+		 * Defaults to `false` (commands are disabled).
+		 *
+		 * If this is an object, only the set of commands listed in `enabledCommands` are allowed.
 		 */
-		isTrusted?: boolean;
+		isTrusted?: boolean | { readonly enabledCommands: readonly string[] };
 
 		/**
 		 * Indicates that this markdown string can contain {@link ThemeIcon ThemeIcons}, e.g. `$(zap)`.
@@ -8403,9 +8408,11 @@ declare module 'vscode' {
 		/**
 		 * Controls whether command uris are enabled in webview content or not.
 		 *
-		 * Defaults to false.
+		 * Defaults to `false` (command uris are disabled).
+		 *
+		 * If you pass in an array, only the commands in the array are allowed.
 		 */
-		readonly enableCommandUris?: boolean;
+		readonly enableCommandUris?: boolean | readonly string[];
 
 		/**
 		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
@@ -11314,7 +11321,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Optional placeholder shown in the filter textbox when no filter has been entered.
 		 */
 		placeholder: string | undefined;
 
@@ -11406,7 +11413,18 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Selection range in the input value. Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 *
+		 * This property does not get updated when the user types or makes a selection,
+		 * but it can be updated by the extension.
+		 */
+		valueSelection: readonly [number, number] | undefined;
+
+		/**
+		 * Optional placeholder shown when no value has been input.
 		 */
 		placeholder: string | undefined;
 
@@ -15620,9 +15638,13 @@ declare module 'vscode' {
 
 	/**
 	 * Namespace for localization-related functionality in the extension API. To use this properly,
-	 * you must have `l10n` defined in your `package.json` and have bundle.l10n.<language>.json files.
+	 * you must have `l10n` defined in your extension manifest and have bundle.l10n.<language>.json files.
 	 * For more information on how to generate bundle.l10n.<language>.json files, check out the
 	 * [vscode-l10n repo](https://github.com/microsoft/vscode-l10n).
+	 *
+	 * Note: Built-in extensions (for example, Git, TypeScript Language Features, GitHub Authentication)
+	 * are excluded from the `l10n` property requirement. In other words, they do not need to specify
+	 * a `l10n` in the extension manifest because their translated strings come from Language Packs.
 	 */
 	export namespace l10n {
 		/**
@@ -15634,7 +15656,7 @@ declare module 'vscode' {
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.localize('hello', 'Hello {0}!', 'World');`
+		 * @example `l10n.t('Hello {0}!', 'World');`
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 

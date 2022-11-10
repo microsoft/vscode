@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -12,28 +11,24 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { acceptSelectedCodeActionCommand, CodeActionWidget, Context, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
+import { acceptSelectedCodeActionCommand, applyCodeAction, ApplyCodeActionReason, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, previewSelectedCodeActionCommand, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
+import { CodeActionWidget, Context } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -159,82 +154,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
 		return this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
-	}
-}
-
-export enum ApplyCodeActionReason {
-	OnSave = 'onSave',
-	FromProblemsView = 'fromProblemsView',
-	FromCodeActions = 'fromCodeActions'
-}
-
-
-export async function applyCodeAction(
-	accessor: ServicesAccessor,
-	item: CodeActionItem,
-	codeActionReason: ApplyCodeActionReason,
-	options?: { preview?: boolean; editor?: ICodeEditor },
-): Promise<void> {
-	const bulkEditService = accessor.get(IBulkEditService);
-	const commandService = accessor.get(ICommandService);
-	const telemetryService = accessor.get(ITelemetryService);
-	const notificationService = accessor.get(INotificationService);
-
-	type ApplyCodeActionEvent = {
-		codeActionTitle: string;
-		codeActionKind: string | undefined;
-		codeActionIsPreferred: boolean;
-		reason: ApplyCodeActionReason;
-	};
-	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The display label of the applied code action' };
-		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
-		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
-		reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to trigger apply code action.' };
-		owner: 'mjbvz';
-		comment: 'Event used to gain insights into which code actions are being triggered';
-	};
-
-	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		codeActionTitle: item.action.title,
-		codeActionKind: item.action.kind,
-		codeActionIsPreferred: !!item.action.isPreferred,
-		reason: codeActionReason,
-	});
-
-	await item.resolve(CancellationToken.None);
-
-	if (item.action.edit) {
-		await bulkEditService.apply(item.action.edit, {
-			editor: options?.editor,
-			label: item.action.title,
-			quotableLabel: item.action.title,
-			code: 'undoredo.codeAction',
-			respectAutoSaveConfig: true,
-			showPreview: options?.preview,
-		});
-	}
-
-	if (item.action.command) {
-		try {
-			await commandService.executeCommand(item.action.command.id, ...(item.action.command.arguments || []));
-		} catch (err) {
-			const message = asMessage(err);
-			notificationService.error(
-				typeof message === 'string'
-					? message
-					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
-		}
-	}
-}
-
-function asMessage(err: any): string | undefined {
-	if (typeof err === 'string') {
-		return err;
-	} else if (err instanceof Error && typeof err.message === 'string') {
-		return err.message;
-	} else {
-		return undefined;
 	}
 }
 
@@ -491,7 +410,7 @@ export class AutoFixAction extends EditorAction {
 	}
 }
 
-const weight = KeybindingWeight.EditorContrib + 90;
+const weight = KeybindingWeight.EditorContrib + 1000;
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -503,7 +422,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight,
+				weight,
 				primary: KeyCode.Escape,
 				secondary: [KeyMod.Shift | KeyCode.Escape]
 			},
@@ -525,7 +444,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyCode.UpArrow,
 				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
@@ -548,7 +467,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyCode.DownArrow,
 				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
@@ -571,7 +490,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyCode.Enter,
 				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
 			}
@@ -593,7 +512,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 			}
 		});

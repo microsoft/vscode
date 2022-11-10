@@ -16,8 +16,7 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IOverlayWebview, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
 import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -101,7 +100,7 @@ export interface IWebviewWorkbenchService {
 /**
  * Handles filling in the content of webview before it can be shown to the user.
  */
-export interface WebviewResolver {
+interface WebviewResolver {
 	/**
 	 * Returns true if the resolver can resolve the given webview.
 	 */

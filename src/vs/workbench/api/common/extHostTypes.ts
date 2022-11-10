@@ -6,7 +6,7 @@
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
@@ -1470,11 +1470,11 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.value = value;
 	}
 
-	get isTrusted(): boolean | undefined {
+	get isTrusted(): boolean | MarkdownStringTrustedOptions | undefined {
 		return this.#delegate.isTrusted;
 	}
 
-	set isTrusted(value: boolean | undefined) {
+	set isTrusted(value: boolean | MarkdownStringTrustedOptions | undefined) {
 		this.#delegate.isTrusted = value;
 	}
 
@@ -1719,37 +1719,12 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 
 @es5ClassCompat
 export class InlineSuggestionList implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItemNew[];
+	items: vscode.InlineCompletionItem[];
 
 	commands: vscode.Command[] | undefined = undefined;
 
-	constructor(items: vscode.InlineCompletionItemNew[]) {
+	constructor(items: vscode.InlineCompletionItem[]) {
 		this.items = items;
-	}
-}
-
-@es5ClassCompat
-export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
-	insertText: string;
-	range?: Range;
-	command?: vscode.Command;
-
-	constructor(insertText: string, range?: Range, command?: vscode.Command) {
-		this.insertText = insertText;
-		this.range = range;
-		this.command = command;
-	}
-}
-
-@es5ClassCompat
-export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
-	items: vscode.InlineCompletionItemNew[];
-
-	commands: vscode.Command[] | undefined;
-
-	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
-		this.items = items;
-		this.commands = commands;
 	}
 }
 
@@ -2877,11 +2852,6 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export enum InlineCompletionTriggerKindNew {
 	Invoke = 0,
 	Automatic = 1,
 }

@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
-use tunnels::connections::{ForwardedPortConnection, HostRelay};
+use tunnels::connections::{ForwardedPortConnection, RelayTunnelHost};
 use tunnels::contracts::{
 	Tunnel, TunnelPort, TunnelRelayTunnelEndpoint, PORT_TOKEN, TUNNEL_PROTOCOL_AUTO,
 };
@@ -263,23 +263,7 @@ impl DevTunnels {
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
 		is_valid_name(name)?;
 
-		let existing = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.rename.search"),
-			self.client.list_all_tunnels(&TunnelRequestOptions {
-				tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string(), name.to_string()],
-				require_all_tags: true,
-				..Default::default()
-			})
-		)
-		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
-
-		if !existing.is_empty() {
-			return Err(AnyError::from(TunnelCreationFailed(
-				name.to_string(),
-				"tunnel name already in use".to_string(),
-			)));
-		}
+		self.check_is_name_free(name).await?;
 
 		let mut tunnel = match self.launcher_tunnel.load() {
 			Some(t) => t,
@@ -314,13 +298,42 @@ impl DevTunnels {
 	}
 
 	/// Starts a new tunnel for the code server on the port. Unlike `start_new_tunnel`,
-	/// this attempts to reuse or generate a friendly tunnel name.
+	/// this attempts to reuse or create a tunnel of a preferred name or of a generated friendly tunnel name.
 	pub async fn start_new_launcher_tunnel(
 		&mut self,
+		preferred_name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
 		let (tunnel, persisted) = match self.launcher_tunnel.load() {
-			Some(persisted) => {
+			Some(mut persisted) => {
+				if let Some(name) = preferred_name {
+					if persisted.name.ne(&name) {
+						self.check_is_name_free(&name).await?;
+						let mut full_tunnel = spanf!(
+							self.log,
+							self.log.span("dev-tunnel.tag.get"),
+							self.client
+								.get_tunnel(&persisted.locator(), NO_REQUEST_OPTIONS)
+						)
+						.map_err(|e| wrap(e, "failed to lookup tunnel"))?;
+
+						info!(self.log, "Updating name of existing tunnel");
+
+						full_tunnel.tags =
+							vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
+						if spanf!(
+							self.log,
+							self.log.span("dev-tunnel.tag.update"),
+							self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
+						)
+						.is_ok()
+						{
+							persisted.name = name.to_string();
+							self.launcher_tunnel.save(Some(persisted.clone()))?;
+						}
+					}
+				}
+
 				let tunnel_lookup = spanf!(
 					self.log,
 					self.log.span("dev-tunnel.tag.get"),
@@ -349,7 +362,9 @@ impl DevTunnels {
 			}
 			None => {
 				debug!(self.log, "No code server tunnel found, creating new one");
-				let name = self.get_name_for_tunnel(use_random_name).await?;
+				let name = self
+					.get_name_for_tunnel(preferred_name, use_random_name)
+					.await?;
 				let (persisted, full_tunnel) = self.create_tunnel(&name).await?;
 				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				(full_tunnel, persisted)
@@ -510,9 +525,31 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn get_name_for_tunnel(&mut self, use_random_name: bool) -> Result<String, AnyError> {
-		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
+	async fn check_is_name_free(&mut self, name: &str) -> Result<(), AnyError> {
+		let existing = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.rename.search"),
+			self.client.list_all_tunnels(&TunnelRequestOptions {
+				tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string(), name.to_string()],
+				require_all_tags: true,
+				..Default::default()
+			})
+		)
+		.map_err(|e| wrap(e, "failed to list existing tunnels"))?;
+		if !existing.is_empty() {
+			return Err(AnyError::from(TunnelCreationFailed(
+				name.to_string(),
+				"tunnel name already in use".to_string(),
+			)));
+		};
+		Ok(())
+	}
 
+	async fn get_name_for_tunnel(
+		&mut self,
+		preferred_name: Option<String>,
+		mut use_random_name: bool,
+	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_all_server_tunnels().await?;
 		let is_name_free = |n: &str| {
 			!existing_tunnels
@@ -520,6 +557,23 @@ impl DevTunnels {
 				.any(|v| v.tags.iter().any(|t| t == n))
 		};
 
+		if let Some(machine_name) = preferred_name {
+			let name = machine_name;
+			if let Err(e) = is_valid_name(&name) {
+				info!(self.log, "{} is an invalid name", e);
+				return Err(AnyError::from(wrap(e, "invalid name")));
+			}
+			if is_name_free(&name) {
+				return Ok(name);
+			}
+			info!(
+				self.log,
+				"{} is already taken, using a random name instead", &name
+			);
+			use_random_name = true;
+		}
+
+		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
 		if use_random_name {
 			while !is_name_free(&placeholder_name) {
 				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
@@ -607,7 +661,7 @@ impl DevTunnels {
 struct ActiveTunnelManager {
 	close_tx: Option<mpsc::Sender<()>>,
 	endpoint_rx: watch::Receiver<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
-	relay: Arc<tokio::sync::Mutex<HostRelay>>,
+	relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
 }
 
 impl ActiveTunnelManager {
@@ -620,7 +674,7 @@ impl ActiveTunnelManager {
 		let (endpoint_tx, endpoint_rx) = watch::channel(None);
 		let (close_tx, close_rx) = mpsc::channel(1);
 
-		let relay = Arc::new(tokio::sync::Mutex::new(HostRelay::new(locator, mgmt)));
+		let relay = Arc::new(tokio::sync::Mutex::new(RelayTunnelHost::new(locator, mgmt)));
 		let relay_spawned = relay.clone();
 
 		tokio::spawn(async move {
@@ -719,7 +773,7 @@ impl ActiveTunnelManager {
 
 	async fn spawn_tunnel(
 		log: log::Logger,
-		relay: Arc<tokio::sync::Mutex<HostRelay>>,
+		relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
 		mut close_rx: mpsc::Receiver<()>,
 		endpoint_tx: watch::Sender<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
 		access_token_provider: impl AccessTokenProvider + 'static,

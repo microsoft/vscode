@@ -1100,7 +1100,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// macOS: traffic lights
 		else if (isMacintosh && options.height !== undefined) {
-			this._win.setTrafficLightPosition({ x: 7, y: (options.height - 15) / 2 }); // 15px is the height of the traffic lights
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			this._win.setTrafficLightPosition({ x: verticalOffset, y: verticalOffset });
 		}
 	}
 

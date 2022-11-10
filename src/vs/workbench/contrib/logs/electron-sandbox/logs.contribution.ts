@@ -20,6 +20,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
+import { LogLevelService } from 'vs/workbench/contrib/logs/electron-sandbox/logLevelService';
+
+registerSingleton(ILogLevelService, LogLevelService, InstantiationType.Delayed);
 
 class NativeLogOutputChannels extends Disposable implements IWorkbenchContribution {
 

@@ -25,7 +25,7 @@ declare module 'vscode' {
 		 * @param eventName The event name to log
 		 * @param data The data to log
 		 */
-		logError(eventName: string, data?: Record<string, string | number | boolean>): void;
+		logError(eventName: string, data?: Record<string, any>): void;
 
 		/**
 		 * Calls `TelemetryAppender.logException`. Does cleaning, telemetry checks, and data mix-in.
@@ -34,7 +34,7 @@ declare module 'vscode' {
 		 * @param exception The error object which contains the stack trace cleaned of PII
 		 * @param data Additional data to log alongside the stack trace
 		 */
-		logError(exception: Error, data?: Record<string, string | number | boolean>): void;
+		logError(exception: Error, data?: Record<string, any>): void;
 
 		dispose(): void;
 	}
@@ -48,21 +48,21 @@ declare module 'vscode' {
 		/**
 		 * Any additional common properties which should be injected into the data object.
 		 */
-		readonly additionalCommonProperties: Record<string, string | number | boolean>;
+		readonly additionalCommonProperties?: Record<string, any>;
 
 		/**
 		 * User-defined function which logs an event, used within the TelemetryLogger
 		 * @param eventName The name of the event which you are logging
 		 * @param data A serializable key value pair that is being logged
 		 */
-		logEvent(eventName: string, data?: Record<string, string | number | boolean>): void;
+		logEvent(eventName: string, data?: Record<string, any>): void;
 
 		/**
 		 * User-defined function which logs an error, used within the TelemetryLogger
 		 * @param exception The exception being logged
 		 * @param data Any additional data to be collected with the exception
 		 */
-		logException(exception: Error, data?: Record<string, string | number | boolean>): void;
+		logException(exception: Error, data?: Record<string, any>): void;
 
 		/**
 		 * Optional flush function which will give your appender one last chance to send any remaining events as the TelemetryLogger is being disposed

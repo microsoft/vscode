@@ -33,7 +33,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-	"tunnels",
+    "tunnels",
     "envShellEvent",
     "testCoverage",
     "testObserver",
@@ -44,7 +44,7 @@
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "localization"
+    "extensionLog"
   ],
   "private": true,
   "activationEvents": [],

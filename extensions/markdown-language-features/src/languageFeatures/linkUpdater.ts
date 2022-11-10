@@ -12,14 +12,13 @@ import { MdLanguageClient } from '../client/client';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
-import { looksLikeMarkdownPath } from '../util/file';
 import { convertRange } from './fileReferences';
 
 const localize = nls.loadMessageBundle();
 
 const settingNames = Object.freeze({
 	enabled: 'updateLinksOnFileMove.enabled',
-	externalFileGlobs: 'updateLinksOnFileMove.externalFileGlobs',
+	include: 'updateLinksOnFileMove.include',
 	enableForDirectories: 'updateLinksOnFileMove.enableForDirectories',
 });
 
@@ -99,13 +98,13 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 			return false;
 		}
 
-		if (looksLikeMarkdownPath(newUri)) {
-			return true;
-		}
-
-		const externalGlob = config.get<string>(settingNames.externalFileGlobs);
-		if (!!externalGlob && picomatch.isMatch(newUri.fsPath, externalGlob)) {
-			return true;
+		const externalGlob = config.get<string[]>(settingNames.include);
+		if (externalGlob) {
+			for (const glob of externalGlob) {
+				if (picomatch.isMatch(newUri.fsPath, glob)) {
+					return true;
+				}
+			}
 		}
 
 		const stat = await vscode.workspace.fs.stat(newUri);
@@ -131,17 +130,17 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: localize('always.title', "Always automatically update Markdown Links"),
+			title: localize('always.title', "Always"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: localize('never.title', "Never automatically update Markdown Links"),
+			title: localize('never.title', "Never"),
 		};
 
 		const choice = await vscode.window.showInformationMessage(
 			newResources.length === 1
 				? localize('prompt', "Update Markdown links for '{0}'?", path.basename(newResources[0].fsPath))
-				: this.getConfirmMessage(localize('promptMoreThanOne', "Update Markdown link for the following {0} files?", newResources.length), newResources), {
+				: this.getConfirmMessage(localize('promptMoreThanOne', "Update Markdown links for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
 

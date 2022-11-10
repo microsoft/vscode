@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -31,6 +31,7 @@ import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { URI } from 'vs/base/common/uri';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -419,21 +420,27 @@ class ReplaceActionRunner {
 	}
 }
 
-export class RemoveAction extends Action {
+export class RemoveAction implements IAction {
 
 	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
+	readonly id = Constants.RemoveActionId;
+	public class = ThemeIcon.asClassName(searchRemoveIcon);
+	public label: string;
+	public tooltip = '';
+	public enabled = true;
+
 	constructor(
-		private viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
-		private element: RenderableMatch,
+		private readonly viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
+		private readonly element: RenderableMatch,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
-		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
+		this.label = appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService);
 	}
 
-	override async run(): Promise<any> {
+	run(): void {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
 		let focusElement = this.viewer.getFocus()[0];
@@ -683,13 +690,19 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
+export function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
+	return getElementsToOperateOnInfo(viewer, currElement, sortConfig).elements
+		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
+		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
+}
+
+function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
 
-	const mustReselect = elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
+	const mustReselect = !currElement || elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
 
 	// if selection doesn't include multiple elements, just return current focus element.
-	if (!(elements.length > 1 && elements.includes(currElement))) {
+	if (currElement && !(elements.length > 1 && elements.includes(currElement))) {
 		elements = [currElement];
 	}
 

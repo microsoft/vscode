@@ -92,6 +92,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						return cell.apiCell;
 					}
 				}
+				if (arg && arg.$mid === MarshalledId.NotebookActionContext) {
+					const notebookUri = arg.uri;
+					const data = this._documents.get(notebookUri);
+					if (data) {
+						return data.apiNotebook;
+					}
+				}
 				return arg;
 			}
 		});
@@ -142,8 +149,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.NotebookContentProvider,
-		options?: vscode.NotebookDocumentContentOptions,
-		registration?: vscode.NotebookRegistrationData
+		options?: vscode.NotebookDocumentContentOptions
 	): vscode.Disposable {
 		if (isFalsyOrWhitespace(viewType)) {
 			throw new Error(`viewType cannot be empty or just whitespace`);
@@ -158,7 +164,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			{ id: extension.identifier, location: extension.extensionLocation },
 			viewType,
 			typeConverters.NotebookDocumentContentOptions.from(options),
-			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
+			undefined,
 		);
 
 		return new extHostTypes.Disposable(() => {
