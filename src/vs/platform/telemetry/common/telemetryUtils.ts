@@ -110,7 +110,6 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
  * If false telemetry is disabled throughout the product
  * @param productService
  * @param environmentService
- * @param ignoreBuiltCheck Whether or not to ignore the check to see if the product is built. This allows to actually check if telemetry is supported
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
