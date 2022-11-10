@@ -356,12 +356,12 @@ registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.D
 export abstract class ActionList<T extends IActionItem> extends Disposable implements IActionList<T> {
 
 	readonly domNode: HTMLElement;
-	readonly list: List<IListMenuItem<IActionItem>>;
+	private readonly _list: List<IListMenuItem<IActionItem>>;
 
-	readonly actionLineHeight = 24;
-	readonly headerLineHeight = 26;
+	private readonly _actionLineHeight = 24;
+	private readonly _headerLineHeight = 26;
 
-	private readonly allMenuItems: IListMenuItem<IActionItem>[];
+	private readonly _allMenuItems: IListMenuItem<IActionItem>[];
 
 	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
@@ -380,10 +380,10 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
-			getHeight: element => element.kind === 'header' ? this.headerLineHeight : this.actionLineHeight,
+			getHeight: element => element.kind === 'header' ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this.list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
+		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -402,13 +402,13 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 			},
 		});
 
-		this._register(this.list.onMouseClick(e => this.onListClick(e)));
-		this._register(this.list.onMouseOver(e => this.onListHover(e)));
-		this._register(this.list.onDidChangeFocus(() => this.list.domFocus()));
-		this._register(this.list.onDidChangeSelection(e => this.onListSelection(e)));
+		this._register(this._list.onMouseClick(e => this.onListClick(e)));
+		this._register(this._list.onMouseOver(e => this.onListHover(e)));
+		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
+		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this.allMenuItems = this.toMenuItems(items, showHeaders);
-		this.list.splice(0, this.list.length, this.allMenuItems);
+		this._allMenuItems = this.toMenuItems(items, showHeaders);
+		this._list.splice(0, this._list.length, this._allMenuItems);
 		this.focusNext();
 	}
 
@@ -421,14 +421,14 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 
 	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
-		const numHeaders = this.allMenuItems.filter(item => item.kind === 'header').length;
-		const height = this.allMenuItems.length * this.actionLineHeight;
-		const heightWithHeaders = height + numHeaders * this.headerLineHeight - numHeaders * this.actionLineHeight;
-		this.list.layout(heightWithHeaders);
+		const numHeaders = this._allMenuItems.filter(item => item.kind === 'header').length;
+		const height = this._allMenuItems.length * this._actionLineHeight;
+		const heightWithHeaders = height + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
+		this._list.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
-		const itemWidths: number[] = this.allMenuItems.map((_, index): number => {
-			const element = document.getElementById(this.list.getElementID(index));
+		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+			const element = document.getElementById(this._list.getElementID(index));
 			if (element) {
 				element.style.width = 'auto';
 				const width = element.getBoundingClientRect().width;
@@ -440,36 +440,36 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const width = Math.max(...itemWidths, minWidth);
-		this.list.layout(heightWithHeaders, width);
+		this._list.layout(heightWithHeaders, width);
 
 		this.domNode.style.height = `${heightWithHeaders}px`;
 
-		this.list.domFocus();
+		this._list.domFocus();
 		return width;
 	}
 
 	focusPrevious() {
-		this.list.focusPrevious(1, true, undefined, this.focusCondition);
+		this._list.focusPrevious(1, true, undefined, this.focusCondition);
 	}
 
 	focusNext() {
-		this.list.focusNext(1, true, undefined, this.focusCondition);
+		this._list.focusNext(1, true, undefined, this.focusCondition);
 	}
 
 	acceptSelected(preview?: boolean) {
-		const focused = this.list.getFocus();
+		const focused = this._list.getFocus();
 		if (focused.length === 0) {
 			return;
 		}
 
 		const focusIndex = focused[0];
-		const element = this.list.element(focusIndex);
+		const element = this._list.element(focusIndex);
 		if (!this.focusCondition(element)) {
 			return;
 		}
 
 		const event = new UIEvent(preview ? 'previewSelectedAction' : 'acceptSelectedAction');
-		this.list.setSelection([focusIndex], event);
+		this._list.setSelection([focusIndex], event);
 	}
 
 	private onListSelection(e: IListEvent<IListMenuItem<IActionItem>>): void {
@@ -481,17 +481,17 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		if (element.item && this.focusCondition(element)) {
 			this._delegate.onSelect(element.item, e.browserEvent?.type === 'previewSelectedEventType');
 		} else {
-			this.list.setSelection([]);
+			this._list.setSelection([]);
 		}
 	}
 
 	private onListHover(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
-		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
 	private onListClick(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
 		if (e.element && this.focusCondition(e.element)) {
-			this.list.setFocus([]);
+			this._list.setFocus([]);
 		}
 	}
 }
