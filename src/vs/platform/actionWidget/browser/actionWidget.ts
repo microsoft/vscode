@@ -25,6 +25,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ActionSet, IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
 export const acceptSelectedAction = 'acceptSelectedAction';
 export const previewSelectedAction = 'previewSelectedAction';
@@ -105,7 +106,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 
 	get templateId(): string { return 'action'; }
 
-	constructor(private readonly _keybindingResolver: any, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
+	constructor(private readonly _keybindingResolver: { getResolver(): (action: unknown) => ResolvedKeybinding | undefined } | undefined, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
 	}
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -163,7 +164,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
- 	readonly _serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
