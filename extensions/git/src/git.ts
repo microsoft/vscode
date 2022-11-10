@@ -688,6 +688,61 @@ export interface Commit {
 	refNames: string[];
 }
 
+interface GitConfigSection {
+	name: string;
+	subSectionName?: string;
+	properties: { [key: string]: string };
+}
+
+class GitConfigParser {
+	private static readonly _lineSeparator = /\r?\n/;
+
+	private static readonly _commentRegex = /^\s*[#;].*/;
+	private static readonly _emptyLineRegex = /^\s*$/;
+	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
+
+	static parse(raw: string, sectionName: string): GitConfigSection[] {
+		let section: GitConfigSection | undefined;
+		const config: { sections: GitConfigSection[] } = { sections: [] };
+
+		const addSection = (section?: GitConfigSection) => {
+			if (!section) { return; }
+			config.sections.push(section);
+		};
+
+		for (const configFileLine of raw.split(GitConfigParser._lineSeparator)) {
+			// Ignore empty lines and comments
+			if (GitConfigParser._emptyLineRegex.test(configFileLine) ||
+				GitConfigParser._commentRegex.test(configFileLine)) {
+				continue;
+			}
+
+			// Section
+			const sectionMatch = configFileLine.match(GitConfigParser._sectionRegex);
+			if (sectionMatch?.length === 3) {
+				addSection(section);
+				section = sectionMatch[1] === sectionName ?
+					{ name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} } : undefined;
+
+				continue;
+			}
+
+			// Properties
+			if (section) {
+				const propertyMatch = configFileLine.match(GitConfigParser._propertyRegex);
+				if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
+					section.properties[propertyMatch[1]] = propertyMatch[2];
+				}
+			}
+		}
+
+		addSection(section);
+
+		return config.sections;
+	}
+}
+
 export class GitStatusParser {
 
 	private lastRaw = '';
@@ -761,59 +816,39 @@ export interface Submodule {
 }
 
 export function parseGitmodules(raw: string): Submodule[] {
-	const regex = /\r?\n/g;
-	let position = 0;
-	let match: RegExpExecArray | null = null;
-
 	const result: Submodule[] = [];
-	let submodule: Partial<Submodule> = {};
 
-	function parseLine(line: string): void {
-		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
-
-		if (sectionMatch) {
-			if (submodule.name && submodule.path && submodule.url) {
-				result.push(submodule as Submodule);
-			}
-
-			const name = sectionMatch[1];
-
-			if (name) {
-				submodule = { name };
-				return;
-			}
+	for (const submoduleSection of GitConfigParser.parse(raw, 'submodule')) {
+		if (submoduleSection.subSectionName && submoduleSection.properties['path'] && submoduleSection.properties['url']) {
+			result.push({
+				name: submoduleSection.subSectionName,
+				path: submoduleSection.properties['path'],
+				url: submoduleSection.properties['url']
+			});
 		}
-
-		if (!submodule) {
-			return;
-		}
-
-		const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(line);
-
-		if (!propertyMatch) {
-			return;
-		}
-
-		const [, key, value] = propertyMatch;
-
-		switch (key) {
-			case 'path': submodule.path = value; break;
-			case 'url': submodule.url = value; break;
-		}
-	}
-
-	while (match = regex.exec(raw)) {
-		parseLine(raw.substring(position, match.index));
-		position = match.index + match[0].length;
-	}
-
-	parseLine(raw.substring(position));
-
-	if (submodule.name && submodule.path && submodule.url) {
-		result.push(submodule as Submodule);
 	}
 
 	return result;
+}
+
+export function parseGitRemotes(raw: string): Remote[] {
+	const remotes: Remote[] = [];
+
+	for (const remoteSection of GitConfigParser.parse(raw, 'remote')) {
+		if (!remoteSection.subSectionName) {
+			continue;
+		}
+
+		remotes.push({
+			name: remoteSection.subSectionName,
+			fetchUrl: remoteSection.properties['url'],
+			pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
+			// https://github.com/microsoft/vscode/issues/45271
+			isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+		});
+	}
+
+	return remotes;
 }
 
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
@@ -2148,6 +2183,20 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
+		try {
+			// Attempt to parse the config file
+			const remotes = await this.getRemotesFS();
+			if (remotes.length === 0) {
+				throw new Error('No remotes found in the git config file.');
+			}
+
+			return remotes;
+		}
+		catch (err) {
+			this.logger.warn(err.message);
+		}
+
+		// Fallback to using git to determine remotes
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
 		const remotes: MutableRemote[] = [];
@@ -2177,6 +2226,11 @@ export class Repository {
 		}
 
 		return remotes;
+	}
+
+	private async getRemotesFS(): Promise<Remote[]> {
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
+		return parseGitRemotes(raw);
 	}
 
 	async getBranch(name: string): Promise<Branch> {

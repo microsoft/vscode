@@ -379,9 +379,7 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-overrides.with-custom-hover:hover,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-ignored:hover,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-default-overridden:hover {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-indicator:hover {
 	text-decoration: underline;
 }
 
