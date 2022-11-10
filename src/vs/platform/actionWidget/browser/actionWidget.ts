@@ -508,8 +508,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'hideCodeActionWidget',
 			title: {
-				value: localize('hideCodeActionWidget.title', "Hide code action widget"),
-				original: 'Hide code action widget'
+				value: localize('hideCodeActionWidget.title', "Hide action widget"),
+				original: 'Hide action widget'
 			},
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
@@ -530,8 +530,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'selectPrevCodeAction',
 			title: {
-				value: localize('selectPrevCodeAction.title', "Select previous code action"),
-				original: 'Select previous code action'
+				value: localize('selectPrevCodeAction.title', "Select previous action"),
+				original: 'Select previous action'
 			},
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
@@ -553,8 +553,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'selectNextCodeAction',
 			title: {
-				value: localize('selectNextCodeAction.title', "Select next code action"),
-				original: 'Select next code action'
+				value: localize('selectNextCodeAction.title', "Select next action"),
+				original: 'Select next action'
 			},
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
@@ -576,8 +576,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: acceptSelectedAction,
 			title: {
-				value: localize('acceptSelected.title', "Accept selected code action"),
-				original: 'Accept selected code action'
+				value: localize('acceptSelected.title', "Accept selected action"),
+				original: 'Accept selected action'
 			},
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
@@ -598,8 +598,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: previewSelectedAction,
 			title: {
-				value: localize('previewSelected.title', "Preview selected code action"),
-				original: 'Preview selected code action'
+				value: localize('previewSelected.title', "Preview selected action"),
+				original: 'Preview selected action'
 			},
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
