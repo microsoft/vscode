@@ -24,8 +24,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ActionSet, IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { ActionSet, IActionItem, IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
 
 export const acceptSelectedAction = 'acceptSelectedAction';
 export const previewSelectedAction = 'previewSelectedAction';
@@ -109,7 +108,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 
 	get templateId(): string { return 'action'; }
 
-	constructor(private readonly _keybindingResolver: { getResolver(): (action: any) => ResolvedKeybinding | undefined } | undefined, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
+	constructor(private readonly _keybindingResolver: IActionKeybindingResolver | undefined, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
 	}
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -373,7 +372,7 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		items: readonly T[],
 		showHeaders: boolean,
 		private readonly _delegate: IRenderDelegate<T>,
-		resolver: { getResolver(): (action: any) => ResolvedKeybinding | undefined } | undefined,
+		resolver: IActionKeybindingResolver | undefined,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
