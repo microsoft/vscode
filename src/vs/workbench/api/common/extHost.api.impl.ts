@@ -1149,6 +1149,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
 			createNotebookControllerDetectionTask(notebookType: string) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
 				return extHostNotebookKernels.createNotebookControllerDetectionTask(extension, notebookType);
 			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
