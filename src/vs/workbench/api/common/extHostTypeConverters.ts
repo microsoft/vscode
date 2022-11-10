@@ -1967,7 +1967,7 @@ export namespace ViewBadge {
 }
 
 export namespace DataTransferItem {
-	export function to(mime: string, item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>, uriTransformer?: IURITransformer): types.DataTransferItem {
+	export function to(mime: string, item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
