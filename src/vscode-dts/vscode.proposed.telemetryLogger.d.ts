@@ -28,7 +28,8 @@ declare module 'vscode' {
 		logError(eventName: string, data?: Record<string, any>): void;
 
 		/**
-		 * Calls `TelemetryAppender.logException`. Does cleaning, telemetry checks, and data mix-in.
+		 * Specifically for logging an Error trace. Will be converted to an `extension/unhandlederror` eventName with the error in the data payload.
+		 * Does cleaning, telemetry checks, and data mix-in.
 		 * Automatically supports echoing to extension telemetry output channel.
 		 * Will also automatically log any exceptions thrown within the extension host process.
 		 * @param exception The error object which contains the stack trace cleaned of PII
@@ -56,13 +57,6 @@ declare module 'vscode' {
 		 * @param data A serializable key value pair that is being logged
 		 */
 		logEvent(eventName: string, data?: Record<string, any>): void;
-
-		/**
-		 * User-defined function which logs an error, used within the TelemetryLogger
-		 * @param exception The exception being logged
-		 * @param data Any additional data to be collected with the exception
-		 */
-		logException(exception: Error, data?: Record<string, any>): void;
 
 		/**
 		 * Optional flush function which will give your appender one last chance to send any remaining events as the TelemetryLogger is being disposed

@@ -191,8 +191,12 @@ export class ExtHostTelemetryLogger {
 		if (typeof eventNameOrException === 'string') {
 			this.logEvent(eventNameOrException, data);
 		} else {
-			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.logException(eventNameOrException, data);
+			// Dealing with events with eventNames is much easier, so mirror our core unhandlederror event
+			this.logEvent('unhandlederror', {
+				callstack: eventNameOrException.stack,
+				msg: eventNameOrException.message,
+				...data
+			});
 		}
 	}
 

@@ -79,9 +79,6 @@ suite('ExtHostTelemetry', function () {
 			logEvent: (eventName: string, data) => {
 				functionSpy.dataArr.push({ eventName, data });
 			},
-			logException: (exception, data) => {
-				functionSpy.exceptionArr.push({ exception, data });
-			},
 			ignoreBuiltInCommonProperties: false,
 			flush: () => {
 				functionSpy.flushCalled = true;
@@ -136,8 +133,7 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(functionSpy.dataArr.length, 3);
 
 		logger.logError(new Error('test-error'), { 'test-data': 'test-data' });
-		assert.strictEqual(functionSpy.dataArr.length, 3);
-		assert.strictEqual(functionSpy.exceptionArr.length, 1);
+		assert.strictEqual(functionSpy.dataArr.length, 4);
 
 
 		// Assert not flushed
