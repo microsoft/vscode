@@ -15,20 +15,14 @@ class DefineCall {
 	) { }
 }
 
-const amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-	createScriptURL(value) {
-		if (value.startsWith(window.location.origin)) {
-			return value;
-		}
-		throw new Error(`Invalid script url: ${value}`);
-	}
-});
-
 class AMDModuleImporter {
 	public static INSTANCE = new AMDModuleImporter();
 
 	private readonly _defineCalls: DefineCall[] = [];
 	private _initialized = false;
+	private _amdPolicy: Pick<TrustedTypePolicy<{
+		createScriptURL(value: string): string;
+	}>, 'name' | 'createScriptURL'> | undefined;
 
 	constructor() { }
 
@@ -55,6 +49,15 @@ class AMDModuleImporter {
 		};
 
 		(<any>globalThis).define.amd = true;
+
+		this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+			createScriptURL(value) {
+				if (value.startsWith(window.location.origin)) {
+					return value;
+				}
+				throw new Error(`Invalid script url: ${value}`);
+			}
+		});
 	}
 
 	public async load<T>(scriptSrc: string): Promise<T> {
@@ -97,8 +100,8 @@ class AMDModuleImporter {
 
 			scriptElement.addEventListener('load', loadEventListener);
 			scriptElement.addEventListener('error', errorEventListener);
-			if (amdPolicy) {
-				scriptSrc = amdPolicy.createScriptURL(scriptSrc) as any as string;
+			if (this._amdPolicy) {
+				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
 			}
 			scriptElement.setAttribute('src', scriptSrc);
 			document.getElementsByTagName('head')[0].appendChild(scriptElement);
