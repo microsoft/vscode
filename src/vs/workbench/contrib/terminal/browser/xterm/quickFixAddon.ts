@@ -14,7 +14,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, TerminalQuickFixAction, TerminalQuickFixMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -25,10 +24,10 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixList';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IActionWidgetService, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
+import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -76,7 +75,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -261,8 +259,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 						this._terminal?.focus();
 					},
 				};
-				const list = this._instantiationService.createInstance(QuickFixList, actionSet.allActions, true, delegate);
-				this._actionWidgetService.show(list, actionSet, anchor, parentElement,
+				this._actionWidgetService.show('quickFixWidget', toMenuItems, delegate, actionSet, anchor, parentElement,
 					{
 						showHeaders: true,
 						includeDisabledActions: false,

@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
-import { CodeActionList } from 'vs/editor/contrib/codeAction/browser/codeActionList';
+import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenuItems';
 
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
@@ -35,14 +35,14 @@ export class CodeActionUi extends Disposable {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
 
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(_instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
 			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: this.shouldShowHeaders() })));
 			return widget;
 		});
@@ -170,12 +170,9 @@ export class CodeActionUi extends Disposable {
 			}
 		};
 		this._actionWidgetService.show(
-			this._instantiationService.createInstance(
-				CodeActionList,
-				actions.allActions,
-				options.showHeaders || false,
-				delegate
-			),
+			'codeActionWidget',
+			toMenuItems,
+			delegate,
 			actions,
 			anchor,
 			editorDom,

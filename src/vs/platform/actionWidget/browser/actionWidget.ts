@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import 'vs/css!./actionWidget';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -51,12 +51,11 @@ export interface IListMenuItem<T extends IActionItem> {
 	label?: string;
 }
 
-export interface IActionList<T extends IActionItem> extends IDisposable {
+export interface IActionList extends IDisposable {
 	hide(didCancel?: boolean): void;
 	focusPrevious(): void;
 	focusNext(): void;
 	layout(minWidth: number): void;
-	toMenuItems(items: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 	acceptSelected(preview?: boolean): void;
 	readonly domNode: HTMLElement;
 }
@@ -168,7 +167,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
 	readonly _serviceBrand: undefined;
-	show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions): Promise<void>;
+	show(user: string, toMenuItems: (inputQuickFixes: readonly any[], showHeaders: boolean) => IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
 	acceptSelected(preview?: boolean): void;
@@ -181,24 +180,30 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	get isVisible() { return ActionWidgetContextKeys.Visible.getValue(this._contextKeyService) || false; }
 	private _showDisabled = false;
 	private _currentShowingContext?: {
+		readonly user: string;
+		readonly toMenuItems: (inputItems: readonly any[], showHeaders: boolean) => IListMenuItem<any>[];
 		readonly options: IActionShowOptions;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
 		readonly actions: ActionSet<unknown>;
+		readonly delegate: IRenderDelegate<any>;
+		readonly resolver?: IActionKeybindingResolver;
 	};
 	private _list = this._register(new MutableDisposable<ActionList<any>>());
 	constructor(@ICommandService readonly _commandService: ICommandService,
 		@IContextViewService readonly contextViewService: IContextViewService,
 		@IKeybindingService  readonly keybindingService: IKeybindingService,
 		@ITelemetryService readonly _telemetryService: ITelemetryService,
-		@IContextKeyService readonly _contextKeyService: IContextKeyService) {
+		@IContextKeyService readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService readonly _instantiationService: IInstantiationService) {
 		super();
 
 	}
 
-	async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions): Promise<void> {
+	async show(user: string, toMenuItems: (inputQuickFixes: readonly IActionItem[], showHeaders: boolean) => IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, resolver?: IActionKeybindingResolver): Promise<void> {
 		this._currentShowingContext = undefined;
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
+		const list = this._instantiationService.createInstance(ActionList, user, actions.allActions, true, delegate, resolver, toMenuItems);
 
 		const actionsToShow = options.includeDisabledActions && (this._showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
 		if (!actionsToShow.length) {
@@ -206,7 +211,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			return;
 		}
 
-		this._currentShowingContext = { actions, anchor, container, options };
+		this._currentShowingContext = { user, toMenuItems, delegate, actions, anchor, container, options, resolver };
 
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
@@ -341,7 +346,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this._showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(this._list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options);
+			this.show(previousCtx.user, previousCtx.toMenuItems, previousCtx.delegate, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.resolver);
 		}
 	}
 
@@ -353,7 +358,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 }
 registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.Delayed);
 
-export abstract class ActionList<T extends IActionItem> extends Disposable implements IActionList<T> {
+export class ActionList<T extends IActionItem> extends Disposable implements IActionList {
 
 	readonly domNode: HTMLElement;
 	private readonly _list: List<IListMenuItem<IActionItem>>;
@@ -373,8 +378,9 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		showHeaders: boolean,
 		private readonly _delegate: IRenderDelegate<T>,
 		resolver: IActionKeybindingResolver | undefined,
+		toMenuItems: (inputActions: readonly T[], showHeaders: boolean) => IListMenuItem<T>[],
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -407,12 +413,10 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this._allMenuItems = this.toMenuItems(items, showHeaders);
+		this._allMenuItems = toMenuItems(items, showHeaders);
 		this._list.splice(0, this._list.length, this._allMenuItems);
 		this.focusNext();
 	}
-
-	abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
