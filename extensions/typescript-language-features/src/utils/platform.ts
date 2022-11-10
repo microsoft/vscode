@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 
+declare const navigator: unknown;
 export function isWeb(): boolean {
 	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
 }
