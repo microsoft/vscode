@@ -5,6 +5,10 @@
 
 'use strict';
 
+// ESM-uncomment-begin
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 //@ts-check
 
 (function () {
@@ -123,3 +127,8 @@
 	}
 
 })();
+
+// ESM-uncomment-begin
+// export const mark = module.exports.mark;
+// export const getMarks = module.exports.getMarks;
+// ESM-uncomment-end

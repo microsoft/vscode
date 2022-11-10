@@ -31,6 +31,8 @@ import { missingTMGrammarErrorMessage, TMGrammarFactory } from 'vs/workbench/ser
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { importAMDNodeModule } from 'vs/base/browser/amd';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: undefined;
@@ -58,7 +60,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IProgressService private readonly _progressService: IProgressService
+		@IProgressService private readonly _progressService: IProgressService,
+		@IEnvironmentService protected readonly _environmentService: IEnvironmentService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();
@@ -226,7 +229,10 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			return this._grammarFactory;
 		}
 
-		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([import('vscode-textmate'), this._getVSCodeOniguruma()]);
+		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([
+			importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js', this._environmentService.isBuilt),
+			this._getVSCodeOniguruma()
+		]);
 		const onigLib: Promise<IOnigLib> = Promise.resolve({
 			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
 			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
@@ -400,7 +406,10 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
-		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma'), this._loadVSCodeOnigurumWASM()]);
+		const [vscodeOniguruma, wasm] = await Promise.all([
+			importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js', this._environmentService.isBuilt),
+			this._loadVSCodeOnigurumWASM()
+		]);
 		const options = {
 			data: wasm,
 			print: (str: string) => {

@@ -24,6 +24,7 @@ import { WindowError } from 'vs/platform/window/electron-main/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { isESM } from 'vs/base/common/amd';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -222,7 +223,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			show: false,
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+				preload: FileAccess.asFileUri(`vs/base/parts/sandbox/electron-browser/preload${isESM ? '.cjs' : '.js'}`).fsPath,
 				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`, '--vscode-window-kind=shared-process'],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,

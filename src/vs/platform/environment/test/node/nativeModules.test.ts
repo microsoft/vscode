@@ -15,7 +15,12 @@ function testErrorMessage(module: string): string {
 flakySuite('Native Modules (all platforms)', () => {
 
 	test('native-is-elevated', async () => {
+		// ESM-comment-begin
 		const isElevated = await import('native-is-elevated');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const isElevated = (await import('native-is-elevated')).default;
+		// ESM-uncomment-end
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
 		const result = isElevated();

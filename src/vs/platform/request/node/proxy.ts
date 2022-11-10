@@ -44,7 +44,21 @@ export async function getProxyAgent(rawRequestURL: string, env: typeof process.e
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true,
 	};
 
-	return requestURL.protocol === 'http:'
-		? new (await import('http-proxy-agent'))(opts as any as Url)
-		: new (await import('https-proxy-agent'))(opts);
+	if (requestURL.protocol === 'http:') {
+		// ESM-comment-begin
+		const ctor = await import('http-proxy-agent');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const ctor = (await import('http-proxy-agent')).default;
+		// ESM-uncomment-end
+		return new ctor(opts as any as Url);
+	} else {
+		// ESM-comment-begin
+		const ctor = await import('https-proxy-agent');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const ctor = (await import('https-proxy-agent')).default;
+		// ESM-uncomment-end
+		return new ctor(opts);
+	}
 }

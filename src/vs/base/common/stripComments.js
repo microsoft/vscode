@@ -7,6 +7,10 @@
 
 //@ts-check
 
+// ESM-uncomment-begin
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 (function () {
 	function factory(path, os, productName, cwd) {
 		// First group matches a double quoted string
@@ -62,3 +66,7 @@
 		console.trace('strip comments defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
+
+// ESM-uncomment-begin
+// export const stripComments = module.exports.stripComments;
+// ESM-uncomment-end

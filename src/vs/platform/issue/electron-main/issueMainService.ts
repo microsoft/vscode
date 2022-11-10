@@ -27,6 +27,7 @@ import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { isESM } from 'vs/base/common/amd';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 
@@ -325,7 +326,7 @@ export class IssueMainService implements IIssueMainService {
 			title: options.title,
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+				preload: FileAccess.asFileUri(`vs/base/parts/sandbox/electron-browser/preload${isESM ? '.cjs' : '.js'}`).fsPath,
 				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,

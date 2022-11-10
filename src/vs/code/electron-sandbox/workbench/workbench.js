@@ -19,17 +19,21 @@
 	// we know for a fact that workbench.desktop.main will depend on
 	// the related CSS and NLS counterparts.
 	bootstrapWindow.load([
+		// ESM-comment-begin
 		'vs/workbench/workbench.desktop.main',
 		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// './vs/workbench/workbench.desktop.main.js',
+		// ESM-uncomment-end
 	],
-		function (_, configuration) {
+		function (desktopMain, configuration) {
 
 			// Mark start of workbench
 			performance.mark('code/didLoadWorkbenchMain');
 
-			// @ts-ignore
-			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
+			return desktopMain[0].main(configuration);
 		},
 		{
 			configureDeveloperSettings: function (windowConfig) {

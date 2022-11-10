@@ -157,11 +157,11 @@ export class TextMateService extends AbstractTextMateService {
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProgressService progressService: IProgressService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IModelService private readonly _modelService: IModelService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
-		super(languageService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
+		super(languageService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService, environmentService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);

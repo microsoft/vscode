@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// ESM-comment-begin
+export const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// export const isESM = true;
+// ESM-uncomment-end
+
 export abstract class LoaderStats {
 	abstract get amdLoad(): [string, number][];
 	abstract get amdInvoke(): [string, number][];

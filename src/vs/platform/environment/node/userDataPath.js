@@ -5,6 +5,12 @@
 
 /// <reference path="../../../../typings/require.d.ts" />
 
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import * as os from 'os';
+// let __exports = {};
+// ESM-uncomment-end
+
 //@ts-check
 (function () {
 	'use strict';
@@ -106,6 +112,7 @@
 		};
 	}
 
+	// ESM-comment-begin
 	if (typeof define === 'function') {
 		define(['path', 'os', 'vs/base/common/process'], function (
 			/** @type {typeof import('path')} */ path,
@@ -122,4 +129,13 @@
 	} else {
 		throw new Error('Unknown context');
 	}
+	// ESM-comment-end
+
+	// ESM-uncomment-begin
+	// __exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // esm
+	// ESM-uncomment-end
 }());
+
+// ESM-uncomment-begin
+// export const getUserDataPath = __exports.getUserDataPath;
+// ESM-uncomment-end

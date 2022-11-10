@@ -473,7 +473,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
-			isAdmin = (await import('native-is-elevated'))();
+			// ESM-comment-begin
+			const isElevated = await import('native-is-elevated');
+			// ESM-comment-end
+			// ESM-uncomment-begin
+			// const isElevated = (await import('native-is-elevated')).default;
+			// ESM-uncomment-end
+			isAdmin = isElevated();
 		} else {
 			isAdmin = process.getuid() === 0;
 		}

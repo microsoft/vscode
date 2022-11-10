@@ -6,7 +6,14 @@
 //@ts-check
 'use strict';
 
-const performance = require('./vs/base/common/performance');
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+const requireExtension = (isESM ? '.cjs' : '');
+const performance = require(`./vs/base/common/performance${requireExtension}`);
 performance.mark('code/fork/start');
 
 const bootstrap = require('./bootstrap');
@@ -38,8 +45,46 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
-
+if (isESM) {
+	global.MonacoFileRoot = __dirname;
+	global.MonacoNodeModules = {
+		crypto: require('crypto'),
+		zlib: require('zlib'),
+		net: require('net'),
+		os: require('os'),
+	};
+	global.vscode = {};
+	global.vscode.context = {
+		configuration: () => {
+			/** @type {any} */
+			const product = require('../product.json');
+			// Running out of sources
+			if (process.env['VSCODE_DEV']) {
+				Object.assign(product, {
+					nameShort: `${product.nameShort} Dev`,
+					nameLong: `${product.nameLong} Dev`,
+					dataFolderName: `${product.dataFolderName}-dev`,
+					serverDataFolderName: product.serverDataFolderName ? `${product.serverDataFolderName}-dev` : undefined
+				});
+			}
+			// Version is added during built time, but we still
+			// want to have it running out of sources so we
+			// read it from package.json only when we need it.
+			if (!product.version) {
+				const pkg = require('../package.json');
+				Object.assign(product, {
+					version: pkg.version
+				});
+			}
+			return { product };
+		}
+	};
+	(async () => {
+		await import(`./${process.env['VSCODE_AMD_ENTRYPOINT']}.js`);
+	})();
+} else {
+	require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
+}
 
 //#region Helpers
 

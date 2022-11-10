@@ -8,6 +8,13 @@
 //@ts-check
 'use strict';
 
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
 
@@ -104,7 +111,7 @@
 
 		// Define `fs` as `original-fs` to disable ASAR support
 		// in fs-operations  (node.js enabled renderers only)
-		if (!safeProcess.sandboxed) {
+		if (!safeProcess.sandboxed && !isESM) {
 			require.define('fs', [], function () {
 				return require.__$__nodeRequire('original-fs');
 			});
@@ -112,70 +119,84 @@
 
 		window['MonacoEnvironment'] = {};
 
-		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			'vs/nls': nlsConfig,
-			preferScriptTags: true
-		};
+		if (isESM) {
+			global.MonacoFileRoot = `${configuration.appRoot}/out`;
+			global.MonacoNodeModules = {
+				crypto: require('crypto'),
+				zlib: require('zlib'),
+				net: require('net'),
+				os: require('os'),
+			};
+			const result = modulePaths.map((modulePath) => import(`${configuration.appRoot}/out/${modulePath}`));
+			Promise.all(result).then((res) => invokeResult(res), onUnexpectedError);
+		} else {
+			const loaderConfig = {
+				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
+				'vs/nls': nlsConfig,
+				preferScriptTags: true
+			};
 
-		// use a trusted types policy when loading via script tags
-		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-			createScriptURL(value) {
-				if (value.startsWith(window.location.origin)) {
-					return value;
+			// use a trusted types policy when loading via script tags
+			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
 				}
-				throw new Error(`Invalid script url: ${value}`);
-			}
-		});
-
-		// Teach the loader the location of the node modules we use in renderers
-		// This will enable to load these modules via <script> tags instead of
-		// using a fallback such as node.js require which does not exist in sandbox
-		const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-		loaderConfig.paths = {
-			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
-			'xterm-addon-canvas': `${baseNodeModulesPath}/xterm-addon-canvas/lib/xterm-addon-canvas.js`,
-			'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
-			'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-			'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
-			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-			'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
-			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
-		};
-
-		// Allow to load built-in and other node.js modules via AMD
-		// which has a fallback to using node.js `require`
-		// (node.js enabled renderers only)
-		if (!safeProcess.sandboxed) {
-			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-canvas$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^vscode-regexp-languagedetection$)|(^tas-client-umd$)/;
-		}
-
-		// Signal before require.config()
-		if (typeof options?.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(loaderConfig);
-		}
-
-		// Configure loader
-		require.config(loaderConfig);
-
-		// Handle pseudo NLS
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
+
+			// Teach the loader the location of the node modules we use in renderers
+			// This will enable to load these modules via <script> tags instead of
+			// using a fallback such as node.js require which does not exist in sandbox
+			const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
+			loaderConfig.paths = {
+				'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
+				'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
+				'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
+				'xterm-addon-canvas': `${baseNodeModulesPath}/xterm-addon-canvas/lib/xterm-addon-canvas.js`,
+				'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+				'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
+				'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
+				'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
+				'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
+				'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
+			};
+
+			// Allow to load built-in and other node.js modules via AMD
+			// which has a fallback to using node.js `require`
+			// (node.js enabled renderers only)
+			if (!safeProcess.sandboxed) {
+				loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-canvas$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^vscode-regexp-languagedetection$)|(^tas-client-umd$)/;
+			}
+
+			// Signal before require.config()
+			if (typeof options?.beforeLoaderConfig === 'function') {
+				options.beforeLoaderConfig(loaderConfig);
+			}
+
+			// Configure loader
+			require.config(loaderConfig);
+
+			// Handle pseudo NLS
+			if (nlsConfig.pseudo) {
+				require(['vs/nls'], function (nlsPlugin) {
+					nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+				});
+			}
+
+			// Signal before require()
+			if (typeof options?.beforeRequire === 'function') {
+				options.beforeRequire();
+			}
+
+			// Actually require the main module as specified
+			require(modulePaths, invokeResult, onUnexpectedError);
 		}
 
-		// Signal before require()
-		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire();
-		}
-
-		// Actually require the main module as specified
-		require(modulePaths, async result => {
+		async function invokeResult(result) {
 			try {
 
 				// Callback only after process environment is resolved
@@ -190,7 +211,7 @@
 			} catch (error) {
 				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
-		}, onUnexpectedError);
+		}
 	}
 
 	/**

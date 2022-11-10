@@ -12,7 +12,14 @@
  * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
  */
 
-const perf = require('./vs/base/common/performance');
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+const requireExtension = (isESM ? '.cjs' : '');
+const perf = require(`./vs/base/common/performance${requireExtension}`);
 perf.mark('code/didStartMain');
 
 const path = require('path');
@@ -20,8 +27,8 @@ const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
-const { stripComments } = require('./vs/base/common/stripComments');
+const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath${requireExtension}`);
+const { stripComments } = require(`./vs/base/common/stripComments${requireExtension}`);
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
@@ -95,7 +102,7 @@ let nlsConfigurationPromise = undefined;
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
-	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	const { getNLSConfiguration } = require(`./vs/base/node/languagePacks${requireExtension}`);
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
@@ -129,9 +136,49 @@ function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
-	});
+	if (isESM) {
+		global.MonacoFileRoot = __dirname;
+		global.MonacoNodeModules = {
+			crypto: require('crypto'),
+			zlib: require('zlib'),
+			net: require('net'),
+			os: require('os'),
+		};
+		global.vscode = {};
+		global.vscode.context = {
+			configuration: () => {
+				/** @type {any} */
+				const product = require('../product.json');
+				// Running out of sources
+				if (process.env['VSCODE_DEV']) {
+					Object.assign(product, {
+						nameShort: `${product.nameShort} Dev`,
+						nameLong: `${product.nameLong} Dev`,
+						dataFolderName: `${product.dataFolderName}-dev`,
+						serverDataFolderName: product.serverDataFolderName ? `${product.serverDataFolderName}-dev` : undefined
+					});
+				}
+				// Version is added during built time, but we still
+				// want to have it running out of sources so we
+				// read it from package.json only when we need it.
+				if (!product.version) {
+					const pkg = require('../package.json');
+					Object.assign(product, {
+						version: pkg.version
+					});
+				}
+				return { product };
+			}
+		};
+		(async () => {
+			await import('./vs/code/electron-main/main.js');
+			perf.mark('code/didLoadMainBundle');
+		})();
+	} else {
+		require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+			perf.mark('code/didLoadMainBundle');
+		});
+	}
 }
 
 async function onReady() {
@@ -559,7 +606,7 @@ async function resolveNlsConfiguration() {
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
 
-			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+			const { getNLSConfiguration } = require(`./vs/base/node/languagePacks${requireExtension}`);
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
 			if (!nlsConfiguration) {
 				nlsConfiguration = { locale: appLocale, availableLanguages: {} };

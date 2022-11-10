@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
+import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { isESM } from 'vs/base/common/amd';
 
 export namespace Schemas {
 
@@ -197,7 +199,7 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = this.toUri(resourcePath, require);
+		const uri = (isESM ? this.toUri(resourcePath) : this.toUri(resourcePath, require));
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -244,7 +246,7 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = this.toUri(resourcePath, require);
+		const uri = (isESM ? this.toUri(resourcePath) : this.toUri(resourcePath, require));
 		return this.uriToFileUri(uri);
 	}
 
@@ -269,12 +271,18 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
+		if ((<any>global).MonacoFileRoot) {
+			const rootPath = (<any>global).MonacoFileRoot;
+			const modulePath = path.join(rootPath, uriOrModule);
+			return URI.parse(modulePath);
+		}
+
+		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
 	}
 }
 
