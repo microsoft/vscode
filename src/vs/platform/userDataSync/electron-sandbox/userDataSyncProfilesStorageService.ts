@@ -30,7 +30,7 @@ export class UserDataSyncProfilesStorageService extends AbstractUserDataSyncProf
 		const disposable = this._register(new MutableDisposable());
 		this._onDidChange = this._register(new Emitter<IProfileStorageChanges>({
 			// Start listening to profile storage changes only when someone is listening
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				disposable.value = channel.listen<IProfileStorageChanges>('onDidChange')(e => {
 					logService.trace('profile storage changes', e);
 					this._onDidChange.fire({
@@ -40,7 +40,7 @@ export class UserDataSyncProfilesStorageService extends AbstractUserDataSyncProf
 				});
 			},
 			// Stop listening to profile storage changes when no one is listening
-			onLastListenerRemove: () => disposable.value = undefined
+			onDidRemoveLastListener: () => disposable.value = undefined
 		}));
 		this.onDidChange = this._onDidChange.event;
 	}

@@ -5,7 +5,6 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
@@ -18,7 +17,6 @@ import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescriptio
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
 
@@ -87,7 +85,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			this._delayer.trigger(() => {
 				vscode.window.withProgress({
 					location: vscode.ProgressLocation.Window,
-					title: localize('renameProgress.title', "Checking for update of JS/TS imports")
+					title: vscode.l10n.t("Checking for update of JS/TS imports")
 				}, () => this.flushRenames());
 			});
 		}));
@@ -148,26 +146,26 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		const rejectItem: vscode.MessageItem = {
-			title: localize('reject.title', "No"),
+			title: vscode.l10n.t("No"),
 			isCloseAffordance: true,
 		};
 
 		const acceptItem: vscode.MessageItem = {
-			title: localize('accept.title', "Yes"),
+			title: vscode.l10n.t("Yes"),
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: localize('always.title', "Always automatically update imports"),
+			title: vscode.l10n.t("Always automatically update imports"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: localize('never.title', "Never automatically update imports"),
+			title: vscode.l10n.t("Never automatically update imports"),
 		};
 
 		const response = await vscode.window.showInformationMessage(
 			newResources.length === 1
-				? localize('prompt', "Update imports for '{0}'?", path.basename(newResources[0].fsPath))
-				: this.getConfirmMessage(localize('promptMoreThanOne', "Update imports for the following {0} files?", newResources.length), newResources), {
+				? vscode.l10n.t("Update imports for '{0}'?", path.basename(newResources[0].fsPath))
+				: this.getConfirmMessage(vscode.l10n.t("Update imports for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
@@ -261,9 +259,9 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
 			if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
-				paths.push(localize('moreFile', "...1 additional file not shown"));
+				paths.push(vscode.l10n.t("...1 additional file not shown"));
 			} else {
-				paths.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+				paths.push(vscode.l10n.t("...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
 			}
 		}
 

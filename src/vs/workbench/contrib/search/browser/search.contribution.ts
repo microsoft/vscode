@@ -546,7 +546,7 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 				original: 'View as Tree'
 			},
 			category,
-			icon: searchShowAsTree,
+			icon: searchShowAsList,
 			f1: true,
 			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.InTreeViewKey.toNegated()),
 			menu: [{
@@ -575,7 +575,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 				original: 'View as List'
 			},
 			category,
-			icon: searchShowAsList,
+			icon: searchShowAsTree,
 			f1: true,
 			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.InTreeViewKey),
 			menu: [{

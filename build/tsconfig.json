@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"target": "es2020",
+		"target": "es2022",
 		"lib": ["ES2020"],
 		"module": "commonjs",
 		"alwaysStrict": true,
@@ -8,7 +8,6 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"resolveJsonModule": true,
-		"experimentalDecorators": true,
 		// enable JavaScript type checking for the language service
 		// use the tsconfig.build.json for compiling which disable JavaScript
 		// type checking so that JavaScript file are not transpiled

@@ -25,7 +25,7 @@
 	border-width: 1px;
 	border-style: solid;
 	border-color: var(--vscode-contrastBorder);
-	border-radius: 5px;
+	border-radius: 2px;
 	padding: 4px;
 	cursor: pointer;
 }

@@ -10,7 +10,7 @@ import { codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refacto
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export interface ResolveCodeActionKeybinding {
+interface ResolveCodeActionKeybinding {
 	readonly kind: CodeActionKind;
 	readonly preferred: boolean;
 	readonly resolvedKeybinding: ResolvedKeybinding;

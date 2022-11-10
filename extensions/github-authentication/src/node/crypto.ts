@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/**
- * @returns New array with all falsy values removed. The original array IS NOT modified.
- */
-export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	return <T[]>array.filter(e => !!e);
-}
+import { webcrypto } from 'crypto';
+
+export const crypto = webcrypto as any as Crypto;

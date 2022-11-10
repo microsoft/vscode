@@ -109,6 +109,14 @@
 	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
 }
 
+.merge-editor-simplified.input.i1, .merge-editor-block.use-simplified-decorations.input.i1 {
+	background-color: var(--vscode-mergeEditor-conflict-input1-background);
+}
+
+.merge-editor-simplified.input.i2, .merge-editor-block.use-simplified-decorations.input.i2 {
+	background-color: var(--vscode-mergeEditor-conflict-input2-background);
+}
+
 /* END: .merge-editor-block */
 
 .gutter.monaco-editor>div {

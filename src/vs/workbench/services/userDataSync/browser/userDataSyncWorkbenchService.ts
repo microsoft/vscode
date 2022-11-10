@@ -335,7 +335,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			await this.synchroniseUserDataSyncStoreType();
 		}
 
-		this.notificationService.info(localize('sync turned on', "{0} is turned on", `${SYNC_TITLE} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`));
+		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {

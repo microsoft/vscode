@@ -6,18 +6,16 @@
 import { dirname } from 'path';
 import {
 	CancellationToken, commands, ExtensionContext,
-	Hover, HoverProvider, MarkdownString, Position, ProviderResult,
+	Hover, HoverProvider, MarkdownString, l10n, Position, ProviderResult,
 	tasks, TextDocument,
 	Uri, workspace
 } from 'vscode';
-import * as nls from 'vscode-nls';
 import { INpmScriptInfo, readScripts } from './readScripts';
 import {
 	createTask,
 	getPackageManager, startDebugging
 } from './tasks';
 
-const localize = nls.loadMessageBundle();
 
 let cachedDocument: Uri | undefined = undefined;
 let cachedScripts: INpmScriptInfo | undefined = undefined;
@@ -81,10 +79,10 @@ export class NpmScriptHoverProvider implements HoverProvider {
 			script: script,
 		};
 		return this.createMarkdownLink(
-			localize('runScript', 'Run Script'),
+			l10n.t("Run Script"),
 			'npm.runScriptFromHover',
 			args,
-			localize('runScript.tooltip', 'Run the script as a task')
+			l10n.t("Run the script as a task")
 		);
 	}
 
@@ -94,10 +92,10 @@ export class NpmScriptHoverProvider implements HoverProvider {
 			script: script,
 		};
 		return this.createMarkdownLink(
-			localize('debugScript', 'Debug Script'),
+			l10n.t("Debug Script"),
 			'npm.debugScriptFromHover',
 			args,
-			localize('debugScript.tooltip', 'Runs the script under the debugger'),
+			l10n.t("Runs the script under the debugger"),
 			'|'
 		);
 	}

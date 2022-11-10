@@ -288,7 +288,7 @@ export class DebugSession implements IDebugSession {
 
 		try {
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = this.instantiationService.createInstance(RawDebugSession, debugAdapter, dbgr, this.id);
+			this.raw = this.instantiationService.createInstance(RawDebugSession, debugAdapter, dbgr, this.id, this.configuration.name);
 
 			await this.raw.start();
 			this.registerListeners();
@@ -306,7 +306,8 @@ export class DebugSession implements IDebugSession {
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
 				supportsMemoryReferences: true, //#129684
-				supportsArgsCanBeInterpretedByShell: true // #149910
+				supportsArgsCanBeInterpretedByShell: true, // #149910
+				supportsMemoryEvent: true
 			});
 
 			this.initialized = true;
@@ -889,7 +890,7 @@ export class DebugSession implements IDebugSession {
 			// whether the thread is stopped or not
 			if (stoppedDetails.allThreadsStopped) {
 				this.threads.forEach(thread => {
-					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: undefined };
+					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: thread.stoppedDetails?.reason };
 					thread.stopped = true;
 					thread.clearCallStack();
 				});
