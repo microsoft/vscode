@@ -6,7 +6,7 @@
  * Returns a sha-256 composed of `parentOrigin` and `salt` converted to base 32
  */
 export async function parentOriginHash(parentOrigin: string, salt: string): Promise<string> {
-	// This same code is also inlined at `src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`
+	// This same code is also inlined at `src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html` and at `src/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html`
 	if (!crypto.subtle) {
 		throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
 	}

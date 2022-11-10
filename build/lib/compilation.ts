@@ -128,10 +128,10 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile('src', build, false, false);
+		const compile = createCompile('src2', build, false, false); // DO NOT MERGE TO `main`
 
-		const src = gulp.src('src/**', { base: 'src' });
-		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+		const src = gulp.src('src2/**', { base: 'src2' }); // DO NOT MERGE TO `main`
+		const watchSrc = watch('src2/**', { base: 'src2', readDelay: 200 }); // DO NOT MERGE TO `main`
 
 		const generator = new MonacoGenerator(true);
 		generator.execute();

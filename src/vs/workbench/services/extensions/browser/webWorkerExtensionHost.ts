@@ -31,6 +31,7 @@ import { COI, FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isESM } from 'vs/base/common/amd';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -90,7 +91,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const suffix = `?${suffixSearchParams.toString()}`;
 
-		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
+		const iframeModulePath = (
+			isESM
+				? 'vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html'
+				: 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
+		);
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;

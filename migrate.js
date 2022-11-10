@@ -63,6 +63,9 @@ function migrate() {
 		}
 	}
 
+	fs.writeFileSync(path.join(dstFolder, 'vs', 'package.json'), `{"type": "module"}`);
+	fs.writeFileSync(path.join(dstFolder, '.gitignore'), `*`);
+
 }
 
 /**
