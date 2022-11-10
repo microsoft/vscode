@@ -30,7 +30,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 export const acceptSelectedAction = 'acceptSelectedAction';
 export const previewSelectedAction = 'previewSelectedAction';
 
-export const Context = {
+export const ActionWidgetContextKeys = {
 	Visible: new RawContextKey<boolean>('actionWidgetVisible', false, localize('actionWidgetVisible', "Whether the action widget list is visible"))
 };
 export interface IRenderDelegate<T> {
@@ -175,7 +175,7 @@ export interface IActionWidgetService {
 
 export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	readonly _serviceBrand: undefined;
-	get isVisible() { return Context.Visible.getValue(this._contextKeyService) || false; }
+	get isVisible() { return ActionWidgetContextKeys.Visible.getValue(this._contextKeyService) || false; }
 	public showDisabled = false;
 	currentShowingContext?: {
 		readonly options: IActionShowOptions;
@@ -196,7 +196,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	public async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
 		this.currentShowingContext = undefined;
-		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
+		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
 		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
 		if (!actionsToShow.length) {
@@ -520,7 +520,7 @@ registerAction2(class extends Action2 {
 				value: localize('hideCodeActionWidget.title', "Hide code action widget"),
 				original: 'Hide code action widget'
 			},
-			precondition: Context.Visible,
+			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
 				primary: KeyCode.Escape,
@@ -542,7 +542,7 @@ registerAction2(class extends Action2 {
 				value: localize('selectPrevCodeAction.title', "Select previous code action"),
 				original: 'Select previous code action'
 			},
-			precondition: Context.Visible,
+			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
 				primary: KeyCode.UpArrow,
@@ -565,7 +565,7 @@ registerAction2(class extends Action2 {
 				value: localize('selectNextCodeAction.title', "Select next code action"),
 				original: 'Select next code action'
 			},
-			precondition: Context.Visible,
+			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
 				primary: KeyCode.DownArrow,
@@ -588,7 +588,7 @@ registerAction2(class extends Action2 {
 				value: localize('acceptSelected.title', "Accept selected code action"),
 				original: 'Accept selected code action'
 			},
-			precondition: Context.Visible,
+			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
 				primary: KeyCode.Enter,
@@ -610,7 +610,7 @@ registerAction2(class extends Action2 {
 				value: localize('previewSelected.title', "Preview selected code action"),
 				original: 'Preview selected code action'
 			},
-			precondition: Context.Visible,
+			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
