@@ -137,6 +137,12 @@ impl ReqwestSimpleHttp {
 	}
 }
 
+impl Default for ReqwestSimpleHttp {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 #[async_trait]
 impl SimpleHttp for ReqwestSimpleHttp {
 	async fn make_request(
