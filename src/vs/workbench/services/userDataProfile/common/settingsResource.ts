@@ -8,7 +8,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfileService, IResourceProfile, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, IProfileResource, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { removeComments, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -16,7 +16,7 @@ interface ISettingsContent {
 	settings: string;
 }
 
-export class SettingsProfile implements IResourceProfile {
+export class SettingsResource implements IProfileResource {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -26,21 +26,19 @@ export class SettingsProfile implements IResourceProfile {
 	) {
 	}
 
-	async getProfileContent(options?: ProfileCreationOptions): Promise<string> {
+	async getContent(options?: ProfileCreationOptions): Promise<string> {
 		const ignoredSettings = this.getIgnoredSettings();
 		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfileService.currentProfile.settingsResource);
 		const localContent = await this.getLocalFileContent();
-		let settingsProfileContent = updateIgnoredSettings(localContent || '{}', '{}', ignoredSettings, formattingOptions);
+		let settings = updateIgnoredSettings(localContent || '{}', '{}', ignoredSettings, formattingOptions);
 		if (options?.skipComments) {
-			settingsProfileContent = removeComments(settingsProfileContent, formattingOptions);
+			settings = removeComments(settings, formattingOptions);
 		}
-		const settingsContent: ISettingsContent = {
-			settings: settingsProfileContent
-		};
+		const settingsContent: ISettingsContent = { settings };
 		return JSON.stringify(settingsContent);
 	}
 
-	async applyProfile(content: string): Promise<void> {
+	async apply(content: string): Promise<void> {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		this.logService.trace(`Profile: Applying settings...`);
 		const localSettingsContent = await this.getLocalFileContent();

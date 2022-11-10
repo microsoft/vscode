@@ -80,7 +80,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					[PROFILES_ENABLEMENT_CONFIG]: {
 						'type': 'boolean',
 						'default': false,
-						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
+						'description': localize('workbench.experimental.profiles.enabled', "Controls whether to enable the Profiles preview feature."),
 						scope: ConfigurationScope.APPLICATION,
 						ignoreSync: true
 					}
@@ -301,8 +301,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			command: {
 				id,
 				title: {
-					value: localize('export settings profile', "Export Settings Profile ({0})...", that.userDataProfileService.currentProfile.name),
-					original: `Export Settings Profile (${that.userDataProfileService.currentProfile.name})...`
+					value: localize('export profile in share', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+					original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 				},
 				precondition: PROFILES_ENABLEMENT_CONTEXT,
 			},
@@ -358,10 +358,10 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const disposables = new DisposableStore();
 				const quickPick = disposables.add(quickInputService.createQuickPick());
 				const updateQuickPickItems = (value?: string) => {
-					const selectFromFileItem: IQuickPickItem = { label: isSettingProfilesEnabled ? localize('select from file', "Select Settings Profile template file") : localize('import from file', "Import from profile file") };
+					const selectFromFileItem: IQuickPickItem = { label: isSettingProfilesEnabled ? localize('select from file', "Select Profile template file") : localize('import from file', "Import from profile file") };
 					quickPick.items = value ? [{ label: isSettingProfilesEnabled ? localize('select from url', "Create from template URL") : localize('import from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
 				};
-				quickPick.title = isSettingProfilesEnabled ? localize('create from profile template quick pick title', "Create from Settings Profile Template") : localize('import profile quick pick title', "Import Settings from a Profile");
+				quickPick.title = isSettingProfilesEnabled ? localize('create from profile template quick pick title', "Create from Profile Template") : localize('import profile quick pick title', "Import Settings from a Profile");
 				quickPick.placeholder = isSettingProfilesEnabled ? localize('create from profile template placeholder', "Provide a template URL or Select a template file") : localize('import profile placeholder', "Provide profile URL or select profile file to import");
 				quickPick.ignoreFocusOut = true;
 				disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
@@ -419,8 +419,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			command: {
 				id,
 				title: {
-					value: localize('import settings profile', "Import Settings Profile...",),
-					original: 'Import Settings Profile...'
+					value: localize('import profile share', "Import Profile...",),
+					original: 'Import Profile...'
 				},
 				precondition: PROFILES_ENABLEMENT_CONTEXT,
 			},
