@@ -159,6 +159,10 @@
 	flex-wrap: nowrap;
 }
 
+.monaco-workbench.web .part.titlebar>.titlebar-container>.menubar {
+	margin-left: 4px;
+}
+
 .monaco-workbench .part.titlebar>.titlebar-container.counter-zoom > .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container {
 	zoom: var(--zoom-factor);
 }

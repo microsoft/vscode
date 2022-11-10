@@ -59,15 +59,3 @@ export interface ISequence {
 	*/
 	getBoundaryScore?(length: number): number;
 }
-
-export class SequenceFromIntArray implements ISequence {
-	constructor(private readonly arr: number[]) { }
-
-	getElement(offset: number): number {
-		return this.arr[offset];
-	}
-
-	get length(): number {
-		return this.arr.length;
-	}
-}

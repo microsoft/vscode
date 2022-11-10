@@ -24,6 +24,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -209,17 +210,19 @@ struct UpdateServerVersion {
 }
 
 /// Code server listening on a port address.
+#[derive(Clone)]
 pub struct SocketCodeServer {
 	pub commit_id: String,
 	pub socket: PathBuf,
-	pub origin: CodeServerOrigin,
+	pub origin: Arc<CodeServerOrigin>,
 }
 
 /// Code server listening on a socket address.
+#[derive(Clone)]
 pub struct PortCodeServer {
 	pub commit_id: String,
 	pub port: u16,
-	pub origin: CodeServerOrigin,
+	pub origin: Arc<CodeServerOrigin>,
 }
 
 /// A server listening on any address/location.
@@ -448,7 +451,7 @@ impl<'a> ServerBuilder<'a> {
 		)
 		.await?;
 
-		let origin = CodeServerOrigin::Existing(pid);
+		let origin = Arc::new(CodeServerOrigin::Existing(pid));
 		let contents = fs::read_to_string(&self.server_paths.logfile)
 			.expect("Something went wrong reading log file");
 
@@ -544,7 +547,7 @@ impl<'a> ServerBuilder<'a> {
 		Ok(SocketCodeServer {
 			commit_id: self.server_params.release.commit.to_owned(),
 			socket,
-			origin,
+			origin: Arc::new(origin),
 		})
 	}
 

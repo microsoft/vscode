@@ -2,16 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 export type JSONLanguageStatus = { schemas: string[] };
 
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType,
@@ -106,7 +103,7 @@ export interface SchemaRequestService {
 	clearCache?(): Promise<string[]>;
 }
 
-export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
+export const languageServerDescription = l10n.t('JSON Language Server');
 
 let resultLimit = 5000;
 let jsonFoldingLimit = 5000;
@@ -121,7 +118,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	const documentSelector = ['json', 'jsonc'];
 
 	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
-	schemaResolutionErrorStatusBarItem.name = localize('json.resolveError', "JSON: Schema Resolution Error");
+	schemaResolutionErrorStatusBarItem.name = l10n.t('JSON: Schema Resolution Error');
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
@@ -139,7 +136,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
-		window.showInformationMessage(localize('json.clearCache.completed', "JSON schema cache cleared."));
+		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
 	// Options to control the language client
@@ -277,7 +274,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
 		if (uri.scheme === 'untitled') {
-			return Promise.reject(new ResponseError(3, localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+			return Promise.reject(new ResponseError(3, l10n.t('Unable to load {0}', uri.toString())));
 		}
 		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			return workspace.openTextDocument(uri).then(doc => {
@@ -301,7 +298,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return Promise.reject(new ResponseError(4, e.toString()));
 			});
 		} else {
-			return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
+			return Promise.reject(new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 		}
 	});
 
@@ -417,11 +414,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	function updateSchemaDownloadSetting() {
 		schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
 		if (schemaDownloadEnabled) {
-			schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema. Click to retry.');
+			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Unable to resolve schema. Click to retry.');
 			schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
 			handleRetryResolveSchemaCommand();
 		} else {
-			schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionDisabledMessage', 'Downloading schemas is disabled. Click to configure.');
+			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Downloading schemas is disabled. Click to configure.');
 			schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
 		}
 	}

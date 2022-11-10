@@ -16,9 +16,6 @@ parameters:
     default: false
   - name: VSCODE_QUALITY
     type: string
-  - name: channel
-    type: string
-    default: stable
 
 steps:
   - task: Npm@1

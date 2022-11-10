@@ -199,7 +199,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 					// do not rewrite value from user typing!
 					preserveValue: true,
 					// persist the value of the providerOptions from the original showing
-					providerOptions: providerOptions
+					providerOptions
 				});
 			} else {
 				visibleQuickAccess.value = value; // remember the value in our visible one

@@ -6464,6 +6464,70 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A channel for containing log output.
+	 *
+	 * To get an instance of an `LogOutputChannel` use
+	 * {@link window.createOutputChannel createOutputChannel}.
+	 */
+	export interface LogOutputChannel extends OutputChannel {
+
+		/**
+		 * The current log level of the channel. Defaults to {@link env.logLevel editor log level}.
+		 */
+		readonly logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the channel changes.
+		 */
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+
+		/**
+		 * Outputs the given trace message to the channel. Use this method to log verbose information.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Trace trace} log level.
+		 *
+		 * @param message trace message to log
+		 */
+		trace(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given debug message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
+		 *
+		 * @param message debug message to log
+		 */
+		debug(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given information message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Info info} log level or lower.
+		 *
+		 * @param message info message to log
+		 */
+		info(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given warning message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
+		 *
+		 * @param message warning message to log
+		 */
+		warn(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given error or error message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Error error} log level or lower.
+		 *
+		 * @param error Error or error message to log
+		 */
+		error(error: string | Error, ...args: any[]): void;
+	}
+
+	/**
 	 * Accessibility information which controls screen reader behavior.
 	 */
 	export interface AccessibilityInformation {
@@ -9192,6 +9256,42 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Log levels
+	 */
+	export enum LogLevel {
+
+		/**
+		 * No messages are logged with this level.
+		 */
+		Off = 0,
+
+		/**
+		 * All messages are logged with this level.
+		 */
+		Trace = 1,
+
+		/**
+		 * Messages with debug and higher log level are logged with this level.
+		 */
+		Debug = 2,
+
+		/**
+		 * Messages with info and higher log level are logged with this level.
+		 */
+		Info = 3,
+
+		/**
+		 * Messages with warning and higher log level are logged with this level.
+		 */
+		Warning = 4,
+
+		/**
+		 * Only error messages are logged with this level.
+		 */
+		Error = 5
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -9355,6 +9455,16 @@ declare module 'vscode' {
 		 * @return A uri that can be used on the client machine.
 		 */
 		export function asExternalUri(target: Uri): Thenable<Uri>;
+
+		/**
+		 * The current log level of the editor.
+		 */
+		export const logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the editor changes.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	/**
@@ -9919,6 +10029,14 @@ declare module 'vscode' {
 		 * @param languageId The identifier of the language associated with the channel.
 		 */
 		export function createOutputChannel(name: string, languageId?: string): OutputChannel;
+
+		/**
+		 * Creates a new {@link LogOutputChannel log output channel} with the given name.
+		 *
+		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param options Options for the log output channel.
+		 */
+		export function createOutputChannel(name: string, options: { log: true }): LogOutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
@@ -11990,9 +12108,11 @@ declare module 'vscode' {
 		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
 		 * behavior can be used to add, remove and change workspace folders in a single operation.
 		 *
-		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
-		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
-		 * updated to point to the first workspace folder.
+		 * **Note:** in some cases calling this method may result in the currently executing extensions (including the
+		 * one that called this method) to be terminated and restarted. For example when the first workspace folder is
+		 * added, removed or changed the (deprecated) `rootPath` property is updated to point to the first workspace
+		 * folder. Another case is when transitioning from an empty or single-folder workspace into a multi-folder
+		 * workspace (see also: https://code.visualstudio.com/docs/editor/workspaces).
 		 *
 		 * Use the {@linkcode onDidChangeWorkspaceFolders onDidChangeWorkspaceFolders()} event to get notified when the
 		 * workspace folders have been updated.

@@ -221,6 +221,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					enableWebSQL: false,
 					spellcheck: false,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+					autoplayPolicy: 'user-gesture-required',
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
