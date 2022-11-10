@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -352,10 +352,10 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 }, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
-	dark: null,
+	dark: inputBorder,
 	light: Color.fromHex('#ddd'),
-	hcDark: null,
-	hcLight: null
+	hcDark: inputBorder,
+	hcLight: inputBorder
 }, localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
@@ -625,26 +625,26 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND = registerColor('activityBarItem.settingsProfilesForeground', {
+export const ACTIVITY_BAR_PROFILE_FOREGROUND = registerColor('activityBarItem.profilesForeground', {
 	dark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
 	light: ACTIVITY_BAR_INACTIVE_FOREGROUND,
 	hcDark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
 	hcLight: ACTIVITY_BAR_INACTIVE_FOREGROUND
-}, localize('statusBarItemSettingsProfileForeground', "Foreground color for the settings profile entry on the activity bar."));
+}, localize('activityBarItem.profilesForeground', "Foreground color for the profile entry on the activity bar."));
 
-export const ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND = registerColor('activityBarItem.settingsProfilesHoverForeground', {
+export const ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND = registerColor('activityBarItem.profilesHoverForeground', {
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
 	hcDark: ACTIVITY_BAR_FOREGROUND,
 	hcLight: ACTIVITY_BAR_FOREGROUND
-}, localize('activityBarItem.settingsProfilesHoverForeground', "Foreground color for the settings profile entry on the activity bar when hovering."));
+}, localize('activityBarItem.profilesHoverForeground', "Foreground color for the profile entry on the activity bar when hovering."));
 
-export const ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND = registerColor('activityBarItem.settingsProfilesBackground', {
+export const ACTIVITY_BAR_PROFILE_BACKGROUND = registerColor('activityBarItem.profilesBackground', {
 	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
 	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
 	hcDark: null,
 	hcLight: null
-}, localize('statusBarItemSettingsProfileBackground', "Background color for the settings profile entry on the activity bar."));
+}, localize('activityBarItem.profilesBackground', "Background color for the profile entry on the activity bar."));
 
 // < --- Remote --- >
 

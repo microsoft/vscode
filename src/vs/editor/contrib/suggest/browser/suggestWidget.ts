@@ -516,7 +516,7 @@ export class SuggestWidget implements IDisposable {
 		}
 	}
 
-	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
+	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, noFocus: boolean): void {
 
 		this._contentWidget.setPosition(this.editor.getPosition());
 		this._loadingTimeout?.dispose();
@@ -554,8 +554,8 @@ export class SuggestWidget implements IDisposable {
 		try {
 			this._list.splice(0, this._list.length, this._completionModel.items);
 			this._setState(isFrozen ? State.Frozen : State.Open);
-			if (selectionIndex >= 0) {
-				this._list.reveal(selectionIndex, 0);
+			this._list.reveal(selectionIndex, 0);
+			if (!noFocus) {
 				this._list.setFocus([selectionIndex]);
 			}
 		} finally {
@@ -569,6 +569,15 @@ export class SuggestWidget implements IDisposable {
 			// Reset focus border
 			this._details.widget.domNode.classList.remove('focused');
 		});
+	}
+
+	focusSelected(): void {
+		const selection = this._list.getSelection();
+		if (selection.length !== 1) {
+			this._list.setFocus([0]);
+		} else {
+			this._list.setFocus([selection[0]]);
+		}
 	}
 
 	selectNextPage(): boolean {
