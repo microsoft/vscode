@@ -109,7 +109,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 
 	get templateId(): string { return 'action'; }
 
-	constructor(private readonly _keybindingResolver: { getResolver(): (action: unknown) => ResolvedKeybinding | undefined } | undefined, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
+	constructor(private readonly _keybindingResolver: { getResolver(): (action: any) => ResolvedKeybinding | undefined } | undefined, @IKeybindingService private readonly _keybindingService: IKeybindingService) {
 	}
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
