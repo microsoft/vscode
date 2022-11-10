@@ -179,14 +179,14 @@ export interface IActionWidgetService {
 export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	declare readonly _serviceBrand: undefined;
 	get isVisible() { return ActionWidgetContextKeys.Visible.getValue(this._contextKeyService) || false; }
-	showDisabled = false;
-	currentShowingContext?: {
+	private _showDisabled = false;
+	private _currentShowingContext?: {
 		readonly options: IActionShowOptions;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
 		readonly actions: ActionSet<unknown>;
 	};
-	list = this._register(new MutableDisposable<ActionList<any>>());
+	private _list = this._register(new MutableDisposable<ActionList<any>>());
 	constructor(@ICommandService readonly _commandService: ICommandService,
 		@IContextViewService readonly contextViewService: IContextViewService,
 		@IKeybindingService  readonly keybindingService: IKeybindingService,
@@ -197,16 +197,16 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	}
 
 	async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions): Promise<void> {
-		this.currentShowingContext = undefined;
+		this._currentShowingContext = undefined;
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
-		const actionsToShow = options.includeDisabledActions && (this.showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
+		const actionsToShow = options.includeDisabledActions && (this._showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
 		if (!actionsToShow.length) {
 			visibleContext.reset();
 			return;
 		}
 
-		this.currentShowingContext = { actions, anchor, container, options };
+		this._currentShowingContext = { actions, anchor, container, options };
 
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
@@ -222,24 +222,24 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	}
 
 	acceptSelected(preview?: boolean) {
-		this.list.value?.acceptSelected(preview);
+		this._list.value?.acceptSelected(preview);
 	}
 
 	focusPrevious() {
-		this.list?.value?.focusPrevious();
+		this._list?.value?.focusPrevious();
 	}
 
 	focusNext() {
-		this.list?.value?.focusNext();
+		this._list?.value?.focusNext();
 	}
 
 	hide() {
-		this.list.value?.hide();
-		this.list.clear();
+		this._list.value?.hide();
+		this._list.clear();
 	}
 
 	clear() {
-		this.list.clear();
+		this._list.clear();
 	}
 
 	private _renderWidget(element: HTMLElement, list: ActionList<any>, actions: ActionSet<any>, options: IActionShowOptions): IDisposable {
@@ -247,9 +247,9 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		widget.classList.add('action-widget');
 		element.appendChild(widget);
 
-		this.list.value = list;
-		if (this.list.value) {
-			widget.appendChild(this.list.value.domNode);
+		this._list.value = list;
+		if (this._list.value) {
+			widget.appendChild(this._list.value.domNode);
 		} else {
 			throw new Error('List has no value');
 		}
@@ -281,7 +281,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			}
 		}
 
-		const width = this.list.value?.layout(actionBarWidth);
+		const width = this._list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
@@ -312,7 +312,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}));
 
 		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {
-			resultActions.push(this.showDisabled ? {
+			resultActions.push(this._showDisabled ? {
 				id: 'hideMoreActions',
 				label: localize('hideMoreActions', 'Hide Disabled'),
 				enabled: true,
@@ -334,20 +334,20 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	 * Toggles whether the disabled actions in the action widget are visible or not.
 	 */
 	private _toggleShowDisabled(newShowDisabled: boolean): void {
-		const previousCtx = this.currentShowingContext;
+		const previousCtx = this._currentShowingContext;
 
 		this.hide();
 
-		this.showDisabled = newShowDisabled;
+		this._showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(this.list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options);
+			this.show(this._list.value!, previousCtx.actions, previousCtx.anchor, previousCtx.container, previousCtx.options);
 		}
 	}
 
 	private _onWidgetClosed(didCancel?: boolean): void {
-		this.currentShowingContext = undefined;
-		this.list.value?.hide(didCancel);
+		this._currentShowingContext = undefined;
+		this._list.value?.hide(didCancel);
 	}
 
 }
