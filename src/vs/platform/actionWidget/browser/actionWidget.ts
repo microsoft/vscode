@@ -35,7 +35,7 @@ export const ActionWidgetContextKeys = {
 };
 export interface IRenderDelegate<T> {
 	onHide(cancelled: boolean): void;
-	onSelect(action: T, trigger: any, preview?: boolean): Promise<any>;
+	onSelect(action: T, preview?: boolean): Promise<any>;
 }
 
 export interface IActionShowOptions {
@@ -149,12 +149,13 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 		}
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedAction)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedAction)?.getLabel();
+		data.container.classList.toggle('option-disabled', element.disabled);
 		if (element.disabled) {
 			data.container.title = element.label;
-			data.container.classList.add('option-disabled');
 		} else if (actionTitle && previewTitle) {
 			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
-			data.container.classList.remove('option-disabled');
+		} else {
+			data.container.title = '';
 		}
 	}
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
@@ -174,9 +175,9 @@ export interface IActionWidgetService {
 }
 
 export class ActionWidgetService extends Disposable implements IActionWidgetService {
-	readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	get isVisible() { return ActionWidgetContextKeys.Visible.getValue(this._contextKeyService) || false; }
-	public showDisabled = false;
+	showDisabled = false;
 	currentShowingContext?: {
 		readonly options: IActionShowOptions;
 		readonly anchor: IAnchor;
@@ -184,7 +185,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		readonly actions: ActionSet<unknown>;
 		readonly delegate: IRenderDelegate<unknown>;
 	};
-	public list = this._register(new MutableDisposable<ActionList<any>>());
+	list = this._register(new MutableDisposable<ActionList<any>>());
 	constructor(@ICommandService readonly _commandService: ICommandService,
 		@IContextViewService readonly contextViewService: IContextViewService,
 		@IKeybindingService  readonly keybindingService: IKeybindingService,
@@ -194,7 +195,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	}
 
-	public async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
+	async show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void> {
 		this.currentShowingContext = undefined;
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
@@ -367,8 +368,8 @@ registerSingleton(IActionWidgetService, ActionWidgetService, InstantiationType.D
 
 export abstract class ActionList<T extends IActionItem> extends Disposable implements IActionList<T> {
 
-	public readonly domNode: HTMLElement;
-	public list: List<IListMenuItem<IActionItem>>;
+	readonly domNode: HTMLElement;
+	readonly list: List<IListMenuItem<IActionItem>>;
 
 	readonly actionLineHeight = 24;
 	readonly headerLineHeight = 26;
@@ -424,11 +425,13 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		this.focusNext();
 	}
 
-	public hide(): void {
+	abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
+
+	hide(): void {
 		this._contextViewService.hideContextView();
 	}
 
-	public layout(minWidth: number): number {
+	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this.allMenuItems.filter(item => item.kind === 'header').length;
 		const height = this.allMenuItems.length * this.actionLineHeight;
@@ -457,15 +460,15 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 		return width;
 	}
 
-	public focusPrevious() {
+	focusPrevious() {
 		this.list.focusPrevious(1, true, undefined, this.focusCondition);
 	}
 
-	public focusNext() {
+	focusNext() {
 		this.list.focusNext(1, true, undefined, this.focusCondition);
 	}
 
-	public acceptSelected(preview?: boolean) {
+	acceptSelected(preview?: boolean) {
 		const focused = this.list.getFocus();
 		if (focused.length === 0) {
 			return;
@@ -503,7 +506,6 @@ export abstract class ActionList<T extends IActionItem> extends Disposable imple
 			this.list.setFocus([]);
 		}
 	}
-	public abstract toMenuItems(inputActions: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 }
 
 export function stripNewlines(str: string): string {

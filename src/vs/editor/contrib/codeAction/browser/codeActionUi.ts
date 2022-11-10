@@ -163,7 +163,17 @@ export class CodeActionUi extends Disposable {
 			this._actionWidgetService.hide();
 			this.delegate.applyCodeAction(action, true, !!preview ? preview : false);
 		};
-		this._actionWidgetService.show(this._instantiationService.createInstance(CodeActionList, actions.allActions, options.showHeaders || false, onDidSelect), actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
+		this._actionWidgetService.show(
+			this._instantiationService.createInstance(
+				CodeActionList,
+				actions.allActions,
+				options.showHeaders || false,
+				onDidSelect
+			),
+			actions,
+			anchor,
+			editorDom,
+			{ ...options, showHeaders: this.shouldShowHeaders() }, {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
 			},

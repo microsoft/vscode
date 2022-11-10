@@ -19,5 +19,6 @@ export interface ActionSet<T> extends IDisposable {
 }
 
 export interface IActionItem {
+	// TODO: Use generics
 	action: any;
 }
