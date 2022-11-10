@@ -49,6 +49,7 @@ function isSourcePick(item: QuickPickInput<IQuickPickItem>): item is SourcePick 
 	return 'action' in item;
 }
 type KernelQuickPickItem = IQuickPickItem | KernelPick | SourcePick;
+const KERNEL_PICKER_UPDATE_DEBOUNCE = 200;
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -187,11 +188,15 @@ registerAction2(class extends Action2 {
 			? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
 			: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }));
 
-		const kernelChangeEventListener = Event.any(
-			notebookKernelService.onDidChangeSourceActions,
-			notebookKernelService.onDidAddKernel,
-			notebookKernelService.onDidRemoveKernel,
-			notebookKernelService.onDidChangeNotebookAffinity
+		const kernelChangeEventListener = Event.debounce<void, void>(
+			Event.any(
+				notebookKernelService.onDidChangeSourceActions,
+				notebookKernelService.onDidAddKernel,
+				notebookKernelService.onDidRemoveKernel,
+				notebookKernelService.onDidChangeNotebookAffinity
+			),
+			(last, _current) => last,
+			KERNEL_PICKER_UPDATE_DEBOUNCE
 		)(() => {
 			const currentActiveItems = quickPick.activeItems;
 			const matchResult = notebookKernelService.getMatchingKernel(notebook);
@@ -218,7 +223,7 @@ registerAction2(class extends Action2 {
 
 			quickPick.items = quickPickItemSuggestions.quickPickItems;
 			quickPick.activeItems = activeItems;
-		});
+		}, this);
 
 		const pick = await new Promise<KernelQuickPickItem>((resolve, reject) => {
 			quickPick.onDidAccept(() => {
