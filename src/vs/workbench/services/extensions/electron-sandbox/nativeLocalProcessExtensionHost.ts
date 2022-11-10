@@ -52,7 +52,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 		const { createServer } = await import('net');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { createServer } = (<any>global).MonacoNodeModules.net;
+		// const { createServer } = (<any>globalThis).MonacoNodeModules.net;
 		// ESM-uncomment-end
 		return new Promise<{ pipeName: string; namedPipeServer: import('net').Server }>((resolve, reject) => {
 			const pipeName = createRandomIPCHandle();

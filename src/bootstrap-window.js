@@ -120,8 +120,8 @@ const isESM = false;
 		window['MonacoEnvironment'] = {};
 
 		if (isESM) {
-			global.MonacoFileRoot = `${configuration.appRoot}/out`;
-			global.MonacoNodeModules = {
+			globalThis.MonacoFileRoot = `${configuration.appRoot}/out`;
+			globalThis.MonacoNodeModules = {
 				crypto: require('crypto'),
 				zlib: require('zlib'),
 				net: require('net'),

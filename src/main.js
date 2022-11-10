@@ -137,15 +137,15 @@ function startup(codeCachePath, nlsConfig) {
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
 	if (isESM) {
-		global.MonacoFileRoot = __dirname;
-		global.MonacoNodeModules = {
+		globalThis.MonacoFileRoot = __dirname;
+		globalThis.MonacoNodeModules = {
 			crypto: require('crypto'),
 			zlib: require('zlib'),
 			net: require('net'),
 			os: require('os'),
 		};
-		global.vscode = {};
-		global.vscode.context = {
+		globalThis.vscode = {};
+		globalThis.vscode.context = {
 			configuration: () => {
 				/** @type {any} */
 				const product = require('../product.json');
