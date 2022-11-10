@@ -14,7 +14,7 @@ export interface ActionSet<T> extends IDisposable {
 		id: string;
 		title: string;
 		tooltip?: string;
-		arguments?: any[];
+		commandArguments?: any[];
 	}[];
 }
 

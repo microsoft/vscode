@@ -180,8 +180,8 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		readonly options: IActionShowOptions;
 		readonly anchor: IAnchor;
 		readonly container: HTMLElement | undefined;
-		readonly actions: ActionSet<any>;
-		readonly delegate: IRenderDelegate<any>;
+		readonly actions: ActionSet<unknown>;
+		readonly delegate: IRenderDelegate<unknown>;
 	};
 	public list = this._register(new MutableDisposable<ActionList<any>>());
 	constructor(@ICommandService readonly _commandService: ICommandService,
@@ -319,7 +319,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			tooltip: command.tooltip ?? '',
 			class: undefined,
 			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
+			run: () => this._commandService.executeCommand(command.id, ...(command.commandArguments ?? [])),
 		}));
 
 		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {
