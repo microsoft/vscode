@@ -58,7 +58,7 @@ export interface IActionList<T extends IActionItem> extends IDisposable {
 	layout(minWidth: number): void;
 	toMenuItems(items: readonly T[], showHeaders: boolean): IListMenuItem<T>[];
 	acceptSelected(preview?: boolean): void;
-	domNode: HTMLElement;
+	readonly domNode: HTMLElement;
 }
 
 export interface IActionMenuTemplateData {
