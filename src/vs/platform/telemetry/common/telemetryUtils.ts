@@ -121,7 +121,8 @@ export function supportsTelemetry(productService: IProductService, environmentSe
 }
 
 /**
- * Checks if we're only logging to the output channels for debug purposes and telemetry is not actually being sent
+ * Checks to see if we're in logging only mode to debug telemetry.
+ * This is if telemetry is enabled and we're in OSS, but no telemetry key is provided so it's not being sent just logged.
  * @param productService
  * @param environmentService
  * @returns True if telemetry is actually disabled and we're only logging for debug purposes
