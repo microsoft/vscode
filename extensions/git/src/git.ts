@@ -198,7 +198,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 	}
 
 	if (cancellationToken && cancellationToken.isCancellationRequested) {
-		throw new GitError({ message: 'Cancelled' });
+		throw new CancellationError();
 	}
 
 	const disposables: IDisposable[] = [];
@@ -239,7 +239,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 					// noop
 				}
 
-				e(new GitError({ message: 'Cancelled' }));
+				e(new CancellationError());
 			});
 		});
 
@@ -568,12 +568,21 @@ export class Git {
 		}
 
 		const startExec = Date.now();
-		const bufferResult = await exec(child, options.cancellationToken);
-		const durExec = Date.now() - startExec;
+		let bufferResult: IExecutionResult<Buffer>;
+
+		try {
+			bufferResult = await exec(child, options.cancellationToken);
+		} catch (ex) {
+			if (ex instanceof CancellationError) {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
+			}
+
+			throw ex;
+		}
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -2119,7 +2128,11 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const args = ['for-each-ref'];
 
 		if (opts?.count) {
@@ -2140,7 +2153,7 @@ export class Repository {
 			args.push('--contains', opts.contains);
 		}
 
-		const result = await this.exec(args);
+		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
