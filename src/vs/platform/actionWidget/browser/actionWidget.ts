@@ -45,7 +45,7 @@ export interface IActionShowOptions {
 
 export interface IListMenuItem<T extends IActionItem> {
 	item?: T;
-	kind?: any;
+	kind: ActionListItemKind;
 	group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
 	disabled?: boolean;
 	label?: string;

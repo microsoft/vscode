@@ -6,7 +6,7 @@
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
-import { IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 
 export class TerminalQuickFix implements IActionItem {
@@ -24,6 +24,7 @@ export class TerminalQuickFix implements IActionItem {
 export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {
 	const menuItems: IListMenuItem<TerminalQuickFix>[] = [];
 	menuItems.push({
+		kind: ActionListItemKind.Header,
 		group: {
 			kind: 'header',
 			title: localize('codeAction.widget.id.quickfix', 'Quick Fix...')
@@ -33,6 +34,7 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 	for (const quickFix of showHeaders ? inputQuickFixes : inputQuickFixes.filter(i => !!i.action)) {
 		if (!quickFix.disabled && quickFix.action) {
 			menuItems.push({
+				kind: ActionListItemKind.Action,
 				item: quickFix,
 				group: {
 					kind: 'quickfix',
