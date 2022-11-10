@@ -38,8 +38,6 @@ const ensureTrailingDirectorySeparator: (path: string) => string = (ts as any).e
 const getDirectoryPath: (path: string) => string = (ts as any).getDirectoryPath;
 const directorySeparator: string = (ts as any).directorySeparator;
 const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
-// NOTE: This relies on the current way that vscode injects dynamicImport into ts.server and will probably change
-const dynamicImport: ((id: string) => Promise<any>) | undefined = (ts as any).server.dynamicImport;
 const noopFileWatcher: ts.FileWatcher = { close: noop };
 const returnNoopFileWatcher = () => noopFileWatcher;
 function getLogLevel(level: string | undefined) {
@@ -187,15 +185,6 @@ function serverCreateWebSystem(host: WebHost, args: string[], getExecutingFilePa
 	// Later we could map ^memfs:/ to do something special if we want to enable more functionality like module resolution or something like that
 	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;
 
-	const dynamicImport = async (id: string): Promise<any> => {
-		// Use syntactic dynamic import first, if available
-		if (dynamicImport) {
-			return dynamicImport(id);
-		}
-
-		throw new Error('Dynamic import not implemented');
-	};
-
 	return {
 		args,
 		newLine: '\r\n', // This can be configured by clients
@@ -237,7 +226,7 @@ function serverCreateWebSystem(host: WebHost, args: string[], getExecutingFilePa
 
 			const scriptPath = combinePaths(packageRoot, browser);
 			try {
-				const { default: module } = await dynamicImport(scriptPath);
+				const { default: module } = await import(scriptPath);
 				return { module, error: undefined };
 			}
 			catch (e) {
