@@ -109,7 +109,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (lastRunSuccess !== undefined) {
 			const audioCuesEnabled = this._configurationService.getValue<boolean>(NotebookSetting.audioCuesEnabled);
 			if (lastRunSuccess) {
-				if (audioCuesEnabled) {
+				if (audioCuesEnabled && this._executions.size === 0) {
 					this._audioCueService.playAudioCue(AudioCue.taskCompleted);
 				}
 				this._clearLastFailedCell(notebookUri);

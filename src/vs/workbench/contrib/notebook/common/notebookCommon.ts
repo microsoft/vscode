@@ -926,7 +926,7 @@ export const NotebookSetting = {
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
 	outputFontFamily: 'notebook.outputFontFamily',
-	audioCuesEnabled: 'notebook.audioCuesEnabled'
+	audioCuesEnabled: 'notebook.audioCues.enabled'
 } as const;
 
 export const enum CellStatusbarAlignment {
