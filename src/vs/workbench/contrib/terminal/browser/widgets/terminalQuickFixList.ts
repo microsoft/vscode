@@ -63,15 +63,14 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 }
 
 function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
-	let codicon = Codicon.lightBulb;
 	switch (quickFix.action.id) {
 		case 'quickFix.opener':
 			// TODO: if it's a file link, use the open file icon
-			codicon = Codicon.link;
+			return { codicon: Codicon.link };
 		case 'quickFix.command':
-			codicon = Codicon.run;
+			return { codicon: Codicon.run };
 		case 'quickFix.freePort':
-			codicon = Codicon.debugDisconnect;
+			return { codicon: Codicon.debugDisconnect };
 	}
-	return { codicon };
+	return { codicon: Codicon.lightBulb };
 }
