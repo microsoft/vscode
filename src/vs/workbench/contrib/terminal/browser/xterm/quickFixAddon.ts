@@ -243,6 +243,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					validActions: actions,
 					dispose: () => { }
 				} as ActionSet<TerminalQuickFix>;
+
 				const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
 				if (!parentElement) {
 					return;

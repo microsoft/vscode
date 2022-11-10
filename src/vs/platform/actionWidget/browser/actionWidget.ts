@@ -47,7 +47,7 @@ export interface IActionShowOptions {
 export interface IListMenuItem<T extends IActionItem> {
 	item?: T;
 	kind?: any;
-	group?: any;
+	group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
 	disabled?: boolean;
 	label?: string;
 }
@@ -93,7 +93,10 @@ export class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements ILi
 	}
 
 	renderElement(element: IListMenuItem<IActionItem>, _index: number, templateData: IHeaderTemplateData): void {
-		templateData.text.textContent = element.group.title;
+		if (!element.group) {
+			return;
+		}
+		templateData.text.textContent = element.group?.title;
 	}
 
 	disposeTemplate(_templateData: IHeaderTemplateData): void {
@@ -126,7 +129,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 	}
 
 	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
-		if (element.group.icon) {
+		if (element.group?.icon) {
 			data.icon.className = element.group.icon.codicon.classNames;
 			data.icon.style.color = element.group.icon.color ?? '';
 		} else {
