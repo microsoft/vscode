@@ -479,7 +479,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this._webviewPreloadInitialized = new DeferredPromise();
 
 		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asFileUri('vs/loader.js');
 			const loader = this.asWebviewUri(loaderUri, undefined);
 
 			coreDependencies = `<script src="${loader}"></script><script>
@@ -491,7 +491,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this._initialize(htmlContent);
 			this._initialized.complete();
 		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
 
 			fetch(loaderUri.toString(true)).then(async response => {
 				if (response.status !== 200) {
@@ -553,7 +553,7 @@ var requirejs = (function() {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js', require)),
+			dirname(FileAccess.asFileUri('vs/loader.js')),
 		];
 	}
 

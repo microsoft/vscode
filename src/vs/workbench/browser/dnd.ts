@@ -236,7 +236,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	// - only file:/ resources are supported
 	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
-		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
+		const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
 		if (firstFileUri.scheme === Schemas.file) {
 			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
 		}
