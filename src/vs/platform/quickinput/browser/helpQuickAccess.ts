@@ -51,7 +51,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		return disposables;
 	}
 
-	public getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
+	getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
 		const providers: IHelpQuickAccessPickItem[] = this.registry
 			.getQuickAccessProviders()
 			.sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))
