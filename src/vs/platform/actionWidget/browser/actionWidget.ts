@@ -163,7 +163,7 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 export interface IActionWidgetService {
-	_serviceBrand: undefined;
+ 	readonly _serviceBrand: undefined;
 	show(list: ActionList<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, delegate: IRenderDelegate<any>): Promise<void>;
 	hide(): void;
 	isVisible: boolean;
