@@ -10,6 +10,7 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { localize } from 'vs/nls';
 
 export class TerminalQuickFix implements IActionItem {
 	action: IAction;
@@ -39,8 +40,7 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 			kind: ActionListItemKind.Header,
 			group: {
 				kind: CodeActionKind.QuickFix,
-				title: 'Quick fix...',
-				icon: { codicon: Codicon.lightBulb }
+				title: localize('codeAction.widget.id.quickfix', 'Quick Fix...')
 			}
 		});
 		for (const quickFix of showHeaders ? inputQuickFixes : inputQuickFixes.filter(i => !!i.action)) {
@@ -50,8 +50,8 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 					item: quickFix,
 					group: {
 						kind: CodeActionKind.QuickFix,
-						icon: { codicon: quickFix.action.id === 'quickFix.opener' ? Codicon.link : Codicon.run },
-						title: quickFix.action!.label
+						icon: getQuickFixIcon(quickFix),
+						title: quickFix.action.label
 					},
 					disabled: false,
 					label: quickFix.title
@@ -60,4 +60,18 @@ export class QuickFixList extends ActionList<TerminalQuickFix> {
 		}
 		return menuItems;
 	}
+}
+
+function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
+	let codicon = Codicon.lightBulb;
+	switch (quickFix.action.id) {
+		case 'quickFix.opener':
+			// TODO: if it's a file link, use the open file icon
+			codicon = Codicon.link;
+		case 'quickFix.command':
+			codicon = Codicon.run;
+		case 'quickFix.freePort':
+			codicon = Codicon.debugDisconnect;
+	}
+	return { codicon };
 }
