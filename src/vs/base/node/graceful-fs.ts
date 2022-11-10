@@ -3,5 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import pkg from 'graceful-fs';
-export const { gracefulify } = pkg;
+// ESM-uncomment-begin
+// import pkg from 'graceful-fs';
+// export const { gracefulify } = pkg;
+// ESM-uncomment-end
