@@ -26,8 +26,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ActionSet, IActionItem, IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
 
-export const acceptSelectedAction = 'acceptSelectedAction';
-export const previewSelectedAction = 'previewSelectedAction';
+export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
+export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
 export const ActionWidgetContextKeys = {
 	Visible: new RawContextKey<boolean>('actionWidgetVisible', false, localize('actionWidgetVisible', "Whether the action widget list is visible"))
@@ -149,8 +149,8 @@ export class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements
 		} else {
 			dom.show(data.keybinding.element);
 		}
-		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedAction)?.getLabel();
-		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedAction)?.getLabel();
+		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
+		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
 		if (element.disabled) {
 			data.container.title = element.label;
@@ -573,7 +573,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: acceptSelectedAction,
+			id: acceptSelectedActionCommand,
 			title: {
 				value: localize('acceptSelected.title', "Accept selected action"),
 				original: 'Accept selected action'
@@ -595,7 +595,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: previewSelectedAction,
+			id: previewSelectedActionCommand,
 			title: {
 				value: localize('previewSelected.title', "Preview selected action"),
 				original: 'Preview selected action'

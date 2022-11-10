@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { QuickFixList, TerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixList';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IActionWidgetService, previewSelectedAction } from 'vs/platform/actionWidget/browser/actionWidget';
+import { IActionWidgetService, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
@@ -251,7 +251,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				const delegate = {
 					onSelect: async (fix: TerminalQuickFix, preview?: boolean) => {
 						if (preview) {
-							this._commandService.executeCommand(previewSelectedAction);
+							this._commandService.executeCommand(previewSelectedActionCommand);
 						} else {
 							fix.action?.run();
 							this._actionWidgetService.hide();
