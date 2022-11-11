@@ -28,6 +28,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
+import 'vs/css!./hover';
 
 export class ModesHoverController implements IEditorContribution {
 
