@@ -198,7 +198,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 	}
 
 	if (cancellationToken && cancellationToken.isCancellationRequested) {
-		throw new GitError({ message: 'Cancelled' });
+		throw new CancellationError();
 	}
 
 	const disposables: IDisposable[] = [];
@@ -239,7 +239,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 					// noop
 				}
 
-				e(new GitError({ message: 'Cancelled' }));
+				e(new CancellationError());
 			});
 		});
 
@@ -568,12 +568,21 @@ export class Git {
 		}
 
 		const startExec = Date.now();
-		const bufferResult = await exec(child, options.cancellationToken);
-		const durExec = Date.now() - startExec;
+		let bufferResult: IExecutionResult<Buffer>;
+
+		try {
+			bufferResult = await exec(child, options.cancellationToken);
+		} catch (ex) {
+			if (ex instanceof CancellationError) {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
+			}
+
+			throw ex;
+		}
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -695,45 +704,39 @@ interface GitConfigSection {
 }
 
 class GitConfigParser {
-	private static readonly _lineSeparator = /\r?\n/;
+	private static readonly _lineSeparator = /\r?\n/g;
 
-	private static readonly _commentRegex = /^\s*[#;].*/;
-	private static readonly _emptyLineRegex = /^\s*$/;
 	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
 	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
 
-	static parse(raw: string, sectionName: string): GitConfigSection[] {
-		let section: GitConfigSection | undefined;
+	static parse(raw: string): GitConfigSection[] {
 		const config: { sections: GitConfigSection[] } = { sections: [] };
+		let section: GitConfigSection = { name: 'DEFAULT', properties: {} };
 
 		const addSection = (section?: GitConfigSection) => {
 			if (!section) { return; }
 			config.sections.push(section);
 		};
 
-		for (const configFileLine of raw.split(GitConfigParser._lineSeparator)) {
-			// Ignore empty lines and comments
-			if (GitConfigParser._emptyLineRegex.test(configFileLine) ||
-				GitConfigParser._commentRegex.test(configFileLine)) {
-				continue;
-			}
+		let position = 0;
+		let match: RegExpExecArray | null = null;
 
-			// Section
-			const sectionMatch = configFileLine.match(GitConfigParser._sectionRegex);
+		while (match = GitConfigParser._lineSeparator.exec(raw)) {
+			const line = raw.substring(position, match.index);
+			position = match.index + match[0].length;
+
+			const sectionMatch = line.match(GitConfigParser._sectionRegex);
 			if (sectionMatch?.length === 3) {
 				addSection(section);
-				section = sectionMatch[1] === sectionName ?
-					{ name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} } : undefined;
+				section = { name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} };
 
 				continue;
 			}
 
 			// Properties
-			if (section) {
-				const propertyMatch = configFileLine.match(GitConfigParser._propertyRegex);
-				if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
-					section.properties[propertyMatch[1]] = propertyMatch[2];
-				}
+			const propertyMatch = line.match(GitConfigParser._propertyRegex);
+			if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
+				section.properties[propertyMatch[1]] = propertyMatch[2];
 			}
 		}
 
@@ -818,7 +821,7 @@ export interface Submodule {
 export function parseGitmodules(raw: string): Submodule[] {
 	const result: Submodule[] = [];
 
-	for (const submoduleSection of GitConfigParser.parse(raw, 'submodule')) {
+	for (const submoduleSection of GitConfigParser.parse(raw).filter(s => s.name === 'submodule')) {
 		if (submoduleSection.subSectionName && submoduleSection.properties['path'] && submoduleSection.properties['url']) {
 			result.push({
 				name: submoduleSection.subSectionName,
@@ -834,18 +837,16 @@ export function parseGitmodules(raw: string): Submodule[] {
 export function parseGitRemotes(raw: string): Remote[] {
 	const remotes: Remote[] = [];
 
-	for (const remoteSection of GitConfigParser.parse(raw, 'remote')) {
-		if (!remoteSection.subSectionName) {
-			continue;
+	for (const remoteSection of GitConfigParser.parse(raw).filter(s => s.name === 'remote')) {
+		if (remoteSection.subSectionName) {
+			remotes.push({
+				name: remoteSection.subSectionName,
+				fetchUrl: remoteSection.properties['url'],
+				pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
+				// https://github.com/microsoft/vscode/issues/45271
+				isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+			});
 		}
-
-		remotes.push({
-			name: remoteSection.subSectionName,
-			fetchUrl: remoteSection.properties['url'],
-			pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
-			// https://github.com/microsoft/vscode/issues/45271
-			isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
-		});
 	}
 
 	return remotes;
@@ -2127,7 +2128,11 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const args = ['for-each-ref'];
 
 		if (opts?.count) {
@@ -2148,7 +2153,7 @@ export class Repository {
 			args.push('--contains', opts.contains);
 		}
 
-		const result = await this.exec(args);
+		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;

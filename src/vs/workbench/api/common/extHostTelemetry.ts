@@ -27,6 +27,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private _productConfig: { usage: boolean; error: boolean } = { usage: true, error: true };
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
 	private _oldTelemetryEnablement: boolean | undefined;
+	private _inLoggingOnlyMode: boolean = false;
 	private readonly _outputLogger: ILogger;
 	private readonly _telemetryLoggers = new Map<string, ExtHostTelemetryLogger>();
 
@@ -53,14 +54,22 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 
 	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender) {
 		const telemetryDetails = this.getTelemetryDetails();
-		const logger = new ExtHostTelemetryLogger(appender, extension, this._outputLogger, this.getBuiltInCommonProperties(extension), { isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled });
+		const logger = new ExtHostTelemetryLogger(
+			appender,
+			extension,
+			this._outputLogger,
+			this._inLoggingOnlyMode,
+			this.getBuiltInCommonProperties(extension),
+			{ isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled }
+		);
 		this._telemetryLoggers.set(extension.identifier.value, logger);
 		return logger.apiTelemetryLogger;
 	}
 
-	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void {
+	$initializeTelemetryLevel(level: TelemetryLevel, loggingOnlyMode: boolean, productConfig?: { usage: boolean; error: boolean }): void {
 		this._level = level;
-		this._productConfig = productConfig || { usage: true, error: true };
+		this._inLoggingOnlyMode = loggingOnlyMode;
+		this._productConfig = productConfig ?? { usage: true, error: true };
 	}
 
 	getBuiltInCommonProperties(extension: IExtensionDescription): Record<string, string | boolean | number | undefined> {
@@ -126,8 +135,10 @@ export class ExtHostTelemetryLogger {
 		appender: vscode.TelemetryAppender,
 		private readonly _extension: IExtensionDescription,
 		private readonly _logger: ILogger,
+		private readonly _inLoggingOnlyMode: boolean,
 		private readonly _commonProperties: Record<string, any>,
-		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }) {
+		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }
+	) {
 		this._appender = appender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
@@ -173,7 +184,9 @@ export class ExtHostTelemetryLogger {
 			eventName = this._extension.identifier.value + '/' + eventName;
 		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
-		this._appender.logEvent(eventName, data);
+		if (!this._inLoggingOnlyMode) {
+			this._appender.logEvent(eventName, data);
+		}
 		this._logger.trace(eventName, data);
 	}
 

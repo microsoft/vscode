@@ -100,14 +100,17 @@ export class Workbench extends Layout {
 			phase: 'configuration';
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-		(<any>window).require.config({
-			onError: (err: AnnotatedError) => {
-				if (err.phase === 'loading') {
-					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+
+		if (typeof (<any>window).require.config === 'function') {
+			(<any>window).require.config({
+				onError: (err: AnnotatedError) => {
+					if (err.phase === 'loading') {
+						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+					}
+					console.error(err);
 				}
-				console.error(err);
-			}
-		});
+			});
+		}
 	}
 
 	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };

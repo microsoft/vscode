@@ -120,7 +120,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath, require);
+		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
 		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
 	}
 
