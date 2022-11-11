@@ -5,16 +5,24 @@
 
 export namespace inputLatency {
 
+	// Measurements are recorded in typed arrays with a fixed buffer length to their own impact on
+	// input latency.
 	const enum Constants {
 		bufferLength = 256
 	}
+	const measurementsKeydown = new Float32Array(Constants.bufferLength);
+	const measurementsInput = new Float32Array(Constants.bufferLength);
+	const measurementsRender = new Float32Array(Constants.bufferLength);
+	const measurementsInputLatency = new Float32Array(Constants.bufferLength);
+	let measurementsCount = 0;
 
+	// The state of each event, this helps ensure the integrity of the measurement and that
+	// something unexpected didn't happen that could skew the measurement.
 	const enum EventPhase {
 		Before = 0,
 		InProgress = 1,
 		Finished = 2
 	}
-
 	const state = {
 		keydown: EventPhase.Before,
 		input: EventPhase.Before,
@@ -22,12 +30,9 @@ export namespace inputLatency {
 		selection: EventPhase.Before
 	};
 
-	const measurementsKeydown = new Float32Array(Constants.bufferLength);
-	const measurementsInput = new Float32Array(Constants.bufferLength);
-	const measurementsRender = new Float32Array(Constants.bufferLength);
-	const measurementsInputLatency = new Float32Array(Constants.bufferLength);
-	let measurementsCount = 0;
-
+	/**
+	 * Mark the start of the keydown event.
+	 */
 	export function markKeydownStart() {
 		performance.mark('inputlatency/start');
 		performance.mark('keydown/start');
@@ -35,17 +40,26 @@ export namespace inputLatency {
 		queueMicrotask(() => markKeydownEnd());
 	}
 
+	/**
+	 * Mark the end of the keydown event.
+	 */
 	function markKeydownEnd() {
 		// Only measure the first render after keyboard input
 		performance.mark('keydown/end');
 		state.keydown = EventPhase.Finished;
 	}
 
+	/**
+	 * Mark the start of the input event.
+	 */
 	export function markInputStart() {
 		performance.mark('input/start');
 		state.input = EventPhase.InProgress;
 	}
 
+	/**
+	 * Mark the end of the input event.
+	 */
 	export function markInputEnd() {
 		queueMicrotask(() => {
 			performance.mark('input/end');
@@ -53,6 +67,9 @@ export namespace inputLatency {
 		});
 	}
 
+	/**
+	 * Mark the start of the animation frame performing the rendering.
+	 */
 	export function markRenderStart() {
 		// Render may be triggered during input, but we only measure the following animation frame
 		if (state.keydown === EventPhase.Finished && state.input === EventPhase.Finished && state.render === EventPhase.Before) {
@@ -63,17 +80,32 @@ export namespace inputLatency {
 		}
 	}
 
+	/**
+	 * Mark the end of the animation frame performing the rendering.
+	 *
+	 * An input latency sample is complete when both the textarea selection change event and the
+	 * animation frame performing the rendering has triggered.
+	 */
 	function markRenderEnd() {
 		performance.mark('render/end');
 		state.render = EventPhase.Finished;
 		record();
 	}
 
+	/**
+	 * Mark when the editor textarea selection change event occurs.
+	 *
+	 * An input latency sample is complete when both the textarea selection change event and the
+	 * animation frame performing the rendering has triggered.
+	 */
 	export function markTextareaSelection() {
 		state.selection = EventPhase.Finished;
 		record();
 	}
 
+	/**
+	 * Record the input latency sample if it's ready.
+	 */
 	function record() {
 		// Skip recording this frame if the buffer is full
 		if (measurementsCount >= Constants.bufferLength) {
@@ -113,6 +145,10 @@ export namespace inputLatency {
 		});
 	}
 	setInterval(() => console.log(getAndClearMeasurements()), 10000);
+
+	/**
+	 * Clear the current sample.
+	 */
 	function reset() {
 		performance.clearMarks('keydown/start');
 		performance.clearMarks('keydown/end');
@@ -148,6 +184,10 @@ export namespace inputLatency {
 		max: number;
 	}
 
+	/**
+	 * Gets all input latency samples and clears the internal buffers to start recording a new set
+	 * of samples.
+	 */
 	export function getAndClearMeasurements(): IInputLatencyMeasurements | undefined {
 		if (measurementsCount === 0) {
 			return undefined;
