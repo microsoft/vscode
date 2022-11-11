@@ -127,8 +127,9 @@ const isESM = false;
 				net: require('net'),
 				os: require('os'),
 			};
-			const result = modulePaths.map((modulePath) => import(`${configuration.appRoot}/out/${modulePath}`));
-			Promise.all(result).then((res) => invokeResult(res), onUnexpectedError);
+			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
+			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
+			result.then((res) => invokeResult(res[0]), onUnexpectedError);
 		} else {
 			const loaderConfig = {
 				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
@@ -196,11 +197,11 @@ const isESM = false;
 			require(modulePaths, invokeResult, onUnexpectedError);
 		}
 
-		async function invokeResult(result) {
+		async function invokeResult(firstModule) {
 			try {
 
 				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(result, configuration);
+				const callbackResult = resultCallback(firstModule, configuration);
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 
