@@ -95,6 +95,8 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
 	opacity: 1;
 	color: var(--vscode-settings-headerForeground);
+}
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked:not(:focus) {
 	border-bottom-color: var(--vscode-settings-headerForeground);
 }
 
@@ -112,10 +114,6 @@
 	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item.focused {
-	outline-offset: -1.5px;
-}
-
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
@@ -130,8 +128,8 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
-	/* Add an extra pixel due to it not getting the outline */
-	padding-bottom: 8px;
+	/* Still maintain a border for alignment, but keep it transparent */
+	border-bottom: 1px solid transparent;
 }
 
 .settings-editor > .settings-body {
@@ -202,15 +200,6 @@
 	outline: 1px solid var(--vscode-settings-focusedRowBorder);
 }
 
-.settings-editor.mid-width > .settings-body .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
-	left: 0;
-	width: calc(100% - 48px);
-	margin-left: 24px;
-}
-.settings-editor.mid-width > .settings-body .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top.top-left-corner {
-	width: 24px;
-	margin-left: 0px;
-}
 .settings-editor > .settings-body .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
 	z-index: 11;
 }
@@ -390,9 +379,7 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-overrides.with-custom-hover:hover,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-ignored:hover,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-item-default-overridden:hover {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-indicator:hover {
 	text-decoration: underline;
 }
 

@@ -3,24 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { URI as uri } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { AdapterEndEvent, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDebugger, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEvaluate, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, IInstructionBreakpoint, ILaunch, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IReplElementSource, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Breakpoint, DataBreakpoint, DebugModel, ExceptionBreakpoint, Expression, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, Expression, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-
-const fileService = new TestFileService();
-export const mockUriIdentityService = new UriIdentityService(fileService);
 
 export class MockDebugService implements IDebugService {
 	_serviceBrand: undefined;
@@ -576,6 +572,8 @@ export class MockRawSession {
 export class MockDebugAdapter extends AbstractDebugAdapter {
 	private seq = 0;
 
+	private pendingResponses = new Map<string, DeferredPromise<DebugProtocol.Response>>();
+
 	startSession(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -585,8 +583,8 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	sendMessage(message: DebugProtocol.ProtocolMessage): void {
-		setTimeout(() => {
-			if (message.type === 'request') {
+		if (message.type === 'request') {
+			setTimeout(() => {
 				const request = message as DebugProtocol.Request;
 				switch (request.command) {
 					case 'evaluate':
@@ -595,8 +593,13 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 				}
 				this.sendResponseBody(request, {});
 				return;
+			}, 0);
+		} else if (message.type === 'response') {
+			const response = message as DebugProtocol.Response;
+			if (this.pendingResponses.has(response.command)) {
+				this.pendingResponses.get(response.command)!.complete(response);
 			}
-		}, 0);
+		}
 	}
 
 	sendResponseBody(request: DebugProtocol.Request, body: any) {
@@ -621,6 +624,26 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 		this.acceptMessage(response);
 	}
 
+	waitForResponseFromClient(command: string): Promise<DebugProtocol.Response> {
+		const deferred = new DeferredPromise<DebugProtocol.Response>();
+		if (this.pendingResponses.has(command)) {
+			return this.pendingResponses.get(command)!.p;
+		}
+
+		this.pendingResponses.set(command, deferred);
+		return deferred.p;
+	}
+
+	sendRequestBody(command: string, args: any) {
+		const response: DebugProtocol.Request = {
+			seq: ++this.seq,
+			type: 'request',
+			command,
+			arguments: args
+		};
+		this.acceptMessage(response);
+	}
+
 	evaluate(request: DebugProtocol.Request, args: DebugProtocol.EvaluateArguments) {
 		if (args.expression.indexOf('before.') === 0) {
 			this.sendEventBody('output', { output: args.expression });
@@ -637,7 +660,7 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 	}
 }
 
-class MockDebugStorage extends DebugStorage {
+export class MockDebugStorage extends DebugStorage {
 
 	constructor() {
 		super(undefined as any, undefined as any, undefined as any);
@@ -669,8 +692,4 @@ class MockDebugStorage extends DebugStorage {
 	override storeWatchExpressions(_watchExpressions: (IExpression & IEvaluate)[]): void { }
 
 	override storeBreakpoints(_debugModel: IDebugModel): void { }
-}
-
-export function createMockDebugModel(): DebugModel {
-	return new DebugModel(new MockDebugStorage(), <any>{ isDirty: (e: any) => false }, mockUriIdentityService);
 }

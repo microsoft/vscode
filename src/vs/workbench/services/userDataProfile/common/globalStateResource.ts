@@ -7,14 +7,14 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IResourceProfile } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface IGlobalState {
 	storage: IStringDictionary<string>;
 }
 
-export class GlobalStateProfile implements IResourceProfile {
+export class GlobalStateResource implements IProfileResource {
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -22,12 +22,12 @@ export class GlobalStateProfile implements IResourceProfile {
 	) {
 	}
 
-	async getProfileContent(): Promise<string> {
+	async getContent(): Promise<string> {
 		const globalState = await this.getLocalGlobalState();
 		return JSON.stringify(globalState);
 	}
 
-	async applyProfile(content: string): Promise<void> {
+	async apply(content: string): Promise<void> {
 		const globalState: IGlobalState = JSON.parse(content);
 		await this.writeLocalGlobalState(globalState);
 	}
