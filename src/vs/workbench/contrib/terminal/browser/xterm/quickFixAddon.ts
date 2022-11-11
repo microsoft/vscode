@@ -24,8 +24,8 @@ import { IDecoration, Terminal } from 'xterm';
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { CancellationToken } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	quickFixId: string;
@@ -96,17 +96,25 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 		this._registerGitProvider();
-		this._quickFixService.quickFixes().then(fixes => {
-			for (const contributedFix of fixes) {
-				this.registerCommandFinishedListener(contributedFix);
-			}
-		});
+		// this._quickFixService.quickFixes().then(fixes => {
+		// if (Array.isArray(fixes)) {
+		// 	for (const contributedFix of fixes) {
+		// 		if ('id' in fixes) {
+		// 			this.registerCommandFinishedListener(contributedFix);
+		// 		}
+		// 	}
+		// } else if (fixes) {
+
+		// }
+		// to do: handle all of the types it could be
+		// });
 	}
 
 	private _registerGitProvider() {
 		this._quickFixService.registerQuickFixProvider('git', {
-			async provideQuickFixes(token: CancellationToken) {
-				return [gitTwoDashes(), gitPushSetUpstream(), gitCreatePr(), gitSimilar()]
+			async provideQuickFixes(matchResult: { commandLineMatch: string; outputMatch?: string; exitStatus?: number }, token: CancellationToken) {
+				// return [gitTwoDashes(), gitPushSetUpstream(), gitCreatePr(), gitSimilar()]
+				return [];
 			}
 		});
 	}
@@ -301,7 +309,7 @@ export function getQuickFixesForCommand(
 									class: undefined,
 									enabled: true,
 									run: () => {
-										openerService.open(quickFix.uri);
+										openerService.open(quickFix.uri.path);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
 										onDidRunQuickFixEmitter.fire(id);

@@ -11,14 +11,13 @@ import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/comm
 import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { CancellationToken } from 'vscode';
-
+import { CancellationToken } from 'vs/base/common/cancellation';
+export type TerminalQuickFixAction = ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
 export const TERMINAL_VIEW_ID = 'terminal';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
@@ -28,6 +27,20 @@ export const TerminalCursorStyle = {
 	LINE: 'line',
 	UNDERLINE: 'underline'
 };
+
+export interface ITerminalQuickFixCommandAction {
+	type: 'command';
+	id?: string;
+	command: string;
+	// TODO: Should this depend on whether alt is held?
+	addNewLine?: boolean;
+}
+export interface ITerminalQuickFixOpenerAction {
+	type: 'opener';
+	id?: string;
+	uri: UriComponents;
+}
+
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
@@ -92,8 +105,8 @@ export interface ITerminalProfileService {
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
 	readonly _serviceBrand: undefined;
-	quickFixes(): Promise<ITerminalQuickFixOptions[]>;
-	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(token: CancellationToken): Promise<ITerminalQuickFixOptions[] | null | undefined>; }): IDisposable;
+	providers: Map</*ext id*/string, { provideQuickFixes(matchResult: { commandLineMatch: string; outputMatch?: string; exitStatus?: number }): Promise<TerminalQuickFixAction[] | TerminalQuickFixAction | null | undefined> }>;
+	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(matchResult: any, token: CancellationToken): Promise<TerminalQuickFixAction[] | TerminalQuickFixAction | undefined> }): IDisposable;
 }
 
 export interface ITerminalProfileProvider {

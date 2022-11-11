@@ -25,8 +25,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
-import { TerminalQuickFixProvider } from 'vscode-dts/vscode.proposed.terminalQuickFixProvider';
-import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -51,6 +49,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
+	registerTerminalQuickFixProvider(id: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -363,7 +362,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
-	private readonly _quickFixProviders: Map<string, TerminalQuickFixProvider> = new Map();
+	private readonly _quickFixProviders: Map<string, { selector: vscode.TerminalCommandSelector; provider: vscode.TerminalQuickFixProvider }> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
@@ -668,15 +667,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerQuickFixProvider(extension: IExtensionDescription, provider: TerminalQuickFixProvider): vscode.Disposable {
-		const id = extension.id;
+	public registerTerminalQuickFixProvider(id: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 		if (!id) {
 			throw new Error('No extension ID');
 		}
 		if (this._quickFixProviders.has(id)) {
 			throw new Error(`Terminal quick fix provider "${id}" already registered`);
 		}
-		this._quickFixProviders.set(id, provider);
+		this._quickFixProviders.set(id, { selector: commandSelector, provider });
 		this._proxy.$registerQuickFixProvider(id);
 		return new VSCodeDisposable(() => {
 			this._quickFixProviders.delete(id);
@@ -684,7 +682,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalQuickFixes(id: string): Promise<ITerminalQuickFixOptions[] | null | undefined> {
+	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<vscode.TerminalQuickFix[] | vscode.TerminalQuickFix | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested) {
 			return;
@@ -693,7 +691,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (!provider) {
 			return;
 		}
-		return provider.provideQuickFixes(token);
+		return provider.provider.provideTerminalQuickFixes(matchResult, token);
 	}
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {

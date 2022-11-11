@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixAction } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixActionInternal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
@@ -33,7 +33,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 			if (!matchResult?.outputMatch) {
 				return;
 			}
-			const actions: TerminalQuickFixAction[] = [];
+			const actions: TerminalQuickFixActionInternal[] = [];
 			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
 			for (let i = 1; i < results.length; i++) {
 				const fixedCommand = results[i];
@@ -131,7 +131,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 			if (!groups) {
 				return;
 			}
-			const actions: TerminalQuickFixAction[] = [];
+			const actions: TerminalQuickFixActionInternal[] = [];
 			let fixedCommand = commandToRun;
 			for (const [key, value] of Object.entries(groups)) {
 				const varToResolve = '${group:' + `${key}` + '}';
@@ -151,7 +151,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 			}
 			return;
 		}
-	}
+	};
 }
 
 export function gitCreatePr(): ITerminalQuickFixOptions {
