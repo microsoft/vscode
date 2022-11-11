@@ -22,7 +22,14 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
+/**
+ * An optional set of options which can be passed in to configure the publicLog function
+ */
 export interface ITelemetryLogOptions {
+	/**
+	 * A list of properties to skip cleaning, this support singly nested properties via the `.` character.
+	 * Note: This can be danagerous if there is any chance of PII being sent so only use this if approved to do so.
+	 */
 	propsToSkipCleaning?: string[];
 }
 
