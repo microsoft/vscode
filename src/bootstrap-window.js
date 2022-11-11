@@ -175,11 +175,11 @@
 		}
 
 		// Actually require the main module as specified
-		require(modulePaths, async result => {
+		require(modulePaths, async firstModule => {
 			try {
 
 				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(result, configuration);
+				const callbackResult = resultCallback(firstModule, configuration);
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 

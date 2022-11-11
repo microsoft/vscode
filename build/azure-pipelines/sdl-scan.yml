@@ -53,7 +53,7 @@ stages:
             displayName: "Azure Key Vault: Get Secrets"
             inputs:
               azureSubscription: "vscode-builds-subscription"
-              KeyVaultName: vscode
+              KeyVaultName: vscode-build-secrets
               SecretsFilter: "github-distro-mixin-password"
 
           - powershell: |
@@ -167,7 +167,7 @@ stages:
             displayName: "Azure Key Vault: Get Secrets"
             inputs:
               azureSubscription: "vscode-builds-subscription"
-              KeyVaultName: vscode
+              KeyVaultName: vscode-build-secrets
               SecretsFilter: "github-distro-mixin-password"
 
           - script: |

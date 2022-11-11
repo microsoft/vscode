@@ -308,11 +308,14 @@ export const enum Operation {
 	Diff = 'Diff',
 	MergeBase = 'MergeBase',
 	Add = 'Add',
+	AddNoProgress = 'AddNoProgress',
 	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
+	RevertFilesNoProgress = 'RevertFilesNoProgress',
 	Commit = 'Commit',
 	PostCommitCommand = 'PostCommitCommand',
 	Clean = 'Clean',
+	CleanNoProgress = 'CleanNoProgress',
 	Branch = 'Branch',
 	GetBranch = 'GetBranch',
 	GetBranches = 'GetBranches',
@@ -376,7 +379,10 @@ function isReadOnly(operation: Operation): boolean {
 
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
+		case Operation.AddNoProgress:
+		case Operation.CleanNoProgress:
 		case Operation.FetchNoProgress:
+		case Operation.RevertFilesNoProgress:
 		case Operation.CheckIgnore:
 		case Operation.GetObjectDetails:
 		case Operation.Show:
@@ -1225,8 +1231,12 @@ export class Repository implements Disposable {
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
+		const operation = optimisticUpdate ? Operation.AddNoProgress : Operation.Add;
+
 		await this.run(
-			Operation.Add,
+			operation,
 			async () => {
 				await this.repository.add(resources.map(r => r.fsPath), opts);
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
@@ -1276,8 +1286,12 @@ export class Repository implements Disposable {
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
+		const operation = optimisticUpdate ? Operation.RevertFilesNoProgress : Operation.RevertFiles;
+
 		await this.run(
-			Operation.RevertFiles,
+			operation,
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
 				this.closeDiffEditors([...resources.length !== 0 ?
@@ -1387,47 +1401,66 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Clean, async () => {
-			const toClean: string[] = [];
-			const toCheckout: string[] = [];
-			const submodulesToUpdate: string[] = [];
-			const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
+		const operation = optimisticUpdate ? Operation.CleanNoProgress : Operation.Clean;
 
-			resources.forEach(r => {
-				const fsPath = r.fsPath;
+		await this.run(
+			operation,
+			async () => {
+				const toClean: string[] = [];
+				const toCheckout: string[] = [];
+				const submodulesToUpdate: string[] = [];
+				const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
 
-				for (const submodule of this.submodules) {
-					if (path.join(this.root, submodule.path) === fsPath) {
-						submodulesToUpdate.push(fsPath);
+				resources.forEach(r => {
+					const fsPath = r.fsPath;
+
+					for (const submodule of this.submodules) {
+						if (path.join(this.root, submodule.path) === fsPath) {
+							submodulesToUpdate.push(fsPath);
+							return;
+						}
+					}
+
+					const raw = r.toString();
+					const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+
+					if (!scmResource) {
 						return;
 					}
-				}
 
-				const raw = r.toString();
-				const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+					switch (scmResource.type) {
+						case Status.UNTRACKED:
+						case Status.IGNORED:
+							toClean.push(fsPath);
+							break;
 
-				if (!scmResource) {
-					return;
-				}
+						default:
+							toCheckout.push(fsPath);
+							break;
+					}
+				});
 
-				switch (scmResource.type) {
-					case Status.UNTRACKED:
-					case Status.IGNORED:
-						toClean.push(fsPath);
-						break;
+				await this.repository.clean(toClean);
+				await this.repository.checkout('', toCheckout);
+				await this.repository.updateSubmodules(submodulesToUpdate);
 
-					default:
-						toCheckout.push(fsPath);
-						break;
-				}
+				this.closeDiffEditors([], [...toClean, ...toCheckout]);
+			},
+			() => {
+				const resourcePaths = resources.map(r => r.fsPath);
+
+				// Remove resource(s) from working group
+				const workingTreeGroup = this.workingTreeGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Remove resource(s) from untracked group
+				const untrackedGroup = this.untrackedGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				return { workingTreeGroup, untrackedGroup };
 			});
-
-			await this.repository.clean(toClean);
-			await this.repository.checkout('', toCheckout);
-			await this.repository.updateSubmodules(submodulesToUpdate);
-
-			this.closeDiffEditors([], [...toClean, ...toCheckout]);
-		});
 	}
 
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
@@ -2059,16 +2092,9 @@ export class Repository implements Disposable {
 				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
-			const config = workspace.getConfiguration('git');
-			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-			if (sort !== 'alphabetically' && sort !== 'committerdate') {
-				sort = 'alphabetically';
-			}
-
-			const [HEAD, refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
+			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
 				await Promise.all([
 					this.repository.getHEADBranch(),
-					this.repository.getRefs({ sort }),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
 					this.getRebaseCommit(),
@@ -2076,7 +2102,6 @@ export class Repository implements Disposable {
 					this.getInputTemplate()]);
 
 			this._HEAD = HEAD;
-			this._refs = refs!;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
 			this.rebaseCommit = rebaseCommit;
@@ -2084,8 +2109,20 @@ export class Repository implements Disposable {
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
-			// Update resource states based on status data
-			this._updateResourceGroupsState(await this.getStatus(cancellationToken));
+			// Execute cancellable long-running operations
+			const config = workspace.getConfiguration('git');
+			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+			if (sort !== 'alphabetically' && sort !== 'committerdate') {
+				sort = 'alphabetically';
+			}
+
+			const [resourceGroups, refs] =
+				await Promise.all([
+					this.getStatus(cancellationToken),
+					this.repository.getRefs({ sort, cancellationToken })]);
+
+			this._refs = refs!;
+			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
 		}

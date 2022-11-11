@@ -47,7 +47,7 @@
 }
 
 .monaco-workbench .part.panel .monaco-inputbox {
-	border-color: var(--vscode-panelInput-border) !important;
+	border-color: var(--vscode-panelInput-border, transparent) !important;
 }
 
 .monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {

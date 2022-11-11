@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IdleValue } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -29,7 +30,7 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 	}
 
 	private readonly editor: ICodeEditor;
-	private readonly model: ParameterHintsModel;
+	private readonly model: IdleValue<ParameterHintsModel>;
 	private readonly widget: Lazy<ParameterHintsWidget>;
 
 	constructor(
@@ -41,22 +42,26 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 		this.editor = editor;
 
-		this.model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
+		this.model = this._register(new IdleValue(() => {
+			const model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
 
-		this._register(this.model.onChangedHints(newParameterHints => {
-			if (newParameterHints) {
-				this.widget.getValue().show();
-				this.widget.getValue().render(newParameterHints);
-			} else {
-				this.widget.rawValue?.hide();
-			}
+			this._register(model.onChangedHints(newParameterHints => {
+				if (newParameterHints) {
+					this.widget.getValue().show();
+					this.widget.getValue().render(newParameterHints);
+				} else {
+					this.widget.rawValue?.hide();
+				}
+			}));
+
+			return model;
 		}));
 
-		this.widget = new Lazy(() => this._register(instantiationService.createInstance(ParameterHintsWidget, this.editor, this.model)));
+		this.widget = new Lazy(() => this._register(instantiationService.createInstance(ParameterHintsWidget, this.editor, this.model.value)));
 	}
 
 	cancel(): void {
-		this.model.cancel();
+		this.model.value.cancel();
 	}
 
 	previous(): void {
@@ -68,7 +73,7 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 	}
 
 	trigger(context: TriggerContext): void {
-		this.model.trigger(context, 0);
+		this.model.value.trigger(context, 0);
 	}
 }
 

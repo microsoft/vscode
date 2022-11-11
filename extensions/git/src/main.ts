@@ -178,8 +178,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	const logger = window.createOutputChannel('Git', { log: true });
 	disposables.push(logger);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
-	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
+	const { aiKey } = require('../package.json') as { aiKey: string };
+	const telemetryReporter = new TelemetryReporter(aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
 	const config = workspace.getConfiguration('git', null);

@@ -35,7 +35,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { attachButtonStyler, attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -55,6 +55,7 @@ import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -93,7 +94,6 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriService: IUriIdentityService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService
 	) {
 		super();
@@ -164,10 +164,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		}));
 
 		const buttonBar = this._register(new ButtonBar(addButtonBarElement));
-		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder") }));
+		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder"), ...defaultButtonStyles }));
 		addButton.label = localize('addButton', "Add Folder");
-
-		this._register(attachButtonStyler(addButton, this.themeService));
 
 		this._register(addButton.onDidClick(async () => {
 			const uri = await this.fileDialogService.showOpenDialog({
@@ -1022,9 +1020,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 					buttonBar.addButtonWithDropdown({
 						title: true,
 						actions: action.menu ?? [],
-						contextMenuProvider: this.contextMenuService
+						contextMenuProvider: this.contextMenuService,
+						...defaultButtonStyles
 					}) :
-					buttonBar.addButton();
+					buttonBar.addButton(defaultButtonStyles);
 
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
@@ -1036,8 +1035,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 				action.run();
 			}));
-
-			this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
 		}
 	}
 

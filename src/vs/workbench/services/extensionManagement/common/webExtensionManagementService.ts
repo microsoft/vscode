@@ -129,6 +129,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return local;
 	}
 
+	protected getCurrentExtensionsManifestLocation(): URI {
+		return this.userDataProfileService.currentProfile.extensionsResource;
+	}
+
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
