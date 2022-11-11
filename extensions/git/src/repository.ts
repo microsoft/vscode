@@ -308,11 +308,14 @@ export const enum Operation {
 	Diff = 'Diff',
 	MergeBase = 'MergeBase',
 	Add = 'Add',
+	AddNoProgress = 'AddNoProgress',
 	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
+	RevertFilesNoProgress = 'RevertFilesNoProgress',
 	Commit = 'Commit',
 	PostCommitCommand = 'PostCommitCommand',
 	Clean = 'Clean',
+	CleanNoProgress = 'CleanNoProgress',
 	Branch = 'Branch',
 	GetBranch = 'GetBranch',
 	GetBranches = 'GetBranches',
@@ -376,7 +379,10 @@ function isReadOnly(operation: Operation): boolean {
 
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
+		case Operation.AddNoProgress:
+		case Operation.CleanNoProgress:
 		case Operation.FetchNoProgress:
+		case Operation.RevertFilesNoProgress:
 		case Operation.CheckIgnore:
 		case Operation.GetObjectDetails:
 		case Operation.Show:
@@ -1225,8 +1231,12 @@ export class Repository implements Disposable {
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
+		const operation = optimisticUpdate ? Operation.AddNoProgress : Operation.Add;
+
 		await this.run(
-			Operation.Add,
+			operation,
 			async () => {
 				await this.repository.add(resources.map(r => r.fsPath), opts);
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
@@ -1276,8 +1286,12 @@ export class Repository implements Disposable {
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
+		const operation = optimisticUpdate ? Operation.RevertFilesNoProgress : Operation.RevertFiles;
+
 		await this.run(
-			Operation.RevertFiles,
+			operation,
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
 				this.closeDiffEditors([...resources.length !== 0 ?
@@ -1387,8 +1401,12 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
+		const operation = optimisticUpdate ? Operation.CleanNoProgress : Operation.Clean;
+
 		await this.run(
-			Operation.Clean,
+			operation,
 			async () => {
 				const toClean: string[] = [];
 				const toCheckout: string[] = [];
