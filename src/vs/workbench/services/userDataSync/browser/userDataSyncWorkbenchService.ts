@@ -368,7 +368,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async doTurnOnSync(token: CancellationToken): Promise<void> {
 		const disposables = new DisposableStore();
-		const manualSyncTask = disposables.add(await this.userDataSyncService.createManualSyncTask());
+		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
