@@ -10,6 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
+import { Schemas } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -69,9 +70,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private arePasteActionsEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.experimental.pasteActions.enabled', {
-			resource: model.uri
-		});
+		if (this._configurationService.getValue('editor.experimental.pasteActions.enabled', { resource: model.uri })) {
+			return true;
+		}
+
+		// TODO: This check is only here to support enabling `ipynb.pasteImagesAsAttachments.enabled` by default
+		return model.uri.scheme === Schemas.vscodeNotebookCell;
 	}
 
 	private handleCopy(e: ClipboardEvent) {

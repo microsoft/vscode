@@ -258,7 +258,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.reload();
 		}));
 
-		this._register(this.on('do-update-state', ({ state }) => {
+		this._register(this.on('do-update-state', (state) => {
 			this.state = state;
 			this._onDidUpdateState.fire(state);
 		}));

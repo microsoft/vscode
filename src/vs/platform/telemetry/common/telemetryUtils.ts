@@ -113,7 +113,35 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If it's OSS and telemetry isn't disabled via the CLI we will allow it for logging only purposes
+	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
+		return true;
+	}
 	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
+}
+
+/**
+ * Checks to see if we're in logging only mode to debug telemetry.
+ * This is if telemetry is enabled and we're in OSS, but no telemetry key is provided so it's not being sent just logged.
+ * @param productService
+ * @param environmentService
+ * @returns True if telemetry is actually disabled and we're only logging for debug purposes
+ */
+export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// Logging only mode is only for OSS
+	if (environmentService.isBuilt) {
+		return false;
+	}
+
+	if (environmentService.disableTelemetry) {
+		return false;
+	}
+
+	if (productService.enableTelemetry && productService.aiConfig?.ariaKey) {
+		return false;
+	}
+
+	return true;
 }
 
 /**
