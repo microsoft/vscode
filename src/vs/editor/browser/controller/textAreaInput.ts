@@ -707,8 +707,8 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		super();
 		this._ignoreSelectionChangeTime = 0;
 
-		this.onBeforeInput(() => inputLatency.markInputStart());
-		this.onInput(() => inputLatency.markInputEnd());
+		this._register(this.onBeforeInput(() => inputLatency.markInputStart()));
+		this._register(this.onInput(() => inputLatency.markInputEnd()));
 
 		this._register(dom.addDisposableListener(this._actual, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
 	}
