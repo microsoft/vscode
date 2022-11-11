@@ -47,7 +47,7 @@ export enum EditorContributionInstantiation {
 export interface IEditorContributionDescription {
 	readonly id: string;
 	readonly ctor: IEditorContributionCtor;
-	readonly instantiation: EditorContributionInstantiation;
+	readonly instantiation?: EditorContributionInstantiation;
 }
 
 export interface IDiffEditorContributionDescription {
