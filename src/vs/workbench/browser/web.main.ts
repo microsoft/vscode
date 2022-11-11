@@ -82,6 +82,7 @@ import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/co
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
 import { timeout } from 'vs/base/common/async';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class BrowserMain extends Disposable {
 
@@ -288,6 +289,21 @@ export class BrowserMain extends Disposable {
 		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
+		let isProfilesEnablementConfigured = false;
+		if (environmentService.remoteAuthority) {
+			// Always Disabled in web with remote connection
+			userDataProfilesService.setEnablement(false);
+		} else {
+			if (productService.quality === 'stable') {
+				// Enabled from Config
+				userDataProfilesService.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
+				isProfilesEnablementConfigured = true;
+			} else {
+				// Always Enabled
+				userDataProfilesService.setEnablement(true);
+			}
+		}
+
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
@@ -310,12 +326,14 @@ export class BrowserMain extends Disposable {
 			})
 		]);
 
-		userDataProfilesService.setEnablement(!environmentService.remoteAuthority && (productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG)));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
-				userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
-			}
-		}));
+		if (isProfilesEnablementConfigured) {
+			userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.source !== ConfigurationTarget.DEFAULT && e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
+					window.localStorage.setItem(PROFILES_ENABLEMENT_CONFIG, !!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG) ? 'true' : 'false');
+				}
+			}));
+		}
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
