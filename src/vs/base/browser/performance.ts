@@ -130,13 +130,13 @@ export namespace inputLatency {
 				measurementsRender[measurementsCount] = performance.getEntriesByName('render')[0].duration;
 				measurementsInputLatency[measurementsCount] = performance.getEntriesByName('inputlatency')[0].duration;
 
-				console.info(
-					`input latency=${measurementsInputLatency[measurementsCount].toFixed(1)} [` +
-					`keydown=${measurementsKeydown[measurementsCount].toFixed(1)}, ` +
-					`input=${measurementsInput[measurementsCount].toFixed(1)}, ` +
-					`render=${measurementsRender[measurementsCount].toFixed(1)}` +
-					`]`
-				);
+				// console.info(
+				// 	`input latency=${measurementsInputLatency[measurementsCount].toFixed(1)} [` +
+				// 	`keydown=${measurementsKeydown[measurementsCount].toFixed(1)}, ` +
+				// 	`input=${measurementsInput[measurementsCount].toFixed(1)}, ` +
+				// 	`render=${measurementsRender[measurementsCount].toFixed(1)}` +
+				// 	`]`
+				// );
 
 				measurementsCount++;
 
@@ -144,7 +144,6 @@ export namespace inputLatency {
 			}
 		});
 	}
-	setInterval(() => console.log(getAndClearMeasurements()), 10000);
 
 	/**
 	 * Clear the current sample.
