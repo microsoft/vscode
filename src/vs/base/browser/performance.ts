@@ -115,8 +115,9 @@ export namespace inputLatency {
 		if (state.selection !== EventPhase.Finished || state.render !== EventPhase.Finished) {
 			return;
 		}
-		// Finish the recording, using setImmediate to ensure that layout/paint is captured
-		setImmediate(() => {
+		// Finish the recording, use a timer to ensure that layout/paint is captured. setImmediate
+		// is used if available (Electron) to get slightly more accurate results
+		('setImmediate' in window ? (window as any).setImmediate : setTimeout)(() => {
 			if (state.keydown === EventPhase.Finished && state.input === EventPhase.Finished && state.selection === EventPhase.Finished && state.render === EventPhase.Finished) {
 				performance.mark('inputlatency/end');
 
@@ -142,7 +143,7 @@ export namespace inputLatency {
 
 				reset();
 			}
-		});
+		}, 0);
 	}
 
 	/**
