@@ -12,7 +12,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
-const defaultUserDataProfileIcon = registerIcon('defaultSettingsProfiles-icon', Codicon.settings, localize('settingsProfilesIcon', 'Icon for Default Settings Profiles.'));
+const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 

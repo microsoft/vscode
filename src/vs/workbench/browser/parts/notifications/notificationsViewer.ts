@@ -9,7 +9,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ButtonBar, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
@@ -27,7 +26,6 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { DomEmitter } from 'vs/base/browser/event';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { Event } from 'vs/base/common/event';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -182,7 +180,6 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 	constructor(
 		private actionRunner: IActionRunner,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -260,8 +257,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.mainRow.appendChild(toolbarContainer);
 
 		// Progress: below the rows to span the entire width of the item
-		data.progress = new ProgressBar(container);
-		data.toDispose.add(attachProgressBarStyler(data.progress, this.themeService));
+		data.progress = new ProgressBar(container, getProgressBarStyles());
 		data.toDispose.add(data.progress);
 
 		// Renderer

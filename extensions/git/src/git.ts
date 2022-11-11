@@ -18,7 +18,6 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
-import TelemetryReporter from '@vscode/extension-telemetry';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -199,7 +198,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 	}
 
 	if (cancellationToken && cancellationToken.isCancellationRequested) {
-		throw new GitError({ message: 'Cancelled' });
+		throw new CancellationError();
 	}
 
 	const disposables: IDisposable[] = [];
@@ -240,7 +239,7 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 					// noop
 				}
 
-				e(new GitError({ message: 'Cancelled' }));
+				e(new CancellationError());
 			});
 		});
 
@@ -375,14 +374,11 @@ export class Git {
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
-	private readonly telemetryReporter: TelemetryReporter;
-
-	constructor(options: IGitOptions, telemetryReporter: TelemetryReporter) {
+	constructor(options: IGitOptions) {
 		this.path = options.gitPath;
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
-		this.telemetryReporter = telemetryReporter;
 
 		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
 			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
@@ -563,9 +559,7 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
-		const startSpawn = Date.now();
 		const child = this.spawn(args, options);
-		const durSpawn = Date.now() - startSpawn;
 
 		options.onSpawn?.(child);
 
@@ -574,12 +568,21 @@ export class Git {
 		}
 
 		const startExec = Date.now();
-		const bufferResult = await exec(child, options.cancellationToken);
-		const durExec = Date.now() - startExec;
+		let bufferResult: IExecutionResult<Buffer>;
+
+		try {
+			bufferResult = await exec(child, options.cancellationToken);
+		} catch (ex) {
+			if (ex instanceof CancellationError) {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
+			}
+
+			throw ex;
+		}
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -591,16 +594,6 @@ export class Git {
 				this.log(`${bufferResult.stderr}\n`);
 			}
 		}
-
-		/* __GDPR__
-			"git.execDuration" : {
-				"owner": "lszomoru",
-				"comment": "Time it takes to spawn and execute a git command",
-				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
-				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" }
-			}
-		*/
-		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
 
 		let encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -704,6 +697,55 @@ export interface Commit {
 	refNames: string[];
 }
 
+interface GitConfigSection {
+	name: string;
+	subSectionName?: string;
+	properties: { [key: string]: string };
+}
+
+class GitConfigParser {
+	private static readonly _lineSeparator = /\r?\n/g;
+
+	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
+
+	static parse(raw: string): GitConfigSection[] {
+		const config: { sections: GitConfigSection[] } = { sections: [] };
+		let section: GitConfigSection = { name: 'DEFAULT', properties: {} };
+
+		const addSection = (section?: GitConfigSection) => {
+			if (!section) { return; }
+			config.sections.push(section);
+		};
+
+		let position = 0;
+		let match: RegExpExecArray | null = null;
+
+		while (match = GitConfigParser._lineSeparator.exec(raw)) {
+			const line = raw.substring(position, match.index);
+			position = match.index + match[0].length;
+
+			const sectionMatch = line.match(GitConfigParser._sectionRegex);
+			if (sectionMatch?.length === 3) {
+				addSection(section);
+				section = { name: sectionMatch[1], subSectionName: sectionMatch[2]?.replaceAll('"', ''), properties: {} };
+
+				continue;
+			}
+
+			// Properties
+			const propertyMatch = line.match(GitConfigParser._propertyRegex);
+			if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
+				section.properties[propertyMatch[1]] = propertyMatch[2];
+			}
+		}
+
+		addSection(section);
+
+		return config.sections;
+	}
+}
+
 export class GitStatusParser {
 
 	private lastRaw = '';
@@ -777,59 +819,37 @@ export interface Submodule {
 }
 
 export function parseGitmodules(raw: string): Submodule[] {
-	const regex = /\r?\n/g;
-	let position = 0;
-	let match: RegExpExecArray | null = null;
-
 	const result: Submodule[] = [];
-	let submodule: Partial<Submodule> = {};
 
-	function parseLine(line: string): void {
-		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
-
-		if (sectionMatch) {
-			if (submodule.name && submodule.path && submodule.url) {
-				result.push(submodule as Submodule);
-			}
-
-			const name = sectionMatch[1];
-
-			if (name) {
-				submodule = { name };
-				return;
-			}
+	for (const submoduleSection of GitConfigParser.parse(raw).filter(s => s.name === 'submodule')) {
+		if (submoduleSection.subSectionName && submoduleSection.properties['path'] && submoduleSection.properties['url']) {
+			result.push({
+				name: submoduleSection.subSectionName,
+				path: submoduleSection.properties['path'],
+				url: submoduleSection.properties['url']
+			});
 		}
-
-		if (!submodule) {
-			return;
-		}
-
-		const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(line);
-
-		if (!propertyMatch) {
-			return;
-		}
-
-		const [, key, value] = propertyMatch;
-
-		switch (key) {
-			case 'path': submodule.path = value; break;
-			case 'url': submodule.url = value; break;
-		}
-	}
-
-	while (match = regex.exec(raw)) {
-		parseLine(raw.substring(position, match.index));
-		position = match.index + match[0].length;
-	}
-
-	parseLine(raw.substring(position));
-
-	if (submodule.name && submodule.path && submodule.url) {
-		result.push(submodule as Submodule);
 	}
 
 	return result;
+}
+
+export function parseGitRemotes(raw: string): Remote[] {
+	const remotes: Remote[] = [];
+
+	for (const remoteSection of GitConfigParser.parse(raw).filter(s => s.name === 'remote')) {
+		if (remoteSection.subSectionName) {
+			remotes.push({
+				name: remoteSection.subSectionName,
+				fetchUrl: remoteSection.properties['url'],
+				pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
+				// https://github.com/microsoft/vscode/issues/45271
+				isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+			});
+		}
+	}
+
+	return remotes;
 }
 
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
@@ -2083,7 +2103,7 @@ export class Repository {
 	}
 
 	async getHEADFS(): Promise<Ref> {
-		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+		const raw = await fs.readFile(path.join(this.dotGit.path, 'HEAD'), 'utf8');
 
 		// Branch
 		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);
@@ -2108,7 +2128,11 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const args = ['for-each-ref'];
 
 		if (opts?.count) {
@@ -2129,7 +2153,7 @@ export class Repository {
 			args.push('--contains', opts.contains);
 		}
 
-		const result = await this.exec(args);
+		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
@@ -2164,6 +2188,20 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
+		try {
+			// Attempt to parse the config file
+			const remotes = await this.getRemotesFS();
+			if (remotes.length === 0) {
+				throw new Error('No remotes found in the git config file.');
+			}
+
+			return remotes;
+		}
+		catch (err) {
+			this.logger.warn(err.message);
+		}
+
+		// Fallback to using git to determine remotes
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
 		const remotes: MutableRemote[] = [];
@@ -2193,6 +2231,11 @@ export class Repository {
 		}
 
 		return remotes;
+	}
+
+	private async getRemotesFS(): Promise<Remote[]> {
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
+		return parseGitRemotes(raw);
 	}
 
 	async getBranch(name: string): Promise<Branch> {

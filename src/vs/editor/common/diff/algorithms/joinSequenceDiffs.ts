@@ -120,7 +120,7 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	let bestDelta = 0;
 	let bestScore = -1;
 	// find best scored delta
-	for (let delta = -deltaBefore; delta < deltaAfter; delta++) {
+	for (let delta = -deltaBefore; delta <= deltaAfter; delta++) {
 		const seq2OffsetStart = diff.seq2Range.start + delta;
 		const seq2OffsetEndExclusive = diff.seq2Range.endExclusive + delta;
 		const seq1Offset = diff.seq1Range.start + delta;

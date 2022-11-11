@@ -70,8 +70,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		this.playingSounds.add(sound);
 
 		const url = FileAccess.asBrowserUri(
-			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
-			require
+			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`
 		).toString();
 		const audio = new Audio(url);
 		audio.volume = this.getVolumeInPercent() / 100;

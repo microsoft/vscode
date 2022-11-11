@@ -492,6 +492,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.removeCommentEditor();
 		});
 
+		this._register(this._commentFormActions);
 		this._commentFormActions.setActions(menu);
 	}
 

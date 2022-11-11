@@ -621,73 +621,71 @@ export class RawDebugSession implements IDisposable {
 
 		const safeSendResponse = (response: DebugProtocol.Response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
-		switch (request.command) {
-			case 'launchVSCode':
-				try {
-					let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
-					if (!result.success) {
-						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
-							[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
-						if (showResult.choice === 0) {
-							result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
-						} else {
-							response.success = false;
-							safeSendResponse(response);
-							await this.shutdown();
-						}
-					}
-					response.body = {
-						rendererDebugPort: result.rendererDebugPort,
-					};
-					safeSendResponse(response);
-				} catch (err) {
-					response.success = false;
-					response.message = err.message;
-					safeSendResponse(response);
-				}
-				break;
-			case 'runInTerminal':
-				try {
-					const shellProcessId = await this.dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
-					const resp = response as DebugProtocol.RunInTerminalResponse;
-					resp.body = {};
-					if (typeof shellProcessId === 'number') {
-						resp.body.shellProcessId = shellProcessId;
-					}
-					safeSendResponse(resp);
-				} catch (err) {
-					response.success = false;
-					response.message = err.message;
-					safeSendResponse(response);
-				}
-				break;
-			case 'startDebugging':
-				try {
-					const args = (request.arguments as DebugProtocol.StartDebuggingRequestArguments);
-					const config: IConfig = {
-						...args.configuration,
-						...{
-							request: args.request,
-							type: this.dbgr.type,
-							name: this.name
-						}
-					};
-					const success = await this.dbgr.startDebugging(config, this.sessionId);
-					if (!success) {
+		if (request.command === 'launchVSCode') {
+			try {
+				let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+				if (!result.success) {
+					const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
+						[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
+					if (showResult.choice === 0) {
+						result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+					} else {
 						response.success = false;
-						response.message = 'Failed to start debugging';
 						safeSendResponse(response);
+						await this.shutdown();
 					}
-				} catch (err) {
+				}
+				response.body = {
+					rendererDebugPort: result.rendererDebugPort,
+				};
+				safeSendResponse(response);
+			} catch (err) {
+				response.success = false;
+				response.message = err.message;
+				safeSendResponse(response);
+			}
+		} else if (request.command === 'runInTerminal') {
+			try {
+				const shellProcessId = await this.dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
+				const resp = response as DebugProtocol.RunInTerminalResponse;
+				resp.body = {};
+				if (typeof shellProcessId === 'number') {
+					resp.body.shellProcessId = shellProcessId;
+				}
+				safeSendResponse(resp);
+			} catch (err) {
+				response.success = false;
+				response.message = err.message;
+				safeSendResponse(response);
+			}
+		} else if (request.command === 'startDebugging') {
+			try {
+				const args = (request.arguments as DebugProtocol.StartDebuggingRequestArguments);
+				const config: IConfig = {
+					...args.configuration,
+					...{
+						request: args.request,
+						type: this.dbgr.type,
+						name: this.name
+					}
+				};
+				const success = await this.dbgr.startDebugging(config, this.sessionId);
+				if (success) {
+					safeSendResponse(response);
+				} else {
 					response.success = false;
-					response.message = err.message;
+					response.message = 'Failed to start debugging';
 					safeSendResponse(response);
 				}
-			default:
+			} catch (err) {
 				response.success = false;
-				response.message = `unknown request '${request.command}'`;
+				response.message = err.message;
 				safeSendResponse(response);
-				break;
+			}
+		} else {
+			response.success = false;
+			response.message = `unknown request '${request.command}'`;
+			safeSendResponse(response);
 		}
 	}
 

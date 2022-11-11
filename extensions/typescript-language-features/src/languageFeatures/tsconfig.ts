@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import { basename, dirname, join, posix } from 'path';
+import { basename, posix } from 'path';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
@@ -103,11 +103,11 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private getFileTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
-		return vscode.Uri.file(join(dirname(document.uri.fsPath), node.value));
+		return vscode.Uri.joinPath(Utils.dirname(document.uri), node.value);
 	}
 
 	private getFolderTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
-		return vscode.Uri.file(join(dirname(document.uri.fsPath), node.value, 'tsconfig.json'));
+		return vscode.Uri.joinPath(Utils.dirname(document.uri), node.value, 'tsconfig.json');
 	}
 
 	private getRange(document: vscode.TextDocument, node: jsonc.Node) {

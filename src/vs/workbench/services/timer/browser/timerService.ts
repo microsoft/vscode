@@ -569,7 +569,16 @@ export abstract class AbstractTimerService implements ITimerService {
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
 	}
 
+	private readonly _shouldReportPerfMarks = Math.random() < .3;
+
 	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {
+
+		if (!this._shouldReportPerfMarks) {
+			// the `startup.timer.mark` event is send very often. In order to save resources
+			// we let only a third of our instances send this event
+			return;
+		}
+
 		// report raw timers as telemetry. each mark is send a separate telemetry
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
