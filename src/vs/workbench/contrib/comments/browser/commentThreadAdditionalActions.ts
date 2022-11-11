@@ -12,7 +12,6 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -29,7 +28,6 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 		private _contextKeyService: IContextKeyService,
 		private _commentMenus: CommentMenus,
 		private _actionRunDelegate: (() => void) | null,
-		@IThemeService private themeService: IThemeService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 	) {
 		super();
@@ -90,7 +88,7 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 				$mid: MarshalledId.CommentThreadReply
 			});
 
-		}, this.themeService, this.contextMenuService);
+		}, this.contextMenuService);
 
 		this._commentFormActions.setActions(menu);
 		this._enableDisableMenu(menu);
