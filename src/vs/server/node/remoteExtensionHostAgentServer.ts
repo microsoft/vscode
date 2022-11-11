@@ -724,7 +724,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	const vsdaMod = instantiationService.invokeFunction((accessor) => {
 		const logService = accessor.get(ILogService);
-		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('', require).fsPath, '../node_modules/vsda'));
+		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('').fsPath, '../node_modules/vsda'));
 		if (hasVSDA) {
 			try {
 				return <typeof vsda>require.__$__nodeRequire('vsda');
@@ -735,7 +735,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		return null;
 	});
 
-	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html', require).fsPath);
+	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html').fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!

@@ -127,7 +127,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 			...options,
 			installOnlyNewlyAddedFromExtensionPack: URI.isUri(extension) ? options.installOnlyNewlyAddedFromExtensionPack : true, /* always true for gallery extensions */
-			profileLocation: !options.profileLocation || isApplicationScopedExtension(manifest) ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation
+			profileLocation: isApplicationScopedExtension(manifest) ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
 		};
 		const getInstallExtensionTaskKey = (extension: IGalleryExtension) => `${ExtensionKey.create(extension).toString()}${installExtensionTaskOptions.profileLocation ? `-${installExtensionTaskOptions.profileLocation.toString()}` : ''}`;
 
@@ -467,7 +467,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	private async uninstallExtension(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
 		const uninstallOptions: UninstallExtensionTaskOptions = {
 			...options,
-			profileLocation: !options.profileLocation || extension.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation
+			profileLocation: extension.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
 		};
 		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${uninstallOptions.versionOnly ? `-${extension.manifest.version}` : ''}${uninstallOptions.profileLocation ? `@${uninstallOptions.profileLocation.toString()}` : ''}`;
 		const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension.identifier));
@@ -659,6 +659,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
+	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
 }
