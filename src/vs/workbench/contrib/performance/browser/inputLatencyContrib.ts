@@ -7,6 +7,7 @@ import { inputLatency } from 'vs/base/browser/performance';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -15,7 +16,8 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 	private readonly _scheduler: RunOnceScheduler;
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -24,9 +26,7 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 		// everything, just somewhat randomly, and using an interval would utilize CPU when the
 		// application is inactive.
 		this._scheduler = this._register(new RunOnceScheduler(() => {
-			const measurements = inputLatency.getAndClearMeasurements();
-			console.log('measurements', measurements);
-			// Listen for the next editor change
+			this._logSamples();
 			this._setupListener();
 		}, 60000));
 
@@ -35,5 +35,26 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 
 	private _setupListener(): void {
 		this._listener.value = Event.once(this._editorService.onDidActiveEditorChange)(() => this._scheduler.schedule());
+	}
+
+	private _logSamples(): void {
+		const measurements = inputLatency.getAndClearMeasurements();
+		if (!measurements) {
+			return;
+		}
+
+		type PerformanceInputLatencyClassification = {
+			owner: 'tyriar';
+			comment: 'This is a set of samples of the time (in milliseconds) that various events took when typing in the editor';
+			keydown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min, max and average time it took for the keydown event to execute.' };
+			input: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min, max and average time it took for the input event to execute.' };
+			render: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min, max and average time it took for the render animation frame to execute.' };
+			total: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min, max and average input latency.' };
+			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of samples measured.' };
+		};
+
+		type PerformanceInputLatencyEvent = inputLatency.IInputLatencyMeasurements;
+
+		this._telemetryService.publicLog2<PerformanceInputLatencyEvent, PerformanceInputLatencyClassification>('performance.inputLatency', measurements);
 	}
 }
