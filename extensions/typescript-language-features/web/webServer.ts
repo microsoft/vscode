@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/// <reference types='typescript/lib/tsserverlibrary' />
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='dom' />
+import * as ts from 'typescript/lib/tsserverlibrary';
 // BEGIN misc internals
 const hasArgument: (argumentName: string) => boolean = (ts as any).server.hasArgument;
 const findArgument: (argumentName: string) => string | undefined = (ts as any).server.findArgument;
@@ -226,7 +226,7 @@ function serverCreateWebSystem(host: WebHost, args: string[], getExecutingFilePa
 
 			const scriptPath = combinePaths(packageRoot, browser);
 			try {
-				const { default: module } = await import(scriptPath);
+				const { default: module } = await import(/* webpackIgnore: true */scriptPath);
 				return { module, error: undefined };
 			}
 			catch (e) {
