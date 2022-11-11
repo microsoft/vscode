@@ -122,10 +122,9 @@ const host = new class implements ts.LanguageServiceHost {
 };
 
 
-const allClassDataBySymbol = new Map<ts.Symbol, ClassData>();
+const allClassDataByKey = new Map<string, ClassData>();
 const service = ts.createLanguageService(host);
 const program = service.getProgram()!;
-const checker = program.getTypeChecker();
 
 const enum FieldType {
 	Public,
@@ -135,9 +134,9 @@ const enum FieldType {
 
 class ClassData {
 
-	fields = new Map<string, { type: FieldType; symbol: ts.Symbol; pos: number }>();
+	fields = new Map<string, { type: FieldType; pos: number }>();
 
-	replacements: Map<string, string> | undefined;
+	private replacements: Map<string, string> | undefined;
 
 	parent: ClassData | undefined;
 	children: ClassData[] | undefined;
@@ -145,7 +144,6 @@ class ClassData {
 	constructor(
 		readonly fileName: string,
 		readonly node: ts.ClassDeclaration | ts.ClassExpression,
-		readonly symbol: ts.Symbol,
 	) {
 		// analyse all fields (properties and methods). Find usages of all protected and
 		// private ones and keep track of all public ones (to prevent naming collisions)
@@ -186,12 +184,8 @@ class ClassData {
 			if (!ident) {
 				continue;
 			}
-			const symbol = checker.getSymbolAtLocation(member.name!);
-			if (!symbol) {
-				throw new Error(`NO SYMBOL for ${node.getText()}`);
-			}
 			const type = ClassData._getFieldType(member);
-			this.fields.set(ident, { type, symbol, pos: member.name!.pos });
+			this.fields.set(ident, { type, pos: member.name!.getStart() });
 		}
 	}
 
@@ -224,7 +218,29 @@ class ClassData {
 	}
 
 	static _shouldMangle(type: FieldType): boolean {
-		return type === FieldType.Private;
+		return type === FieldType.Private
+			|| type === FieldType.Protected
+			;
+	}
+
+	static makeImplicitPublicActuallyPublic(data: ClassData): void {
+		// TS-HACK
+		// A subtype can make an inherited protected field public. To prevent accidential
+		// mangling of public fields we mark the original (protected) fields as public...
+		for (const [name, info] of data.fields) {
+			if (info.type !== FieldType.Public) {
+				continue;
+			}
+			let parent: ClassData | undefined = data.parent;
+			while (parent) {
+				if (parent.fields.get(name)?.type === FieldType.Protected) {
+					console.warn(`WARN: protected became PUBLIC: '${name}' defined ${parent.fileName}@${info.pos}, PUBLIC via ${data.fileName}@${info.pos}`);
+
+					parent.fields.get(name)!.type = FieldType.Public;
+				}
+				parent = parent.parent;
+			}
+		}
 	}
 
 	static fillInReplacement(data: ClassData) {
@@ -234,28 +250,27 @@ class ClassData {
 			return;
 		}
 
-		// check with parent
+		// fill in parents first
 		if (data.parent) {
 			ClassData.fillInReplacement(data.parent);
 		}
 
-		// full chain
-		const classAndAllParents: ClassData[] = [];
-		let node: ClassData | undefined = data;
-		while (node) {
-			classAndAllParents.push(node);
-			node = node.parent;
-		}
+		data.replacements = new Map();
 
 		const identPool = new ShortIdent(name => {
 
+			// locally taken
+			if (data._isNameTaken(name)) {
+				return true;
+			}
+
 			// parents
-			let node: ClassData | undefined = data.parent;
-			while (node) {
-				if (node.isNameTaken(name)) {
+			let parent: ClassData | undefined = data.parent;
+			while (parent) {
+				if (parent._isNameTaken(name)) {
 					return true;
 				}
-				node = node.parent;
+				parent = parent.parent;
 			}
 
 			// children
@@ -263,7 +278,7 @@ class ClassData {
 				const stack = [...data.children];
 				while (stack.length) {
 					const node = stack.pop()!;
-					if (node.isNameTaken(name)) {
+					if (node._isNameTaken(name)) {
 						return true;
 					}
 					if (node.children) {
@@ -272,11 +287,8 @@ class ClassData {
 				}
 			}
 
-			// self
-			return data.isNameTaken(name);
+			return false;
 		});
-
-		data.replacements = new Map();
 
 		for (const [name, info] of data.fields) {
 			if (ClassData._shouldMangle(info.type)) {
@@ -288,7 +300,7 @@ class ClassData {
 
 	// a name is taken when a field that doesn't get mangled exists or
 	// when the name is already in use for replacement
-	isNameTaken(name: string) {
+	private _isNameTaken(name: string) {
 		if (this.fields.has(name) && !ClassData._shouldMangle(this.fields.get(name)!.type)) {
 			// public field
 			return true;
@@ -302,12 +314,24 @@ class ClassData {
 			}
 		}
 		if ((<any>this.node.getSourceFile()).identifiers instanceof Map) {
-			// taken by any other
+			// taken by any other usage
 			if ((<any>this.node.getSourceFile()).identifiers.has(name)) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	lookupShortName(name: string): string {
+		let value = this.replacements!.get(name)!;
+		let parent = this.parent;
+		while (parent) {
+			if (parent.replacements!.has(name) && parent.fields.get(name)?.type === FieldType.Protected) {
+				value = parent.replacements!.get(name)! ?? value;
+			}
+			parent = parent.parent;
+		}
+		return value;
 	}
 
 	// --- parent chaining
@@ -324,13 +348,26 @@ class ClassData {
 			// no EXTENDS-clause
 			return;
 		}
-		const extendsSymbol = getSuperType(extendsClause.types[0].expression);
-		if (!extendsSymbol) {
-			// IGNORE: failed to find super-class
+
+		const info = service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
+		if (!info || info.length === 0) {
+			// throw new Error('SUPER type not found');
 			return;
 		}
-		const parent = allClassDataBySymbol.get(extendsSymbol);
-		parent?._addChild(data);
+
+		if (info.length !== 1) {
+			// inherits from declared/library type
+			return;
+		}
+
+		const [definition] = info;
+		const key = `${definition.fileName}|${definition.textSpan.start}`;
+		const parent = allClassDataByKey.get(key);
+		if (!parent) {
+			// throw new Error(`SUPER type not found: ${key}`);
+			return;
+		}
+		parent._addChild(data);
 	}
 }
 
@@ -338,20 +375,13 @@ function visit(node: ts.Node): void {
 
 	if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
 
-		if (node.members.length === 0) {
-			// IGNORE: no members
-			return;
-		}
-
-		const classSymbol = checker.getTypeAtLocation(node.name ?? node).symbol;
-		if (!classSymbol) {
-			throw new Error('MISSING');
-		}
-		if (allClassDataBySymbol.has(classSymbol)) {
+		const anchor = node.name ?? node;
+		const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+		if (allClassDataByKey.has(key)) {
 			throw new Error('DUPE?');
 		}
 
-		allClassDataBySymbol.set(classSymbol, new ClassData(node.getSourceFile().fileName, node, classSymbol));
+		allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 	}
 
 	ts.forEachChild(node, visit);
@@ -360,25 +390,9 @@ function visit(node: ts.Node): void {
 
 // --- ast utils
 
-
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
 	const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
 	return Boolean(modifiers?.find(mode => mode.kind === kind));
-}
-
-function getSuperType(node: ts.Node): ts.Symbol | undefined {
-	const type = checker.getTypeAtLocation(node);
-	if (!type.symbol) {
-		return;
-	}
-	if (!type.symbol.declarations || type.symbol.declarations.length !== 1) {
-		return;
-	}
-	const dec = type.symbol.declarations[0];
-	if (dec.kind === ts.SyntaxKind.ClassDeclaration) {
-		return type.symbol;
-	}
-	return undefined;
 }
 
 // step 1: collect all class data and store it by symbols
@@ -393,15 +407,20 @@ async function mangle() {
 			ts.forEachChild(file, visit);
 		}
 	}
-	console.log(`done COLLECTING ${allClassDataBySymbol.size} classes`);
+	console.log(`done COLLECTING ${allClassDataByKey.size} classes`);
 
 	// (1.1) connect all class info
-	for (const data of allClassDataBySymbol.values()) {
+	for (const data of allClassDataByKey.values()) {
 		ClassData.setupParents(data);
 	}
 
+	// (1.2) TS-HACK: mark implicit-public protected field as public
+	for (const data of allClassDataByKey.values()) {
+		ClassData.makeImplicitPublicActuallyPublic(data);
+	}
+
 	// (2) fill in replacement strings
-	for (const data of allClassDataBySymbol.values()) {
+	for (const data of allClassDataByKey.values()) {
 		ClassData.fillInReplacement(data);
 	}
 	console.log(`done creating REPLACEMENTS`);
@@ -419,17 +438,28 @@ async function mangle() {
 		}
 	};
 
-	for (const data of allClassDataBySymbol.values()) {
+	for (const data of allClassDataByKey.values()) {
 
 		if (hasModifier(data.node, ts.SyntaxKind.DeclareKeyword)) {
 			continue;
 		}
 
-		for (const [name, info] of data.fields) {
+		fields: for (const [name, info] of data.fields) {
 			if (!ClassData._shouldMangle(info.type)) {
-				continue;
+				continue fields;
 			}
-			const newText = data.replacements!.get(name)!;
+
+			// TS-HACK: protected became public via 'some' child
+			// and because of that we might need to ignore this now
+			let parent = data.parent;
+			while (parent) {
+				if (parent.fields.get(name)?.type === FieldType.Public) {
+					continue fields;
+				}
+				parent = parent.parent;
+			}
+
+			const newText = data.lookupShortName(name);
 			const locations = service.findRenameLocations(data.fileName, info.pos, false, false, true) ?? [];
 			for (const loc of locations) {
 				appendEdit(loc.fileName, {
