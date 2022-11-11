@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { whenDeleted } from 'vs/base/node/pfs';
@@ -17,7 +17,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IWindowSettings } from 'vs/platform/window/common/window';
 import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -45,7 +44,6 @@ export class LaunchMainService implements ILaunchMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 	) { }
 
 	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
@@ -71,8 +69,10 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
-				const window = this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP })[0];
-				whenWindowReady = window.ready();
+				const window = firstOrDefault(await this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP }));
+				if (window) {
+					whenWindowReady = window.ready();
+				}
 			}
 
 			// Make sure a window is open, ready to receive the url event
@@ -115,22 +115,19 @@ export class LaunchMainService implements ILaunchMainService {
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
 
-		// Ensure profile exists when passed in from CLI
-		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(args);
-		const profile = profilePromise ? await profilePromise : undefined;
-
 		const baseConfig: IOpenConfiguration = {
 			context,
 			cli: args,
 			userEnv,
 			waitMarkerFileURI,
 			remoteAuthority,
-			profile
+			forceProfile: args.profile,
+			forceTempProfile: args['profile-temp']
 		};
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
+			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
 		// Start without file/folder arguments
@@ -138,7 +135,7 @@ export class LaunchMainService implements ILaunchMainService {
 			let openNewWindow = false;
 
 			// Force new window
-			if (args['new-window'] || args['unity-launch'] || profile) {
+			if (args['new-window'] || args['unity-launch'] || baseConfig.forceProfile || baseConfig.forceTempProfile) {
 				openNewWindow = true;
 			}
 
@@ -165,7 +162,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Open new Window
 			if (openNewWindow) {
-				usedWindows = this.windowsMainService.open({
+				usedWindows = await this.windowsMainService.open({
 					...baseConfig,
 					forceNewWindow: true,
 					forceEmpty: true
@@ -180,7 +177,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({
+					usedWindows = await this.windowsMainService.open({
 						...baseConfig,
 						forceEmpty: true
 					});
@@ -190,7 +187,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Start with file/folder arguments
 		else {
-			usedWindows = this.windowsMainService.open({
+			usedWindows = await this.windowsMainService.open({
 				...baseConfig,
 				forceNewWindow: args['new-window'],
 				preferNewWindow: !args['reuse-window'] && !args.wait,

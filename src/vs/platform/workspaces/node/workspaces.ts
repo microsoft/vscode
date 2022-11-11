@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Stats, statSync } from 'fs';
+import { Stats } from 'fs';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { originalFSPath } from 'vs/base/common/resources';
@@ -53,13 +53,15 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: 
 			return createHash('md5').update(folderUri.toString()).digest('hex');
 		}
 
-		// Local: produce a hash from the path and include creation time as salt
+		// Local: we use the ctime as extra salt to the
+		// identifier so that folders getting recreated
+		// result in a different identifier. However, if
+		// the stat is not provided we return `undefined`
+		// to ensure identifiers are stable for the given
+		// URI.
+
 		if (!folderStat) {
-			try {
-				folderStat = statSync(folderUri.fsPath);
-			} catch (error) {
-				return undefined; // folder does not exist
-			}
+			return undefined;
 		}
 
 		let ctime: number | undefined;
@@ -75,8 +77,6 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: 
 			}
 		}
 
-		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
-		// deleted and recreated. in that case we do not want to carry over previous state
 		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 	}
 

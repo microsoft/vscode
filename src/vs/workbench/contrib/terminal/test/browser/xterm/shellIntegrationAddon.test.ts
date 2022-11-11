@@ -45,7 +45,7 @@ suite('ShellIntegrationAddon', () => {
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, undefined, undefined);
+		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, true, undefined);
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
@@ -239,13 +239,6 @@ suite('ShellIntegrationAddon', () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, '\x1b]633;SetMark;1;Hidden\x07');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
-		});
-		test('SetMark - invalid', async () => {
-			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
-			await writeP(xterm, '\x1b]633;SetMark;;;\x07');
-			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 		});
 		suite('parseMarkSequence', () => {
 			test('basic', async () => {

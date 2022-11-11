@@ -16,6 +16,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { DEFAULT_PROFILE_EXTENSIONS_MIGRATION_KEY } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class CachedExtensionScanner {
 
@@ -28,6 +31,8 @@ export class CachedExtensionScanner {
 		@IHostService private readonly _hostService: IHostService,
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
@@ -53,9 +58,10 @@ export class CachedExtensionScanner {
 	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {
 		try {
 			const language = platform.language;
+			const profileLocation = this._userDataProfilesService.profiles.length === 1 && this._userDataProfileService.currentProfile.isDefault && !this._storageService.getBoolean(DEFAULT_PROFILE_EXTENSIONS_MIGRATION_KEY, StorageScope.APPLICATION, false) ? undefined : this._userDataProfileService.currentProfile.extensionsResource;
 			const [scannedSystemExtensions, scannedUserExtensions] = await Promise.all([
 				this._extensionsScannerService.scanSystemExtensions({ language, useCache: true, checkControlFile: true }),
-				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfileService.currentProfile.extensionsResource, useCache: true })]);
+				this._extensionsScannerService.scanUserExtensions({ language, profileLocation, useCache: true })]);
 			const scannedDevelopedExtensions = await this._extensionsScannerService.scanExtensionsUnderDevelopment({ language }, [...scannedSystemExtensions, ...scannedUserExtensions]);
 			const system = scannedSystemExtensions.map(e => toExtensionDescription(e, false));
 			const user = scannedUserExtensions.map(e => toExtensionDescription(e, false));

@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ITypeScriptServiceClient } from '../../typescriptService';
 import { escapeRegExp } from '../../utils/regexp';
 import * as typeConverters from '../../utils/typeConverters';
 
-const localize = nls.loadMessageBundle();
 
 export class ReferencesCodeLens extends vscode.CodeLens {
 	constructor(
@@ -32,7 +30,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 	};
 
 	public static readonly errorCommand: vscode.Command = {
-		title: localize('referenceErrorLabel', 'Could not determine references'),
+		title: vscode.l10n.t("Could not determine references"),
 		command: ''
 	};
 

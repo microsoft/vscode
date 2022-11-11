@@ -26,9 +26,9 @@ const jsoncParser = require("jsonc-parser");
 const dependencies_1 = require("./dependencies");
 const _ = require("underscore");
 const builtInExtensions_1 = require("./builtInExtensions");
-const util = require('./util');
+const getVersion_1 = require("./getVersion");
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = (0, getVersion_1.getVersion)(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 function minifyExtensionResources(input) {
     const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });
@@ -37,7 +37,7 @@ function minifyExtensionResources(input) {
         .pipe(buffer())
         .pipe(es.mapSync((f) => {
         const errors = [];
-        const value = jsoncParser.parse(f.contents.toString('utf8'), errors);
+        const value = jsoncParser.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
         if (errors.length === 0) {
             // file parsed OK => just stringify to drop whitespace and comments
             f.contents = Buffer.from(JSON.stringify(value));
@@ -246,7 +246,6 @@ const excludedExtensions = [
     'vscode-test-resolver',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
-    'vscode-notebook-tests',
 ];
 const marketplaceWebExtensionsExclude = new Set([
     'ms-vscode.node-debug',

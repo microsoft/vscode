@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { safeStringify } from 'vs/base/common/objects';
+import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
 import { staticObservableValue } from 'vs/base/common/observableValue';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -113,7 +113,35 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If it's OSS and telemetry isn't disabled via the CLI we will allow it for logging only purposes
+	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
+		return true;
+	}
 	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
+}
+
+/**
+ * Checks to see if we're in logging only mode to debug telemetry.
+ * This is if telemetry is enabled and we're in OSS, but no telemetry key is provided so it's not being sent just logged.
+ * @param productService
+ * @param environmentService
+ * @returns True if telemetry is actually disabled and we're only logging for debug purposes
+ */
+export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// Logging only mode is only for OSS
+	if (environmentService.isBuilt) {
+		return false;
+	}
+
+	if (environmentService.disableTelemetry) {
+		return false;
+	}
+
+	if (productService.enableTelemetry && productService.aiConfig?.ariaKey) {
+		return false;
+	}
+
+	return true;
 }
 
 /**
@@ -191,7 +219,7 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 	};
 }
 
-const telemetryAllowedAuthorities: readonly string[] = ['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunneling'];
+const telemetryAllowedAuthorities: readonly string[] = ['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunneling', 'codespaces'];
 
 export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	if (!remoteAuthority) {
@@ -276,3 +304,119 @@ interface IPathEnvironment {
 export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
 	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
 }
+
+//#region Telemetry Cleaning
+
+/**
+ * Cleans a given stack of possible paths
+ * @param stack The stack to sanitize
+ * @param cleanupPatterns Cleanup patterns to remove from the stack
+ * @returns The cleaned stack
+ */
+function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
+
+	// Fast check to see if it is a file path to avoid doing unnecessary heavy regex work
+	if (!stack || (!stack.includes('/') && !stack.includes('\\'))) {
+		return stack;
+	}
+
+	let updatedStack = stack;
+
+	const cleanUpIndexes: [number, number][] = [];
+	for (const regexp of cleanupPatterns) {
+		while (true) {
+			const result = regexp.exec(stack);
+			if (!result) {
+				break;
+			}
+			cleanUpIndexes.push([result.index, regexp.lastIndex]);
+		}
+	}
+
+	const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+	const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+	let lastIndex = 0;
+	updatedStack = '';
+
+	while (true) {
+		const result = fileRegex.exec(stack);
+		if (!result) {
+			break;
+		}
+
+		// Check to see if the any cleanupIndexes partially overlap with this match
+		const overlappingRange = cleanUpIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
+
+		// anoynimize user file paths that do not need to be retained or cleaned up.
+		if (!nodeModulesRegex.test(result[0]) && !overlappingRange) {
+			updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+			lastIndex = fileRegex.lastIndex;
+		}
+	}
+	if (lastIndex < stack.length) {
+		updatedStack += stack.substr(lastIndex);
+	}
+
+	return updatedStack;
+}
+
+/**
+ * Attempts to remove commonly leaked PII
+ * @param property The property which will be removed if it contains user data
+ * @returns The new value for the property
+ */
+function removePropertiesWithPossibleUserInfo(property: string): string {
+	// If for some reason it is undefined we skip it (this shouldn't be possible);
+	if (!property) {
+		return property;
+	}
+
+	const value = property.toLowerCase();
+
+	const userDataRegexes = [
+		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
+		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
+		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
+	];
+
+	// Check for common user data in the telemetry events
+	for (const secretRegex of userDataRegexes) {
+		if (secretRegex.regex.test(value)) {
+			return `<REDACTED: ${secretRegex.label}>`;
+		}
+	}
+
+	return property;
+}
+
+
+/**
+ * Does a best possible effort to clean a data object from any possible PII.
+ * @param data The data object to clean
+ * @param paths Any additional patterns that should be removed from the data set
+ * @returns A new object with the PII removed
+ */
+export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]): Record<string, any> {
+	return cloneAndChange(data, value => {
+		// We only know how to clean strings
+		if (typeof value === 'string') {
+			let updatedProperty = value;
+			// First we anonymize any possible file paths
+			updatedProperty = anonymizeFilePaths(updatedProperty, cleanUpPatterns);
+
+			// Then we do a simple regex replace with the defined patterns
+			for (const regexp of cleanUpPatterns) {
+				updatedProperty = updatedProperty.replace(regexp, '');
+			}
+
+			// Lastly, remove commonly leaked PII
+			updatedProperty = removePropertiesWithPossibleUserInfo(updatedProperty);
+
+			return updatedProperty;
+		}
+		return undefined;
+	});
+}
+
+//#endregion

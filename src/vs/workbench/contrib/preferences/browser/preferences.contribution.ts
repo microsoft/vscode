@@ -422,6 +422,23 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
 		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.openAccessibilitySettings',
+					title: { value: nls.localize('openAccessibilitySettings', "Open Accessibility Settings"), original: 'Open Accessibility Settings' },
+					category,
+					menu: {
+						id: MenuId.CommandPalette,
+						when: WorkbenchStateContext.notEqualsTo('empty')
+					}
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:accessibility' });
+			}
+		});
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -1243,10 +1260,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-// PreferencesActionsContribution is heavy because it runs through various details to determine which actions to render.
-// We don't need it to start so early.
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, 'PreferencesActionsContribution', LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, 'PreferencesContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);
 

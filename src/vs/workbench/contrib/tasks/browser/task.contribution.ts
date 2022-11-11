@@ -41,7 +41,7 @@ import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/term
 import { isString } from 'vs/base/common/types';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, 'RunAutomaticTasks', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -161,7 +161,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, 'TaskStatusBarContributions', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Run,
@@ -496,14 +496,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[TaskSettingId.AllowAutomaticTasks]: {
 			type: 'string',
-			enum: ['on', 'auto', 'off'],
+			enum: ['on', 'off'],
 			enumDescriptions: [
 				nls.localize('task.allowAutomaticTasks.on', "Always"),
-				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
-			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder - note that tasks won't run in an untrusted workspace."),
-			default: 'auto',
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks - note that tasks won't run in an untrusted workspace."),
+			default: 'on',
 			restricted: true
 		},
 		[TaskSettingId.ShowDecorations]: {

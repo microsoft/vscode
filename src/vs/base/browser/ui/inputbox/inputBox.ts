@@ -58,7 +58,7 @@ export interface IInputValidator {
 }
 
 export interface IMessage {
-	readonly content: string;
+	readonly content?: string;
 	readonly formatContent?: boolean; // defaults to false
 	readonly type?: MessageType;
 }
@@ -220,7 +220,7 @@ export class InputBox extends Widget {
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
 
-		this.ignoreGesture(this.input);
+		this._register(this.ignoreGesture(this.input));
 
 		setTimeout(() => this.updateMirror(), 0);
 
@@ -396,7 +396,7 @@ export class InputBox extends Widget {
 		const styles = this.stylesForType(this.message.type);
 		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
-		if (this.hasFocus() || force) {
+		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
 		}
 	}
@@ -477,8 +477,8 @@ export class InputBox extends Widget {
 				};
 
 				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content, renderOptions)
-					: renderText(this.message.content, renderOptions));
+					? renderFormattedText(this.message.content!, renderOptions)
+					: renderText(this.message.content!, renderOptions));
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);

@@ -89,7 +89,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.main;
 	}
 
-	protected _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
@@ -98,20 +98,21 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
 		const extensionId = extension?.identifier.value;
+		if (extension) {
+			await this._extHostLocalizationService.initializeLocalizedMessages(extension);
+		}
 		try {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			r = require.__$__nodeRequire<T>(module.fsPath);
-		} catch (e) {
-			return Promise.reject(e);
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}
-		return Promise.resolve(r);
+		return r;
 	}
 
 	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {

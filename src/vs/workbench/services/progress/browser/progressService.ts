@@ -14,7 +14,7 @@ import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
@@ -622,4 +622,4 @@ export class ProgressService extends Disposable implements IProgressService {
 	}
 }
 
-registerSingleton(IProgressService, ProgressService, true);
+registerSingleton(IProgressService, ProgressService, InstantiationType.Delayed);

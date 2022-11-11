@@ -41,7 +41,7 @@ flakySuite('Workspaces', () => {
 		fs.mkdirSync(path.join(testDir, 'f1'));
 
 		const localExistingUri = URI.file(path.join(testDir, 'f1'));
-		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
+		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri, fs.statSync(localExistingUri.fsPath));
 		assert.ok(localExistingUriId?.id);
 	});
 

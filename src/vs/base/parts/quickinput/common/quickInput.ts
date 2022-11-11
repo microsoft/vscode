@@ -34,18 +34,21 @@ export interface IQuickPickItem {
 	 * keyboard shortcut.
 	 */
 	keybinding?: ResolvedKeybinding;
-	iconClasses?: string[];
+	iconClasses?: readonly string[];
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
-	buttons?: IQuickInputButton[];
+	buttons?: readonly IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
 }
 
 export interface IQuickPickSeparator {
 	type: 'separator';
+	id?: string;
 	label?: string;
+	ariaLabel?: string;
+	buttons?: readonly IQuickInputButton[];
 }
 
 export interface IKeyMods {
@@ -56,7 +59,7 @@ export interface IKeyMods {
 export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
 
 export interface IQuickNavigateConfiguration {
-	keybindings: ResolvedKeybinding[];
+	keybindings: readonly ResolvedKeybinding[];
 }
 
 export interface IPickOptions<T extends IQuickPickItem> {
@@ -126,6 +129,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
 	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
+	onDidTriggerSeparatorButton?: (context: IQuickPickSeparatorButtonEvent) => void;
 }
 
 export interface IInputOptions {
@@ -141,9 +145,9 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
-	 * the selection of value, default to the whole word
+	 * the selection of value, default to the whole prefilled value
 	 */
-	valueSelection?: [number, number];
+	valueSelection?: readonly [number, number];
 
 	/**
 	 * the text to display underneath the input box
@@ -160,6 +164,9 @@ export interface IInputOptions {
 	 */
 	password?: boolean;
 
+	/**
+	 * an optional flag to not close the input on focus lost
+	 */
 	ignoreFocusLost?: boolean;
 
 	/**
@@ -283,6 +290,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
+
+	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
 
 	items: ReadonlyArray<T | IQuickPickSeparator>;
 
@@ -426,6 +435,11 @@ export interface IQuickInputButton {
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
 	button: IQuickInputButton;
 	item: T;
+}
+
+export interface IQuickPickSeparatorButtonEvent {
+	button: IQuickInputButton;
+	separator: IQuickPickSeparator;
 }
 
 export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {

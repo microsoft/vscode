@@ -82,10 +82,20 @@ export class BlockDecorations extends ViewPart {
 				block = this.blocks[count] = createFastDomNode(document.createElement('div'));
 				this.domNode.appendChild(block);
 			}
-			const top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, true);
-			const bottom = decoration.range.isEmpty()
-				? ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, false)
-				: ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
+
+			let top: number;
+			let bottom: number;
+
+			if (decoration.options.blockIsAfterEnd) {
+				// range must be empty
+				top = ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, false);
+				bottom = ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
+			} else {
+				top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, true);
+				bottom = decoration.range.isEmpty()
+					? ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, false)
+					: ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
+			}
 
 			block.setClassName('blockDecorations-block ' + decoration.options.blockClassName);
 			block.setLeft(ctx.scrollLeft);

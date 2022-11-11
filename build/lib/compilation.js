@@ -122,8 +122,12 @@ function watchTask(out, build) {
 exports.watchTask = watchTask;
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
 class MonacoGenerator {
+    _isWatch;
+    stream;
+    _watchedFiles;
+    _fsProvider;
+    _declarationResolver;
     constructor(isWatch) {
-        this._executeSoonTimer = null;
         this._isWatch = isWatch;
         this.stream = es.through();
         this._watchedFiles = {};
@@ -153,6 +157,7 @@ class MonacoGenerator {
             });
         }
     }
+    _executeSoonTimer = null;
     _executeSoon() {
         if (this._executeSoonTimer !== null) {
             clearTimeout(this._executeSoonTimer);
