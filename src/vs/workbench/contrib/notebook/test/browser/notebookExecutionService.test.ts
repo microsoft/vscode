@@ -14,6 +14,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionServiceImpl';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
@@ -108,7 +109,7 @@ suite('NotebookExecutionService', () => {
 				kernel.executeNotebookCellsRequest = executeSpy;
 
 				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-				await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
+				await executionService.executeNotebookCells(viewModel.notebookDocument, [cell], new MockContextKeyService());
 				assert.strictEqual(executeSpy.calledOnce, true);
 			});
 	});
@@ -139,7 +140,7 @@ suite('NotebookExecutionService', () => {
 			kernelService.onDidChangeSelectedNotebooks(e => event = e);
 
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
+			await executionService.executeNotebookCells(viewModel.notebookDocument, [cell], new MockContextKeyService());
 
 			assert.strictEqual(didExecute, true);
 			assert.ok(event !== undefined);
@@ -169,7 +170,7 @@ suite('NotebookExecutionService', () => {
 			const exeStateService = instantiationService.get(INotebookExecutionStateService);
 
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
+			await executionService.executeNotebookCells(viewModel.notebookDocument, [cell], new MockContextKeyService());
 
 			assert.strictEqual(didExecute, true);
 			assert.strictEqual(exeStateService.getCellExecution(cell.uri), undefined);
