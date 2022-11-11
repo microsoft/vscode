@@ -28,7 +28,7 @@
 			// Mark start of workbench
 			performance.mark('code/didLoadWorkbenchMain');
 
-			return desktopMain[0].main(configuration);
+			return desktopMain.main(configuration);
 		},
 		{
 			configureDeveloperSettings: function (windowConfig) {
