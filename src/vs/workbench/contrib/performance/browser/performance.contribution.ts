@@ -131,7 +131,6 @@ registerAction2(class PrintEventProfiling extends Action2 {
 
 // -- input latency
 
-
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	InputLatencyContrib,
 	LifecyclePhase.Eventually
