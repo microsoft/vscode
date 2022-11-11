@@ -2059,16 +2059,9 @@ export class Repository implements Disposable {
 				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
-			const config = workspace.getConfiguration('git');
-			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-			if (sort !== 'alphabetically' && sort !== 'committerdate') {
-				sort = 'alphabetically';
-			}
-
-			const [HEAD, refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
+			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
 				await Promise.all([
 					this.repository.getHEADBranch(),
-					this.repository.getRefs({ sort }),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
 					this.getRebaseCommit(),
@@ -2076,7 +2069,6 @@ export class Repository implements Disposable {
 					this.getInputTemplate()]);
 
 			this._HEAD = HEAD;
-			this._refs = refs!;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
 			this.rebaseCommit = rebaseCommit;
@@ -2084,8 +2076,20 @@ export class Repository implements Disposable {
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
-			// Update resource states based on status data
-			this._updateResourceGroupsState(await this.getStatus(cancellationToken));
+			// Execute cancellable long-running operations
+			const config = workspace.getConfiguration('git');
+			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+			if (sort !== 'alphabetically' && sort !== 'committerdate') {
+				sort = 'alphabetically';
+			}
+
+			const [resourceGroups, refs] =
+				await Promise.all([
+					this.getStatus(cancellationToken),
+					this.repository.getRefs({ sort, cancellationToken })]);
+
+			this._refs = refs!;
+			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
 		}

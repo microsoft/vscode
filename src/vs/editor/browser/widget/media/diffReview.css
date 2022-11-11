@@ -6,6 +6,7 @@
 .monaco-diff-editor .diff-review-line-number {
 	text-align: right;
 	display: inline-block;
+	color: var(--vscode-editorLineNumber-foreground);
 }
 
 .monaco-diff-editor .diff-review {
@@ -20,6 +21,7 @@
 
 .monaco-diff-editor .diff-review-shadow {
 	position: absolute;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 -6px 6px -6px inset;
 }
 
 .monaco-diff-editor .diff-review-row {

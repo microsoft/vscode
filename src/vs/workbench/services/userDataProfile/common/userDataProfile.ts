@@ -66,18 +66,18 @@ export interface IUserDataProfileImportExportService {
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
-export interface IResourceProfile {
-	getProfileContent(): Promise<string>;
-	applyProfile(content: string): Promise<void>;
+export interface IProfileResource {
+	getContent(): Promise<string>;
+	apply(content: string): Promise<void>;
 }
 
-export const ManageProfilesSubMenu = new MenuId('SettingsProfiles');
+export const ManageProfilesSubMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
-export const PROFILES_TTILE = { value: localize('settings profiles', "Settings Profiles"), original: 'Settings Profiles' };
+export const PROFILES_TTILE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
 export const PROFILES_CATEGORY = { ...PROFILES_TTILE };
 export const PROFILE_EXTENSION = 'code-profile';
-export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
+export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];
 export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.enabled', true);
-export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentSettingsProfile', '');
-export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentSettingsProfileTransient', false);
-export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasSettingsProfiles', false);
+export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
+export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
+export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
