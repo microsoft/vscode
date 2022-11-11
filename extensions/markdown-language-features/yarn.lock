@@ -386,10 +386,10 @@ diagnostic-channel@1.1.0:
   dependencies:
     semver "^5.3.0"
 
-dompurify@^2.3.3:
-  version "2.3.3"
-  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-2.3.3.tgz#c1af3eb88be47324432964d8abc75cf4b98d634c"
-  integrity sha512-dqnqRkPMAjOZE0FogZ+ceJNM2dZ3V/yNOuFB7+39qpO93hHhfRpHw3heYQC7DPK9FqbQTfBKUJhiSfz4MvXYwg==
+dompurify@^2.4.1:
+  version "2.4.1"
+  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-2.4.1.tgz#f9cb1a275fde9af6f2d0a2644ef648dd6847b631"
+  integrity sha512-ewwFzHzrrneRjxzmK6oVz/rZn9VWspGFRDb4/rRtIsM1n36t9AKma/ye8syCpcw+XJ25kOK/hOG7t1j2I2yBqA==
 
 emitter-listener@^1.0.1, emitter-listener@^1.1.1:
   version "1.1.2"
@@ -634,10 +634,10 @@ vscode-languageserver-types@3.17.2, vscode-languageserver-types@^3.17.1, vscode-
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.2.tgz#b2c2e7de405ad3d73a883e91989b850170ffc4f2"
   integrity sha512-zHhCWatviizPIq9B7Vh9uvrH6x3sK8itC84HkamnBWoDFJtzBf7SWlpLCZUit72b3os45h6RWQNC9xHRDF8dRA==
 
-vscode-markdown-languageservice@^0.0.0-alpha.10:
-  version "0.0.0-alpha.10"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.0.0-alpha.10.tgz#53b69c981eed7fd5efa155ab8c0f169995568681"
-  integrity sha512-rJ85nJ+d45yCz9lBhipavoWXz/vW5FknqqUpLqhe3/2xkrhxt8zcekhSoDepgkKFcTORAFV6g1SnnqxbVhX+uA==
+vscode-markdown-languageservice@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.2.0.tgz#93e230a1ed826786792e820a6e993e50139a0119"
+  integrity sha512-3Jh7/eN6zEPqfkT6cjL+AwGoQ7euL8RtW3FYf24IfPksz4nAZJcRibRtpSdlCaOKpwEoy/f5Axh94cmWPIGBMw==
   dependencies:
     picomatch "^2.3.1"
     vscode-languageserver-textdocument "^1.0.5"
