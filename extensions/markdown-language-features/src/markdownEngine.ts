@@ -83,6 +83,10 @@ export interface RenderOutput {
 	containingImages: Set<string>;
 }
 
+interface TokenizeEnv {
+	currentDocument: vscode.Uri | undefined;
+}
+
 interface RenderEnv {
 	containingImages: Set<string>;
 	currentDocument: vscode.Uri | undefined;
@@ -179,15 +183,19 @@ export class MarkdownItEngine implements IMdParser {
 		}
 
 		this._logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
-		const tokens = this._tokenizeString(document.getText(), engine);
+		const tokens = this._tokenizeString(document.getText(), engine, document.uri);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
 	}
 
-	private _tokenizeString(text: string, engine: MarkdownIt) {
+	private _tokenizeString(text: string, engine: MarkdownIt, uri?: vscode.Uri) {
 		this._resetSlugCount();
 
-		return engine.parse(text, {});
+		const env: TokenizeEnv = {
+			currentDocument: uri
+		};
+
+		return engine.parse(text, env);
 	}
 
 	private _resetSlugCount(): void {
