@@ -152,7 +152,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 				comment: 'Track when a file was read, for example from an editor.';
 			} & FileTelemetryDataFragment;
 
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason), { propsToSkipCleaning: ['mimeType'] });
 		}
 	}
 
@@ -170,7 +170,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 				owner: 'bpasero';
 				comment: 'Track when a file was written to, for example from an editor.';
 			} & FileTelemetryDataFragment;
-			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
+			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason), { propsToSkipCleaning: ['mimeType'] });
 		}
 	}
 

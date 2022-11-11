@@ -573,7 +573,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorOpened', this.toEditorTelemetryDescriptor(editor));
+		this.telemetryService.publicLog('editorOpened', this.toEditorTelemetryDescriptor(editor), { propsToSkipCleaning: ['resource.mimeType'] });
 
 		// Update container
 		this.updateContainer();
@@ -610,7 +610,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				]
 			}
 		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor));
+		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor), { propsToSkipCleaning: ['resource.mimeType'] });
 
 		// Update container
 		this.updateContainer();
