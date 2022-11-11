@@ -57,7 +57,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 			if (supportsTelemetry(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
 				// Not a perfect check, but a nice way to indicate if we only have logging enabled for debug purposes and nothing is actually being sent
 				const justLoggingAndNotSending = isLoggingOnly(this.productService, this.environmentService);
-				const logSuffix = justLoggingAndNotSending ? ' (Logging Only)' : '';
+				const logSuffix = justLoggingAndNotSending ? ' (Not Sent)' : '';
 				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry{0}", logSuffix), this.environmentService.telemetryLogResource);
 				this.registerLogChannel(Constants.extensionTelemetryLogChannelId, nls.localize('extensionTelemetryLog', "Extension Telemetry{0}", logSuffix), this.environmentService.extHostTelemetryLogFile);
 				return true;
