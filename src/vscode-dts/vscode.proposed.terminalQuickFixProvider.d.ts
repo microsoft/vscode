@@ -50,10 +50,7 @@ declare module 'vscode' {
 		// support line range/col? see elsewhere
 		uri: Uri;
 	}
-	const enum OutputAnchor {
-		top = 'top',
-		bottom = 'bottom'
-	}
+
 	/**
 	 * A matcher that runs on a sub-section of a terminal command's output
 	 */
@@ -66,7 +63,7 @@ declare module 'vscode' {
 		/**
 		 * Which side of the output to anchor the {@link offset} and {@link length} against.
 		 */
-		anchor: OutputAnchor;
+		anchor: TerminalOutputAnchor;
 		/**
 		 * How far from either the top or the bottom of the butter to start matching against.
 		 */
@@ -83,5 +80,10 @@ declare module 'vscode' {
 	export interface TerminalCommand {
 		command: string;
 		exitCode?: number;
+	}
+
+	enum TerminalOutputAnchor {
+		top = 'top',
+		bottom = 'bottom'
 	}
 }

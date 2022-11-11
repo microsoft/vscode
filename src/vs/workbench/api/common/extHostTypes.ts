@@ -45,6 +45,11 @@ function es5ClassCompat(target: Function): any {
 	return Object.assign(target, interceptFunctions);
 }
 
+export enum TerminalOutputAnchor {
+	top = 'top',
+	bottom = 'bottom'
+}
+
 @es5ClassCompat
 export class Disposable {
 
