@@ -13,8 +13,6 @@ import { ITextDocument } from './types/textDocument';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
 
-const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-
 /**
  * Adds begin line index to the output via the 'data-line' data attribute.
  */
@@ -189,7 +187,7 @@ export class MarkdownItEngine implements IMdParser {
 	private _tokenizeString(text: string, engine: MarkdownIt) {
 		this._resetSlugCount();
 
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+		return engine.parse(text, {});
 	}
 
 	private _resetSlugCount(): void {

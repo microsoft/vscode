@@ -218,7 +218,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === syncProfile.id);
 			if (!profile) {
-				this.logService.error(`Settings Profile with id:${syncProfile.id} and name: ${syncProfile.name} does not exist locally to sync.`);
+				this.logService.error(`Profile with id:${syncProfile.id} and name: ${syncProfile.name} does not exist locally to sync.`);
 				continue;
 			}
 			this.logService.info('Syncing profile.', syncProfile.name);

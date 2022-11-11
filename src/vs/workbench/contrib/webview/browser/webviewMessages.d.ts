@@ -25,7 +25,7 @@ export type FromWebviewMessage = {
 	'did-blur': void;
 	'did-load': void;
 	'did-find': { didFind: boolean };
-	'do-update-state': { state: any };
+	'do-update-state': string;
 	'do-reload': void;
 	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string };
 	'load-localhost': { id: string; origin: string };
@@ -71,7 +71,7 @@ export type ToWebviewMessage = {
 		themeId: string;
 		themeLabel: string;
 		reduceMotion: boolean;
-	screenReader: boolean;
+		screenReader: boolean;
 	};
 	'find': { value: string; previous?: boolean };
 	'find-stop': { clearSelection?: boolean };

@@ -155,7 +155,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts

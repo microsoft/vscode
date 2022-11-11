@@ -77,7 +77,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		type WorkspaceLoadClassification = {
 			owner: 'bpasero';
-			userAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user agent as reported by `navigator.userAgent` by Electron or the web browser.' };
 			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a folder or workspace is opened or not.' };
 			windowSize: WindowSizeFragment;
 			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should open or be created.' };
@@ -94,7 +93,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		type WorkspaceLoadEvent = {
-			userAgent: string;
 			windowSize: { innerHeight: number; innerWidth: number; outerHeight: number; outerWidth: number };
 			emptyWorkbench: boolean;
 			'workbench.filesToOpenOrCreate': number;
@@ -110,7 +108,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		telemetryService.publicLog2<WorkspaceLoadEvent, WorkspaceLoadClassification>('workspaceLoad', {
-			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,

@@ -258,7 +258,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.reload();
 		}));
 
-		this._register(this.on('do-update-state', ({ state }) => {
+		this._register(this.on('do-update-state', (state) => {
 			this.state = state;
 			this._onDidUpdateState.fire(state);
 		}));
@@ -450,12 +450,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 
-		const allowRules = ['cross-origin-isolated;'];
+		const allowRules = ['cross-origin-isolated', 'autoplay'];
 		if (!isFirefox) {
-			allowRules.push('clipboard-read;', 'clipboard-write;');
-			element.setAttribute('allow', 'clipboard-read; clipboard-write; cross-origin-isolated;');
+			allowRules.push('clipboard-read', 'clipboard-write');
 		}
-		element.setAttribute('allow', allowRules.join(' '));
+		element.setAttribute('allow', allowRules.join('; '));
 
 		element.style.border = 'none';
 		element.style.width = '100%';

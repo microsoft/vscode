@@ -230,6 +230,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return { location, cleanup };
 	}
 
+	protected getCurrentExtensionsManifestLocation(): URI {
+		return this.userDataProfilesService.defaultProfile.extensionsResource;
+	}
+
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
 		let installExtensionTask: IInstallExtensionTask | undefined;
 		if (URI.isUri(extension)) {
@@ -751,9 +755,6 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			this.wasVerified = !!verified;
 			this.validateManifest(location.fsPath);
 			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
-			if (existingExtension && !this.options.profileLocation && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
-				await this.extensionsScanner.setUninstalled(existingExtension);
-			}
 			return { local, metadata };
 		} catch (error) {
 			try {

@@ -271,7 +271,7 @@ export async function applyCodeAction(
 			label: item.action.title,
 			quotableLabel: item.action.title,
 			code: 'undoredo.codeAction',
-			respectAutoSaveConfig: true,
+			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
 		});
 	}
