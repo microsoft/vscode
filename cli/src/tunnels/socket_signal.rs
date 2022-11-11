@@ -74,6 +74,7 @@ impl ServerMessageSink {
 		body
 	}
 
+	#[allow(dead_code)]
 	pub async fn closed_server_bridge(
 		&mut self,
 		i: u16,
@@ -99,7 +100,6 @@ impl ClientMessageDecoder {
 		}
 	}
 
-	#[allow(dead_code)]
 	pub fn decode<'a: 'b, 'b>(&'a mut self, message: &'b [u8]) -> std::io::Result<&'b [u8]> {
 		match &mut self.dec {
 			Some(d) => d.process(message),

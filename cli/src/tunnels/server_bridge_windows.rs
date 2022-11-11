@@ -118,7 +118,7 @@ impl ServerBridge {
 		Ok(ServerBridge { write_tx, decoder })
 	}
 
-	pub async fn write(&self, b: Vec<u8>) -> std::io::Result<()> {
+	pub async fn write(&mut self, b: Vec<u8>) -> std::io::Result<()> {
 		let dec = self.decoder.decode(&b)?;
 		if !dec.is_empty() {
 			self.write_tx.send(dec.to_vec()).await.ok();
