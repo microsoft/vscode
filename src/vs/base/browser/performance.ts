@@ -5,16 +5,20 @@
 
 export namespace inputLatency {
 
-	// Measurements are recorded in typed arrays with a fixed buffer length to their own impact on
-	// input latency.
-	const enum Constants {
-		bufferLength = 256
+	// Measurements are recorded as totals, the average is calculated when the final measurements
+	// are created.
+	interface ICumulativeMeasurement {
+		total: number;
+		min: number;
+		max: number;
 	}
-	const measurementsKeydown = new Float32Array(Constants.bufferLength);
-	const measurementsInput = new Float32Array(Constants.bufferLength);
-	const measurementsRender = new Float32Array(Constants.bufferLength);
-	const measurementsInputLatency = new Float32Array(Constants.bufferLength);
+	const totalKeydownTime: ICumulativeMeasurement = { total: 0, min: Number.MAX_VALUE, max: 0 };
+	const totalInputTime: ICumulativeMeasurement = { ...totalKeydownTime };
+	const totalRenderTime: ICumulativeMeasurement = { ...totalKeydownTime };
+	const totalInputLatencyTime: ICumulativeMeasurement = { ...totalKeydownTime };
 	let measurementsCount = 0;
+
+
 
 	// The state of each event, this helps ensure the integrity of the measurement and that
 	// something unexpected didn't happen that could skew the measurement.
@@ -107,10 +111,6 @@ export namespace inputLatency {
 	 * Record the input latency sample if it's ready.
 	 */
 	function record() {
-		// Skip recording this frame if the buffer is full
-		if (measurementsCount >= Constants.bufferLength) {
-			return;
-		}
 		// Selection and render must have finished to record
 		if (state.selection !== EventPhase.Finished || state.render !== EventPhase.Finished) {
 			return;
@@ -126,10 +126,10 @@ export namespace inputLatency {
 				performance.measure('render', 'render/start', 'render/end');
 				performance.measure('inputlatency', 'inputlatency/start', 'inputlatency/end');
 
-				measurementsKeydown[measurementsCount] = performance.getEntriesByName('keydown')[0].duration;
-				measurementsInput[measurementsCount] = performance.getEntriesByName('input')[0].duration;
-				measurementsRender[measurementsCount] = performance.getEntriesByName('render')[0].duration;
-				measurementsInputLatency[measurementsCount] = performance.getEntriesByName('inputlatency')[0].duration;
+				addMeasure('keydown', totalKeydownTime);
+				addMeasure('input', totalInputTime);
+				addMeasure('render', totalRenderTime);
+				addMeasure('inputlatency', totalInputLatencyTime);
 
 				// console.info(
 				// 	`input latency=${measurementsInputLatency[measurementsCount].toFixed(1)} [` +
@@ -144,6 +144,13 @@ export namespace inputLatency {
 				reset();
 			}
 		}, 0);
+	}
+
+	function addMeasure(entryName: string, cumulativeMeasurement: ICumulativeMeasurement): void {
+		const duration = performance.getEntriesByName(entryName)[0].duration;
+		cumulativeMeasurement.total += duration;
+		cumulativeMeasurement.min = Math.min(cumulativeMeasurement.min, duration);
+		cumulativeMeasurement.max = Math.max(cumulativeMeasurement.max, duration);
 	}
 
 	/**
@@ -193,39 +200,37 @@ export namespace inputLatency {
 			return undefined;
 		}
 
-		// Calculate the average, min and max of each measurement
+		// Assemble the result
 		const result = {
-			keydown: createSingleMeasurement(),
-			input: createSingleMeasurement(),
-			render: createSingleMeasurement(),
-			total: createSingleMeasurement(),
+			keydown: cumulativeToFinalMeasurement(totalKeydownTime),
+			input: cumulativeToFinalMeasurement(totalInputTime),
+			render: cumulativeToFinalMeasurement(totalRenderTime),
+			total: cumulativeToFinalMeasurement(totalInputLatencyTime),
 			sampleCount: measurementsCount
 		};
-		for (let i = 0; i < result.sampleCount; i++) {
-			result.keydown.average += measurementsKeydown[i];
-			result.input.average += measurementsInput[i];
-			result.render.average += measurementsRender[i];
-			result.total.average += measurementsInputLatency[i];
-			result.keydown.min = Math.min(result.keydown.min, measurementsKeydown[i]);
-			result.input.min = Math.min(result.input.min, measurementsInput[i]);
-			result.render.min = Math.min(result.render.min, measurementsRender[i]);
-			result.total.min = Math.min(result.total.min, measurementsInputLatency[i]);
-			result.keydown.max = Math.max(result.keydown.max, measurementsKeydown[i]);
-			result.input.max = Math.max(result.input.max, measurementsInput[i]);
-			result.render.max = Math.max(result.render.max, measurementsRender[i]);
-			result.total.max = Math.max(result.total.max, measurementsInputLatency[i]);
-		}
-		result.keydown.average /= result.sampleCount;
-		result.input.average /= result.sampleCount;
-		result.render.average /= result.sampleCount;
-		result.total.average /= result.sampleCount;
 
+		// Clear the cumulative measurements
+		clearCumulativeMeasurement(totalKeydownTime);
+		clearCumulativeMeasurement(totalInputTime);
+		clearCumulativeMeasurement(totalRenderTime);
+		clearCumulativeMeasurement(totalInputLatencyTime);
 		measurementsCount = 0;
+
 		return result;
 	}
 
-	function createSingleMeasurement(): IInputLatencySingleMeasurement {
-		return { average: 0, min: Number.MAX_VALUE, max: 0 };
+	function cumulativeToFinalMeasurement(cumulative: ICumulativeMeasurement): IInputLatencySingleMeasurement {
+		return {
+			average: cumulative.total / measurementsCount,
+			max: cumulative.max,
+			min: cumulative.min,
+		};
+	}
+
+	function clearCumulativeMeasurement(cumulative: ICumulativeMeasurement): void {
+		cumulative.total = 0;
+		cumulative.min = Number.MAX_VALUE;
+		cumulative.max = 0;
 	}
 
 }
