@@ -273,7 +273,7 @@ class CodeMain {
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
-			// indicates a second instance of Code is running)
+			// indicates another instance of Code is running)
 			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -293,7 +293,7 @@ class CodeMain {
 				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
 					if (error.code === 'EPERM') {
 						this.showStartupWarningDialog(
-							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", productService.nameShort),
+							localize('secondInstanceAdmin', "Another instance of {0} is already running as administrator.", productService.nameShort),
 							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
 							productService.nameLong
 						);
