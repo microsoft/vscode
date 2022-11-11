@@ -4,13 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare let self: any;
-
-import * as l10n from '@vscode/l10n';
-const translationPackLocation = self.name;
-if (translationPackLocation) {
-	l10n.config({ uri: translationPackLocation });
-}
-
 import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
 import { RuntimeEnvironment, startServer } from '../cssServer';
 

@@ -13,10 +13,10 @@ const path = require('path');
 module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/browser/cssServerMain.ts',
+		extension: './src/browser/cssServerWorkerMain.ts',
 	},
 	output: {
-		filename: 'cssServerMain.js',
+		filename: 'cssServerWorkerMain.js',
 		path: path.join(__dirname, 'dist', 'browser'),
 		libraryTarget: 'var',
 		library: 'serverExportVar'

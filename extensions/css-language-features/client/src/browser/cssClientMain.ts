@@ -8,12 +8,14 @@ import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
+
 declare const Worker: {
 	new(stringUrl: string, options: { name: string }): any;
 };
 declare const TextDecoder: {
 	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
 };
+
 
 let client: BaseLanguageClient | undefined;
 
@@ -22,9 +24,11 @@ export async function activate(context: ExtensionContext) {
 
 	const l10nPath = l10n.uri?.toString() ?? '';
 
-	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/cssServerMain.js');
+	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/cssServerWorkerMain.js');
 	try {
 		const worker = new Worker(serverMain.toString(), { name: l10nPath });
+		worker.postMessage({ i10lLocation: l10nPath });
+
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
 			return new LanguageClient(id, name, clientOptions, worker);
 		};
