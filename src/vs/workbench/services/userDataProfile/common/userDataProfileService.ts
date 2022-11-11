@@ -12,7 +12,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
-const defaultUserDataProfileIcon = registerIcon('defaultSettingsProfiles-icon', Codicon.settings, localize('settingsProfilesIcon', 'Icon for Default Settings Profiles.'));
+const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
@@ -34,15 +34,6 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		super();
 		this._currentProfile = currentProfile;
 		this._register(userDataProfilesService.onDidChangeProfiles(e => {
-			/**
-			 * If the current profile is default profile, then reset it because,
-			 * In Desktop the extensions resource will be set/unset in the default profile when profiles are changed.
-			 */
-			if (this._currentProfile.isDefault) {
-				this._currentProfile = userDataProfilesService.defaultProfile;
-				return;
-			}
-
 			const updatedCurrentProfile = e.updated.find(p => this._currentProfile.id === p.id);
 			if (updatedCurrentProfile) {
 				this._currentProfile = updatedCurrentProfile;

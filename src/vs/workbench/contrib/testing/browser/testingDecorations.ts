@@ -356,19 +356,25 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(this.editor.onDidChangeModelContent(e => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this.currentUri || !model) {
 				return;
 			}
 
 			const currentDecorations = decorations.syncDecorations(this.currentUri);
-			for (const change of e.changes) {
-				const modelDecorations = model.getLinesDecorations(change.range.startLineNumber, change.range.endLineNumber);
-				for (const { id } of modelDecorations) {
-					const decoration = currentDecorations.get(id);
-					if (decoration instanceof TestMessageDecoration) {
-						decorations.invalidateResultMessage(decoration.testMessage);
+			if (!currentDecorations.size) {
+				return;
+			}
+
+			for (const e of evts) {
+				for (const change of e.changes) {
+					const modelDecorations = model.getLinesDecorations(change.range.startLineNumber, change.range.endLineNumber);
+					for (const { id } of modelDecorations) {
+						const decoration = currentDecorations.get(id);
+						if (decoration instanceof TestMessageDecoration) {
+							decorations.invalidateResultMessage(decoration.testMessage);
+						}
 					}
 				}
 			}
@@ -414,7 +420,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService.collection, this.uriIdentityService, uri)) {
+			for await (const _test of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.

@@ -7,8 +7,7 @@ import { Button, ButtonWithDropdown, IButton } from 'vs/base/browser/ui/button/b
 import { IAction } from 'vs/base/common/actions';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class CommentFormActions implements IDisposable {
@@ -19,7 +18,6 @@ export class CommentFormActions implements IDisposable {
 	constructor(
 		private container: HTMLElement,
 		private actionHandler: (action: IAction) => void,
-		private themeService: IThemeService,
 		private contextMenuService?: IContextMenuService
 	) { }
 
@@ -51,14 +49,13 @@ export class CommentFormActions implements IDisposable {
 							secondary: !isPrimary
 						});
 				} else {
-					button = new Button(this.container, { secondary: !isPrimary });
+					button = new Button(this.container, { secondary: !isPrimary, ...defaultButtonStyles });
 				}
 
 				isPrimary = false;
 				this._buttonElements.push(button.element);
 
 				this._toDispose.add(button);
-				this._toDispose.add(attachButtonStyler(button, this.themeService));
 				this._toDispose.add(button.onDidClick(() => this.actionHandler(appliedAction)));
 
 				button.enabled = appliedAction.enabled;

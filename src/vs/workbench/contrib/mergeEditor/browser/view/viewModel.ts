@@ -5,12 +5,15 @@
 
 import { findLast } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
@@ -28,10 +31,15 @@ export class MergeEditorViewModel extends Disposable {
 		public readonly resultCodeEditorView: ResultCodeEditorView,
 		public readonly baseCodeEditorView: IObservable<BaseCodeEditorView | undefined>,
 		public readonly showNonConflictingChanges: IObservable<boolean>,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
 		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
+			if (this.model.isApplyingEditInResult) {
+				return;
+			}
 			transaction(tx => {
 				/** @description Mark conflicts touched by manual edits as handled */
 				for (const change of e.changes) {
@@ -45,6 +53,11 @@ export class MergeEditorViewModel extends Disposable {
 		}));
 	}
 
+	public readonly shouldUseAppendInsteadOfAccept = observableFromEvent<boolean>(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description appendVsAccept */ this.configurationService.getValue('mergeEditor.shouldUseAppendInsteadOfAccept') ?? false
+	);
+
 	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<
 		{ view: CodeEditorView | undefined; counter: number }
@@ -57,6 +70,16 @@ export class MergeEditorViewModel extends Disposable {
 		];
 		const view = editors.find((e) => e && e.isFocused.read(reader));
 		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
+	});
+
+	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>('baseShowDiffAgainst', reader => {
+		const lastFocusedEditor = this.lastFocusedEditor.read(reader);
+		if (lastFocusedEditor.view === this.inputCodeEditorView1) {
+			return 1;
+		} else if (lastFocusedEditor.view === this.inputCodeEditorView2) {
+			return 2;
+		}
+		return undefined;
 	});
 
 	public readonly selectionInBase = derived('selectionInBase', (reader) => {
@@ -131,10 +154,11 @@ export class MergeEditorViewModel extends Disposable {
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
-		tx: ITransaction
+		tx: ITransaction,
+		inputNumber: InputNumber,
 	): void {
 		this.manuallySetActiveModifiedBaseRange.set({ range: baseRange, counter: this.counter++ }, tx);
-		this.model.setState(baseRange, state, true, tx);
+		this.model.setState(baseRange, state, inputNumber, tx);
 	}
 
 	private goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {
@@ -150,11 +174,21 @@ export class MergeEditorViewModel extends Disposable {
 		if (modifiedBaseRange) {
 			const range = this.getRangeOfModifiedBaseRange(editor, modifiedBaseRange, undefined);
 			editor.editor.focus();
+
+			let startLineNumber = range.startLineNumber;
+			let endLineNumberExclusive = range.endLineNumberExclusive;
+			if (range.startLineNumber > editor.editor.getModel()!.getLineCount()) {
+				transaction(tx => {
+					this.setActiveModifiedBaseRange(modifiedBaseRange, tx);
+				});
+				startLineNumber = endLineNumberExclusive = editor.editor.getModel()!.getLineCount();
+			}
+
 			editor.editor.setPosition({
-				lineNumber: range.startLineNumber,
-				column: editor.editor.getModel()!.getLineFirstNonWhitespaceColumn(range.startLineNumber),
+				lineNumber: startLineNumber,
+				column: editor.editor.getModel()!.getLineFirstNonWhitespaceColumn(startLineNumber),
 			});
-			editor.editor.revealLinesNearTop(range.startLineNumber, range.endLineNumberExclusive, ScrollType.Smooth);
+			editor.editor.revealLinesNearTop(startLineNumber, endLineNumberExclusive, ScrollType.Smooth);
 		}
 	}
 
@@ -193,6 +227,7 @@ export class MergeEditorViewModel extends Disposable {
 	public toggleActiveConflict(inputNumber: 1 | 2): void {
 		const activeModifiedBaseRange = this.activeModifiedBaseRange.get();
 		if (!activeModifiedBaseRange) {
+			this.notificationService.error(localize('noConflictMessage', "There is currently no conflict focused that can be toggled."));
 			return;
 		}
 		transaction(tx => {
@@ -200,7 +235,8 @@ export class MergeEditorViewModel extends Disposable {
 			this.setState(
 				activeModifiedBaseRange,
 				this.model.getState(activeModifiedBaseRange).get().toggle(inputNumber),
-				tx
+				tx,
+				inputNumber,
 			);
 		});
 	}
@@ -212,7 +248,8 @@ export class MergeEditorViewModel extends Disposable {
 				this.setState(
 					range,
 					this.model.getState(range).get().withInputValue(inputNumber, true),
-					tx
+					tx,
+					inputNumber
 				);
 			}
 		});

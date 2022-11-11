@@ -100,6 +100,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._scopedInstatiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
+		this._register(this._body);
 
 		this._styleElement = dom.createStyleSheet(this.container);
 
@@ -151,11 +152,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
-		if (this._commentThread !== commentThread) {
-			dispose(this._commentThreadDisposables);
-		}
-
 		this._commentThread = commentThread;
+		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 

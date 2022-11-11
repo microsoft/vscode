@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
@@ -164,9 +165,7 @@ export interface ICommonNativeHostService {
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Perf Introspection
-	startHeartbeat(session: string): Promise<boolean>;
-	sendHeartbeat(session: string): Promise<boolean>;
-	stopHeartbeat(session: string): Promise<boolean>;
+	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

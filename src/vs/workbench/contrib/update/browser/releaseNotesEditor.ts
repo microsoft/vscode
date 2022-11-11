@@ -74,7 +74,7 @@ export class ReleaseNotesManager {
 			this._currentReleaseNotes.webview.html = html;
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
-			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
+			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
 				{
 					id: generateUuid(),
 					options: {

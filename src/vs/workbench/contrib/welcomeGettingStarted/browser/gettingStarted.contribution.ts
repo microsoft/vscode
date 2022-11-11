@@ -124,7 +124,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
-const category = localize('getStarted', "Get Started");
+const category = { value: localize('getStarted', "Get Started"), original: 'Get Started' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -232,7 +232,7 @@ registerAction2(class extends Action2 {
 		quickPick.canSelectMany = false;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
-		quickPick.title = localize('pickWalkthroughs', "Open Walkthrough...");
+		quickPick.placeholder = localize('pickWalkthroughs', 'Select a walkthrough to open');
 		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
 		quickPick.busy = true;
 		quickPick.onDidAccept(() => {

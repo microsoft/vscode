@@ -692,4 +692,18 @@ suite('SnippetController2', function () {
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10), new Selection(2, 5, 2, 5), new Selection(2, 10, 2, 10)]);
 		});
 	});
+
+	test('Bug: cursor position $0 with user snippets #163808', function () {
+
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		model.setValue('');
+
+		ctrl.insert('<Element1 Attr1="foo" $1>\n  <Element2 Attr1="$2"/>\n$0"\n</Element1>');
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 23, 1, 23)]);
+
+		ctrl.insert('Qualifier="$0"');
+		assert.strictEqual(model.getValue(), '<Element1 Attr1="foo" Qualifier="">\n  <Element2 Attr1=""/>\n"\n</Element1>');
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 34, 1, 34)]);
+
+	});
 });

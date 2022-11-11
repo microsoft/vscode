@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
@@ -331,7 +331,7 @@ export interface IPtyService extends IPtyHostController {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
-	freePortKillProcess?(id: number, port: string): Promise<{ port: string; processId: string }>;
+	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -797,6 +797,16 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
+	quickFixes?: ITerminalQuickFixContribution[];
+}
+
+export interface ITerminalQuickFixContribution {
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher: ITerminalOutputMatcher;
+	exitStatus?: boolean;
+	commandToRun?: string;
+	linkToOpen?: string;
 }
 
 export interface ITerminalProfileContribution {
@@ -810,8 +820,11 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 	extensionIdentifier: string;
 }
 
+export interface IExtensionTerminalQuickFix extends ITerminalQuickFixContribution {
+	extensionIdentifier: string;
+}
+
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
-export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;

@@ -142,7 +142,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	constructor(
 		private listUser: string,
-		parentContainer: HTMLElement,
 		container: HTMLElement,
 		viewContext: ViewContext,
 		delegate: IListVirtualDelegate<CellViewModel>,

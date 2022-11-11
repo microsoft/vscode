@@ -26,9 +26,9 @@ class ToggleRenderWhitespaceAction extends Action2 {
 			f1: true,
 			toggled: ContextKeyExpr.notEquals('config.editor.renderWhitespace', 'none'),
 			menu: {
-				id: MenuId.MenubarViewMenu,
-				group: '5_editor',
-				order: 4
+				id: MenuId.MenubarAppearanceMenu,
+				group: '4_editor',
+				order: 3
 			}
 		});
 	}

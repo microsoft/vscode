@@ -40,12 +40,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
@@ -602,7 +603,12 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		const onEditorChange = () => {
-			this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+			if (editorService.activeEditor instanceof DiffEditorInput) {
+				this.filter.filterToDocumentUri(editorService.activeEditor.primary.resource);
+			} else {
+				this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+			}
+
 			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc)) {
 				this.tree.refilter();
 			}
@@ -985,17 +991,15 @@ class NoTestsForDocumentWidget extends Disposable {
 	private readonly el: HTMLElement;
 	constructor(
 		container: HTMLElement,
-		@ITestExplorerFilterState filterState: ITestExplorerFilterState,
-		@IThemeService themeService: IThemeService,
+		@ITestExplorerFilterState filterState: ITestExplorerFilterState
 	) {
 		super();
 		const el = this.el = dom.append(container, dom.$('.testing-no-test-placeholder'));
 		const emptyParagraph = dom.append(el, dom.$('p'));
 		emptyParagraph.innerText = localize('testingNoTest', 'No tests were found in this file.');
 		const buttonLabel = localize('testingFindExtension', 'Show Workspace Tests');
-		const button = this._register(new Button(el, { title: buttonLabel }));
+		const button = this._register(new Button(el, { title: buttonLabel, ...defaultButtonStyles }));
 		button.label = buttonLabel;
-		this._register(attachButtonStyler(button, themeService));
 		this._register(button.onDidClick(() => filterState.toggleFilteringFor(TestFilterTerm.CurrentDoc, false)));
 	}
 

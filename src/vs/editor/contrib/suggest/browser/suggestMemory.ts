@@ -6,7 +6,8 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItemKind, CompletionItemKinds } from 'vs/editor/common/languages';

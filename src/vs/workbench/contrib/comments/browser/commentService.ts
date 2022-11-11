@@ -17,7 +17,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
-export interface IResourceCommentThreadEvent {
+interface IResourceCommentThreadEvent {
 	resource: URI;
 	commentInfos: ICommentInfo[];
 }

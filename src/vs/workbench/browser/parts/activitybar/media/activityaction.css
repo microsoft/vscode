@@ -190,7 +190,7 @@
 
 /* Right aligned */
 
-.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon) {
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon):not(.profile-activity-item) {
 	margin-left: 0;
 	padding: 0 48px 0 0;
 	background-position: calc(100% - 9px) center;

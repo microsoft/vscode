@@ -14,7 +14,8 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, locale, platform, Platform } from 'vs/base/common/platform';
+import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -190,7 +191,7 @@ export async function getCwd(
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 		const resolved = await _resolveCwd(unresolved, variableResolver);
-		return _sanitizeCwd(resolved || unresolved);
+		return sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;
@@ -213,7 +214,7 @@ export async function getCwd(
 		cwd = root ? root.fsPath : userHome || '';
 	}
 
-	return _sanitizeCwd(cwd);
+	return sanitizeCwd(cwd);
 }
 
 async function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined, logService?: ILogService): Promise<string | undefined> {
@@ -224,18 +225,6 @@ async function _resolveCwd(cwd: string, variableResolver: VariableResolver | und
 			logService?.error('Could not resolve terminal cwd', e);
 			return undefined;
 		}
-	}
-	return cwd;
-}
-
-function _sanitizeCwd(cwd: string): string {
-	// Sanity check that the cwd is not wrapped in quotes (see #160109)
-	if (cwd.match(/$['"].*['"]^/)) {
-		cwd = cwd.substring(1, cwd.length - 1);
-	}
-	// Make the drive letter uppercase on Windows (see #9448)
-	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
-		return cwd[0].toUpperCase() + cwd.substr(1);
 	}
 	return cwd;
 }
