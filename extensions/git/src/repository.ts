@@ -1387,47 +1387,62 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Clean, async () => {
-			const toClean: string[] = [];
-			const toCheckout: string[] = [];
-			const submodulesToUpdate: string[] = [];
-			const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
+		await this.run(
+			Operation.Clean,
+			async () => {
+				const toClean: string[] = [];
+				const toCheckout: string[] = [];
+				const submodulesToUpdate: string[] = [];
+				const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
 
-			resources.forEach(r => {
-				const fsPath = r.fsPath;
+				resources.forEach(r => {
+					const fsPath = r.fsPath;
 
-				for (const submodule of this.submodules) {
-					if (path.join(this.root, submodule.path) === fsPath) {
-						submodulesToUpdate.push(fsPath);
+					for (const submodule of this.submodules) {
+						if (path.join(this.root, submodule.path) === fsPath) {
+							submodulesToUpdate.push(fsPath);
+							return;
+						}
+					}
+
+					const raw = r.toString();
+					const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+
+					if (!scmResource) {
 						return;
 					}
-				}
 
-				const raw = r.toString();
-				const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+					switch (scmResource.type) {
+						case Status.UNTRACKED:
+						case Status.IGNORED:
+							toClean.push(fsPath);
+							break;
 
-				if (!scmResource) {
-					return;
-				}
+						default:
+							toCheckout.push(fsPath);
+							break;
+					}
+				});
 
-				switch (scmResource.type) {
-					case Status.UNTRACKED:
-					case Status.IGNORED:
-						toClean.push(fsPath);
-						break;
+				await this.repository.clean(toClean);
+				await this.repository.checkout('', toCheckout);
+				await this.repository.updateSubmodules(submodulesToUpdate);
 
-					default:
-						toCheckout.push(fsPath);
-						break;
-				}
+				this.closeDiffEditors([], [...toClean, ...toCheckout]);
+			},
+			() => {
+				const resourcePaths = resources.map(r => r.fsPath);
+
+				// Remove resource(s) from working group
+				const workingTreeGroup = this.workingTreeGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Remove resource(s) from untracked group
+				const untrackedGroup = this.untrackedGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				return { workingTreeGroup, untrackedGroup };
 			});
-
-			await this.repository.clean(toClean);
-			await this.repository.checkout('', toCheckout);
-			await this.repository.updateSubmodules(submodulesToUpdate);
-
-			this.closeDiffEditors([], [...toClean, ...toCheckout]);
-		});
 	}
 
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
