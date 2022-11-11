@@ -100,9 +100,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			builtinProvidersFromCache.set(builtin.id, this.add(builtin));
 		});
 
-
 		for (const extension of extensions) {
-			const implicitActivationEvents: string[] = [];
 			for (const notebookContribution of extension.value) {
 
 				if (!notebookContribution.type) {
@@ -122,8 +120,6 @@ export class NotebookProviderInfoStore extends Disposable {
 					}
 				}
 
-				implicitActivationEvents.push(`onNotebookSerializer:${notebookContribution.type}`);
-
 				this.add(new NotebookProviderInfo({
 					extension: extension.description.identifier,
 					id: notebookContribution.type,
@@ -133,9 +129,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					providerDisplayName: extension.description.displayName ?? extension.description.identifier.value,
 					exclusive: false
 				}));
-
 			}
-			extension.implicitActivationEventsCollector.addImplicitActivationEvents(implicitActivationEvents);
 		}
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);

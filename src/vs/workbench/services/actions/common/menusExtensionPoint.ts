@@ -623,7 +623,14 @@ const _commandRegistrations = new DisposableStore();
 
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution
+	jsonSchema: schema.commandsContribution,
+	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.command) {
+				result.push(`onCommand:${contrib.command}`);
+			}
+		}
+	}
 });
 
 commandsExtensionPoint.setHandler(extensions => {
@@ -662,8 +669,6 @@ commandsExtensionPoint.setHandler(extensions => {
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
 		}));
-
-		extension.implicitActivationEventsCollector.addImplicitActivationEvents([`onCommand:${command}`]);
 	}
 
 	// remove all previous command registrations

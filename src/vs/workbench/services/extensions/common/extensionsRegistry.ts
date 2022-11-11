@@ -10,11 +10,12 @@ import Severity from 'vs/base/common/severity';
 import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IImplicitActivationEvents, IMessage } from 'vs/workbench/services/extensions/common/extensions';
+import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
+import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -56,31 +57,10 @@ export class ExtensionMessageCollector {
 	}
 }
 
-export class ExtensionActivationEventsCollector {
-	private readonly _implicitActivationEventsHandler: (info: IImplicitActivationEvents) => void;
-	private readonly _extension: IExtensionDescription;
-
-	constructor(
-		implicitActivationEventsHandler: (info: IImplicitActivationEvents) => void,
-		extension: IExtensionDescription
-	) {
-		this._implicitActivationEventsHandler = implicitActivationEventsHandler;
-		this._extension = extension;
-	}
-
-	public addImplicitActivationEvents(events: string[]) {
-		this._implicitActivationEventsHandler({
-			implicitActivationEvents: events,
-			extensionId: this._extension.identifier,
-		});
-	}
-}
-
 export interface IExtensionPointUser<T> {
 	description: IExtensionDescription;
 	value: T;
 	collector: ExtensionMessageCollector;
-	implicitActivationEventsCollector: ExtensionActivationEventsCollector;
 }
 
 export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
@@ -580,23 +560,33 @@ export const schema: IJSONSchema = {
 	}
 };
 
-export interface IExtensionPointDescriptor {
+export type toArray<T> = T extends Array<any> ? T : T[];
+
+export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
+	/**
+	 * A function which runs before the extension point has been validated and which
+	 * can should collect automatic activation events from the contribution.
+	 */
+	activationEventsGenerator?: IActivationEventsGenerator<toArray<T>>;
 }
 
 export class ExtensionsRegistryImpl {
 
 	private readonly _extensionPoints = new Map<string, ExtensionPoint<any>>();
 
-	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
+	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor<T>): IExtensionPoint<T> {
 		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
 		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
 		this._extensionPoints.set(desc.extensionPoint, result);
+		if (desc.activationEventsGenerator) {
+			ImplicitActivationEvents.register(desc.extensionPoint, desc.activationEventsGenerator);
+		}
 
 		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);

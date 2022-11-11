@@ -399,8 +399,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	browserNlsBundleUris?: { [language: string]: URI };
 }
 
-type MutableByKey<T extends {}, K extends keyof T> = Pick<T, K> & Readonly<Omit<T, K>>;
-export type IExtensionDescription = MutableByKey<IRelaxedExtensionDescription, 'activationEvents'>;
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
 
 export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
 	return isLanguagePackExtension(manifest);
