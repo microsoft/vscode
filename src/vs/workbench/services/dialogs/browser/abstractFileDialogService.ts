@@ -12,7 +12,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
-import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { ISimpleFileDialog, SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -262,7 +262,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return uri ? [uri] : undefined;
 	}
 
-	protected getSimpleFileDialog(): SimpleFileDialog {
+	protected getSimpleFileDialog(): ISimpleFileDialog {
 		return this.instantiationService.createInstance(SimpleFileDialog);
 	}
 

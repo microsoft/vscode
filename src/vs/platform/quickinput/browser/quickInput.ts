@@ -16,7 +16,8 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { defaultButtonStyles, getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 
@@ -212,15 +213,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				badgeForeground,
 				badgeBorder: contrastBorder
 			}),
-			button: computeStyles(this.theme, {
-				buttonForeground,
-				buttonBackground,
-				buttonHoverBackground,
-				buttonBorder: contrastBorder
-			}),
-			progressBar: computeStyles(this.theme, {
-				progressBarBackground
-			}),
+			button: defaultButtonStyles,
+			progressBar: getProgressBarStyles(), // default uses progressBarBackground
 			keybindingLabel: computeStyles(this.theme, {
 				keybindingLabelBackground,
 				keybindingLabelForeground,

@@ -479,7 +479,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this._webviewPreloadInitialized = new DeferredPromise();
 
 		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asFileUri('vs/loader.js');
 			const loader = this.asWebviewUri(loaderUri, undefined);
 
 			coreDependencies = `<script src="${loader}"></script><script>
@@ -491,7 +491,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this._initialize(htmlContent);
 			this._initialized.complete();
 		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
 
 			fetch(loaderUri.toString(true)).then(async response => {
 				if (response.status !== 200) {
@@ -553,7 +553,7 @@ var requirejs = (function() {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js', require)),
+			dirname(FileAccess.asFileUri('vs/loader.js')),
 		];
 	}
 
@@ -682,35 +682,36 @@ var requirejs = (function() {
 					break;
 				}
 				case 'clicked-link': {
-					let linkToOpen: URI | string | undefined;
-
 					if (matchesScheme(data.href, Schemas.command)) {
-						// We allow a very limited set of commands
 						const uri = URI.parse(data.href);
-						switch (uri.path) {
-							case 'workbench.action.openLargeOutput': {
-								const outputId = uri.query;
-								const group = this.editorGroupService.activeGroup;
-								if (group) {
-									if (group.activeEditor) {
-										group.pinEditor(group.activeEditor);
-									}
-								}
 
-								this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
-								return;
+						if (uri.path === 'workbench.action.openLargeOutput') {
+							const outputId = uri.query;
+							const group = this.editorGroupService.activeGroup;
+							if (group) {
+								if (group.activeEditor) {
+									group.pinEditor(group.activeEditor);
+								}
 							}
-							case 'github-issues.authNow':
-							case 'workbench.extensions.search':
-							case 'workbench.action.openSettings': {
-								this.openerService.open(data.href, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
-								return;
-							}
+
+							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							return;
 						}
 
+						// We allow a very limited set of commands
+						this.openerService.open(data.href, {
+							fromUserGesture: true,
+							fromWorkspace: true,
+							allowCommands: [
+								'github-issues.authNow',
+								'workbench.extensions.search',
+								'workbench.action.openSettings',
+							],
+						});
 						return;
 					}
 
+					let linkToOpen: URI | string | undefined;
 					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
 						linkToOpen = data.href;
 					} else if (!/^[\w\-]+:/.test(data.href)) {
@@ -742,7 +743,7 @@ var requirejs = (function() {
 					}
 
 					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: false, fromWorkspace: true });
+						this.openerService.open(linkToOpen, { fromUserGesture: true, fromWorkspace: true });
 					}
 					break;
 				}

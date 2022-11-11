@@ -124,7 +124,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
 		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				this.startBreakpoints();
 			}
 		});

@@ -761,6 +761,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 
 			try {
+				// We must expand the nest to have it be populated in the tree
+				if (item.nestedParent) {
+					await this.tree.expand(item.nestedParent);
+				}
+
 				if (reveal === true && this.tree.getRelativeTop(item) === null) {
 					// Don't scroll to the item if it's already visible, or if set not to.
 					this.tree.reveal(item, 0.5);

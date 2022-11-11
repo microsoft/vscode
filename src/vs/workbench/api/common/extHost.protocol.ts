@@ -266,6 +266,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 	$setBadge(treeViewId: string, badge: IViewBadge | undefined): void;
 	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer>;
+	$disposeTree(treeViewId: string): Promise<void>;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {
@@ -963,9 +964,6 @@ export interface INotebookCellStatusBarListDto {
 }
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: notebookCommon.NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
-	$unregisterNotebookProvider(viewType: string): Promise<void>;
-
 	$registerNotebookSerializer(handle: number, extension: notebookCommon.NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): void;
 	$unregisterNotebookSerializer(handle: number): void;
 
@@ -1394,6 +1392,7 @@ export interface DataTransferItemDTO {
 	readonly id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
+	readonly uriListData?: ReadonlyArray<string | UriComponents>;
 }
 
 export interface DataTransferDTO {
@@ -1568,7 +1567,7 @@ export interface ISuggestDataDto {
 	[ISuggestDataDtoField.additionalTextEdits]?: ISingleEditOperation[];
 	[ISuggestDataDtoField.kindModifier]?: languages.CompletionItemTag[];
 	// Command
-	[ISuggestDataDtoField.commandIdent]?: number;
+	[ISuggestDataDtoField.commandIdent]?: string;
 	[ISuggestDataDtoField.commandId]?: string;
 	[ISuggestDataDtoField.commandArguments]?: any[];
 	// not-standard
@@ -1642,7 +1641,7 @@ export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
-export type ICommandDto = { $ident?: number } & languages.Command;
+export type ICommandDto = { $ident?: string } & languages.Command;
 
 export interface ICodeActionDto {
 	cacheId?: ChainedCacheId;
@@ -1791,7 +1790,7 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void;
+	$initializeTelemetryLevel(level: TelemetryLevel, debugLoggingOnly: boolean, productConfig?: { usage: boolean; error: boolean }): void;
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 
@@ -2061,8 +2060,6 @@ export interface NotebookCellDto {
 export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape {
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
-
-	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 
 	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;

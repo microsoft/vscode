@@ -29,7 +29,7 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== '
 else if (typeof require?.__$__nodeRequire === 'function') {
 
 	// Obtain values from product.json and package.json
-	const rootPath = dirname(FileAccess.asFileUri('', require));
+	const rootPath = dirname(FileAccess.asFileUri(''));
 
 	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
 

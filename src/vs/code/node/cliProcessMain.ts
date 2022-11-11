@@ -245,7 +245,7 @@ class CliMain extends Disposable {
 	}
 
 	private async doRun(environmentService: INativeEnvironmentService, fileService: IFileService, userDataProfilesService: IUserDataProfilesService, instantiationService: IInstantiationService): Promise<void> {
-		const profileLocation = environmentService.args.profile ? userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile)?.extensionsResource : userDataProfilesService.defaultProfile.extensionsResource;
+		const profileLocation = (environmentService.args.profile ? userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile) ?? userDataProfilesService.defaultProfile : userDataProfilesService.defaultProfile).extensionsResource;
 
 		// Install Source
 		if (this.argv['install-source']) {

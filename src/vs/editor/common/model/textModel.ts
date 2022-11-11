@@ -111,7 +111,7 @@ export function createTextBuffer(value: string | model.ITextBufferFactory | mode
 let MODEL_ID = 0;
 
 const LIMIT_FIND_COUNT = 999;
-export const LONG_LINE_BOUNDARY = 10000;
+const LONG_LINE_BOUNDARY = 10000;
 
 class TextModelSnapshot implements model.ITextSnapshot {
 
@@ -2308,7 +2308,7 @@ function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorat
 	return ModelDecorationOptions.createDynamic(options);
 }
 
-export class DidChangeDecorationsEmitter extends Disposable {
+class DidChangeDecorationsEmitter extends Disposable {
 
 	private readonly _actual: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
 	public readonly event: Event<IModelDecorationsChangedEvent> = this._actual.event;
@@ -2394,7 +2394,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 
 //#endregion
 
-export class DidChangeContentEmitter extends Disposable {
+class DidChangeContentEmitter extends Disposable {
 
 	/**
 	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.

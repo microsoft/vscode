@@ -10,6 +10,14 @@ import { IDiffAlgorithm, ISequence, SequenceDiff, OffsetRange } from 'vs/editor/
 */
 export class MyersDiffAlgorithm implements IDiffAlgorithm {
 	compute(seq1: ISequence, seq2: ISequence): SequenceDiff[] {
+		// These are common special cases.
+		// The early return improves performance dramatically.
+		if (seq1.length === 0) {
+			return [new SequenceDiff(new OffsetRange(0, 0), new OffsetRange(0, seq2.length))];
+		} else if (seq2.length === 0) {
+			return [new SequenceDiff(new OffsetRange(0, seq1.length), new OffsetRange(0, 0))];
+		}
+
 		function getXAfterSnake(x: number, y: number): number {
 			while (x < seq1.length && y < seq2.length && seq1.getElement(x) === seq2.getElement(y)) {
 				x++;

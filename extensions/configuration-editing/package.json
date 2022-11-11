@@ -20,8 +20,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.2.1",
-    "vscode-nls": "^5.2.0"
+    "jsonc-parser": "^2.2.1"
   },
   "capabilities": {
     "virtualWorkspaces": true,

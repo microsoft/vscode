@@ -35,6 +35,10 @@ export function asCssVariableName(colorIdent: ColorIdentifier): string {
 	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
+export function asCssValue(color: ColorIdentifier): string {
+	return `var(${asCssVariableName(color)})`;
+}
+
 export const enum ColorTransformType {
 	Darken,
 	Lighten,
@@ -261,10 +265,6 @@ export const selectListBackground = registerColor('dropdown.listBackground', { d
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hcDark: Color.white, hcLight: foreground }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
-export const checkboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hcDark: selectBackground, hcLight: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
-export const checkboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hcDark: selectForeground, hcLight: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
-export const checkboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hcDark: selectBorder, hcLight: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
-
 export const buttonForeground = registerColor('button.foreground', { dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
 export const buttonSeparator = registerColor('button.separator', { dark: transparent(buttonForeground, .4), light: transparent(buttonForeground, .4), hcDark: transparent(buttonForeground, .4), hcLight: transparent(buttonForeground, .4) }, nls.localize('buttonSeparator', "Button separator color."));
 export const buttonBackground = registerColor('button.background', { dark: '#0E639C', light: '#007ACC', hcDark: null, hcLight: '#0F4A85' }, nls.localize('buttonBackground', "Button background color."));
@@ -457,6 +457,15 @@ export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke', {
 export const tableColumnsBorder = registerColor('tree.tableColumnsBorder', { dark: '#CCCCCC20', light: '#61616120', hcDark: null, hcLight: null }, nls.localize('tableColumnsBorder', "Table border color between columns."));
 export const tableOddRowsBackgroundColor = registerColor('tree.tableOddRowsBackground', { dark: transparent(foreground, 0.04), light: transparent(foreground, 0.04), hcDark: null, hcLight: null }, nls.localize('tableOddRowsBackgroundColor', "Background color for odd table rows."));
 export const listDeemphasizedForeground = registerColor('list.deemphasizedForeground', { dark: '#8C8C8C', light: '#8E8E90', hcDark: '#A7A8A9', hcLight: '#666666' }, nls.localize('listDeemphasizedForeground', "List/Tree foreground color for items that are deemphasized. "));
+
+/**
+ * Checkboxes
+ */
+export const checkboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hcDark: selectBackground, hcLight: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
+export const checkboxSelectBackground = registerColor('checkbox.selectBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('checkbox.select.background', "Background color of checkbox widget when the element it's in is selected."));
+export const checkboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hcDark: selectForeground, hcLight: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
+export const checkboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hcDark: selectBorder, hcLight: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
+export const checkboxSelectBorder = registerColor('checkbox.selectBorder', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('checkbox.select.border', "Border color of checkbox widget when the element it's in is selected."));
 
 /**
  * Quick pick widget (dependent on List and tree colors)

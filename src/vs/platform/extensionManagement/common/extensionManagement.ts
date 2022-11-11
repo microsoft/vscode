@@ -16,6 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 export const WEB_EXTENSION_TAG = '__web_extension';
+export const DEFAULT_PROFILE_EXTENSIONS_MIGRATION_KEY = 'DEFAULT_PROFILE_EXTENSIONS_MIGRATION';
 
 export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 	switch (targetPlatform) {
@@ -371,7 +372,6 @@ export interface UninstallExtensionEvent {
 
 export interface DidUninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
-	readonly version?: string;
 	readonly error?: string;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
@@ -498,12 +498,10 @@ export interface IExtensionTipsService {
 	getAllWorkspacesTips(): Promise<IWorkspaceTips[]>;
 }
 
-
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
 export const PreferencesLabel = localize('preferences', "Preferences");
 export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };
-
 
 export interface CLIOutput {
 	log(s: string): void;

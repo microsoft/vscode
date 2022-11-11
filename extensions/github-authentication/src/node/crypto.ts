@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { webcrypto } from 'crypto';
 
-export async function sha256(s: string | Uint8Array): Promise<string> {
-	return (require('crypto')).createHash('sha256').update(s).digest('base64');
-}
+export const crypto = webcrypto as any as Crypto;

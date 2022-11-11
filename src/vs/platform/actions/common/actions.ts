@@ -244,7 +244,7 @@ export interface IMenuService {
 	resetHiddenStates(menuIds: readonly MenuId[] | undefined): void;
 }
 
-export type ICommandsMap = Map<string, ICommandAction>;
+type ICommandsMap = Map<string, ICommandAction>;
 
 export interface IMenuRegistryChangeEvent {
 	has(id: MenuId): boolean;

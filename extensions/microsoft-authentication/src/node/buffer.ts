@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
+export function base64Encode(text: string): string {
+	return Buffer.from(text, 'binary').toString('base64');
+}
 
-	// https://github.com/microsoft/vscode/issues/149271
-
-	// ❗️ Important: The main NotebookEditor api has been finalized.
-	// This file only tracks the `notebook/cell/executePrimary` contribution, which will be removed
+export function base64Decode(text: string): string {
+	return Buffer.from(text, 'base64').toString('utf8');
 }

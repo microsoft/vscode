@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { BinarySizeStatusBarEntry } from '../binarySizeStatusBarEntry';
 import { MediaPreview, PreviewState, reopenAsText } from '../mediaPreview';
 import { escapeAttribute, getNonce } from '../util/dom';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
 
-const localize = nls.loadMessageBundle();
 
 export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
@@ -181,8 +179,8 @@ class ImagePreview extends MediaPreview {
 <body class="container image scale-to-fit loading">
 	<div class="loading-indicator"></div>
 	<div class="image-load-error">
-		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
-		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
+		<p>${vscode.l10n.t("An error occurred while loading the image.")}</p>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'imagePreview.js'))}" nonce="${nonce}"></script>
 </body>
