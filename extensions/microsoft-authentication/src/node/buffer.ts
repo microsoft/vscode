@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+export function base64Encode(text: string): string {
+	return Buffer.from(text, 'binary').toString('base64');
+}
 
-export async function sha256(s: string | Uint8Array): Promise<string> {
-	return (require('crypto')).createHash('sha256').update(s).digest('base64');
+export function base64Decode(text: string): string {
+	return Buffer.from(text, 'base64').toString('utf8');
 }
