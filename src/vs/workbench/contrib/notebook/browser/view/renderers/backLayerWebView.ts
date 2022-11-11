@@ -97,6 +97,7 @@ interface BacklayerWebviewOptions {
 	readonly outputFontFamily: string;
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
+	readonly outputScrolling: boolean;
 }
 
 export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
@@ -233,6 +234,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
 			}, "No renderer found for '$0' a"),
+			'notebook-output-overflow-y': this.options.outputScrolling ? 'scroll' : 'visible',
 		};
 	}
 
@@ -241,7 +243,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const preloadsData = this.getStaticPreloadsData();
 		const preloadScript = preloadsScriptStr(
 			this.options,
-			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
+			{ dragAndDropEnabled: this.options.dragAndDropEnabled }, // add other options
 			renderersData,
 			preloadsData,
 			this.workspaceTrustManagementService.isWorkspaceTrusted(),

@@ -926,7 +926,8 @@ export const NotebookSetting = {
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
 	outputFontFamily: 'notebook.outputFontFamily',
-	kernelPickerType: 'notebook.kernelPicker.type'
+	kernelPickerMRU: 'notebook.experimental.kernelPicker.mru',
+	outputScrolling: 'notebook.outputScrolling',
 } as const;
 
 export const enum CellStatusbarAlignment {

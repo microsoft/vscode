@@ -70,6 +70,7 @@ export interface NotebookLayoutConfiguration {
 	editorOptionsCustomizations: any | undefined;
 	focusIndicatorGap: number;
 	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
+	outputScrolling: boolean;
 }
 
 export interface NotebookOptionsChangeEvent {
@@ -147,6 +148,7 @@ export class NotebookOptions extends Disposable {
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 		const outputLineHeight = this._computeOutputLineHeight();
+		const outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 
 		this._layoutConfiguration = {
 			...(compactView ? compactConfigConstants : defaultConfigConstants),
@@ -183,7 +185,8 @@ export class NotebookOptions extends Disposable {
 			editorOptionsCustomizations,
 			focusIndicatorGap: 3,
 			interactiveWindowCollapseCodeCells,
-			markdownFoldHintHeight: 22
+			markdownFoldHintHeight: 22,
+			outputScrolling: outputScrolling
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -566,6 +569,7 @@ export class NotebookOptions extends Disposable {
 			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
+			outputScrolling: this._layoutConfiguration.outputScrolling,
 		};
 	}
 
@@ -584,6 +588,7 @@ export class NotebookOptions extends Disposable {
 			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
+			outputScrolling: this._layoutConfiguration.outputScrolling,
 		};
 	}
 

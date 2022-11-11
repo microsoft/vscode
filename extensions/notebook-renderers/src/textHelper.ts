@@ -13,9 +13,9 @@ function generateViewMoreElement(outputId: string) {
 	second.textContent = 'size limit';
 	second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
 	const third = document.createElement('span');
-	third.textContent = '. Open the full output data';
+	third.textContent = '. Enable scrolling in the settings, or open the full output data ';
 	const forth = document.createElement('a');
-	forth.textContent = ' in a text editor';
+	forth.textContent = 'in a text editor';
 	forth.href = `command:workbench.action.openLargeOutput?${outputId}`;
 	container.appendChild(first);
 	container.appendChild(second);
@@ -48,4 +48,18 @@ export function truncatedArrayOfString(id: string, outputs: string[], linesLimit
 	const div2 = document.createElement('div');
 	container.appendChild(div2);
 	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n')));
+}
+
+function scrollableArrayOfString(outputs: string[], container: HTMLElement) {
+	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
+	const spanElement = handleANSIOutput(buffer.slice(0, 5000).join('\n'));
+	container.appendChild(spanElement);
+}
+
+export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, container: HTMLElement) {
+	if (scrollable) {
+		scrollableArrayOfString(outputs, container);
+	} else {
+		truncatedArrayOfString(id, outputs, linesLimit, container);
+	}
 }
