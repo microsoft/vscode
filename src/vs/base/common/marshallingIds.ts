@@ -17,6 +17,7 @@ export const enum MarshalledId {
 	CommentThreadNode,
 	TimelineActionContext,
 	NotebookCellActionContext,
+	NotebookActionContext,
 	TestItemContext,
 	Date
 }

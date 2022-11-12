@@ -26,9 +26,10 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import _ = require('underscore');
 import { getExtensionStream } from './builtInExtensions';
-const util = require('./util');
+import { getVersion } from './getVersion';
+
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {
@@ -38,7 +39,7 @@ function minifyExtensionResources(input: Stream): Stream {
 		.pipe(buffer())
 		.pipe(es.mapSync((f: File) => {
 			const errors: jsoncParser.ParseError[] = [];
-			const value = jsoncParser.parse(f.contents.toString('utf8'), errors);
+			const value = jsoncParser.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
 			if (errors.length === 0) {
 				// file parsed OK => just stringify to drop whitespace and comments
 				f.contents = Buffer.from(JSON.stringify(value));

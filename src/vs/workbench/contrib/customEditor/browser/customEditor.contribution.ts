@@ -34,4 +34,4 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 		CustomEditorInputSerializer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(ComplexCustomWorkingCopyEditorHandler, 'ComplexCustomWorkingCopyEditorHandler', LifecyclePhase.Starting);
+	.registerWorkbenchContribution(ComplexCustomWorkingCopyEditorHandler, LifecyclePhase.Starting);

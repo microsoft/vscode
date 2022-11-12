@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { OutlinePane } from './outlinePane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -13,12 +13,18 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlinePane } from 'vs/workbench/contrib/outline/browser/outline';
 
+// --- actions
+
+import './outlineActions';
+
+// --- view
 
 const outlineViewIcon = registerIcon('outline-view-icon', Codicon.symbolClass, localize('outlineViewIcon', 'View icon of the outline view.'));
 
-const _outlineDesc = <IViewDescriptor>{
-	id: OutlinePane.Id,
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: IOutlinePane.Id,
 	name: localize('name', "Outline"),
 	containerIcon: outlineViewIcon,
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
@@ -29,9 +35,9 @@ const _outlineDesc = <IViewDescriptor>{
 	order: 2,
 	weight: 30,
 	focusCommand: { id: 'outline.focus' }
-};
+}], VIEW_CONTAINER);
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([_outlineDesc], VIEW_CONTAINER);
+// --- configurations
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'outline',
@@ -40,22 +46,36 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		[OutlineConfigKeys.icons]: {
-			'description': localize('outline.showIcons', "Render Outline Elements with Icons."),
+			'description': localize('outline.showIcons', "Render outline elements with icons."),
 			'type': 'boolean',
 			'default': true
 		},
+		[OutlineConfigKeys.collapseItems]: {
+			'description': localize('outline.initialState', "Controls whether outline items are collapsed or expanded."),
+			'type': 'string',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			'enum': [
+				'alwaysCollapse',
+				'alwaysExpand'
+			],
+			'enumDescriptions': [
+				localize('outline.initialState.collapsed', "Collapse all items."),
+				localize('outline.initialState.expanded', "Expand all items.")
+			],
+			'default': 'alwaysExpand'
+		},
 		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
+			'description': localize('outline.showProblem', "Show errors and warnings on outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsColors]: {
-			'description': localize('outline.problem.colors', "Use colors for Errors & Warnings."),
+			'description': localize('outline.problem.colors', "Use colors for errors and warnings on outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsBadges]: {
-			'description': localize('outline.problems.badges', "Use badges for Errors & Warnings."),
+			'description': localize('outline.problems.badges', "Use badges for errors and warnings on outline elements."),
 			'type': 'boolean',
 			'default': true
 		},

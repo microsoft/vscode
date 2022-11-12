@@ -22,8 +22,23 @@ declare module 'vscode' {
 		 *
 		 * @param workspaceFolder The workspace folder to provide an edit session identity for.
 		 * @param token A cancellation token for the request.
-		 * @returns An string representing the edit session identity for the requested workspace folder.
+		 * @returns A string representing the edit session identity for the requested workspace folder.
 		 */
 		provideEditSessionIdentity(workspaceFolder: WorkspaceFolder, token: CancellationToken): ProviderResult<string>;
+
+		/**
+		 *
+		 * @param identity1 An edit session identity.
+		 * @param identity2 A second edit session identity to compare to @param identity1.
+		 * @param token A cancellation token for the request.
+		 * @returns An {@link EditSessionIdentityMatch} representing the edit session identity match confidence for the provided identities.
+		 */
+		provideEditSessionIdentityMatch(identity1: string, identity2: string, token: CancellationToken): ProviderResult<EditSessionIdentityMatch>;
+	}
+
+	export enum EditSessionIdentityMatch {
+		Complete = 100,
+		Partial = 50,
+		None = 0
 	}
 }

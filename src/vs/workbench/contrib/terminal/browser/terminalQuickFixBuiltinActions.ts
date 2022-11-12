@@ -3,52 +3,85 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { QuickFixMatchResult, ITerminalQuickFixAction, ITerminalQuickFixOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixAction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-
+import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
+export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
 export const AnyCommandLineRegex = /.+/;
-export const GitSimilarOutputRegex = /most similar command is\s*([^\s]{3,})/;
-export const FreePortOutputRegex = /address already in use \d+\.\d+\.\d+\.\d+:(\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
-export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
-// The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*",
+export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))((\n\s*(?<fixedCommand>[^\s]+))+)/m;
+export const FreePortOutputRegex = /address already in use (0\.0\.0\.0|127\.0\.0\.1|localhost|::):(?<portNumber>\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
+export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>[^\s]+)/;
+// The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
-export const GitCreatePrOutputRegex = /remote:\s*(https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
+export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
 
-export function gitSimilarCommand(): ITerminalQuickFixOptions {
+export function gitSimilar(): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
+		id: 'Git Similar',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitSimilarOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 3
+			length: 10
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			const actions: ITerminalQuickFixAction[] = [];
-			const fixedCommand = matchResult?.outputMatch?.[1];
-			if (!fixedCommand) {
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+			if (!matchResult?.outputMatch) {
 				return;
 			}
-			const commandToRunInTerminal = `git ${fixedCommand}`;
-			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
-				commandToRunInTerminal,
-				addNewLine: true,
-				run: () => { }
-			});
+			const actions: TerminalQuickFixAction[] = [];
+			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
+			for (let i = 1; i < results.length; i++) {
+				const fixedCommand = results[i];
+				if (fixedCommand) {
+					actions.push({
+						id: 'Git Similar',
+						type: 'command',
+						command: command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
+						addNewLine: true
+					});
+				}
+			}
 			return actions;
+		}
+	};
+}
+
+export function gitTwoDashes(): ITerminalQuickFixOptions {
+	return {
+		source: 'builtin',
+		id: 'Git Two Dashes',
+		commandLineMatcher: GitCommandLineRegex,
+		outputMatcher: {
+			lineMatcher: GitTwoDashesRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 2
+		},
+		exitStatus: false,
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+			const problemArg = matchResult?.outputMatch?.[1];
+			if (!problemArg) {
+				return;
+			}
+			return {
+				type: 'command',
+				id: 'Git Two Dashes',
+				command: command.command.replace(` -${problemArg}`, ` --${problemArg}`),
+				addNewLine: true
+			};
 		}
 	};
 }
 export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
+		id: 'Free Port',
 		commandLineMatcher: AnyCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: FreePortOutputRegex,
@@ -57,27 +90,29 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			length: 30
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			const port = matchResult?.outputMatch?.[1];
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+			const port = matchResult?.outputMatch?.groups?.portNumber;
 			if (!port) {
 				return;
 			}
-			const actions: ITerminalQuickFixAction[] = [];
 			const label = localize("terminal.freePort", "Free port {0}", port);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
+			return {
+				class: undefined,
+				tooltip: label,
+				id: 'terminal.freePort',
+				label,
+				enabled: true,
 				run: async () => {
-					await terminalInstance?.freePortKillProcess?.(port);
-				},
-				commandToRunInTerminal: command.command,
-				addNewLine: false
-			});
-			return actions;
+					await terminalInstance?.freePortKillProcess?.(port, command.command);
+				}
+			};
 		}
 	};
 }
-export function gitPushSetUpstream(): ITerminalQuickFixOptions {
+
+export function gitPushSetUpstream(): IExtensionTerminalQuickFix {
 	return {
+		id: 'Git Push Set Upstream',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitPushOutputRegex,
@@ -86,27 +121,14 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 			length: 5
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			const branch = matchResult?.outputMatch?.[1];
-			if (!branch) {
-				return;
-			}
-			const actions: ITerminalQuickFixAction[] = [];
-			const commandToRunInTerminal = `git push --set-upstream origin ${branch}`;
-			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitPush', label, enabled: true,
-				commandToRunInTerminal,
-				addNewLine: true,
-				run: () => { }
-			});
-			return actions;
-		}
+		commandToRun: 'git push --set-upstream origin ${group:branchName}',
+		extensionIdentifier: 'git'
 	};
 }
 
-export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOptions {
+export function gitCreatePr(): IExtensionTerminalQuickFix {
 	return {
+		id: 'Git Create Pr',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitCreatePrOutputRegex,
@@ -115,21 +137,7 @@ export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOpt
 			length: 5
 		},
 		exitStatus: true,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command?: ITerminalCommand) => {
-			if (!command) {
-				return;
-			}
-			const link = matchResult?.outputMatch?.[1];
-			if (!link) {
-				return;
-			}
-			const actions: IAction[] = [];
-			const label = localize("terminal.openLink", "Open link: {0}", link);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitCreatePr', label, enabled: true,
-				run: () => openerService.open(link)
-			});
-			return actions;
-		}
+		linkToOpen: '${group:link}',
+		extensionIdentifier: 'git'
 	};
 }

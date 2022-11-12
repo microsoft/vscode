@@ -153,16 +153,16 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 			this.saveAllAttachmentsToCache(cell.metadata, notebookUri, cellFragment);
 		}
 
-		if (this.checkMetadataAttachmentsExistence(cell.metadata)) {
+		if (this.checkMetadataHasAttachmentsField(cell.metadata)) {
 			// the cell metadata contains attachments, check if any are used in the markdown source
 
-			for (const currFilename of Object.keys(cell.metadata.attachments)) {
+			for (const [currFilename, attachment] of Object.entries(cell.metadata.attachments)) {
 				// means markdown reference is present in the metadata, rendering will work properly
 				// therefore, we don't need to check it in the next loop either
 				if (markdownAttachmentsRefedInCell.has(currFilename)) {
 					// attachment reference is present in the markdown source, no need to cache it
 					markdownAttachmentsRefedInCell.get(currFilename)!.valid = true;
-					markdownAttachmentsInUse[currFilename] = cell.metadata.attachments[currFilename];
+					markdownAttachmentsInUse[currFilename] = attachment as IAttachmentData;
 				} else {
 					// attachment reference is not present in the markdown source, cache it
 					this.saveAttachmentToCache(notebookUri, cellFragment, currFilename, cell.metadata);
@@ -227,7 +227,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 		const diagnostics: IAttachmentDiagnostic[] = [];
 		const markdownAttachments = this.getAttachmentNames(document);
-		if (this.checkMetadataAttachmentsExistence(activeCell.metadata)) {
+		if (this.checkMetadataHasAttachmentsField(activeCell.metadata)) {
 			for (const [currFilename, attachment] of markdownAttachments) {
 				if (!activeCell.metadata.attachments[currFilename]) {
 					// no attachment reference in the metadata
@@ -295,8 +295,8 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 	 * @param metadata metadata of cell
 	 * @returns boolean representing the presence of any attachments
 	 */
-	private checkMetadataAttachmentsExistence(metadata: { [key: string]: any }): boolean {
-		return !!(metadata.attachments);
+	private checkMetadataHasAttachmentsField(metadata: { [key: string]: unknown }): metadata is { readonly attachments: Record<string, unknown> } {
+		return !!metadata.attachments && typeof metadata.attachments === 'object';
 	}
 
 	/**
@@ -305,14 +305,16 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 	 * @param notebookUri uri for the notebook being edited
 	 * @param cellFragment fragment of cell being edited
 	 */
-	private saveAllAttachmentsToCache(metadata: { [key: string]: any }, notebookUri: string, cellFragment: string): void {
+	private saveAllAttachmentsToCache(metadata: { [key: string]: unknown }, notebookUri: string, cellFragment: string): void {
 		const documentCache = this._attachmentCache.get(notebookUri) ?? new Map();
 		this._attachmentCache.set(notebookUri, documentCache);
 		const cellCache = documentCache.get(cellFragment) ?? new Map<string, IAttachmentData>();
 		documentCache.set(cellFragment, cellCache);
 
-		for (const currFilename of Object.keys(metadata.attachments)) {
-			cellCache.set(currFilename, metadata.attachments[currFilename]);
+		if (metadata.attachments && typeof metadata.attachments === 'object') {
+			for (const [currFilename, attachment] of Object.entries(metadata.attachments)) {
+				cellCache.set(currFilename, attachment);
+			}
 		}
 	}
 

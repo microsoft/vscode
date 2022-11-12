@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
@@ -12,7 +11,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -136,9 +135,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly defaultLocation: TerminalLocation;
-	readonly primaryBackendRegistered: Promise<void>;
 
-	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;
 	onDidCreateInstance: Event<ITerminalInstance>;
@@ -456,6 +453,7 @@ export interface ITerminalInstance {
 	readonly initialCwd?: string;
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly usedShellIntegrationInjection: boolean;
 
 	readonly statusList: ITerminalStatusList;
 
@@ -586,10 +584,23 @@ export interface ITerminalInstance {
 
 	onDidFocusFindWidget: Event<void>;
 
+	/**
+	 * The exit code or undefined when the terminal process hasn't yet exited or
+	 * the process exit code could not be determined. Use {@link exitReason} to see
+	 * why the process has exited.
+	 */
 	readonly exitCode: number | undefined;
 
+	/**
+	 * The reason the terminal process exited, this will be undefined if the process is still
+	 * running.
+	 */
 	readonly exitReason: TerminalExitReason | undefined;
 
+	/**
+	 * Whether links in the terminal are ready, links aren't available until after the process is
+	 * ready.
+	 */
 	readonly areLinksReady: boolean;
 
 	/**
@@ -650,11 +661,21 @@ export interface ITerminalInstance {
 	 */
 	disableLayout: boolean;
 
+	/**
+	 * Access to the navigation mode accessibility feature.
+	 */
 	readonly navigationMode: INavigationMode | undefined;
 
+	/**
+	 * The description of the terminal, this is typically displayed next to {@link title}.
+	 */
 	description: string | undefined;
 
+	/**
+	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
+	 */
 	userHome: string | undefined;
+
 	/**
 	 * Shows the environment information hover if the widget exists.
 	 */
@@ -778,6 +799,8 @@ export interface ITerminalInstance {
 	 */
 	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
 
+	runCommand(command: string, addNewLine?: boolean): void;
+
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
 	 * includes trying to prepare the path for WSL if needed.
@@ -855,8 +878,14 @@ export interface ITerminalInstance {
 	 */
 	toggleSizeToContentWidth(): Promise<void>;
 
+	/**
+	 * Toggles escape sequence logging in the devtools console.
+	 */
 	toggleEscapeSequenceLogging(): Promise<boolean>;
 
+	/**
+	 * Sets whether escape seqeunce logging is enabled in the devtools console.
+	 */
 	setEscapeSequenceLogging(enable: boolean): void;
 
 	/**
@@ -916,44 +945,36 @@ export interface ITerminalInstance {
 	 */
 	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
 
-	freePortKillProcess(port: string): Promise<void>;
+	/**
+	 * Attempts to detect and kill the process listening on specified port.
+	 * If successful, places commandToRun on the command line
+	 */
+	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 }
 
 export interface ITerminalQuickFixOptions {
+	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	getQuickFixes: QuickFixCallback;
+	getQuickFixes: TerminalQuickFixCallback;
 	exitStatus?: boolean;
+	source: string;
 }
-export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ITerminalQuickFixAction[] | undefined;
+export type TerminalQuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
+export type TerminalQuickFixAction = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixCallback = (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => TerminalQuickFixAction[] | TerminalQuickFixAction | undefined;
 
-export interface ITerminalQuickFixAction extends IAction {
-	commandToRunInTerminal?: string;
-	addNewLine?: boolean;
+export interface ITerminalQuickFixCommandAction {
+	type: 'command';
+	id: string;
+	command: string;
+	// TODO: Should this depend on whether alt is held?
+	addNewLine: boolean;
 }
-
-/**
- * A matcher that runs on a sub-section of a terminal command's output
- */
-export interface ITerminalOutputMatcher {
-	/**
-	 * A string or regex to match against the unwrapped line.
-	 */
-	lineMatcher: string | RegExp;
-	/**
-	 * Which side of the output to anchor the {@link offset} and {@link length} against.
-	 */
-	anchor: 'top' | 'bottom';
-	/**
-	 * How far from either the top or the bottom of the butter to start matching against.
-	 */
-	offset: number;
-	/**
-	 * The number of rows to match against, this should be as small as possible for performance
-	 * reasons.
-	 */
-	length: number;
+export interface ITerminalQuickFixOpenerAction {
+	type: 'opener';
+	id: string;
+	uri: URI;
 }
 
 export interface IXtermTerminal {
@@ -969,6 +990,11 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
+
+	/**
+	 * Gets a view of the current texture atlas used by the renderers.
+	 */
+	readonly textureAtlas: Promise<ImageBitmap> | undefined;
 
 	/**
 	 * The position of the terminal.

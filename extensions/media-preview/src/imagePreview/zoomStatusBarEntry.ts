@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { PreviewStatusBarEntry as OwnedStatusBarEntry } from '../ownedStatusBarEntry';
 
-const localize = nls.loadMessageBundle();
 
 const selectZoomLevelCommandId = '_imagePreview.selectZoomLevel';
 
@@ -19,7 +17,7 @@ export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 	public readonly onDidChangeScale = this._onDidChangeScale.event;
 
 	constructor() {
-		super('status.imagePreview.zoom', localize('zoomStatusBar.name', "Image Zoom"), vscode.StatusBarAlignment.Right, 102 /* to the left of editor size entry (101) */);
+		super('status.imagePreview.zoom', vscode.l10n.t("Image Zoom"), vscode.StatusBarAlignment.Right, 102 /* to the left of editor size entry (101) */);
 
 		this._register(vscode.commands.registerCommand(selectZoomLevelCommandId, async () => {
 			type MyPickItem = vscode.QuickPickItem & { scale: Scale };
@@ -31,7 +29,7 @@ export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 			}));
 
 			const pick = await vscode.window.showQuickPick(options, {
-				placeHolder: localize('zoomStatusBar.placeholder', "Select zoom level")
+				placeHolder: vscode.l10n.t("Select zoom level")
 			});
 			if (pick) {
 				this._onDidChangeScale.fire({ scale: pick.scale });
@@ -47,7 +45,7 @@ export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 
 	private zoomLabel(scale: Scale): string {
 		return scale === 'fit'
-			? localize('zoomStatusBar.wholeImageLabel', "Whole Image")
+			? vscode.l10n.t("Whole Image")
 			: `${Math.round(scale * 100)}%`;
 	}
 }
