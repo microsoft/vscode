@@ -11,7 +11,9 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { FIND_IDS } from 'vs/editor/contrib/find/browser/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import 'vs/css!./findOptionsWidget';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
