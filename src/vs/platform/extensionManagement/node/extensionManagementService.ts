@@ -128,7 +128,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
-		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation);
+		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation ?? this.getCurrentExtensionsManifestLocation());
 	}
 
 	getAllUserInstalled(): Promise<ILocalExtension[]> {
@@ -280,9 +280,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {
 		if (removed) {
-			for (const identifier of removed.extensions) {
-				this._onDidUninstallExtension.fire({ identifier, profileLocation: removed.profileLocation });
-			}
+			const extensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, removed.profileLocation);
+			const removedExtensions = removed.extensions.filter(identifier => !extensions.some(e => areSameExtensions(identifier, e.identifier)));
+			removedExtensions.forEach(identifier => this._onDidUninstallExtension.fire({ identifier, profileLocation: removed.profileLocation }));
 		}
 		if (added) {
 			const extensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, added.profileLocation);
@@ -901,4 +901,3 @@ class UninstallExtensionFromProfileTask extends AbstractExtensionTask<void> impl
 	}
 
 }
-
