@@ -115,6 +115,12 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	label: strictEqualComparator,
 	description: strictEqualComparator,
 	error: strictEqualComparator,
+	sortText: strictEqualComparator,
+	uri: (a, b) => {
+		if (a === b) { return true; }
+		if (!a || !b) { return false; }
+		return a.toString() === b.toString();
+	},
 	tags: (a, b) => {
 		if (a.length !== b.length) {
 			return false;
