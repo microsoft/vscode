@@ -45,7 +45,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	private shellPid?: number;
 	private regexp: RegExp;
 	private disposables: vscode.Disposable[] = [];
-	private lateDisposables: vscode.Disposable[] = [];
+	private lateDisposables = new Set<vscode.Disposable>([]);
 
 	static start(session: vscode.DebugSession): ServerReadyDetector | undefined {
 		if (session.configuration.serverReadyAction) {
@@ -199,28 +199,30 @@ class ServerReadyDetector extends vscode.Disposable {
 		}
 
 		const trackerId = randomUUID();
-		const newSessionPromise = new Promise<vscode.DebugSession>(resolve => {
-			const listener = vscode.debug.onDidStartDebugSession(newSession => {
-				if (newSession.configuration.trackerId === trackerId) {
-					listener.dispose();
-					resolve(newSession);
-				}
-			});
-			this.lateDisposables.push(listener); // In case `trackerId` of interest was never caught anyhow.
-		});
+		const cts = new vscode.CancellationTokenSource();
+		const newSessionPromise = this.catchStartedDebugSession(session => session.configuration.trackerId === trackerId, cts.token);
 
 		if (!await this.startBrowserDebugSession(type, session, uri, trackerId)) {
+			cts.cancel();
+			cts.dispose();
 			return;
 		}
 
 		const createdSession = await newSessionPromise;
-		const listener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
+		cts.dispose();
+
+		if (!createdSession) {
+			return;
+		}
+
+		const stopListener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
 			if (terminated === session) {
-				listener.dispose();
+				stopListener.dispose();
+				this.lateDisposables.delete(stopListener);
 				await vscode.debug.stopDebugging(createdSession);
 			}
 		});
-		this.lateDisposables.push(listener);
+		this.lateDisposables.add(stopListener);
 	}
 
 	private startBrowserDebugSession(type: string, session: vscode.DebugSession, uri: string, trackerId?: string) {
@@ -241,28 +243,53 @@ class ServerReadyDetector extends vscode.Disposable {
 			return;
 		}
 
-		const newSessionPromise = new Promise<vscode.DebugSession>(resolve => {
-			const listener = vscode.debug.onDidStartDebugSession(newSession => {
-				if (newSession.name === name) {
-					listener.dispose();
-					resolve(newSession);
-				}
-			});
-			this.lateDisposables.push(listener); // In case `name` of interest was never caught anyhow.
-		});
+		const cts = new vscode.CancellationTokenSource();
+		const newSessionPromise = this.catchStartedDebugSession(x => x.name === name, cts.token);
 
 		if (!await vscode.debug.startDebugging(session.workspaceFolder, name)) {
+			cts.cancel();
+			cts.dispose();
 			return;
 		}
 
 		const createdSession = await newSessionPromise;
-		const listener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
+		cts.dispose();
+
+		if (!createdSession) {
+			return;
+		}
+
+		const stopListener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
 			if (terminated === session) {
-				listener.dispose();
+				stopListener.dispose();
+				this.lateDisposables.delete(stopListener);
 				await vscode.debug.stopDebugging(createdSession);
 			}
 		});
-		this.lateDisposables.push(listener);
+		this.lateDisposables.add(stopListener);
+	}
+
+	private catchStartedDebugSession(predicate: (session: vscode.DebugSession) => boolean, cancellationToken: vscode.CancellationToken): Promise<vscode.DebugSession | undefined> {
+		return new Promise<vscode.DebugSession | undefined>(_resolve => {
+			const done = (value?: vscode.DebugSession) => {
+				listener.dispose();
+				cancellationListener.dispose();
+				this.lateDisposables.delete(listener);
+				this.lateDisposables.delete(cancellationListener);
+				_resolve(value);
+			};
+
+			const cancellationListener = cancellationToken.onCancellationRequested(done);
+			const listener = vscode.debug.onDidStartDebugSession(session => {
+				if (predicate(session)) {
+					done(session);
+				}
+			});
+
+			// In case the debug session of interest was never caught anyhow.
+			this.lateDisposables.add(listener);
+			this.lateDisposables.add(cancellationListener);
+		});
 	}
 }
 
