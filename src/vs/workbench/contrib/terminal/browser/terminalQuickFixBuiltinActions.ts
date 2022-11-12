@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixActionInternal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixActionInternal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalCommandMatchResult } from 'vs/workbench/contrib/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
@@ -19,7 +19,6 @@ export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/
 
 export function gitSimilar(): ITerminalQuickFixOptions {
 	return {
-		source: 'builtin',
 		id: 'Git Similar',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
@@ -29,7 +28,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 			length: 10
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: TerminalCommandMatchResult) => {
 			if (!matchResult?.outputMatch) {
 				return;
 			}
@@ -41,7 +40,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 					actions.push({
 						id: 'Git Similar',
 						type: 'command',
-						command: command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
+						command: matchResult.command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
 						addNewLine: true
 					});
 				}
@@ -53,7 +52,6 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 
 export function gitTwoDashes(): ITerminalQuickFixOptions {
 	return {
-		source: 'git',
 		id: 'Git Two Dashes',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
@@ -63,7 +61,7 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 			length: 2
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: TerminalCommandMatchResult) => {
 			const problemArg = matchResult?.outputMatch?.[1];
 			if (!problemArg) {
 				return;
@@ -71,7 +69,7 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 			return {
 				type: 'command',
 				id: 'Git Two Dashes',
-				command: command.command.replace(` -${problemArg}`, ` --${problemArg}`),
+				command: matchResult.command.command.replace(` -${problemArg}`, ` --${problemArg}`),
 				addNewLine: true
 			};
 		}
@@ -79,7 +77,6 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 }
 export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
-		source: 'builtin',
 		id: 'Free Port',
 		commandLineMatcher: AnyCommandLineRegex,
 		outputMatcher: {
@@ -89,7 +86,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			length: 30
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: TerminalCommandMatchResult) => {
 			const port = matchResult?.outputMatch?.groups?.portNumber;
 			if (!port) {
 				return;
@@ -102,7 +99,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 				label,
 				enabled: true,
 				run: async () => {
-					await terminalInstance?.freePortKillProcess?.(port, command.command);
+					await terminalInstance?.freePortKillProcess?.(port, matchResult.command.command);
 				}
 			};
 		}
@@ -119,9 +116,8 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 			offset: 0,
 			length: 5
 		},
-		source: 'git',
 		exitStatus: false,
-		getQuickFixes: (matchResult: TerminalQuickFixMatchResult) => {
+		getQuickFixes: (matchResult: TerminalCommandMatchResult) => {
 			const matches = matchResult.outputMatch;
 			const commandToRun = 'git push --set-upstream origin ${group:branchName}';
 			if (!matches) {
@@ -165,8 +161,7 @@ export function gitCreatePr(): ITerminalQuickFixOptions {
 			length: 5
 		},
 		exitStatus: true,
-		source: 'git',
-		getQuickFixes: (matchResult: TerminalQuickFixMatchResult) => {
+		getQuickFixes: (matchResult: TerminalCommandMatchResult) => {
 			const link = matchResult?.outputMatch?.groups?.link;
 			if (!link) {
 				return;

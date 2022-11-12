@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -19,7 +20,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
-import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/workbench/contrib/terminal/common/terminal';
+import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, TerminalCommandMatchResult } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
 
@@ -959,13 +960,21 @@ export interface ITerminalQuickFixOptions {
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: TerminalQuickFixCallback;
 	exitStatus?: boolean;
-	source: string;
-	isExtensionContributed?: boolean;
 }
-export type TerminalQuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
-export type TerminalQuickFixCallback = (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
 
+export interface ITerminalQuickFixExtensionOptions {
+	type: 'extension';
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	getQuickFixes: TerminalQuickFixCallbackExtension;
+	exitStatus?: boolean;
+}
+
+export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixActionExtension = ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixCallback = (matchResult: TerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
+export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<TerminalQuickFixActionExtension[] | TerminalQuickFixActionExtension | undefined>;
 
 export interface IXtermTerminal {
 	/**

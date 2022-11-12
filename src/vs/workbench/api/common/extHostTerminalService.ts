@@ -675,7 +675,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			throw new Error(`Terminal quick fix provider "${id}" already registered`);
 		}
 		this._quickFixProviders.set(id, { selector: commandSelector, provider });
-		this._proxy.$registerQuickFixProvider(id);
+		this._proxy.$registerQuickFixProvider(id, commandSelector);
 		return new VSCodeDisposable(() => {
 			this._quickFixProviders.delete(id);
 			this._proxy.$unregisterQuickFixProvider(id);

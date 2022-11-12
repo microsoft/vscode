@@ -17,7 +17,7 @@ import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabi
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { CancellationToken } from 'vs/base/common/cancellation';
-export type TerminalQuickFixAction = ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+
 export const TERMINAL_VIEW_ID = 'terminal';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
@@ -100,15 +100,55 @@ export interface ITerminalProfileService {
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
+export interface TerminalCommandMatchResult {
+	command: { command: string; exitStatus?: number };
+	commandLineMatch: RegExpMatchArray;
+	// full match and groups
 
+	outputMatch?: RegExpMatchArray | null;
+}
+
+interface TerminalQuickFixCommandAction {
+	type: 'command';
+	command: string;
+}
+interface TerminalQuickFixOpenerAction {
+	type: 'opener';
+	// support line range/col? see elsewhere
+	uri: UriComponents;
+}
+
+type TerminalQuickFix = TerminalQuickFixCommandAction | TerminalQuickFixOpenerAction;
+export interface ITerminalQuickFixProvider {
+	/**
+	 * Provides terminal quick fixes
+	 * @param commandMatchResult The command match result for which to provide quick fixes
+	 * @param token A cancellation token indicating the result is no longer needed
+	 * @return Terminal quick fix(es) if any
+	 */
+	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
+}
+
+export interface ITerminalCommandSelector {
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus?: boolean;
+}
 
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
+	onDidRegisterProvider: Event<ITerminalQuickFixSelectorProvider>;
+	onDidUnregisterProvider: Event<ITerminalQuickFixSelectorProvider>;
 	readonly _serviceBrand: undefined;
-	providers: Map</*ext id*/string, { provideQuickFixes(matchResult: { commandLineMatch: string; outputMatch?: string; exitStatus?: number }): Promise<TerminalQuickFixAction[] | TerminalQuickFixAction | null | undefined> }>;
-	registerQuickFixProvider(extensionIdentifier: string, provider: { provideQuickFixes(matchResult: any, token: CancellationToken): Promise<TerminalQuickFixAction[] | TerminalQuickFixAction | undefined> }): IDisposable;
+	providers: ITerminalQuickFixSelectorProvider[];
+	registerQuickFixProvider(id: string, commandSelector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable;
 }
 
+export interface ITerminalQuickFixSelectorProvider {
+	id: string;
+	selector: ITerminalCommandSelector;
+	provider: ITerminalQuickFixProvider;
+}
 export interface ITerminalProfileProvider {
 	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
