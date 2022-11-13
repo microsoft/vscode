@@ -215,18 +215,21 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (options.type === 'GET' && segments.length === 1 && segments[0] === 'manifest') {
 			return this.getManifest(options.headers);
 		}
-		if (options.type === 'GET' && segments.length === 3 && segments[0] === 'resource' && segments[2] === 'latest') {
-			return this.getLatestData(undefined, segments[1], options.headers);
+		if (options.type === 'GET' && segments.length === 3 && segments[0] === 'resource') {
+			return this.getResourceData(undefined, segments[1], segments[2] === 'latest' ? undefined : segments[2], options.headers);
 		}
 		if (options.type === 'POST' && segments.length === 2 && segments[0] === 'resource') {
 			return this.writeData(undefined, segments[1], options.data, options.headers);
 		}
 		// resources in collection
-		if (options.type === 'GET' && segments.length === 5 && segments[0] === 'collection' && segments[2] === 'resource' && segments[4] === 'latest') {
-			return this.getLatestData(segments[1], segments[3], options.headers);
+		if (options.type === 'GET' && segments.length === 5 && segments[0] === 'collection' && segments[2] === 'resource') {
+			return this.getResourceData(segments[1], segments[3], segments[4] === 'latest' ? undefined : segments[4], options.headers);
 		}
 		if (options.type === 'POST' && segments.length === 4 && segments[0] === 'collection' && segments[2] === 'resource') {
 			return this.writeData(segments[1], segments[3], options.data, options.headers);
+		}
+		if (options.type === 'DELETE' && segments.length === 2 && segments[0] === 'resource') {
+			return this.deleteResourceData(undefined, segments[1]);
 		}
 		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'resource') {
 			return this.clear(options.headers);
@@ -262,7 +265,7 @@ export class UserDataSyncTestServer implements IRequestService {
 		return this.toResponse(204, { etag: `${this.manifestRef++}` });
 	}
 
-	private async getLatestData(collection: string | undefined, resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
+	private async getResourceData(collection: string | undefined, resource: string, ref?: string, headers: IHeaders = {}): Promise<IRequestContext> {
 		const collectionData = collection ? this.collections.get(collection) : this.data;
 		if (!collectionData) {
 			return this.toResponse(501);
@@ -271,6 +274,9 @@ export class UserDataSyncTestServer implements IRequestService {
 		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
 			const data = collectionData.get(resourceKey);
+			if (ref && data?.ref !== ref) {
+				return this.toResponse(404);
+			}
 			if (!data) {
 				return this.toResponse(204, { etag: '0' });
 			}
@@ -301,6 +307,21 @@ export class UserDataSyncTestServer implements IRequestService {
 			return this.toResponse(200, { etag: ref });
 		}
 		return this.toResponse(204);
+	}
+
+	private async deleteResourceData(collection: string | undefined, resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
+		const collectionData = collection ? this.collections.get(collection) : this.data;
+		if (!collectionData) {
+			return this.toResponse(501);
+		}
+
+		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
+		if (resourceKey) {
+			collectionData.delete(resourceKey);
+			return this.toResponse(200);
+		}
+
+		return this.toResponse(404);
 	}
 
 	private async createCollection(): Promise<IRequestContext> {

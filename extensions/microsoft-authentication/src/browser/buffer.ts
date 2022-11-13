@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .view-ruler {
-	position: absolute;
-	top: 0;
-	box-shadow: 1px 0 0 0 var(--vscode-editorRuler-ruler) inset;
+export function base64Encode(text: string): string {
+	return btoa(text);
+}
+
+export function base64Decode(text: string): string {
+	const data = atob(text);
+	return data;
 }

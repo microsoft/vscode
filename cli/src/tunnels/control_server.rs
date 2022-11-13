@@ -7,19 +7,24 @@ use crate::constants::{CONTROL_PORT, PROTOCOL_VERSION, VSCODE_CLI_VERSION};
 use crate::log;
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
+use crate::tunnels::protocol::HttpRequestParams;
+use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, UpdateService};
 use crate::util::errors::{
 	wrap, AnyError, MismatchedLaunchModeError, NoAttachedServerError, ServerWriteError,
+};
+use crate::util::http::{
+	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
 };
 use crate::util::io::SilentCopyProgress;
 use crate::util::sync::{new_barrier, Barrier};
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
-use serde::Serialize;
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::env;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -34,14 +39,16 @@ use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
 	CallServerHttpParams, CallServerHttpResult, ClientRequestMethod, EmptyResult, ErrorResponse,
-	ForwardParams, ForwardResult, GetHostnameResponse, RefServerMessageParams, ResponseError,
-	ServeParams, ServerLog, ServerMessageParams, ServerRequestMethod, SuccessResponse,
-	ToClientRequest, ToServerRequest, UnforwardParams, UpdateParams, UpdateResult, VersionParams,
+	ForwardParams, ForwardResult, GetHostnameResponse, ResponseError, ServeParams, ServerLog,
+	ServerMessageParams, ServerRequestMethod, SuccessResponse, ToClientRequest, ToServerRequest,
+	UnforwardParams, UpdateParams, UpdateResult, VersionParams,
 };
-use super::server_bridge::{get_socket_rw_stream, FromServerMessage, ServerBridge};
+use super::server_bridge::{get_socket_rw_stream, ServerBridge};
+use super::socket_signal::{ClientMessageDecoder, ServerMessageSink, SocketSignal};
 
 type ServerBridgeList = Option<Vec<(u16, ServerBridge)>>;
 type ServerBridgeListLock = Arc<Mutex<ServerBridgeList>>;
+type HttpRequestsMap = Arc<std::sync::Mutex<HashMap<u32, DelegatedHttpRequest>>>;
 type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
 
 struct HandlerContext {
@@ -67,6 +74,17 @@ struct HandlerContext {
 	port_forwarding: PortForwarding,
 	/// install platform for the VS Code server
 	platform: Platform,
+	/// http client to make download/update requests
+	http: FallbackSimpleHttp,
+	/// requests being served by the client
+	http_requests: HttpRequestsMap,
+}
+
+static MESSAGE_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+// Gets a next incrementing number that can be used in logs
+pub fn next_message_id() -> u32 {
+	MESSAGE_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
 }
 
 impl HandlerContext {
@@ -103,39 +121,6 @@ enum ServerSignal {
 	/// will stop the TCP listener and spawn the launcher again as a subprocess
 	/// with the same arguments we used.
 	Respawn,
-}
-
-struct CloseReason(String);
-
-enum SocketSignal {
-	/// Signals bytes to send to the socket.
-	Send(Vec<u8>),
-	/// Closes the socket (e.g. as a result of an error)
-	CloseWith(CloseReason),
-	/// Disposes ServerBridge corresponding to an ID
-	CloseServerBridge(u16),
-}
-
-impl SocketSignal {
-	fn from_message<T>(msg: &T) -> Self
-	where
-		T: Serialize + ?Sized,
-	{
-		SocketSignal::Send(rmp_serde::to_vec_named(msg).unwrap())
-	}
-}
-
-impl FromServerMessage for SocketSignal {
-	fn from_server_message(i: u16, body: &[u8]) -> Self {
-		SocketSignal::from_message(&ToClientRequest {
-			id: None,
-			params: ClientRequestMethod::servermsg(RefServerMessageParams { i, body }),
-		})
-	}
-
-	fn from_closed_server_bridge(i: u16) -> Self {
-		SocketSignal::CloseServerBridge(i)
-	}
 }
 
 pub struct ServerTermination {
@@ -279,7 +264,7 @@ async fn process_socket(
 	platform: Platform,
 ) -> SocketStats {
 	let (socket_tx, mut socket_rx) = mpsc::channel(4);
-
+	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 	let rx_counter = Arc::new(AtomicUsize::new(0));
 
 	let server_bridges: ServerBridgeListLock = Arc::new(Mutex::new(Some(vec![])));
@@ -287,6 +272,8 @@ async fn process_socket(
 	let barrier_ctx = exit_barrier.clone();
 	let log_ctx = log.clone();
 	let rx_counter_ctx = rx_counter.clone();
+	let http_requests_ctx = http_requests.clone();
+	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log_ctx.clone());
 
 	tokio::spawn(async move {
 		let mut ctx = HandlerContext {
@@ -301,6 +288,8 @@ async fn process_socket(
 			server_bridges: server_bridges_lock,
 			port_forwarding,
 			platform,
+			http: FallbackSimpleHttp::new(ReqwestSimpleHttp::new(), http_delegated),
+			http_requests: http_requests_ctx,
 		};
 
 		send_version(&ctx.socket_tx).await;
@@ -324,6 +313,25 @@ async fn process_socket(
 				writehalf.shutdown().await.ok();
 				break;
 			},
+			Some(r) = http_rx.recv() => {
+				let id = next_message_id();
+				let serialized = rmp_serde::to_vec_named(&ToClientRequest {
+					id: None,
+					params: ClientRequestMethod::makehttpreq(HttpRequestParams {
+						url: &r.url,
+						method: r.method,
+						req_id: id,
+					}),
+				})
+				.unwrap();
+				http_requests.lock().unwrap().insert(id, r);
+
+				tx_counter += serialized.len();
+				if let Err(e) = writehalf.write_all(&serialized).await {
+					debug!(log, "Closing connection: {}", e);
+					break;
+				}
+			}
 			recv = socket_rx.recv() => match recv {
 				None => break,
 				Some(message) => match message {
@@ -509,6 +517,7 @@ async fn dispatch_next(req: ToServerRequest, ctx: &mut HandlerContext, did_updat
 		}
 		ServerRequestMethod::serve(params) => {
 			let log = ctx.log.clone();
+			let http = ctx.http.clone();
 			let server_bridges = ctx.server_bridges.clone();
 			let code_server_args = ctx.code_server_args.clone();
 			let code_server = ctx.code_server.clone();
@@ -519,6 +528,7 @@ async fn dispatch_next(req: ToServerRequest, ctx: &mut HandlerContext, did_updat
 				"serve",
 				handle_serve(
 					log,
+					http,
 					server_bridges,
 					code_server_args,
 					platform,
@@ -538,7 +548,7 @@ async fn dispatch_next(req: ToServerRequest, ctx: &mut HandlerContext, did_updat
 		}
 		ServerRequestMethod::update(p) => {
 			dispatch_blocking!("update", async {
-				let r = handle_update(&ctx.log, &p).await;
+				let r = handle_update(&ctx.http, &ctx.log, &p).await;
 				if matches!(&r, Ok(u) if u.did_update) {
 					*did_update = true;
 				}
@@ -567,6 +577,26 @@ async fn dispatch_next(req: ToServerRequest, ctx: &mut HandlerContext, did_updat
 			let port_forwarding = ctx.port_forwarding.clone();
 			dispatch_async!("unforward", handle_unforward(log, port_forwarding, p));
 		}
+		ServerRequestMethod::httpheaders(p) => {
+			if let Some(req) = ctx.http_requests.lock().unwrap().get(&p.req_id) {
+				req.initial_response(p.status_code, p.headers);
+			}
+			success!(ctx.socket_tx, EmptyResult {});
+		}
+		ServerRequestMethod::httpbody(p) => {
+			{
+				let mut reqs = ctx.http_requests.lock().unwrap();
+				if let Some(req) = reqs.get(&p.req_id) {
+					if !p.segment.is_empty() {
+						req.body(p.segment);
+					}
+					if p.complete {
+						reqs.remove(&p.req_id);
+					}
+				}
+			}
+			success!(ctx.socket_tx, EmptyResult {});
+		}
 	};
 }
 
@@ -594,6 +624,7 @@ impl log::LogSink for ServerOutputSink {
 #[allow(clippy::too_many_arguments)]
 async fn handle_serve(
 	log: log::Logger,
+	http: FallbackSimpleHttp,
 	server_bridges: ServerBridgeListLock,
 	mut code_server_args: CodeServerArgs,
 	platform: Platform,
@@ -607,15 +638,19 @@ async fn handle_serve(
 		.install_extensions
 		.extend(params.extensions.into_iter());
 
-	let resolved = ServerParamsRaw {
+	let params_raw = ServerParamsRaw {
 		commit_id: params.commit_id,
 		quality: params.quality,
 		code_server_args,
 		headless: true,
 		platform,
-	}
-	.resolve(&log)
-	.await?;
+	};
+
+	let resolved = if params.use_local_download {
+		params_raw.resolve(&log, http.delegated()).await
+	} else {
+		params_raw.resolve(&log, http.clone()).await
+	}?;
 
 	let mut server_ref = code_server.lock().await;
 	let server = match &*server_ref {
@@ -624,15 +659,27 @@ async fn handle_serve(
 			let install_log = log.tee(ServerOutputSink {
 				tx: socket_tx.clone(),
 			});
-			let sb = ServerBuilder::new(&install_log, &resolved, &launcher_paths);
 
-			let server = match sb.get_running().await? {
-				Some(AnyCodeServer::Socket(s)) => s,
-				Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
-				None => {
-					sb.setup().await?;
-					sb.listen_on_default_socket().await?
-				}
+			macro_rules! do_setup {
+				($sb:expr) => {
+					match $sb.get_running().await? {
+						Some(AnyCodeServer::Socket(s)) => s,
+						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
+						None => {
+							$sb.setup().await?;
+							$sb.listen_on_default_socket().await?
+						}
+					}
+				};
+			}
+
+			let server = if params.use_local_download {
+				let sb =
+					ServerBuilder::new(&install_log, &resolved, &launcher_paths, http.delegated());
+				do_setup!(sb)
+			} else {
+				let sb = ServerBuilder::new(&install_log, &resolved, &launcher_paths, http);
+				do_setup!(sb)
 			};
 
 			server_ref.replace(server.clone());
@@ -640,7 +687,15 @@ async fn handle_serve(
 		}
 	};
 
-	attach_server_bridge(&log, server, socket_tx, server_bridges, params.socket_id).await?;
+	attach_server_bridge(
+		&log,
+		server,
+		socket_tx,
+		server_bridges,
+		params.socket_id,
+		params.compress,
+	)
+	.await?;
 	Ok(EmptyResult {})
 }
 
@@ -650,8 +705,22 @@ async fn attach_server_bridge(
 	socket_tx: mpsc::Sender<SocketSignal>,
 	server_bridges: ServerBridgeListLock,
 	socket_id: u16,
+	compress: bool,
 ) -> Result<u16, AnyError> {
-	let attached_fut = ServerBridge::new(&code_server.socket, socket_id, &socket_tx).await;
+	let (server_messages, decoder) = if compress {
+		(
+			ServerMessageSink::new_compressed(socket_tx),
+			ClientMessageDecoder::new_compressed(),
+		)
+	} else {
+		(
+			ServerMessageSink::new_plain(socket_tx),
+			ClientMessageDecoder::new_plain(),
+		)
+	};
+
+	let attached_fut =
+		ServerBridge::new(&code_server.socket, socket_id, server_messages, decoder).await;
 
 	match attached_fut {
 		Ok(a) => {
@@ -699,8 +768,12 @@ async fn handle_prune(paths: &LauncherPaths) -> Result<Vec<String>, AnyError> {
 	})
 }
 
-async fn handle_update(log: &log::Logger, params: &UpdateParams) -> Result<UpdateResult, AnyError> {
-	let update_service = UpdateService::new(log.clone(), reqwest::Client::new());
+async fn handle_update(
+	http: &FallbackSimpleHttp,
+	log: &log::Logger,
+	params: &UpdateParams,
+) -> Result<UpdateResult, AnyError> {
+	let update_service = UpdateService::new(log.clone(), http.clone());
 	let updater = SelfUpdate::new(&update_service)?;
 	let latest_release = updater.get_current_release().await?;
 	let up_to_date = updater.is_up_to_date_with(&latest_release);
