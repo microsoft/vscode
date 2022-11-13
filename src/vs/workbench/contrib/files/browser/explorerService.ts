@@ -24,7 +24,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExpression } from 'vs/base/common/glob';
-import { mixin, deepClone } from 'vs/base/common/objects';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
