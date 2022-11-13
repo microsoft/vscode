@@ -909,6 +909,6 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for the output text for notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
 			type: 'string',
 			tags: ['notebookLayout']
-		}
+		},
 	}
 });
