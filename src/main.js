@@ -100,6 +100,7 @@ if (locale) {
 }
 
 if (product.quality === 'insider' || product.quality === 'exploration') {
+
 	// Pass in the locale to Electron so that the
 	// Windows Control Overlay is rendered correctly on Windows,
 	// and so that the traffic lights are rendered properly
@@ -107,6 +108,7 @@ if (product.quality === 'insider' || product.quality === 'exploration') {
 	// If the locale is `qps-ploc`, the Microsoft
 	// Pseudo Language Language Pack is being used.
 	// In that case, use `en` as the Electron locale.
+
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -168,7 +170,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile',
+		'force-color-profile'
 	];
 
 	if (process.platform === 'linux') {
@@ -578,6 +580,7 @@ async function resolveNlsConfiguration() {
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
+
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
 
