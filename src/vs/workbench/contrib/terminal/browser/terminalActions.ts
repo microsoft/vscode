@@ -52,14 +52,27 @@ import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/te
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { dirname } from 'vs/base/common/resources';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
+
+export interface WorkspaceFolderCwdPair {
+	folder: IWorkspaceFolder;
+	cwd: URI;
+	isAbsolute: boolean;
+	isOverridden: boolean;
+}
 
 export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -1875,7 +1888,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
-				icon: Codicon.plus,
+				icon: newTerminalIcon,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backquote,
 					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Backquote },
@@ -1897,8 +1910,6 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
-			const configurationService = accessor.get(IConfigurationService);
-			const configurationResolverService = accessor.get(IConfigurationResolverService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await terminalService.createTerminal({ location: { splitActiveTerminal: true } });
@@ -1914,27 +1925,12 @@ export function registerTerminalActions() {
 					// single root
 					instance = await terminalService.createTerminal(eventOrOptions);
 				} else {
-					const options: IPickOptions<IQuickPickItem> = {
-						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-					};
-					const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-					if (!workspace) {
+					const cwd = (await pickTerminalCwd(accessor))?.cwd;
+					if (!cwd) {
 						// Don't create the instance if the workspace picker was canceled
 						return;
 					}
-					eventOrOptions.cwd = workspace.uri;
-					const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: workspace.uri });
-					if (typeof cwdConfig === 'string' && cwdConfig.length > 0) {
-						const resolvedCwdConfig = await configurationResolverService.resolveAsync(workspace, cwdConfig);
-						if (isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)) {
-							eventOrOptions.cwd = URI.from({
-								scheme: workspace.uri.scheme,
-								path: resolvedCwdConfig
-							});
-						} else {
-							eventOrOptions.cwd = URI.joinPath(workspace.uri, resolvedCwdConfig);
-						}
-					}
+					eventOrOptions.cwd = cwd;
 					instance = await terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
@@ -1956,7 +1952,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
-				icon: Codicon.trash
+				icon: killTerminalIcon
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -2602,4 +2598,74 @@ function getActiveInstance(accessor: ServicesAccessor, resource: unknown): ITerm
 	const castedResource = URI.isUri(resource) ? resource : undefined;
 	const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
 	return instance;
+}
+
+async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: CancellationToken): Promise<WorkspaceFolderCwdPair | undefined> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const labelService = accessor.get(ILabelService);
+	const contextService = accessor.get(IWorkspaceContextService);
+	const modelService = accessor.get(IModelService);
+	const languageService = accessor.get(ILanguageService);
+	const configurationService = accessor.get(IConfigurationService);
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
+
+	const folders = contextService.getWorkspace().folders;
+	if (!folders.length) {
+		return;
+	}
+
+	const folderCwdPairs = await Promise.all(folders.map(x => resolveWorkspaceFolderCwd(x, configurationService, configurationResolverService)));
+	const shrinkedPairs = shrinkWorkspaceFolderCwdPairs(folderCwdPairs);
+
+	if (shrinkedPairs.length === 1) {
+		return shrinkedPairs[0];
+	}
+
+	type Item = IQuickPickItem & { pair: WorkspaceFolderCwdPair };
+	const folderPicks: Item[] = shrinkedPairs.map(pair => ({
+		label: pair.folder.name,
+		description: pair.isOverridden
+			? localize('workbench.action.terminal.overriddenCwdDescription', "(Overriden) {0}", labelService.getUriLabel(pair.cwd, { relative: !pair.isAbsolute }))
+			: labelService.getUriLabel(dirname(pair.cwd), { relative: true }),
+		pair: pair,
+		iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
+	}));
+	const options: IPickOptions<Item> = {
+		placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal"),
+		matchOnDescription: true,
+		canPickMany: false,
+	};
+
+	const token: CancellationToken = cancel || CancellationToken.None;
+	const pick = await quickInputService.pick<Item>(folderPicks, options, token);
+	return pick?.pair;
+}
+
+async function resolveWorkspaceFolderCwd(folder: IWorkspaceFolder, configurationService: IConfigurationService, configurationResolverService: IConfigurationResolverService): Promise<WorkspaceFolderCwdPair> {
+	const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: folder.uri });
+	if (typeof cwdConfig !== 'string' || cwdConfig.length === 0) {
+		return { folder, cwd: folder.uri, isAbsolute: false, isOverridden: false };
+	}
+
+	const resolvedCwdConfig = await configurationResolverService.resolveAsync(folder, cwdConfig);
+	return isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)
+		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ scheme: folder.uri.scheme, path: resolvedCwdConfig }) }
+		: { folder, isAbsolute: false, isOverridden: true, cwd: URI.joinPath(folder.uri, resolvedCwdConfig) };
+}
+
+/**
+ * Drops repeated CWDs, if any, by keeping the one which best matches the workspace folder. It also preserves the original order.
+ */
+export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): WorkspaceFolderCwdPair[] {
+	const map = new Map<string, WorkspaceFolderCwdPair>();
+	for (const pair of pairs) {
+		const key = pair.cwd.toString();
+		const value = map.get(key);
+		if (!value || key === pair.folder.uri.toString()) {
+			map.set(key, pair);
+		}
+	}
+	const selectedPairs = new Set(map.values());
+	const selectedPairsInOrder = pairs.filter(x => selectedPairs.has(x));
+	return selectedPairsInOrder;
 }

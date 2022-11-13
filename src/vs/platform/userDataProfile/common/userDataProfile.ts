@@ -275,7 +275,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
-			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
 
 		const profile = await this.doCreateProfile(id, name, options);
@@ -322,7 +322,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async updateProfile(profileToUpdate: IUserDataProfile, options: IUserDataProfileUpdateOptions): Promise<IUserDataProfile> {
 		if (!this.enabled) {
-			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
 
 		let profile = this.profiles.find(p => p.id === profileToUpdate.id);
@@ -338,7 +338,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
-			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
 		if (profileToRemove.isDefault) {
 			throw new Error('Cannot remove default profile');
@@ -408,7 +408,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void {
 		if (!this.enabled) {
-			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
 
 		const profile = this.profiles.find(p => p.id === profileToSet.id);
@@ -421,7 +421,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void {
 		if (!this.enabled) {
-			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
 
 		this.updateWorkspaceAssociation(workspaceIdentifier, undefined, transient);

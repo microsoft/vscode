@@ -23,6 +23,8 @@ lazy_static! {
 	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
 }
 
+const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
+
 pub struct PreReqChecker {}
 
 impl Default for PreReqChecker {
@@ -39,19 +41,20 @@ impl PreReqChecker {
 	#[cfg(not(target_os = "linux"))]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
 		Platform::env_default().ok_or_else(|| {
-			SetupError("VS Code it not supported on this platform".to_owned()).into()
+			SetupError("VS Code is not supported on this platform".to_owned()).into()
 		})
 	}
 
 	#[cfg(target_os = "linux")]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
-		let (gnu_a, gnu_b, or_musl) = tokio::join!(
+		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
+			check_is_nixos(),
 			check_glibc_version(),
 			check_glibcxx_version(),
 			check_musl_interpreter()
 		);
 
-		if gnu_a.is_ok() && gnu_b.is_ok() {
+		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
 				Platform::LinuxX64
 			} else if cfg!(target_arch = "armhf") {
@@ -130,6 +133,13 @@ async fn check_glibc_version() -> Result<(), String> {
 	}
 
 	Ok(())
+}
+
+/// Check for nixos to avoid mandating glibc versions. See:
+/// https://github.com/microsoft/vscode-remote-release/issues/7129
+#[allow(dead_code)]
+async fn check_is_nixos() -> bool {
+	fs::metadata(NIXOS_TEST_PATH).await.is_ok()
 }
 
 #[allow(dead_code)]

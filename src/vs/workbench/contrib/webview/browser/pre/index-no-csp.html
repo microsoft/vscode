@@ -164,12 +164,6 @@
 			}
 			::-webkit-scrollbar-thumb:active {
 				background-color: var(--vscode-scrollbarSlider-activeBackground);
-			}
-			::highlight(find-highlight) {
-				background-color: var(--vscode-editor-findMatchHighlightBackground);
-			}
-			::highlight(current-find-highlight) {
-				background-color: var(--vscode-editor-findMatchBackground);
 			}`;
 
 		/**
@@ -956,7 +950,7 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay'];
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}

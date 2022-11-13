@@ -822,7 +822,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// Extension Host Debug Broadcasting
-		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService), accessor.get(IUserDataProfilesMainService));
+		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
 		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
 
 		// Extension Host Starter
@@ -983,6 +983,8 @@ export class CodeApplication extends Disposable {
 		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
+		const forceProfile = args.profile;
+		const forceTempProfile = args['profile-temp'];
 
 		// check for a pending window to open from URI
 		// e.g. when running code with --open-uri from
@@ -998,14 +1000,11 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// Ensure profile exists when passed in from CLI
-		const profile = await this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
-
 		// Start without file/folder arguments
 		if (!hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 
 			// Force new window
-			if (args['new-window'] || profile) {
+			if (args['new-window'] || forceProfile || forceTempProfile) {
 				return windowsMainService.open({
 					context,
 					cli: args,
@@ -1015,7 +1014,8 @@ export class CodeApplication extends Disposable {
 					waitMarkerFileURI,
 					initialStartup: true,
 					remoteAuthority,
-					profile
+					forceProfile,
+					forceTempProfile
 				});
 			}
 
@@ -1045,7 +1045,8 @@ export class CodeApplication extends Disposable {
 			gotoLineMode: args.goto,
 			initialStartup: true,
 			remoteAuthority,
-			profile
+			forceProfile,
+			forceTempProfile
 		});
 	}
 

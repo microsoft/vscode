@@ -46,7 +46,9 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 				normalizedIdentity1.sha === normalizedIdentity2.sha) {
 				// This is a perfect match
 				return vscode.EditSessionIdentityMatch.Complete;
-			} else if (normalizedIdentity1.sha !== normalizedIdentity2.sha) {
+			} else if (normalizedIdentity1.remote === normalizedIdentity2.remote &&
+				normalizedIdentity1.ref === normalizedIdentity2.ref &&
+				normalizedIdentity1.sha !== normalizedIdentity2.sha) {
 				// Same branch and remote but different SHA
 				return vscode.EditSessionIdentityMatch.Partial;
 			} else {

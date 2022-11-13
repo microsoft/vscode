@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -43,7 +43,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -111,7 +111,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
-	private dimension: Dimension | undefined;
+	private lastLayout: IDomNodePagePosition | undefined;
 
 	private readonly scopedInstantiationService: IInstantiationService;
 
@@ -404,8 +404,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
-				if (e.button !== 0 || (isMacintosh && e.ctrlKey)) {
-					return undefined; // only for left mouse click (ctrl+click on macos is right-click)
+				if (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */)) {
+					return undefined;
 				}
 
 				target = e.target as HTMLElement;
@@ -1891,25 +1891,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	layout(width: number, height: number): void {
-		this.dimension = new Dimension(width, height);
+	layout(width: number, height: number, top: number, left: number): void {
+		this.lastLayout = { width, height, top, left };
 
 		// Layout the title area first to receive the size it occupies
 		const titleAreaSize = this.titleAreaControl.layout({
-			container: this.dimension,
+			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
 
 		// Pass the container width and remaining height to the editor layout
 		const editorHeight = Math.max(0, height - titleAreaSize.height);
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout(new Dimension(width, editorHeight));
+		this.editorPane.layout({ width, height: editorHeight, top: top + titleAreaSize.height, left });
 	}
 
 	relayout(): void {
-		if (this.dimension) {
-			const { width, height } = this.dimension;
-			this.layout(width, height);
+		if (this.lastLayout) {
+			const { width, height, top, left } = this.lastLayout;
+			this.layout(width, height, top, left);
 		}
 	}
 
@@ -1939,10 +1939,10 @@ export interface EditorReplacement extends IEditorReplacement {
 registerThemingParticipant((theme, collector) => {
 
 	// Letterpress
-	const letterpress = `./media/letterpress-${theme.type}.svg`;
+	const letterpress: AppResourcePath = `vs/workbench/browser/parts/editor/media/letterpress-${theme.type}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
+			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress))}
 		}
 	`);
 

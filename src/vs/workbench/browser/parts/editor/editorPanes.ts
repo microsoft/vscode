@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide } from 'vs/base/browser/dom';
+import { Dimension, show, hide, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -84,7 +84,7 @@ export class EditorPanes extends Disposable {
 	private readonly editorPanes: EditorPane[] = [];
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
-	private dimension: Dimension | undefined;
+	private pagePosition: IDomNodePagePosition | undefined;
 	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
@@ -269,8 +269,8 @@ export class EditorPanes extends Disposable {
 		editorPane.setVisible(true, this.groupView);
 
 		// Layout
-		if (this.dimension) {
-			editorPane.layout(this.dimension);
+		if (this.pagePosition) {
+			editorPane.layout(new Dimension(this.pagePosition.width, this.pagePosition.height), { top: this.pagePosition.top, left: this.pagePosition.left });
 		}
 
 		return editorPane;
@@ -397,9 +397,9 @@ export class EditorPanes extends Disposable {
 		this._activeEditorPane?.setVisible(visible, this.groupView);
 	}
 
-	layout(dimension: Dimension): void {
-		this.dimension = dimension;
+	layout(pagePosition: IDomNodePagePosition): void {
+		this.pagePosition = pagePosition;
 
-		this._activeEditorPane?.layout(dimension);
+		this._activeEditorPane?.layout(new Dimension(pagePosition.width, pagePosition.height), pagePosition);
 	}
 }
