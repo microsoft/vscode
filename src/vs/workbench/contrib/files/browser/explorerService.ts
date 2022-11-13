@@ -482,21 +482,11 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 }
 
 function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
-	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
 	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
 
-	if (!fileExcludes && !revealExcludes) {
+	if (!revealExcludes) {
 		return {};
 	}
 
-	if (!fileExcludes || !revealExcludes) {
-		return fileExcludes || revealExcludes;
-	}
-
-	let allExcludes: IExpression = Object.create(null);
-	// clone the config as it could be frozen
-	allExcludes = mixin(allExcludes, deepClone(fileExcludes));
-	allExcludes = mixin(allExcludes, deepClone(revealExcludes), true);
-
-	return allExcludes;
+	return revealExcludes;
 }
