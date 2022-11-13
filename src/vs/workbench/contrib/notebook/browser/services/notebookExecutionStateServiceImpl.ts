@@ -9,12 +9,11 @@ import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookSetting, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IFailedCellInfo, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -38,7 +37,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
@@ -107,16 +105,13 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		}
 
 		if (lastRunSuccess !== undefined) {
-			const audioCuesEnabled = this._configurationService.getValue<boolean>(NotebookSetting.audioCuesEnabled);
 			if (lastRunSuccess) {
-				if (audioCuesEnabled && this._executions.size === 0) {
-					this._audioCueService.playAudioCue(AudioCue.taskCompleted);
+				if (this._executions.size === 0) {
+					this._audioCueService.playAudioCue(AudioCue.notebookCellCompleted);
 				}
 				this._clearLastFailedCell(notebookUri);
 			} else {
-				if (audioCuesEnabled) {
-					this._audioCueService.playAudioCue(AudioCue.taskFailed);
-				}
+				this._audioCueService.playAudioCue(AudioCue.notebookCellFailed);
 				this._setLastFailedCell(notebookUri, cellHandle);
 			}
 		}
