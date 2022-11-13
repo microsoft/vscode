@@ -1092,6 +1092,8 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		}
 	}
 
+	// Used to specify which breakpoints to show when no session is specified.
+	// Useful when no session is active and we want to show the exception breakpoints from the last session.
 	setFallback(isFallback: boolean) {
 		this.fallback = isFallback;
 	}
@@ -1100,6 +1102,8 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		return true;
 	}
 
+	// Checks if the breakpoint is applicable for the specified session.
+	// If sessionId is undefined, returns true if this breakpoint is a fallback breakpoint.
 	isSupportedSession(sessionId?: string): boolean {
 		return sessionId ? this.supportedSessions.has(sessionId) : this.fallback;
 	}
@@ -1398,6 +1402,8 @@ export class DebugModel implements IDebugModel {
 		this.exceptionBreakpoints.forEach(ebp => ebp.setSupportedSession(sessionId, false));
 	}
 
+	// Set last focused session as fallback session.
+	// This is done to keep track of the exception breakpoints to show when no session is active.
 	setExceptionBreakpointFallbackSession(sessionId: string): void {
 		this.exceptionBreakpoints.forEach(ebp => ebp.setFallback(ebp.isSupportedSession(sessionId)));
 	}

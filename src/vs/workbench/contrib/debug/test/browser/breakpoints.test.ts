@@ -213,22 +213,75 @@ suite('Debug - Breakpoints', () => {
 	test('exception breakpoints', () => {
 		let eventCount = 0;
 		model.onDidChangeBreakpoints(() => eventCount++);
-		model.setExceptionBreakpointsForSession("", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
+		model.setExceptionBreakpointsForSession("session-id-1", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
 		assert.strictEqual(eventCount, 1);
-		let exceptionBreakpoints = model.getExceptionBreakpoints();
+		let exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-1");
 		assert.strictEqual(exceptionBreakpoints.length, 1);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
 
-		model.setExceptionBreakpointsForSession("", [{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointsForSession("session-id-2", [{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
 		assert.strictEqual(eventCount, 2);
-		exceptionBreakpoints = model.getExceptionBreakpoints();
+		exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-2");
 		assert.strictEqual(exceptionBreakpoints.length, 2);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
 		assert.strictEqual(exceptionBreakpoints[1].filter, 'caught');
 		assert.strictEqual(exceptionBreakpoints[1].label, 'CAUGHT');
 		assert.strictEqual(exceptionBreakpoints[1].enabled, false);
+
+		model.setExceptionBreakpointsForSession("session-id-3", [{ filter: 'all', label: 'ALL' }]);
+		assert.strictEqual(eventCount, 3);
+		assert.strictEqual(model.getExceptionBreakpointsForSession("session-id-3").length, 1);
+		exceptionBreakpoints = model.getExceptionBreakpoints();
+		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
+		assert.strictEqual(exceptionBreakpoints[1].filter, 'caught');
+		assert.strictEqual(exceptionBreakpoints[1].label, 'CAUGHT');
+		assert.strictEqual(exceptionBreakpoints[1].enabled, false);
+		assert.strictEqual(exceptionBreakpoints[2].filter, 'all');
+		assert.strictEqual(exceptionBreakpoints[2].label, 'ALL');
+	});
+
+	test('exception breakpoints multiple sessions', () => {
+		let eventCount = 0;
+		model.onDidChangeBreakpoints(() => eventCount++);
+
+		model.setExceptionBreakpointsForSession("session-id-4", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointFallbackSession("session-id-4");
+		assert.strictEqual(eventCount, 1);
+		let exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession("session-id-4");
+		assert.strictEqual(exceptionBreakpointsForSession.length, 2);
+		assert.strictEqual(exceptionBreakpointsForSession[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpointsForSession[1].filter, 'caught');
+
+		model.setExceptionBreakpointsForSession("session-id-5", [{ filter: 'all', label: 'ALL' }, { filter: 'caught', label: 'CAUGHT' }]);
+		assert.strictEqual(eventCount, 2);
+		exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession("session-id-5");
+		let exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
+		assert.strictEqual(exceptionBreakpointsForSession.length, 2);
+		assert.strictEqual(exceptionBreakpointsForSession[0].filter, 'caught');
+		assert.strictEqual(exceptionBreakpointsForSession[1].filter, 'all');
+		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
+		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'caught');
+
+		model.removeExceptionBreakpointsForSession("session-id-4");
+		assert.strictEqual(eventCount, 2);
+		exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
+		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
+		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'caught');
+
+		model.setExceptionBreakpointFallbackSession("session-id-5");
+		assert.strictEqual(eventCount, 2);
+		exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
+		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
+		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'caught');
+		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'all');
+
+		const exceptionBreakpoints = model.getExceptionBreakpoints();
+		assert.strictEqual(exceptionBreakpoints.length, 3);
 	});
 
 	test('instruction breakpoints', () => {
