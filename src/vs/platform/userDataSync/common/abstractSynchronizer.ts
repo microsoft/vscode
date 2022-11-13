@@ -691,12 +691,12 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 			const content = await this.fileService.readFile(this.lastSyncResource);
 			const userData = JSON.parse(content.value.toString());
 			await this.fileService.del(this.lastSyncResource);
-			if (userData.ref) {
+			if (userData.ref && userData.content !== undefined) {
 				this.storageService.store(this.lastSyncUserDataStateKey, JSON.stringify({
 					...userData,
 					content: undefined,
 				}), StorageScope.APPLICATION, StorageTarget.MACHINE);
-				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: JSON.parse(userData.content) });
+				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: userData.content === null ? null : JSON.parse(userData.content) });
 			}
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
