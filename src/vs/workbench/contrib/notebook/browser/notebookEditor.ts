@@ -256,7 +256,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 				extensionActivated: number;
 				inputLoaded: number;
 				webviewCommLoaded: number;
-				customMarkdownLoaded: number;
+				customMarkdownLoaded: number | undefined;
 				editorLoaded: number;
 			};
 
@@ -272,7 +272,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 					startTime !== undefined
 					&& extensionActivated !== undefined
 					&& inputLoaded !== undefined
-					&& customMarkdownLoaded !== undefined
 					&& editorLoaded !== undefined
 				) {
 					this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
@@ -282,11 +281,11 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 						extensionActivated: extensionActivated - startTime,
 						inputLoaded: inputLoaded - startTime,
 						webviewCommLoaded: inputLoaded - startTime,
-						customMarkdownLoaded: customMarkdownLoaded - startTime,
+						customMarkdownLoaded: typeof customMarkdownLoaded === 'number' ? customMarkdownLoaded - startTime : undefined,
 						editorLoaded: editorLoaded - startTime
 					});
 				} else {
-					console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActiviated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
+					console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActivated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
 				}
 			}
 		} catch (e) {
