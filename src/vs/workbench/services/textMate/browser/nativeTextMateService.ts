@@ -11,7 +11,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
+import { createWorkbenchWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import type { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
@@ -203,7 +203,7 @@ export class TextMateService extends AbstractTextMateService {
 		if (RUN_TEXTMATE_IN_WORKER) {
 			const workerHost = new TextMateWorkerHost(this, this._extensionResourceLoaderService);
 			const createData: ICreateData = { grammarDefinitions };
-			const worker = createWebWorker<TextMateWorker>(this._modelService, this._languageConfigurationService, {
+			const worker = createWorkbenchWebWorker<TextMateWorker>(this._modelService, this._languageConfigurationService, {
 				createData,
 				label: 'textMateWorker',
 				moduleId: 'vs/workbench/services/textMate/browser/textMateWorker',
