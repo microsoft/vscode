@@ -85,11 +85,12 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 
 			action.run({
 				thread: this._commentThread,
-				$mid: MarshalledId.CommentThreadReply
+				$mid: MarshalledId.CommentThreadInstance
 			});
 
 		}, this.contextMenuService);
 
+		this._register(this._commentFormActions);
 		this._commentFormActions.setActions(menu);
 		this._enableDisableMenu(menu);
 	}

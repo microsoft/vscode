@@ -248,7 +248,7 @@
 
 
 .review-widget .body .comment-additional-actions {
-	margin: 8px 20px 2px 20px;
+	margin: 10px 20px;
 }
 
 .review-widget .body .comment-additional-actions .section-separator {
@@ -331,7 +331,7 @@
 .review-widget .body .comment-form .form-actions,
 .review-widget .body .edit-container .form-actions {
 	overflow: auto;
-	padding: 10px 0;
+	margin: 10px 0;
 }
 
 .review-widget .body .edit-textarea {
