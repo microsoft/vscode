@@ -20,6 +20,7 @@ export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/
 export function gitSimilar(): IInternalOptions {
 	return {
 		id: 'Git Similar',
+		type: 'internal',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitSimilarOutputRegex,
@@ -53,6 +54,7 @@ export function gitSimilar(): IInternalOptions {
 export function gitTwoDashes(): IInternalOptions {
 	return {
 		id: 'Git Two Dashes',
+		type: 'internal',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitTwoDashesRegex,
@@ -78,6 +80,7 @@ export function gitTwoDashes(): IInternalOptions {
 export function freePort(terminalInstance?: Partial<ITerminalInstance>): IInternalOptions {
 	return {
 		id: 'Free Port',
+		type: 'internal',
 		commandLineMatcher: AnyCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: FreePortOutputRegex,
@@ -109,6 +112,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 export function gitPushSetUpstream(): IInternalOptions {
 	return {
 		id: 'Git Push Set Upstream',
+		type: 'internal',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitPushOutputRegex,
@@ -153,6 +157,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 export function gitCreatePr(): IInternalOptions {
 	return {
 		id: 'Git Create Pr',
+		type: 'internal',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitCreatePrOutputRegex,

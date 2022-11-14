@@ -955,26 +955,26 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalQuickFixOptions {
-	resolved?: boolean;
+	type: 'internal' | 'resolved' | 'unresolved';
 	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus?: boolean;
 }
 
-
 export interface IInternalOptions extends ITerminalQuickFixOptions {
+	type: 'internal';
 	getQuickFixes: TerminalQuickFixCallback;
 }
 
 
 export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
-	resolved: true;
+	type: 'resolved';
 	getQuickFixes: TerminalQuickFixCallbackExtension;
 }
 
 export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
-	resolved: false;
+	type: 'unresolved';
 }
 
 export interface ITerminalCommandSelector {

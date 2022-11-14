@@ -116,10 +116,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const matcherKey = selector.commandLineMatcher.toString();
 		const currentOptions = this._commandListeners.get(matcherKey) || [];
 		currentOptions.push({
+			id,
+			type: 'unresolved',
 			commandLineMatcher: selector.commandLineMatcher,
 			outputMatcher: selector.outputMatcher,
-			id,
-			resolved: false
 		});
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
@@ -253,7 +253,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 export async function getQuickFixesForCommand(
 	command: ITerminalCommand,
-	quickFixOptions: Map<string, (ITerminalQuickFixOptions | IResolvedExtensionOptions | IUnresolvedExtensionOptions)[]>,
+	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
 	extensionService?: IExtensionService
@@ -279,13 +279,16 @@ export async function getQuickFixesForCommand(
 			}
 			const id = option.id;
 			let quickFixes;
-			if ('resolved' in option && option.resolved) {
-				quickFixes = await (option as IResolvedExtensionOptions).getQuickFixes({ commandLineMatch, outputMatch, command }, new CancellationTokenSource().token);
-			} else if ('resolved' in options && extensionService) {
-				await extensionService.activateByEvent(`onTerminalQuickFixRequest:${id}`);
-				return 'request-rerun';
-			} else {
-				quickFixes = (option as IInternalOptions).getQuickFixes({ commandLineMatch, outputMatch, command });
+			switch (option.type) {
+				case 'internal':
+					quickFixes = (option as IInternalOptions).getQuickFixes({ commandLineMatch, outputMatch, command });
+					break;
+				case 'resolved':
+					quickFixes = await (option as IResolvedExtensionOptions).getQuickFixes({ commandLineMatch, outputMatch, command }, new CancellationTokenSource().token);
+					break;
+				case 'unresolved':
+					await extensionService?.activateByEvent(`onTerminalQuickFixRequest:${id}`);
+					return 'request-rerun';
 			}
 
 			if (quickFixes) {
@@ -357,7 +360,7 @@ export async function getQuickFixesForCommand(
 function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixSelectorProvider): IResolvedExtensionOptions {
 	return {
 		id: selectorProvider.id,
-		resolved: true,
+		type: 'resolved',
 		commandLineMatcher: selectorProvider.selector.commandLineMatcher,
 		outputMatcher: selectorProvider.selector.outputMatcher,
 		exitStatus: selectorProvider.selector.exitStatus,
