@@ -10,7 +10,13 @@ use lazy_static::lazy_static;
 use crate::options::Quality;
 
 pub const CONTROL_PORT: u16 = 31545;
-pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Protocol version sent to clients. This can be used to indiciate new or
+/// changed capabilities that clients may wish to leverage.
+///  1 - Initial protocol version
+///  2 - Addition of `serve.compressed` property to control whether servermsg's
+///      are compressed bidirectionally.
+pub const PROTOCOL_VERSION: u32 = 2;
 
 pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VERSION");
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");

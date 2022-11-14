@@ -91,6 +91,9 @@ pub struct ServeParams {
 	pub extensions: Vec<String>,
 	#[serde(default)]
 	pub use_local_download: bool,
+	/// If true, the client and server should gzip servermsg's sent in either direction.
+	#[serde(default)]
+	pub compress: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

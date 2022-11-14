@@ -80,9 +80,7 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 
 	const snippet = new vscode.SnippetString();
 	uris.forEach((uri, i) => {
-		const mdPath = dir && dir.scheme === uri.scheme && dir.authority === uri.authority
-			? encodeURI(path.posix.relative(dir.path, uri.path))
-			: uri.toString(false);
+		const mdPath = getMdPath(dir, uri);
 
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsImage = typeof options?.insertAsImage === 'undefined' ? imageFileExtensions.has(ext) : !!options.insertAsImage;
@@ -100,6 +98,21 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 		}
 	});
 	return snippet;
+}
+
+function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
+	if (dir && dir.scheme === file.scheme && dir.authority === file.authority) {
+		if (file.scheme === Schemes.file) {
+			// On windows, we must use the native `path.resolve` to generate the relative path
+			// so that drive-letters are resolved cast insensitively. However we then want to
+			// convert back to a posix path to insert in to the document.
+			return encodeURI(path.posix.normalize(path.relative(dir.fsPath, file.fsPath)));
+		}
+
+		return encodeURI(path.posix.relative(dir.path, file.path));
+	}
+
+	return file.toString(false);
 }
 
 function getDocumentDir(document: vscode.TextDocument): vscode.Uri | undefined {
