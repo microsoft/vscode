@@ -962,6 +962,14 @@ export interface ITerminalQuickFixOptions {
 	exitStatus?: boolean;
 }
 
+export interface ITerminalCommandMatchResult {
+	command: { command: string; exitStatus?: number };
+	commandLineMatch: RegExpMatchArray;
+	// full match and groups
+
+	outputMatch?: RegExpMatchArray | null;
+}
+
 export interface IInternalOptions extends ITerminalQuickFixOptions {
 	type: 'internal';
 	getQuickFixes: TerminalQuickFixCallback;

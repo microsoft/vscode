@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
-import { IUnresolvedExtensionOptions, ITerminalQuickFixOptions, IResolvedExtensionOptions, IInternalOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IUnresolvedExtensionOptions, ITerminalQuickFixOptions, IResolvedExtensionOptions, IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionExtension } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { ITerminalCommandSelector, ITerminalQuickFixSelectorProvider, ITerminalQuickFixService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -174,13 +174,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (command.command !== '') {
 			this._disposeQuickFix();
 		}
-		let result = await getQuickFixesForCommand(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand, this._extensionService);
+		const resolver = async (id: string, matchResult: ITerminalCommandMatchResult) => {
+			await this._extensionService.activateByEvent(`onTerminalQuickFixRequest:${id}`);
+			const provider = this._quickFixService.providers.find(p => p.id === id)?.provider;
+			if (!provider) {
+				this._logService.warn('No provider when trying to resolve terminal quick fix for provider: ', id);
+				return;
+			}
+			return provider.provideTerminalQuickFixes(matchResult);
+		};
+		// get the provider from the provider service
+		const result = await getQuickFixesForCommand(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
-			return;
-		} else if (result === 'request-rerun') {
-			result = await getQuickFixesForCommand(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand, this._extensionService);
-		}
-		if (!result || result === 'request-rerun') {
 			return;
 		}
 		const { fixes, onDidRunQuickFix, expectedCommands } = result;
@@ -256,8 +261,8 @@ export async function getQuickFixesForCommand(
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
-	extensionService?: IExtensionService
-): Promise<{ fixes: IAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined | 'request-rerun'> {
+	getResolvedFixes?: (id: string, matchResult: ITerminalCommandMatchResult) => Promise<TerminalQuickFixActionExtension | TerminalQuickFixActionExtension[] | undefined>
+): Promise<{ fixes: IAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined> {
 	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: IAction[] = [];
@@ -287,8 +292,11 @@ export async function getQuickFixesForCommand(
 					quickFixes = await (option as IResolvedExtensionOptions).getQuickFixes({ commandLineMatch, outputMatch, command }, new CancellationTokenSource().token);
 					break;
 				case 'unresolved':
-					await extensionService?.activateByEvent(`onTerminalQuickFixRequest:${id}`);
-					return 'request-rerun';
+					if (!getResolvedFixes) {
+						throw new Error('No resolved fix provider');
+					}
+					quickFixes = await getResolvedFixes(id, { command, commandLineMatch, outputMatch });
+					break;
 			}
 
 			if (quickFixes) {
