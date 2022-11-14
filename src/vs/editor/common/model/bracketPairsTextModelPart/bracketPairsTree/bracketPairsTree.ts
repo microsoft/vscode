@@ -131,7 +131,7 @@ export class BracketPairsTree extends Disposable {
 			this.astWithTokens = this.parseDocumentFromTextBuffer(this.queuedTextEdits, this.astWithTokens, false);
 			this.queuedTextEdits = [];
 		}
-		if (this.queuedTextEditsForInitialAstWithoutTokens) {
+		if (this.queuedTextEditsForInitialAstWithoutTokens.length > 0) {
 			if (this.initialAstWithoutTokens) {
 				this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(this.queuedTextEditsForInitialAstWithoutTokens, this.initialAstWithoutTokens, false);
 			}

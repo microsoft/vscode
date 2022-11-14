@@ -53,7 +53,7 @@ class Parser {
 		}
 
 		this.oldNodeReader = oldNode ? new NodeReader(oldNode) : undefined;
-		this.positionMapper = new BeforeEditPositionMapper(edits, tokenizer.length);
+		this.positionMapper = new BeforeEditPositionMapper(edits);
 	}
 
 	parseDocument(): AstNode {
@@ -104,9 +104,11 @@ class Parser {
 	private tryReadChildFromCache(openedBracketIds: SmallImmutableSet<number>): AstNode | undefined {
 		if (this.oldNodeReader) {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
-			if (!lengthIsZero(maxCacheableLength)) {
+			if (maxCacheableLength === null || !lengthIsZero(maxCacheableLength)) {
 				const cachedNode = this.oldNodeReader.readLongestNodeAt(this.positionMapper.getOffsetBeforeChange(this.tokenizer.offset), curNode => {
-					if (!lengthLessThan(curNode.length, maxCacheableLength)) {
+					// The edit could extend the ending token, thus we cannot re-use nodes that touch the edit.
+					// If there is no edit anymore, we can re-use the node in any case.
+					if (maxCacheableLength !== null && !lengthLessThan(curNode.length, maxCacheableLength)) {
 						// Either the node contains edited text or touches edited text.
 						// In the latter case, brackets might have been extended (`end` -> `ending`), so even touching nodes cannot be reused.
 						return false;

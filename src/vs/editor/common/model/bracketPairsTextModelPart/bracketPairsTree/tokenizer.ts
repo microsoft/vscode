@@ -81,7 +81,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	}
 
 	get length() {
-		return toLength(this.textBufferLineCount, this.textBufferLastLineLength);
+		return toLength(this.textBufferLineCount - 1, this.textBufferLastLineLength);
 	}
 
 	getText() {
