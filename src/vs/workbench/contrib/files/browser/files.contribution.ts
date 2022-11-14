@@ -138,7 +138,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders. For example, the file explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes."),
+			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders. For example, the file explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes. Refer to the `#explorer.excludeGitIgnore#` setting for ignorings files based on your `.gitignore`."),
 			'default': {
 				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
 				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
@@ -370,6 +370,30 @@ configurationRegistry.registerConfiguration({
 				nls.localize('autoReveal.focusNoScroll', 'Files will not be scrolled into view, but will still be focused.'),
 			],
 			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
+		},
+		'explorer.autoRevealExclude': {
+			'type': 'object',
+			'markdownDescription': nls.localize('autoRevealExclude', "Configure glob patterns for excluding files and folders from being revealed and selected in the explorer when they are opened. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'default': { '**/node_modules': true, '**/bower_components': true },
+			'additionalProperties': {
+				'anyOf': [
+					{
+						'type': 'boolean',
+						'description': nls.localize('explorer.autoRevealExclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+					},
+					{
+						type: 'object',
+						properties: {
+							when: {
+								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+								pattern: '\\w*\\$\\(basename\\)\\w*',
+								default: '$(basename).ext',
+								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+							}
+						}
+					}
+				]
+			}
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',

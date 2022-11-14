@@ -1148,6 +1148,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createRendererMessaging(rendererId) {
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
+			createNotebookControllerDetectionTask(notebookType: string) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
+				return extHostNotebookKernels.createNotebookControllerDetectionTask(extension, notebookType);
+			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
 				return extHostNotebookKernels.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);

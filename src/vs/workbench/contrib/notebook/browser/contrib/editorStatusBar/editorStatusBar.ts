@@ -192,6 +192,12 @@ registerAction2(class extends Action2 {
 			? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
 			: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }));
 
+		quickPick.busy = notebookKernelService.getKernelDetectionTasks(notebook).length > 0;
+
+		const kernelDetectionTaskListener = notebookKernelService.onDidChangeKernelDetectionTasks(() => {
+			quickPick.busy = notebookKernelService.getKernelDetectionTasks(notebook).length > 0;
+		});
+
 		// run extension recommendataion task if quickPickItems is empty
 		const extensionRecommendataionPromise = quickPickItems.length === 0
 			? createCancelablePromise(token => this._showInstallKernelExtensionRecommendation(notebook, quickPick, extensionWorkbenchService, token))
@@ -250,6 +256,7 @@ registerAction2(class extends Action2 {
 			});
 
 			quickPick.onDidHide(() => () => {
+				kernelDetectionTaskListener.dispose();
 				kernelChangeEventListener.dispose();
 				quickPick.dispose();
 				reject();

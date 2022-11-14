@@ -5,9 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as util from 'util';
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 const PATTERN = 'listening on.* (https?://\\S+|[0-9]+)'; // matches "listening on port 3000" or "Now listening on: https://localhost:5001"
 const URI_PORT_FORMAT = 'http://localhost:%s';
@@ -135,7 +132,7 @@ class ServerReadyDetector extends vscode.Disposable {
 			// verify that format does not contain '%s'
 			const format = args.uriFormat || '';
 			if (format.indexOf('%s') >= 0) {
-				const errMsg = localize('server.ready.nocapture.error', "Format uri ('{0}') uses a substitution placeholder but pattern did not capture anything.", format);
+				const errMsg = vscode.l10n.t("Format uri ('{0}') uses a substitution placeholder but pattern did not capture anything.", format);
 				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				return;
 			}
@@ -146,7 +143,7 @@ class ServerReadyDetector extends vscode.Disposable {
 			// verify that format only contains a single '%s'
 			const s = format.split('%s');
 			if (s.length !== 2) {
-				const errMsg = localize('server.ready.placeholder.error', "Format uri ('{0}') must contain exactly one substitution placeholder.", format);
+				const errMsg = vscode.l10n.t("Format uri ('{0}') must contain exactly one substitution placeholder.", format);
 				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				return;
 			}

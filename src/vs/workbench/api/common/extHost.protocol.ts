@@ -594,7 +594,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 }
 
 export interface MainThreadStorageShape extends IDisposable {
-	$initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined>;
+	$initializeExtensionStorage(shared: boolean, extensionId: string): Promise<string | undefined>;
 	$setValue(shared: boolean, extensionId: string, value: object): Promise<void>;
 	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void;
 }
@@ -1042,6 +1042,9 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void;
 	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
+
+	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
+	$removeKernelDetectionTask(handle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -2139,7 +2142,7 @@ export interface ExtHostInteractiveShape {
 }
 
 export interface ExtHostStorageShape {
-	$acceptValue(shared: boolean, extensionId: string, value: object | undefined): void;
+	$acceptValue(shared: boolean, extensionId: string, value: string): void;
 }
 
 export interface ExtHostThemingShape {
