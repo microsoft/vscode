@@ -62,10 +62,11 @@ __vsc_escape_value() {
 			# However, the result is a sign-extended int, so a high bit like 0xD7 becomes 0xFFF…FD7
 			# We mask that word with 0xFF to get lowest 8 bits, and then encode that byte as "\xD7" per our escaping scheme.
 			builtin printf -v token '\\x%02X' "$(( $(builtin printf '0x%X' "'$byte'") & 0xFF ))"
-			#                └──┬──┘ └┬┘└┬─┘                        └─┬──┘  └──┬──┘  └───┬──┘
-			# store in "token" ─╯     │  │   the hex value ───────────╯        │         │
-			# the '\x…'-prefixed ─────╯  │   of the byte as an integer ────────╯         │
-			# 0-padded, two hex digits ──╯   masked to one byte (due to sign extension) ─╯
+			#             |________| ^^^ ^^^                        ^^^^^^  ^^^^^^^  |______|
+			#                   |     |  |                            |        |         |
+			# store in `token` -+     |  |   the hex value -----------+        |         |
+			# the '\x…'-prefixed -----+  |   of the byte as an integer --------+         |
+			# 0-padded, two hex digits --+   masked to one byte (due to sign extension) -+
 		fi
 
 		out+="$token"
