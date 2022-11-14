@@ -271,6 +271,13 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribShareMenu'
 	},
 	{
+		key: 'file/continueOn',
+		id: MenuId.MenubarContinueOn,
+		description: localize('menus.continueOn', "The 'Continue Working On...' quick pick, shown in the top level File menu."),
+		supportsSubmenus: false,
+		proposed: 'contribEditSessions'
+	},
+	{
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),

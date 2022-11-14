@@ -78,6 +78,7 @@ export class MenuId {
 	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
 	static readonly MenubarEditMenu = new MenuId('MenubarEditMenu');
 	static readonly MenubarCopy = new MenuId('MenubarCopy');
+	static readonly MenubarContinueOn = new MenuId('MenubarContinueOn');
 	static readonly MenubarFileMenu = new MenuId('MenubarFileMenu');
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
