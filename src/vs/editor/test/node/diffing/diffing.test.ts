@@ -6,13 +6,12 @@
 import assert = require('assert');
 import { readdirSync, readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { URI } from 'vs/base/common/uri';
+import { FileAccess } from 'vs/base/common/network';
 import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 suite('diff fixtures', () => {
-
-	const fixturesDir = join(URI.parse(__dirname.replace('out/vs/editor', 'src/vs/editor')).fsPath, 'fixtures');
+	const fixturesDir = FileAccess.asFileUri('vs/editor/test/node/diffing/fixtures', require).fsPath;
 	const folders = readdirSync(fixturesDir);
 
 	for (const folder of folders) {
