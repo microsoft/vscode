@@ -88,6 +88,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 	const lineLimit = ctx.renderOptions.lineLimit;
+	const outputScrolling = ctx.renderOptions.outputScrolling;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -216,7 +217,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
-		readonly settings: { readonly lineLimit: number };
+		readonly settings: RenderOptions;
 	}
 
 	interface RendererModule {
@@ -1384,6 +1385,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 				settings: {
 					get lineLimit() { return lineLimit; },
+					get outputScrolling() { return outputScrolling; },
 				}
 			};
 

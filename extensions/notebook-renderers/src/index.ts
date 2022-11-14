@@ -231,8 +231,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	span.output-stream {
 		display: inline-block;
 		width: 100%;
-		overflow-y: var(--notebook-output-overflow-y);
-		max-height: 500px;
+	}
+	span.output-stream.scrollable {
+		overflow-y: scroll;
+		max-height: 400px;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,

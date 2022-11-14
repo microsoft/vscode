@@ -51,6 +51,7 @@ export function truncatedArrayOfString(id: string, outputs: string[], linesLimit
 }
 
 function scrollableArrayOfString(outputs: string[], container: HTMLElement) {
+	container.classList.add('scrollable');
 	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
 	const spanElement = handleANSIOutput(buffer.slice(0, 5000).join('\n'));
 	container.appendChild(spanElement);

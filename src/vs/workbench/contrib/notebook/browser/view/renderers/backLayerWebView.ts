@@ -234,7 +234,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
 			}, "No renderer found for '$0' a"),
-			'notebook-output-overflow-y': this.options.outputScrolling ? 'scroll' : 'visible',
 		};
 	}
 
@@ -243,7 +242,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
 			lineLimit: this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
-			outputScrolling: this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling) ?? true
+			outputScrolling: this.options.outputScrolling
 		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
