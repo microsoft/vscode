@@ -39,7 +39,7 @@ function migrate() {
 	fs.writeFileSync(path.join(dstFolder, '.gitignore'), `*`);
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`COMPLETED MIGRATION of src to src2.`);
+	console.log(`COMPLETED MIGRATION of src to src2. You can now launch yarn watch or yarn watch-client`);
 	console.log(`WATCHING src for changes...`);
 
 	watchSrc.on('data', (e) => {
