@@ -261,7 +261,7 @@ class ToggleMultilineActionViewItem extends ActionViewItem {
 		this.updateExpandedAttribute();
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		super.updateClass();
 		this.updateExpandedAttribute();
 	}

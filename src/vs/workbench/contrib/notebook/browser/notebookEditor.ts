@@ -133,7 +133,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		return this._widget.value;
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
 			this._groupListener.clear();

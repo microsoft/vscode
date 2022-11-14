@@ -408,7 +408,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		super(SyncResource.GlobalState, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		if (!remoteGlobalState) {
 			this.logService.info('Skipping initializing global state because remote global state does not exist.');
@@ -506,4 +506,3 @@ export class UserDataSyncStoreTypeSynchronizer {
 	}
 
 }
-
