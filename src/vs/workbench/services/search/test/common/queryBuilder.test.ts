@@ -24,9 +24,6 @@ suite('QueryBuilderCommon', () => {
 	});
 
 	test('resolveResourcesForSearchIncludes escapes paths with special characters', () => {
-		const workspace = testWorkspace(URI.file("C:\\testWorkspace"));
-		const context = new TestContextService(workspace);
-
 		const actual = resolveResourcesForSearchIncludes([URI.file("C:\\testWorkspace\\pages\\blog\\[postId]")], context);
 		assert.strictEqual(actual.length, 1);
 		assert.strictEqual(actual[0], "./pages/blog/[[]postId[]]");
