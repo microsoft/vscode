@@ -136,7 +136,7 @@ class ClassData {
         return type === 2 /* FieldType.Private */
             || type === 1 /* FieldType.Protected */;
     }
-    static makeImplicitPublicActuallyPublic(data) {
+    static makeImplicitPublicActuallyPublic(data, reportViolation) {
         // TS-HACK
         // A subtype can make an inherited protected field public. To prevent accidential
         // mangling of public fields we mark the original (protected) fields as public...
@@ -147,7 +147,9 @@ class ClassData {
             let parent = data.parent;
             while (parent) {
                 if (parent.fields.get(name)?.type === 1 /* FieldType.Protected */) {
-                    console.warn(`WARN: protected became PUBLIC: '${name}' defined ${parent.fileName}#${info.pos}, PUBLIC via ${data.fileName} (${info.pos})`);
+                    const parentPos = parent.node.getSourceFile().getLineAndCharacterOfPosition(parent.fields.get(name).pos);
+                    const infoPos = data.node.getSourceFile().getLineAndCharacterOfPosition(info.pos);
+                    reportViolation(`'${name}' from ${parent.fileName}:${parentPos.line + 1}`, `${data.fileName}:${infoPos.line + 1}`);
                     parent.fields.get(name).type = 0 /* FieldType.Public */;
                 }
                 parent = parent.parent;
@@ -361,8 +363,20 @@ class Mangler {
             setupParents(data);
         }
         //  STEP: make implicit public (actually protected) field really public
+        const violations = new Map();
         for (const data of this.allClassDataByKey.values()) {
-            ClassData.makeImplicitPublicActuallyPublic(data);
+            ClassData.makeImplicitPublicActuallyPublic(data, (what, why) => {
+                const arr = violations.get(what);
+                if (arr) {
+                    arr.push(why);
+                }
+                else {
+                    violations.set(what, [why]);
+                }
+            });
+        }
+        for (const [why, whys] of violations) {
+            this.log(`WARN: ${why} became PUBLIC because of: ${whys.join(' , ')}`);
         }
         // STEP: compute replacement names for each class
         for (const data of this.allClassDataByKey.values()) {
