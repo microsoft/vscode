@@ -31,7 +31,7 @@ export interface IScannedProfileExtension {
 }
 
 export interface ProfileExtensionsEvent {
-	readonly extensions: readonly IExtension[];
+	readonly extensions: readonly IScannedProfileExtension[];
 	readonly profileLocation: URI;
 }
 
@@ -86,30 +86,78 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 	}
 
 	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
-		this._onAddExtensions.fire({ extensions: extensions.map(e => e[0]), profileLocation });
+		const extensionsToRemove: IScannedProfileExtension[] = [];
+		const extensionsToAdd: IScannedProfileExtension[] = [];
 		try {
-			const allExtensions = await this.withProfileExtensions(profileLocation, profileExtensions => {
-				// Remove the existing extension to avoid duplicates
-				profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
-				profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata })));
-				return profileExtensions;
+			await this.withProfileExtensions(profileLocation, profileExtensions => {
+				const result: IScannedProfileExtension[] = [];
+				for (const extension of profileExtensions) {
+					if (extensions.some(([e]) => areSameExtensions(e.identifier, extension.identifier) && e.manifest.version !== extension.version)) {
+						// Remove the existing extension with different version
+						extensionsToRemove.push(extension);
+					} else {
+						result.push(extension);
+					}
+				}
+				for (const [extension, metadata] of extensions) {
+					if (!result.some(e => areSameExtensions(e.identifier, extension.identifier) && e.version === extension.manifest.version)) {
+						// Add only if the same version of the extension is not already added
+						const extensionToAdd = { identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata };
+						extensionsToAdd.push(extensionToAdd);
+						result.push(extensionToAdd);
+					}
+				}
+				if (extensionsToAdd.length) {
+					this._onAddExtensions.fire({ extensions: extensionsToAdd, profileLocation });
+				}
+				if (extensionsToRemove.length) {
+					this._onRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
+				}
+				return result;
 			});
-			const addedExtensions = allExtensions.filter(e => extensions.some(([extension]) => areSameExtensions(e.identifier, extension.identifier)));
-			this._onDidAddExtensions.fire({ extensions: extensions.map(e => e[0]), profileLocation });
-			return addedExtensions;
+			if (extensionsToAdd.length) {
+				this._onDidAddExtensions.fire({ extensions: extensionsToAdd, profileLocation });
+			}
+			if (extensionsToRemove.length) {
+				this._onDidRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
+			}
+			return extensionsToAdd;
 		} catch (error) {
-			this._onDidAddExtensions.fire({ extensions: extensions.map(e => e[0]), error, profileLocation });
+			if (extensionsToAdd.length) {
+				this._onDidAddExtensions.fire({ extensions: extensionsToAdd, error, profileLocation });
+			}
+			if (extensionsToRemove.length) {
+				this._onDidRemoveExtensions.fire({ extensions: extensionsToRemove, error, profileLocation });
+			}
 			throw error;
 		}
 	}
 
 	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
-		this._onRemoveExtensions.fire({ extensions: [extension], profileLocation });
+		const extensionsToRemove: IScannedProfileExtension[] = [];
+		this._onRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
 		try {
-			await this.withProfileExtensions(profileLocation, profileExtensions => profileExtensions.filter(e => !(areSameExtensions(e.identifier, extension.identifier))));
-			this._onDidRemoveExtensions.fire({ extensions: [extension], profileLocation });
+			await this.withProfileExtensions(profileLocation, profileExtensions => {
+				const result: IScannedProfileExtension[] = [];
+				for (const e of profileExtensions) {
+					if (areSameExtensions(e.identifier, extension.identifier)) {
+						extensionsToRemove.push(e);
+					} else {
+						result.push(e);
+					}
+				}
+				if (extensionsToRemove.length) {
+					this._onRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
+				}
+				return result;
+			});
+			if (extensionsToRemove.length) {
+				this._onDidRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
+			}
 		} catch (error) {
-			this._onDidRemoveExtensions.fire({ extensions: [extension], error, profileLocation });
+			if (extensionsToRemove.length) {
+				this._onDidRemoveExtensions.fire({ extensions: extensionsToRemove, error, profileLocation });
+			}
 			throw error;
 		}
 	}
