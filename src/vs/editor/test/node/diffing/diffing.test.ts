@@ -11,7 +11,7 @@ import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComp
 import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 suite('diff fixtures', () => {
-	const fixturesDir = FileAccess.asFileUri('vs/editor/test/node/diffing/fixtures', require).fsPath;
+	const fixturesDir = (FileAccess as any).asFileUri('vs/editor/test/node/diffing/fixtures', require).fsPath;
 	const folders = readdirSync(fixturesDir);
 
 	for (const folder of folders) {
