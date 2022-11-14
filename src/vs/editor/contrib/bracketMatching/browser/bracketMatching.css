@@ -6,5 +6,5 @@
 .monaco-editor .bracket-match {
 	box-sizing: border-box;
 	background-color: var(--vscode-editorBracketMatch-background);
-	border: var(--vscode-editorBracketMatch-border);
+	border: 1px solid var(--vscode-editorBracketMatch-border);
 }
