@@ -46,12 +46,15 @@ __vsc_get_trap() {
 	# This is different than simply exploding the string, which would split everything on IFS, oblivious to quoting.
 	builtin local -a terms
 	builtin eval "terms=( $(trap -p "${1:-DEBUG}") )"
-	#                    └───────┬────────────────┘
-	#        ┌───────────────────┴────────────────────┐
+	#                    |________________________|
+	#                            |
+	#        \-------------------*--------------------/
 	# terms=( trap  --  '…arbitrary shellcode…'  DEBUG )
-	#        └─┬──┘└┬─┘ └────────┬────────────┘ └─┬───┘
+	#        |____||__| |_____________________| |_____|
+	#          |    |            |                |
 	#          0    1            2                3
-	#                   ┌────────┴────┐
+	#                            |
+	#                   \--------*----/
 	builtin printf '%s' "${terms[2]:-}"
 }
 
