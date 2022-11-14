@@ -417,7 +417,12 @@ export class Dimension implements IDimension {
 	}
 }
 
-export function getTopLeftOffset(element: HTMLElement): { left: number; top: number } {
+export interface IDomPosition {
+	readonly left: number;
+	readonly top: number;
+}
+
+export function getTopLeftOffset(element: HTMLElement): IDomPosition {
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 

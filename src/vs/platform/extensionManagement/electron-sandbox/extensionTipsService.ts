@@ -44,8 +44,6 @@ const lastPromptedMediumImpExeTimeStorageKey = 'extensionTips/lastPromptedMedium
 
 export class ExtensionTipsService extends BaseExtensionTipsService {
 
-	override _serviceBrand: any;
-
 	private readonly highImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
 	private readonly mediumImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
 	private readonly allOtherExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();

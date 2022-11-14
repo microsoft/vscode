@@ -11,11 +11,10 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
@@ -51,8 +50,9 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -111,7 +111,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
-	private dimension: Dimension | undefined;
+	private lastLayout: IDomNodePagePosition | undefined;
 
 	private readonly scopedInstantiationService: IInstantiationService;
 
@@ -182,8 +182,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(letterpressContainer);
 
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar = this._register(new ProgressBar(this.element, getProgressBarStyles()));
 			this.progressBar.hide();
 
 			// Scoped instantiation service
@@ -405,8 +404,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
-				if (e.button !== 0) {
-					return undefined; // only for left mouse click
+				if (e.button !== 0 || (isMacintosh && e.ctrlKey)) {
+					return undefined; // only for left mouse click (ctrl+click on macos is right-click)
 				}
 
 				target = e.target as HTMLElement;
@@ -1892,25 +1891,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	layout(width: number, height: number): void {
-		this.dimension = new Dimension(width, height);
+	layout(width: number, height: number, top: number, left: number): void {
+		this.lastLayout = { width, height, top, left };
 
 		// Layout the title area first to receive the size it occupies
 		const titleAreaSize = this.titleAreaControl.layout({
-			container: this.dimension,
+			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
 
 		// Pass the container width and remaining height to the editor layout
 		const editorHeight = Math.max(0, height - titleAreaSize.height);
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout(new Dimension(width, editorHeight));
+		this.editorPane.layout({ width, height: editorHeight, top: top + titleAreaSize.height, left });
 	}
 
 	relayout(): void {
-		if (this.dimension) {
-			const { width, height } = this.dimension;
-			this.layout(width, height);
+		if (this.lastLayout) {
+			const { width, height, top, left } = this.lastLayout;
+			this.layout(width, height, top, left);
 		}
 	}
 

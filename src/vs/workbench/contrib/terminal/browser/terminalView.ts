@@ -10,9 +10,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND, TERMINAL_TAB_ACTIVE_BORDER } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -20,7 +19,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
@@ -47,12 +45,10 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export class TerminalViewPane extends ViewPane {
-	private _actions: IAction[] | undefined;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
-	private _terminalsInitialized = false;
 	private _isWelcomeShowing: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -81,11 +77,6 @@ export class TerminalViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
-			if (this._actions) {
-				for (const action of this._actions) {
-					action.enabled = true;
-				}
-			}
 			this._onDidChangeViewWelcomeState.fire();
 		}));
 
@@ -132,6 +123,12 @@ export class TerminalViewPane extends ViewPane {
 		return (decorationsEnabled === 'both' || decorationsEnabled === 'gutter') && this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
 	}
 
+	private _initializeTerminal() {
+		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && !this._terminalGroupService.groups.length) {
+			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+		}
+	}
+
 	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
@@ -164,22 +161,10 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				const hadTerminals = !!this._terminalGroupService.groups.length;
-				// Ensure the primary backend is registered as it's important to do before
-				// initializeTerminals is called.
-				await this._terminalService.primaryBackendRegistered;
-				if (this._terminalService.isProcessSupportRegistered) {
-					if (this._terminalsInitialized) {
-						if (!hadTerminals) {
-							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-						}
-					} else {
-						this._terminalsInitialized = true;
-						this._terminalService.initializeTerminals();
-					}
-				} else {
+				if (!this._terminalService.isProcessSupportRegistered) {
 					this._onDidChangeViewWelcomeState.fire();
 				}
+				this._initializeTerminal();
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
@@ -191,6 +176,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._terminalGroupService.updateVisibility();
 		}));
+		this._register(this._terminalService.onDidChangeConnectionState(() => this._initializeTerminal()));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
 
@@ -297,36 +283,6 @@ export class TerminalViewPane extends ViewPane {
 		return this._isWelcomeShowing;
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const panelBackgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-	if (panelBackgroundColor) {
-		collector.addRule(`.monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container { background-color: ${panelBackgroundColor.toString()}; }`);
-	}
-
-	const sidebarBackgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(SIDE_BAR_BACKGROUND);
-	if (sidebarBackgroundColor) {
-		collector.addRule(`.monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container { background-color: ${sidebarBackgroundColor.toString()}; }`);
-		collector.addRule(`.monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container { background-color: ${sidebarBackgroundColor.toString()}; }`);
-	}
-
-	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR);
-	if (borderColor) {
-		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
-		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .tabs-container { border-color: ${borderColor.toString()}; }`);
-	}
-
-	const dndBackgroundColor = theme.getColor(TERMINAL_DRAG_AND_DROP_BACKGROUND) || theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
-	if (dndBackgroundColor) {
-		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay { background-color: ${dndBackgroundColor.toString()}; }`);
-	}
-
-	const activeTabBorderColor = theme.getColor(TERMINAL_TAB_ACTIVE_BORDER);
-	if (activeTabBorderColor) {
-		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before { background-color: ${activeTabBorderColor.toString()}; }`);
-	}
-});
-
 
 class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	constructor(

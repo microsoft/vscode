@@ -16,7 +16,6 @@ type BroadcastedProfileChanges = UriDto<Omit<DidChangeProfilesEvent, 'all'>>;
 
 export class BrowserUserDataProfilesService extends UserDataProfilesService implements IUserDataProfilesService {
 
-	protected override readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = true;
 	private readonly changesBroadcastChannel: BroadcastDataChannel<BroadcastedProfileChanges>;
 
 	constructor(

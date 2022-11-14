@@ -123,7 +123,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			this._modelListener.delete(model);
 			model.dispose();
 		}).catch(err => {
-			this._logService.critical('FAILED to destory notebook', err);
+			this._logService.error('FAILED to destory notebook', err);
 		});
 	}
 }

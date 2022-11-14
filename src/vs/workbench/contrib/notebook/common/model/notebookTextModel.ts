@@ -100,7 +100,7 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	}
 }
 
-export class NotebookOperationManager {
+class NotebookOperationManager {
 	private _pendingStackOperation: StackOperation | null = null;
 	constructor(
 		private readonly _textModel: NotebookTextModel,
@@ -144,7 +144,7 @@ type TransformedEdit = {
 	originalIndex: number;
 };
 
-export class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
+class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
 	isDirtyEvent() {
 		for (const e of this._eventQueue) {
 			for (let i = 0; i < e.rawEvents.length; i++) {
