@@ -15,8 +15,8 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground, toolbarHoverBackground, toolbarHoverOutline, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import * as strings from 'vs/base/common/strings';
@@ -395,50 +395,3 @@ export abstract class SimpleFindWidget extends Widget {
 		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 }
-
-// theming
-registerThemingParticipant((theme, collector) => {
-	const findWidgetBGColor = theme.getColor(editorWidgetBackground);
-	if (findWidgetBGColor) {
-		collector.addRule(`.monaco-workbench .simple-find-part { background-color: ${findWidgetBGColor} !important; }`);
-	}
-
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetForeground) {
-		collector.addRule(`.monaco-workbench .simple-find-part { color: ${widgetForeground}; }`);
-	}
-
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
-	}
-
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-workbench .simple-find-part { border: 1px solid ${hcBorder}; }`);
-	}
-
-	const error = theme.getColor(errorForeground);
-	if (error) {
-		collector.addRule(`.no-results.matchesCount { color: ${error}; }`);
-	}
-
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-			div.simple-find-part-wrapper div.button:hover:not(.disabled) {
-				background-color: ${toolbarHoverBackgroundColor};
-			}
-		`);
-	}
-
-	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
-	if (toolbarHoverOutlineColor) {
-		collector.addRule(`
-			div.simple-find-part-wrapper div.button:hover:not(.disabled) {
-					outline: 1px dashed ${toolbarHoverOutlineColor};
-					outline-offset: -1px;
-				}
-			`);
-	}
-});
