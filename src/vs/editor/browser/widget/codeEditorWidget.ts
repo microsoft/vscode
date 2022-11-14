@@ -342,15 +342,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				if (desc.instantiation === EditorContributionInstantiation.Idle) {
 					const contribution = new IdleValue(() => {
 						// Replace the original entry in _contributions with the resolved contribution
-						try {
-							const instance = this._instantiationService.createInstance(desc.ctor, this);
-							this._contributions.set(desc.id, instance);
-							return instance;
-						} catch (err) {
-							this._contributions.deleteAndDispose(desc.id);
-							onUnexpectedError(err);
-						}
-						return Disposable.None;
+						const instance = this._instantiationService.createInstance(desc.ctor, this);
+						this._contributions.set(desc.id, instance);
+						return instance;
 					});
 					this._contributions.set(desc.id, contribution);
 				} else {
