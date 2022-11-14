@@ -540,7 +540,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
-	private get scrollTop() {
+	get scrollTop() {
 		return this.ui.list.scrollTop;
 	}
 
