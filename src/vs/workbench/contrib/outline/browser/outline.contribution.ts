@@ -46,12 +46,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		[OutlineConfigKeys.icons]: {
-			'description': localize('outline.showIcons', "Render outline elements with icons."),
+			'description': localize('outline.showIcons', "Render Outline elements with icons."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.collapseItems]: {
-			'description': localize('outline.initialState', "Controls whether outline items are collapsed or expanded."),
+			'description': localize('outline.initialState', "Controls whether Outline items are collapsed or expanded."),
 			'type': 'string',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			'enum': [
@@ -65,17 +65,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'alwaysExpand'
 		},
 		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show errors and warnings on outline elements."),
+			'description': localize('outline.showProblem', "Show errors and warnings on Outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsColors]: {
-			'description': localize('outline.problem.colors', "Use colors for errors and warnings on outline elements."),
+			'description': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsBadges]: {
-			'description': localize('outline.problems.badges', "Use badges for errors and warnings on outline elements."),
+			'description': localize('outline.problems.badges', "Use badges for errors and warnings on Outline elements."),
 			'type': 'boolean',
 			'default': true
 		},
@@ -83,157 +83,157 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			default: true,
-			markdownDescription: localize('filteredTypes.file', "When enabled outline shows `file`-symbols.")
+			markdownDescription: localize('filteredTypes.file', "When enabled, Outline shows `file`-symbols.")
 		},
 		'outline.showModules': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			default: true,
-			markdownDescription: localize('filteredTypes.module', "When enabled outline shows `module`-symbols.")
+			markdownDescription: localize('filteredTypes.module', "When enabled, Outline shows `module`-symbols.")
 		},
 		'outline.showNamespaces': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.namespace', "When enabled outline shows `namespace`-symbols.")
+			markdownDescription: localize('filteredTypes.namespace', "When enabled, Outline shows `namespace`-symbols.")
 		},
 		'outline.showPackages': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.package', "When enabled outline shows `package`-symbols.")
+			markdownDescription: localize('filteredTypes.package', "When enabled, Outline shows `package`-symbols.")
 		},
 		'outline.showClasses': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.class', "When enabled outline shows `class`-symbols.")
+			markdownDescription: localize('filteredTypes.class', "When enabled, Outline shows `class`-symbols.")
 		},
 		'outline.showMethods': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.method', "When enabled outline shows `method`-symbols.")
+			markdownDescription: localize('filteredTypes.method', "When enabled, Outline shows `method`-symbols.")
 		},
 		'outline.showProperties': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.property', "When enabled outline shows `property`-symbols.")
+			markdownDescription: localize('filteredTypes.property', "When enabled, Outline shows `property`-symbols.")
 		},
 		'outline.showFields': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.field', "When enabled outline shows `field`-symbols.")
+			markdownDescription: localize('filteredTypes.field', "When enabled, Outline shows `field`-symbols.")
 		},
 		'outline.showConstructors': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.constructor', "When enabled outline shows `constructor`-symbols.")
+			markdownDescription: localize('filteredTypes.constructor', "When enabled, Outline shows `constructor`-symbols.")
 		},
 		'outline.showEnums': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.enum', "When enabled outline shows `enum`-symbols.")
+			markdownDescription: localize('filteredTypes.enum', "When enabled, Outline shows `enum`-symbols.")
 		},
 		'outline.showInterfaces': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.interface', "When enabled outline shows `interface`-symbols.")
+			markdownDescription: localize('filteredTypes.interface', "When enabled, Outline shows `interface`-symbols.")
 		},
 		'outline.showFunctions': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.function', "When enabled outline shows `function`-symbols.")
+			markdownDescription: localize('filteredTypes.function', "When enabled, Outline shows `function`-symbols.")
 		},
 		'outline.showVariables': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.variable', "When enabled outline shows `variable`-symbols.")
+			markdownDescription: localize('filteredTypes.variable', "When enabled, Outline shows `variable`-symbols.")
 		},
 		'outline.showConstants': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.constant', "When enabled outline shows `constant`-symbols.")
+			markdownDescription: localize('filteredTypes.constant', "When enabled, Outline shows `constant`-symbols.")
 		},
 		'outline.showStrings': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.string', "When enabled outline shows `string`-symbols.")
+			markdownDescription: localize('filteredTypes.string', "When enabled, Outline shows `string`-symbols.")
 		},
 		'outline.showNumbers': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.number', "When enabled outline shows `number`-symbols.")
+			markdownDescription: localize('filteredTypes.number', "When enabled, Outline shows `number`-symbols.")
 		},
 		'outline.showBooleans': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			default: true,
-			markdownDescription: localize('filteredTypes.boolean', "When enabled outline shows `boolean`-symbols.")
+			markdownDescription: localize('filteredTypes.boolean', "When enabled, Outline shows `boolean`-symbols.")
 		},
 		'outline.showArrays': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.array', "When enabled outline shows `array`-symbols.")
+			markdownDescription: localize('filteredTypes.array', "When enabled, Outline shows `array`-symbols.")
 		},
 		'outline.showObjects': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.object', "When enabled outline shows `object`-symbols.")
+			markdownDescription: localize('filteredTypes.object', "When enabled, Outline shows `object`-symbols.")
 		},
 		'outline.showKeys': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.key', "When enabled outline shows `key`-symbols.")
+			markdownDescription: localize('filteredTypes.key', "When enabled, Outline shows `key`-symbols.")
 		},
 		'outline.showNull': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.null', "When enabled outline shows `null`-symbols.")
+			markdownDescription: localize('filteredTypes.null', "When enabled, Outline shows `null`-symbols.")
 		},
 		'outline.showEnumMembers': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.enumMember', "When enabled outline shows `enumMember`-symbols.")
+			markdownDescription: localize('filteredTypes.enumMember', "When enabled, Outline shows `enumMember`-symbols.")
 		},
 		'outline.showStructs': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.struct', "When enabled outline shows `struct`-symbols.")
+			markdownDescription: localize('filteredTypes.struct', "When enabled, Outline shows `struct`-symbols.")
 		},
 		'outline.showEvents': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.event', "When enabled outline shows `event`-symbols.")
+			markdownDescription: localize('filteredTypes.event', "When enabled, Outline shows `event`-symbols.")
 		},
 		'outline.showOperators': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.operator', "When enabled outline shows `operator`-symbols.")
+			markdownDescription: localize('filteredTypes.operator', "When enabled, Outline shows `operator`-symbols.")
 		},
 		'outline.showTypeParameters': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.typeParameter', "When enabled outline shows `typeParameter`-symbols.")
+			markdownDescription: localize('filteredTypes.typeParameter', "When enabled, Outline shows `typeParameter`-symbols.")
 		}
 	}
 });
