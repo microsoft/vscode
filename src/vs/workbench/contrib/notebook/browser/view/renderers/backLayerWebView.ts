@@ -241,13 +241,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
+		const renderOptions = {
+			lineLimit: this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
+			outputScrolling: this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling) ?? true
+		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
-			{ dragAndDropEnabled: this.options.dragAndDropEnabled }, // add other options
+			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
+			renderOptions,
 			renderersData,
 			preloadsData,
 			this.workspaceTrustManagementService.isWorkspaceTrusted(),
-			this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');

@@ -28,6 +28,11 @@ interface JavaScriptRenderingHook {
 	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
 }
 
+interface RenderOptions {
+	readonly lineLimit: number;
+	readonly outputScrolling: boolean;
+}
+
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
@@ -153,7 +158,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 	container.classList.add('error');
 }
 
-function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number; readonly outputScrolling: boolean } }): void {
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	const outputContainer = container.parentElement;
 	if (!outputContainer) {
 		// should never happen
@@ -170,7 +175,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			const text = outputInfo.text();
 
 			const element = document.createElement('span');
-			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, true, element);
+			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -180,7 +185,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	element.classList.add('output-stream');
 
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, true, element);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element);
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
@@ -205,7 +210,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const htmlHooks = new Set<HtmlRenderingHook>();
 	const jsHooks = new Set<JavaScriptRenderingHook>();
 
-	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number; readonly outputScrolling: boolean } });
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions });
 
 	const style = document.createElement('style');
 	style.textContent = `
