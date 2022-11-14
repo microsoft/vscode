@@ -19,13 +19,11 @@ suite('QueryBuilderCommon', () => {
 
 	test('resolveResourcesForSearchIncludes passes through paths without special glob characters', () => {
 		const actual = resolveResourcesForSearchIncludes([URI.file("C:\\testWorkspace\\pages\\blog")], context);
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0], "./pages/blog");
+		assert.deepStrictEqual(actual, ["./pages/blog"]);
 	});
 
 	test('resolveResourcesForSearchIncludes escapes paths with special characters', () => {
 		const actual = resolveResourcesForSearchIncludes([URI.file("C:\\testWorkspace\\pages\\blog\\[postId]")], context);
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0], "./pages/blog/[[]postId[]]");
+		assert.deepStrictEqual(actual, ["./pages/blog/[[]postId[]]"]);
 	});
 });
