@@ -55,11 +55,11 @@ __vsc_escape_value() {
 		# (Importantly including: semicolon, newline, and control chars).
 		else
 			token="\\x${(l:2::0:)$(( [##16] #byte ))}"
-			#            │ │  │      └┬┘└┬┘ └─┬─┘
-			#            │ │  │       │  │    │
-			# left-pad ──╯ │  │       │  │    ╰─ the byte value of the character
-			# two digits ──╯  │       │  ╰────── in hexadecimal
-			# with '0' ───────╯       ╰───────── with no prefix
+			#            | |  |       |/|/ |_____|
+			#            | |  |       | |     |
+			# left-pad --+ |  |       | |     +- the byte value of the character
+			# two digits --+  |       | +------- in hexadecimal
+			# with '0' -------+       +--------- with no prefix
 		fi
 
 		out+="$token"
