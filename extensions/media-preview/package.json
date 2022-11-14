@@ -104,7 +104,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.0-preview"
+    "@vscode/extension-telemetry": "0.7.1-preview"
   },
   "repository": {
     "type": "git",
