@@ -126,7 +126,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions | IResolvedExtensionOptions): void {
 		const matcherKey = options.commandLineMatcher.toString();
-		const currentOptions = this._commandListeners.get(matcherKey) || [];
+		let currentOptions = this._commandListeners.get(matcherKey) || [];
+		// removes the unresolved options
+		currentOptions = currentOptions.filter(o => o.id !== options.id);
 		currentOptions.push(options);
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
