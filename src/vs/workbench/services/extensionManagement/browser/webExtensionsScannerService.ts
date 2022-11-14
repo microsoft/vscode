@@ -58,7 +58,7 @@ interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly version: string;
 	readonly location: UriComponents;
-	readonly manifest?: string;
+	readonly manifest?: IExtensionManifest;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
@@ -806,7 +806,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						identifier: e.identifier,
 						version: e.version,
 						location: URI.revive(e.location),
-						manifest: e.manifest ? JSON.parse(e.manifest) : undefined,
+						manifest: e.manifest,
 						readmeUri: URI.revive(e.readmeUri),
 						changelogUri: URI.revive(e.changelogUri),
 						packageNLSUris,
@@ -869,7 +869,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const storedWebExtensions: IStoredWebExtension[] = webExtensions.map(e => ({
 			identifier: e.identifier,
 			version: e.version,
-			manifest: e.manifest ? JSON.stringify(e.manifest) : undefined,
+			manifest: e.manifest,
 			location: e.location.toJSON(),
 			readmeUri: e.readmeUri?.toJSON(),
 			changelogUri: e.changelogUri?.toJSON(),
