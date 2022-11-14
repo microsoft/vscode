@@ -9,7 +9,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IResourceProfile } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -17,7 +17,7 @@ interface IProfileExtension {
 	disabled?: boolean;
 }
 
-export class ExtensionsProfile implements IResourceProfile {
+export class ExtensionsResource implements IProfileResource {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -27,12 +27,12 @@ export class ExtensionsProfile implements IResourceProfile {
 	) {
 	}
 
-	async getProfileContent(): Promise<string> {
+	async getContent(): Promise<string> {
 		const extensions = await this.getLocalExtensions();
 		return JSON.stringify(extensions);
 	}
 
-	async applyProfile(content: string): Promise<void> {
+	async apply(content: string): Promise<void> {
 		const profileExtensions: IProfileExtension[] = JSON.parse(content);
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const extensionsToEnableOrDisable: { extension: ILocalExtension; enablementState: EnablementState }[] = [];
