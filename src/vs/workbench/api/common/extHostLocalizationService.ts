@@ -46,7 +46,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		if (!str) {
 			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
-		return format2(str ?? key, (args ?? {}));
+		return format2(str ?? message, (args ?? {}));
 	}
 
 	getBundle(extensionId: string): { [key: string]: string } | undefined {
