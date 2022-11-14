@@ -910,5 +910,11 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.kernelPickerMRU]: {
+			markdownDescription: nls.localize('notebook.kernelPickerMRU', "Controls whether the kernel picker should show the most recently used kernels."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		}
 	}
 });

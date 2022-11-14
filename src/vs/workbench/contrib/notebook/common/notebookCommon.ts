@@ -925,7 +925,8 @@ export const NotebookSetting = {
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily'
+	outputFontFamily: 'notebook.outputFontFamily',
+	kernelPickerMRU: 'notebook.experimental.kernelPicker.mru'
 } as const;
 
 export const enum CellStatusbarAlignment {
