@@ -223,7 +223,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
-		inputLatency.markRenderStart();
+		inputLatency.onRenderStart();
 		this._renderNow();
 	}
 
