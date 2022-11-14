@@ -23,6 +23,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 			};
 		});
 	}
+	registerQuickFixSelector(id: string, selector: ITerminalCommandSelector): void {
+
+	}
 	registerQuickFixProvider(id: string, selector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable {
 		const selectorProvider = { id, selector, provider };
 		this._providers.set(id, selectorProvider);

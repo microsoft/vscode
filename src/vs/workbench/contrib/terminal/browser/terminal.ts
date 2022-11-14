@@ -963,11 +963,25 @@ export interface ITerminalQuickFixOptions {
 }
 
 export interface ITerminalQuickFixExtensionOptions {
-	type: 'extension';
+	resolved: boolean;
 	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus?: boolean;
+}
+
+export interface IExtensionOptions extends ITerminalQuickFixExtensionOptions {
+	resolved: true;
 	getQuickFixes: TerminalQuickFixCallbackExtension;
+}
+
+export interface IExtensionUnresolvedOptions extends ITerminalQuickFixExtensionOptions {
+	resolved: false;
+}
+
+export interface ITerminalCommandSelector {
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus?: boolean;
 }
 
