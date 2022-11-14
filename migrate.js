@@ -9,6 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const ts = require('typescript');
 const util = require('./util');
+// @ts-ignore
+const watch = require('./build/lib/watch/index');
 
 const srcFolder = path.join(__dirname, 'src');
 const dstFolder = path.join(__dirname, 'src2');
@@ -18,54 +20,76 @@ const binaryFileExtensions = new Set([
 ]);
 
 function migrate() {
+	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
+	console.log(`STARTING MIGRATION of src to src2.`);
+
+	// installing watcher quickly to avoid missing early events
+	const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+
 	/** @type {string[]} */
 	const files = [];
 	util.readdir(path.join(__dirname, 'src'), files);
 
 	for (const filePath of files) {
 		const fileContents = fs.readFileSync(filePath);
-		const fileExtension = path.extname(filePath);
-
-		if (fileExtension === '.ts') {
-			migrateTS(filePath, fileContents.toString());
-		} else if (fileExtension === '.js' || fileExtension === '.cjs') {
-			if (
-				filePath.endsWith('vs/base/common/performance.js')
-				|| filePath.endsWith('vs/platform/environment/node/userDataPath.js')
-				|| filePath.endsWith('vs/base/common/stripComments.js')
-				|| filePath.endsWith('vs/base/node/languagePacks.js')
-			) {
-				// Create .cjs duplicates of these files
-				const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
-				const cjsFileContents = fileContents.toString().replace(`require('../common/performance')`, `require('../common/performance.cjs')`);
-				writeDestFile(cjsFilePath, cjsFileContents);
-				writeDestFile(filePath, fileContents.toString());
-			} else if (
-				filePath.endsWith('vs/base/parts/sandbox/electron-browser/preload.js')
-			) {
-				// Rename to .cjs
-				const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
-				writeDestFile(cjsFilePath, fileContents.toString());
-			} else {
-				writeDestFile(filePath, fileContents.toString());
-			}
-		} else if (fileExtension === '.css') {
-			writeDestFile(filePath, fileContents.toString());
-		} else if (filePath.endsWith('tsconfig.base.json')) {
-			const opts = JSON.parse(fileContents.toString());
-			opts.compilerOptions.module = 'ESNext';
-			opts.compilerOptions.allowSyntheticDefaultImports = true;
-			writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
-		} else if (binaryFileExtensions.has(fileExtension)) {
-			writeDestFile(filePath, fileContents);
-		} else {
-			console.log(`ignoring ${filePath}`);
-		}
+		migrateOne(filePath, fileContents);
 	}
 
 	fs.writeFileSync(path.join(dstFolder, 'vs', 'package.json'), `{"type": "module"}`);
 	fs.writeFileSync(path.join(dstFolder, '.gitignore'), `*`);
 
+	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
+	console.log(`COMPLETED MIGRATION of src to src2.`);
+	console.log(`WATCHING src for changes...`);
+
+	watchSrc.on('data', (e) => {
+		migrateOne(e.path, e.contents);
+		console.log(`Handled change event for ${e.path}.`);
+	});
+}
+
+/**
+ * @param {string} filePath
+ * @param {Buffer} fileContents
+ */
+function migrateOne(filePath, fileContents) {
+	const fileExtension = path.extname(filePath);
+
+	if (fileExtension === '.ts') {
+		migrateTS(filePath, fileContents.toString());
+	} else if (fileExtension === '.js' || fileExtension === '.cjs') {
+		if (
+			filePath.endsWith('vs/base/common/performance.js')
+			|| filePath.endsWith('vs/platform/environment/node/userDataPath.js')
+			|| filePath.endsWith('vs/base/common/stripComments.js')
+			|| filePath.endsWith('vs/base/node/languagePacks.js')
+		) {
+			// Create .cjs duplicates of these files
+			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
+			const cjsFileContents = fileContents.toString().replace(`require('../common/performance')`, `require('../common/performance.cjs')`);
+			writeDestFile(cjsFilePath, cjsFileContents);
+			writeDestFile(filePath, fileContents.toString());
+		} else if (
+			filePath.endsWith('vs/base/parts/sandbox/electron-browser/preload.js')
+		) {
+			// Rename to .cjs
+			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
+			writeDestFile(cjsFilePath, fileContents.toString());
+		} else {
+			writeDestFile(filePath, fileContents.toString());
+		}
+	} else if (fileExtension === '.css') {
+		writeDestFile(filePath, fileContents.toString());
+	} else if (filePath.endsWith('tsconfig.base.json')) {
+		const opts = JSON.parse(fileContents.toString());
+		opts.compilerOptions.module = 'ESNext';
+		opts.compilerOptions.allowSyntheticDefaultImports = true;
+		writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
+	} else if (binaryFileExtensions.has(fileExtension)) {
+		writeDestFile(filePath, fileContents);
+	} else {
+		console.log(`ignoring ${filePath}`);
+	}
 }
 
 /**
