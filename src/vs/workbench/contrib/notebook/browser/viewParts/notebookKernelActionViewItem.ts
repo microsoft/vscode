@@ -33,6 +33,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSourceActions(this._update, this));
+		this._register(_notebookKernelService.onDidChangeKernelDetectionTasks(this._update, this));
 	}
 
 	override render(container: HTMLElement): void {
@@ -60,6 +61,11 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
+		const detectionTasks = this._notebookKernelService.getKernelDetectionTasks(notebook);
+		if (detectionTasks.length) {
+			return this._updateActionFromDetectionTask();
+		}
+
 		const runningActions = this._notebookKernelService.getRunningSourceActions(notebook);
 		if (runningActions.length) {
 			return this._updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
@@ -71,6 +77,12 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		}
 
 		this._updateActionFromKernelInfo(info);
+	}
+
+	private _updateActionFromDetectionTask() {
+		this._action.enabled = true;
+		this._action.label = localize('kernels.detecting', "Detecting Kernels");
+		this._action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
 	}
 
 	private _updateActionFromSourceAction(sourceAction: ISourceAction, running: boolean) {

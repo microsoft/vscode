@@ -63,8 +63,8 @@ export function activate(
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
 	if (packageInfo) {
-		const { name: id, version, aiKey } = packageInfo;
-		const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+		const { aiKey } = packageInfo;
+		const vscTelemetryReporter = new VsCodeTelemetryReporter(aiKey);
 		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
 		context.subscriptions.push(experimentTelemetryReporter);
 	}

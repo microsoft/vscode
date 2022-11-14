@@ -16,6 +16,7 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
+    "telemetryLogger",
     "documentPaste"
   ],
   "activationEvents": [
@@ -620,8 +621,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.6.2",
-    "dompurify": "^2.3.3",
+    "@vscode/extension-telemetry": "0.7.1-preview",
+    "dompurify": "^2.4.1",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
@@ -639,7 +640,7 @@
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "^0.0.0-alpha.10"
+    "vscode-markdown-languageservice": "^0.2.0"
   },
   "repository": {
     "type": "git",

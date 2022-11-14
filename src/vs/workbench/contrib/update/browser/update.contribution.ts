@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotes } from 'vs/workbench/contrib/update/browser/update';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -59,7 +59,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		try {
-			await showReleaseNotes(instantiationService, productService.version);
+			await showReleaseNotesInEditor(instantiationService, productService.version);
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));

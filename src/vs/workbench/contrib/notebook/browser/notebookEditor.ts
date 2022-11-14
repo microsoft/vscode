@@ -23,10 +23,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
@@ -40,7 +40,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
-export class NotebookEditor extends EditorPane implements IEditorPaneWithSelection {
+export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	static readonly ID: string = NOTEBOOK_EDITOR_ID;
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -256,7 +256,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				extensionActivated: number;
 				inputLoaded: number;
 				webviewCommLoaded: number;
-				customMarkdownLoaded: number;
+				customMarkdownLoaded: number | undefined;
 				editorLoaded: number;
 			};
 
@@ -272,7 +272,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 					startTime !== undefined
 					&& extensionActivated !== undefined
 					&& inputLoaded !== undefined
-					&& customMarkdownLoaded !== undefined
 					&& editorLoaded !== undefined
 				) {
 					this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
@@ -282,11 +281,11 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 						extensionActivated: extensionActivated - startTime,
 						inputLoaded: inputLoaded - startTime,
 						webviewCommLoaded: inputLoaded - startTime,
-						customMarkdownLoaded: customMarkdownLoaded - startTime,
+						customMarkdownLoaded: typeof customMarkdownLoaded === 'number' ? customMarkdownLoaded - startTime : undefined,
 						editorLoaded: editorLoaded - startTime
 					});
 				} else {
-					console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActiviated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
+					console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActivated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
 				}
 			}
 		} catch (e) {

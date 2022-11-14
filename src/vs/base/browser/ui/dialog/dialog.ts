@@ -427,8 +427,6 @@ export class Dialog extends Disposable {
 			this.element.style.backgroundColor = bgColor?.toString() ?? '';
 			this.element.style.border = border;
 
-			this.buttonBar?.buttons.forEach(button => button.style(style));
-
 			this.checkbox?.style(style);
 
 			if (fgColor && bgColor) {

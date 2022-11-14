@@ -9,7 +9,7 @@ import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
-import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Hover', () => {
 	test('find expression in stack frame', async () => {
