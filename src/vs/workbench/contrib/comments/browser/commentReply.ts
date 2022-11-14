@@ -259,7 +259,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			});
 
 			this.hideReplyArea();
-		}, this.themeService);
+		});
 
 		this._register(this._commentFormActions);
 		this._commentFormActions.setActions(menu);
