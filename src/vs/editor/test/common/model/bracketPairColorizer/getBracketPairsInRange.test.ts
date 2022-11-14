@@ -23,9 +23,9 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		const instantiationService = createModelServices(store);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		const languageService = instantiationService.get(ILanguageService);
-		languageService.registerLanguage({
+		store.add(languageService.registerLanguage({
 			id: languageId,
-		});
+		}));
 
 		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(languageId);
 		const document = new TokenizedDocument([
