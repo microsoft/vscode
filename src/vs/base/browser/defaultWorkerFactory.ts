@@ -7,11 +7,12 @@
 import { COI } from 'vs/base/common/network';
 // ESM-comment-end
 import { globals } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
 const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 
-function getWorker(label: string): Worker | Promise<Worker> {
+function getWorker(workerMainLocation: URI | undefined, label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	if (globals.MonacoEnvironment) {
 		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
@@ -30,6 +31,10 @@ function getWorker(label: string): Worker | Promise<Worker> {
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
 	// ESM-comment-end
+	if (workerMainLocation) {
+		const workerUrl = workerMainLocation.toString(true);
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
@@ -78,9 +83,9 @@ class WebWorker implements IWorker {
 	private id: number;
 	private worker: Promise<Worker> | null;
 
-	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constructor(workerMainLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
-		const workerOrPromise = getWorker(label);
+		const workerOrPromise = getWorker(workerMainLocation, label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
 		} else {
@@ -119,7 +124,7 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 	private _label: string | undefined;
 	private _webWorkerFailedBeforeError: any;
 
-	constructor(label: string | undefined) {
+	constructor(private readonly workerMainLocation: URI | undefined, label: string | undefined) {
 		this._label = label;
 		this._webWorkerFailedBeforeError = false;
 	}
@@ -131,7 +136,7 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		return new WebWorker(moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		return new WebWorker(this.workerMainLocation, moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);

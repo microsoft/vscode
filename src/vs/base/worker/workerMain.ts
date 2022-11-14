@@ -5,6 +5,13 @@
 
 (function () {
 
+	// ESM-comment-begin
+	const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	// const isESM = true;
+	// ESM-uncomment-end
+
 	const MonacoEnvironment = (<any>self).MonacoEnvironment;
 	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
@@ -86,22 +93,41 @@
 		});
 	}
 
-	function loadCode(moduleId: string) {
-		loadAMDLoader().then(() => {
-			configureAMDLoader();
-			require([moduleId], function (ws) {
-				setTimeout(function () {
-					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
-						(<any>self).postMessage(msg, transfer);
-					}, null);
-
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
-					while (beforeReadyMessages.length > 0) {
-						self.onmessage(beforeReadyMessages.shift()!);
-					}
-				}, 0);
+	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
+		if (isESM) {
+			// TODO: this won't work when bundling
+			// My path is: vs/base/worker/workerMain.ts
+			return import(`../../../${moduleId}.js`);
+		} else {
+			return loadAMDLoader().then(() => {
+				configureAMDLoader();
+				return new Promise<SimpleWorkerModule>((resolve, reject) => {
+					require([moduleId], resolve, reject);
+				});
 			});
-		});
+		}
+	}
+
+	interface MessageHandler {
+		onmessage(msg: any, ports: readonly MessagePort[]): void;
+	}
+
+	// shape of vs/base/common/worker/simpleWorker.ts
+	interface SimpleWorkerModule {
+		create(postMessage: (msg: any, transfer?: Transferable[]) => void): MessageHandler;
+	}
+
+	function setupWorkerServer(ws: SimpleWorkerModule) {
+		setTimeout(function () {
+			const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+				(<any>self).postMessage(msg, transfer);
+			});
+
+			self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
+			while (beforeReadyMessages.length > 0) {
+				self.onmessage(beforeReadyMessages.shift()!);
+			}
+		}, 0);
 	}
 
 	// If the loader is already defined, configure it immediately
@@ -120,6 +146,10 @@
 		}
 
 		isFirstMessage = false;
-		loadCode(message.data);
+		loadCode(message.data).then((ws) => {
+			setupWorkerServer(ws);
+		}, (err) => {
+			console.error(err);
+		});
 	};
 })();

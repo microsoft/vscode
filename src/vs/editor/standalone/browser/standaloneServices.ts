@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/editor/common/languages/languageConfigurationRegistry';
 import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 import 'vs/platform/undoRedo/common/undoRedoService';
@@ -90,6 +89,8 @@ import { staticObservableValue } from 'vs/base/common/observableValue';
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -971,6 +972,18 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+class StandaloneEditorWorkerService extends EditorWorkerService {
+	constructor(
+		@IModelService modelService: IModelService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ILogService logService: ILogService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		super(undefined, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
@@ -993,7 +1006,7 @@ registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager
 registerSingleton(IProgressService, StandaloneProgressService, InstantiationType.Eager);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService, InstantiationType.Eager);
 registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
-registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager);
+registerSingleton(IEditorWorkerService, StandaloneEditorWorkerService, InstantiationType.Eager);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
 registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);

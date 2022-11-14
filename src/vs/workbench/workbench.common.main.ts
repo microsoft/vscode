@@ -109,7 +109,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -135,7 +134,7 @@ registerSingleton(IExtensionStorageService, ExtensionStorageService, Instantiati
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, InstantiationType.Delayed);
 registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
 registerSingleton(IListService, ListService, InstantiationType.Delayed);
-registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
+registerSingleton(IEditorWorkerService, WorkbenchEditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
@@ -354,5 +353,6 @@ import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExten
 
 // Bracket Pair Colorizer 2 Telemetry
 import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
+import { WorkbenchEditorWorkerService } from 'vs/workbench/contrib/codeEditor/browser/workbenchEditorWorkerService';
 
 //#endregion
