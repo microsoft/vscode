@@ -17,7 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalCommand, ITerminalOutputMatcher, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IExtensionOptions, IExtensionUnresolvedOptions, ITerminalInstance, ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalInstance, ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { getQuickFixesForCommand, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
@@ -326,7 +326,7 @@ suite('QuickFixAddon', () => {
 
 async function getQuickFixesForCommandTest(
 	command: ITerminalCommand,
-	quickFixOptions: Map<string, (ITerminalQuickFixOptions | IExtensionOptions | IExtensionUnresolvedOptions)[]>,
+	quickFixOptions: Map<string, (ITerminalQuickFixOptions | IResolvedExtensionOptions | IUnresolvedExtensionOptions)[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
 ): Promise<{ fixes: IAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined> {

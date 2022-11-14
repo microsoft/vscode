@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixActionInternal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalOptions, ITerminalInstance, TerminalQuickFixActionInternal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandMatchResult } from 'vs/workbench/contrib/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
@@ -17,7 +17,7 @@ export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
 
-export function gitSimilar(): ITerminalQuickFixOptions {
+export function gitSimilar(): IInternalOptions {
 	return {
 		id: 'Git Similar',
 		commandLineMatcher: GitCommandLineRegex,
@@ -50,7 +50,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 	};
 }
 
-export function gitTwoDashes(): ITerminalQuickFixOptions {
+export function gitTwoDashes(): IInternalOptions {
 	return {
 		id: 'Git Two Dashes',
 		commandLineMatcher: GitCommandLineRegex,
@@ -75,7 +75,7 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 		}
 	};
 }
-export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
+export function freePort(terminalInstance?: Partial<ITerminalInstance>): IInternalOptions {
 	return {
 		id: 'Free Port',
 		commandLineMatcher: AnyCommandLineRegex,
@@ -106,7 +106,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 	};
 }
 
-export function gitPushSetUpstream(): ITerminalQuickFixOptions {
+export function gitPushSetUpstream(): IInternalOptions {
 	return {
 		id: 'Git Push Set Upstream',
 		commandLineMatcher: GitPushCommandLineRegex,
@@ -150,7 +150,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 	};
 }
 
-export function gitCreatePr(): ITerminalQuickFixOptions {
+export function gitCreatePr(): IInternalOptions {
 	return {
 		id: 'Git Create Pr',
 		commandLineMatcher: GitPushCommandLineRegex,
