@@ -367,11 +367,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return initData.uiKind;
 			},
 			get logLevel() {
-				checkProposedApiEnabled(extension, 'extensionLog');
 				return extHostLogService.getLevel();
 			},
 			get onDidChangeLogLevel() {
-				checkProposedApiEnabled(extension, 'extensionLog');
 				return extHostLogService.onDidChangeLogLevel;
 			}
 		};
@@ -1149,6 +1147,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createRendererMessaging(rendererId) {
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
+			},
+			createNotebookControllerDetectionTask(notebookType: string) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
+				return extHostNotebookKernels.createNotebookControllerDetectionTask(extension, notebookType);
 			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');

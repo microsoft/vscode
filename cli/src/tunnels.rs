@@ -8,6 +8,7 @@ pub mod dev_tunnels;
 pub mod legal;
 pub mod paths;
 
+mod socket_signal;
 mod control_server;
 mod name_generator;
 mod port_forwarder;

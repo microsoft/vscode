@@ -11,16 +11,15 @@ use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
 	debug, log, options, spanf,
 	util::{
-		errors::{
-			AnyError, StatusError, UnsupportedPlatformError, UpdatesNotConfigured, WrappedError,
-		},
+		errors::{AnyError, UnsupportedPlatformError, UpdatesNotConfigured, WrappedError},
+		http::{SimpleHttp, SimpleResponse},
 		io::ReportCopyProgress,
 	},
 };
 
 /// Implementation of the VS Code Update service for use in the CLI.
 pub struct UpdateService {
-	client: reqwest::Client,
+	client: Box<dyn SimpleHttp + Send + Sync + 'static>,
 	log: log::Logger,
 }
 
@@ -54,8 +53,11 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 }
 
 impl UpdateService {
-	pub fn new(log: log::Logger, client: reqwest::Client) -> Self {
-		UpdateService { client, log }
+	pub fn new(log: log::Logger, http: impl SimpleHttp + Send + Sync + 'static) -> Self {
+		UpdateService {
+			client: Box::new(http),
+			log,
+		}
 	}
 
 	pub async fn get_release_by_semver_version(
@@ -78,14 +80,14 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let response = spanf!(
+		let mut response = spanf!(
 			self.log,
 			self.log.span("server.version.resolve"),
-			self.client.get(download_url).send()
+			self.client.make_request("GET", download_url)
 		)?;
 
-		if !response.status().is_success() {
-			return Err(StatusError::from_res(response).await?.into());
+		if !response.status_code.is_success() {
+			return Err(response.into_err().await.into());
 		}
 
 		let res = response.json::<UpdateServerVersion>().await?;
@@ -119,14 +121,14 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let response = spanf!(
+		let mut response = spanf!(
 			self.log,
 			self.log.span("server.version.resolve"),
-			self.client.get(download_url).send()
+			self.client.make_request("GET", download_url)
 		)?;
 
-		if !response.status().is_success() {
-			return Err(StatusError::from_res(response).await?.into());
+		if !response.status_code.is_success() {
+			return Err(response.into_err().await.into());
 		}
 
 		let res = response.json::<UpdateServerVersion>().await?;
@@ -142,10 +144,7 @@ impl UpdateService {
 	}
 
 	/// Gets the download stream for the release.
-	pub async fn get_download_stream(
-		&self,
-		release: &Release,
-	) -> Result<reqwest::Response, AnyError> {
+	pub async fn get_download_stream(&self, release: &Release) -> Result<SimpleResponse, AnyError> {
 		let update_endpoint =
 			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
 		let download_segment = release
@@ -161,9 +160,9 @@ impl UpdateService {
 			quality_download_segment(release.quality),
 		);
 
-		let response = reqwest::get(&download_url).await?;
-		if !response.status().is_success() {
-			return Err(StatusError::from_res(response).await?.into());
+		let response = self.client.make_request("GET", download_url).await?;
+		if !response.status_code.is_success() {
+			return Err(response.into_err().await.into());
 		}
 
 		Ok(response)
@@ -220,7 +219,7 @@ pub enum Platform {
 	DarwinARM64,
 	WindowsX64,
 	WindowsX86,
-	WindowsARM64
+	WindowsARM64,
 }
 
 impl Platform {
@@ -300,6 +299,8 @@ impl Platform {
 			Some(Platform::WindowsX64)
 		} else if cfg!(all(target_os = "windows", target_arch = "x86")) {
 			Some(Platform::WindowsX86)
+		} else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+			Some(Platform::WindowsARM64)
 		} else {
 			None
 		}

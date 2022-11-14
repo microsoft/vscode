@@ -81,7 +81,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 		const markdownInput: IAction = {
 			checked: this.filters.markupInput,
 			class: undefined,
-			enabled: !this.filters.markupPreview,
+			enabled: true,
 			id: 'findInMarkdownInput',
 			label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
 			run: async () => {
@@ -765,7 +765,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 // theming
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
-	:root {
+	.notebook-editor {
 		--notebook-find-width: ${NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH}px;
 		--notebook-find-horizontal-padding: ${NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING}px;
 	}

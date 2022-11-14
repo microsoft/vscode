@@ -19,15 +19,18 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { charCount } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { joinPath } from 'vs/base/common/resources';
 import { Codicon } from 'vs/base/common/codicons';
+import { IFileService } from 'vs/platform/files/common/files';
+import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -77,7 +80,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					[PROFILES_ENABLEMENT_CONFIG]: {
 						'type': 'boolean',
 						'default': false,
-						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
+						'description': localize('workbench.experimental.profiles.enabled', "Controls whether to enable the Profiles preview feature."),
 						scope: ConfigurationScope.APPLICATION,
 						ignoreSync: true
 					}
@@ -159,6 +162,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
 		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
 
 	private registerUpdateCurrentProfileShortNameAction(): IDisposable {
@@ -297,12 +301,130 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			command: {
 				id,
 				title: {
-					value: localize('export settings profile', "Export Settings Profile ({0})...", that.userDataProfileService.currentProfile.name),
-					original: `Export Settings Profile (${that.userDataProfileService.currentProfile.name})...`
-				}
+					value: localize('export profile in share', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+					original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
+				},
+				precondition: PROFILES_ENABLEMENT_CONTEXT,
 			},
 		}));
 		return disposables;
 	}
 
+	private registerImportProfileAction(): IDisposable {
+		const disposables = new DisposableStore();
+		const id = 'workbench.profiles.actions.importProfile';
+		disposables.add(registerAction2(class ImportProfileAction extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: {
+						value: localize('import profile', "Import..."),
+						original: 'Import...'
+					},
+					category: PROFILES_CATEGORY,
+					f1: true,
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '4_import_export_profiles',
+							when: PROFILES_ENABLEMENT_CONTEXT,
+							order: 2
+						}
+					]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const fileDialogService = accessor.get(IFileDialogService);
+				const quickInputService = accessor.get(IQuickInputService);
+				const fileService = accessor.get(IFileService);
+				const requestService = accessor.get(IRequestService);
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				const dialogService = accessor.get(IDialogService);
+				const contextKeyService = accessor.get(IContextKeyService);
+				const notificationService = accessor.get(INotificationService);
+
+				const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
+
+				if (!isSettingProfilesEnabled) {
+					if (!(await dialogService.confirm({
+						title: localize('import profile title', "Import Settings from a Profile"),
+						message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
+					})).confirmed) {
+						return;
+					}
+				}
+
+				const disposables = new DisposableStore();
+				const quickPick = disposables.add(quickInputService.createQuickPick());
+				const updateQuickPickItems = (value?: string) => {
+					const selectFromFileItem: IQuickPickItem = { label: isSettingProfilesEnabled ? localize('select from file', "Select Profile template file") : localize('import from file', "Import from profile file") };
+					quickPick.items = value ? [{ label: isSettingProfilesEnabled ? localize('select from url', "Create from template URL") : localize('import from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
+				};
+				quickPick.title = isSettingProfilesEnabled ? localize('create from profile template quick pick title', "Create from Profile Template") : localize('import profile quick pick title', "Import Settings from a Profile");
+				quickPick.placeholder = isSettingProfilesEnabled ? localize('create from profile template placeholder', "Provide a template URL or Select a template file") : localize('import profile placeholder', "Provide profile URL or select profile file to import");
+				quickPick.ignoreFocusOut = true;
+				disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
+				updateQuickPickItems();
+				quickPick.matchOnLabel = false;
+				quickPick.matchOnDescription = false;
+				disposables.add(quickPick.onDidAccept(async () => {
+					try {
+						quickPick.hide();
+						const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
+						if (profile) {
+							if (isSettingProfilesEnabled) {
+								await userDataProfileImportExportService.importProfile(profile);
+							} else {
+								await userDataProfileImportExportService.setProfile(profile);
+							}
+						}
+					} catch (error) {
+						notificationService.error(error);
+					}
+				}));
+				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+				quickPick.show();
+			}
+
+			private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IUserDataProfileTemplate | null> {
+				const profileLocation = await fileDialogService.showOpenDialog({
+					canSelectFolders: false,
+					canSelectFiles: true,
+					canSelectMany: false,
+					filters: PROFILE_FILTER,
+					title: localize('import profile dialog', "Import Profile"),
+				});
+				if (!profileLocation) {
+					return null;
+				}
+				const content = (await fileService.readFile(profileLocation[0])).value.toString();
+				const parsed = JSON.parse(content);
+				return isUserDataProfileTemplate(parsed) ? parsed : null;
+			}
+
+			private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
+				const options = { type: 'GET', url };
+				const context = await requestService.request(options, CancellationToken.None);
+				if (context.res.statusCode === 200) {
+					const result = await asJson(context);
+					return isUserDataProfileTemplate(result) ? result : null;
+				} else {
+					const message = await asText(context);
+					throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
+				}
+			}
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {
+			command: {
+				id,
+				title: {
+					value: localize('import profile share', "Import Profile...",),
+					original: 'Import Profile...'
+				},
+				precondition: PROFILES_ENABLEMENT_CONTEXT,
+			},
+		}));
+		return disposables;
+	}
 }

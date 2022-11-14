@@ -39,7 +39,6 @@ import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ILink, LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
@@ -68,6 +67,7 @@ import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationVa
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -900,7 +900,7 @@ export class GettingStartedPage extends EditorPane {
 						{
 							'x-dispatch': 'showMoreRecents',
 							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
-						}, 'More...')),
+						}, localize('showAll', "More..."))),
 				renderElement: renderRecent,
 				contextService: this.contextService
 			});
@@ -990,6 +990,8 @@ export class GettingStartedPage extends EditorPane {
 						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
+						'role': 'button',
+						'aria-label': localize('closeAriaLabel', "Hide"),
 					}),
 				),
 				descriptionContent,
@@ -1182,7 +1184,7 @@ export class GettingStartedPage extends EditorPane {
 			if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 				const node = linkedText.nodes[0];
 				const buttonContainer = append(container, $('.button-container'));
-				const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+				const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
 
 				const isCommand = node.href.startsWith('command:');
 				const command = node.href.replace(/command:(toSide:)?/, 'command:');
@@ -1202,7 +1204,6 @@ export class GettingStartedPage extends EditorPane {
 				}
 
 				this.detailsPageDisposables.add(button);
-				this.detailsPageDisposables.add(attachButtonStyler(button, this.themeService));
 			} else {
 				const p = append(container, $('p'));
 				for (const node of linkedText.nodes) {
@@ -1292,6 +1293,8 @@ export class GettingStartedPage extends EditorPane {
 						{
 							'data-done-step-id': step.id,
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
+							'role': 'checkbox',
+							'tabindex': '0',
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
