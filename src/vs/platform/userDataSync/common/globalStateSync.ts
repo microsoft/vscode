@@ -398,14 +398,14 @@ export class LocalGlobalStateProvider {
 export class GlobalStateInitializer extends AbstractInitializer {
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IFileService fileService: IFileService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.GlobalState, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.GlobalState, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

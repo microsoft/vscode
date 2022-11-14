@@ -455,6 +455,16 @@ export class HoverWidget extends Widget {
 		maxHeight = Math.min(maxHeight, this._hover.containerDomNode.clientHeight);
 
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		if (this._hover.contentsDomNode.clientHeight > maxHeight) {
+			this._hover.contentsDomNode.style.height = `${maxHeight}px`;
+		}
+		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
+			// Add padding for a vertical scrollbar
+			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
+			if (this._hover.contentsDomNode.style.paddingRight !== extraRightPadding) {
+				this._hover.contentsDomNode.style.paddingRight = extraRightPadding;
+			}
+		}
 	}
 
 	private setHoverPointerPosition(target: TargetRect): void {
