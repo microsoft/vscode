@@ -350,7 +350,7 @@ export class Mangler {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
-	computeNewFileContents(): ReadonlyMap<string, string> {
+	computeNewFileContents(): Map<string, string> {
 
 		// STEP: find all classes and their field info
 

@@ -104,14 +104,19 @@ function compileTask(src, out, build) {
         // mangle: TypeScript to TypeScript
         let mangleStream = es.through();
         if (build) {
-            const ts2tsMangler = new mangleTypeScript_1.Mangler(compile.projectPath);
-            const replacer = ts2tsMangler.computeNewFileContents();
-            mangleStream = es.through(function (data) {
-                const newContents = replacer.get(data.path);
+            let ts2tsMangler = new mangleTypeScript_1.Mangler(compile.projectPath);
+            const newContentsByFileName = ts2tsMangler.computeNewFileContents();
+            mangleStream = es.through(function write(data) {
+                const newContents = newContentsByFileName.get(data.path);
                 if (newContents !== undefined) {
                     data.contents = Buffer.from(newContents);
                 }
                 this.push(data);
+            }, function end() {
+                this.push(null);
+                // free resources
+                newContentsByFileName.clear();
+                ts2tsMangler = undefined;
             });
         }
         return srcPipe

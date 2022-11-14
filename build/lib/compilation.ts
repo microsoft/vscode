@@ -123,14 +123,19 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 		// mangle: TypeScript to TypeScript
 		let mangleStream = es.through();
 		if (build) {
-			const ts2tsMangler = new Mangler(compile.projectPath);
-			const replacer = ts2tsMangler.computeNewFileContents();
-			mangleStream = es.through(function (data: File) {
-				const newContents = replacer.get(data.path);
+			let ts2tsMangler = new Mangler(compile.projectPath);
+			const newContentsByFileName = ts2tsMangler.computeNewFileContents();
+			mangleStream = es.through(function write(data: File) {
+				const newContents = newContentsByFileName.get(data.path);
 				if (newContents !== undefined) {
 					data.contents = Buffer.from(newContents);
 				}
 				this.push(data);
+			}, function end() {
+				this.push(null);
+				// free resources
+				newContentsByFileName.clear();
+				(<any>ts2tsMangler) = undefined;
 			});
 		}
 
