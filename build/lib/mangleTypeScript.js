@@ -6,10 +6,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mangler = void 0;
 const ts = require("typescript");
-const fancy_log_1 = require("fancy-log");
-const path_1 = require("path");
+const path = require("path");
 const fs = require("fs");
-const Vinyl = require("vinyl");
+const process_1 = require("process");
 class ShortIdent {
     static _keywords = new Set(['await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
         'default', 'delete', 'do', 'else', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if',
@@ -242,16 +241,26 @@ class ClassData {
     }
 }
 class StaticLanguageServiceHost {
-    cmdLine;
+    projectPath;
+    _cmdLine;
     _scriptSnapshots = new Map();
-    constructor(cmdLine) {
-        this.cmdLine = cmdLine;
+    constructor(projectPath) {
+        this.projectPath = projectPath;
+        const existingOptions = {};
+        const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
+        if (parsed.error) {
+            throw parsed.error;
+        }
+        this._cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, path.dirname(projectPath), existingOptions);
+        if (this._cmdLine.errors.length > 0) {
+            throw parsed.error;
+        }
     }
     getCompilationSettings() {
-        return this.cmdLine.options;
+        return this._cmdLine.options;
     }
     getScriptFileNames() {
-        return this.cmdLine.fileNames;
+        return this._cmdLine.fileNames;
     }
     getScriptVersion(_fileName) {
         return '1';
@@ -272,7 +281,7 @@ class StaticLanguageServiceHost {
         return result;
     }
     getCurrentDirectory() {
-        return (0, path_1.dirname)(projectPath);
+        return path.dirname(this.projectPath);
     }
     getDefaultLibFileName(options) {
         return ts.getDefaultLibFilePath(options);
@@ -285,31 +294,27 @@ class StaticLanguageServiceHost {
     // this is necessary to make source references work.
     realpath = ts.sys.realpath;
 }
+/**
+ * TypeScript2TypeScript transformer that mangles all private and protected fields
+ *
+ * 1. Collect all class fields (properties, methods)
+ * 2. Collect all sub and super-type relations between classes
+ * 3. Compute replacement names for each field
+ * 4. Lookup rename locations for these fields
+ * 5. Prepare and apply edits
+ */
 class Mangler {
     projectPath;
+    log;
     allClassDataByKey = new Map();
     service;
-    constructor(projectPath) {
+    constructor(projectPath, log = () => { }) {
         this.projectPath = projectPath;
-        const existingOptions = {};
-        const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
-        if (parsed.error) {
-            console.log(fancy_log_1.error);
-            throw parsed.error;
-        }
-        const cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, (0, path_1.dirname)(projectPath), existingOptions);
-        if (cmdLine.errors.length > 0) {
-            console.log(fancy_log_1.error);
-            throw parsed.error;
-        }
-        const host = new StaticLanguageServiceHost(cmdLine);
-        this.service = ts.createLanguageService(host);
+        this.log = log;
+        this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
     }
-    // step 1: collect all class data and store it by symbols
-    // step 2: hook up extends-chaines and populate field replacement maps
-    // step 3: generate and apply rewrites
-    async mangle() {
-        // (1) find all classes and field info
+    computeNewFileContents() {
+        // STEP: find all classes and their field info
         const visit = (node) => {
             if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
                 const anchor = node.name ?? node;
@@ -326,7 +331,8 @@ class Mangler {
                 ts.forEachChild(file, visit);
             }
         }
-        console.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
+        this.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
+        //  STEP: connect sub and super-types
         const setupParents = (data) => {
             const extendsClause = data.node.heritageClauses?.find(h => h.token === ts.SyntaxKind.ExtendsKeyword);
             if (!extendsClause) {
@@ -351,19 +357,18 @@ class Mangler {
             }
             parent.addChild(data);
         };
-        // (1.1) connect all class info
         for (const data of this.allClassDataByKey.values()) {
             setupParents(data);
         }
-        // (1.2) TS-HACK: mark implicit-public protected field as public
+        //  STEP: make implicit public (actually protected) field really public
         for (const data of this.allClassDataByKey.values()) {
             ClassData.makeImplicitPublicActuallyPublic(data);
         }
-        // (2) fill in replacement strings
+        // STEP: compute replacement names for each class
         for (const data of this.allClassDataByKey.values()) {
             ClassData.fillInReplacement(data);
         }
-        console.log(`done creating REPLACEMENTS`);
+        this.log(`done creating REPLACEMENTS`);
         const editsByFile = new Map();
         const appendEdit = (fileName, edit) => {
             const edits = editsByFile.get(fileName);
@@ -402,10 +407,10 @@ class Mangler {
                 }
             }
         }
-        console.log(`done preparing EDITS for ${editsByFile.size} files`);
-        // (4) apply renames
+        this.log(`done preparing EDITS for ${editsByFile.size} files`);
+        // STEP: apply all rename edits (per file)
+        const result = new Map();
         let savedBytes = 0;
-        const result = [];
         for (const item of this.service.getProgram().getSourceFiles()) {
             let newFullText;
             const edits = editsByFile.get(item.fileName);
@@ -423,7 +428,7 @@ class Mangler {
                         if (lastEdit.offset === edit.offset) {
                             //
                             if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
-                                console.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
+                                this.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
                                 throw new Error('OVERLAPPING edit');
                             }
                             else {
@@ -437,13 +442,9 @@ class Mangler {
                 }
                 newFullText = characters.join('');
             }
-            const projectBase = (0, path_1.dirname)(projectPath);
-            const newProjectBase = (0, path_1.join)((0, path_1.dirname)(projectBase), (0, path_1.basename)(projectBase) + '-mangle');
-            const newFilePath = (0, path_1.join)(newProjectBase, (0, path_1.relative)(projectBase, item.fileName));
-            const file = new Vinyl({ path: newFilePath, contents: Buffer.from(newFullText) });
-            result.push(file);
+            result.set(item.fileName, newFullText);
         }
-        console.log(`DONE saved ${savedBytes / 1000}kb`);
+        this.log(`DONE saved ${savedBytes / 1000}kb`);
         return result;
     }
 }
@@ -453,11 +454,16 @@ function hasModifier(node, kind) {
     const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
     return Boolean(modifiers?.find(mode => mode.kind === kind));
 }
-const projectPath = 1
-    ? (0, path_1.join)(__dirname, '../../src/tsconfig.json')
-    : '/Users/jrieken/Code/_samples/3wm/mangePrivate/tsconfig.json';
-new Mangler(projectPath).mangle().then(async (files) => {
-    for (const file of files) {
-        await fs.promises.writeFile(file.path, file.contents);
+async function _run() {
+    const projectPath = path.join(__dirname, '../../src/tsconfig.json');
+    const projectBase = path.dirname(projectPath);
+    const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '-mangle');
+    for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents()) {
+        const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
+        await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
+        await fs.promises.writeFile(newFilePath, contents);
     }
-});
+}
+if (__filename === process_1.argv[1]) {
+    _run();
+}

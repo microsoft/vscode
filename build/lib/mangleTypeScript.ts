@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
-import { error } from 'fancy-log';
-import { basename, dirname, join, relative } from 'path';
+import * as path from 'path';
 import * as fs from 'fs';
-import * as Vinyl from 'vinyl';
+import { argv } from 'process';
 
 class ShortIdent {
 
@@ -57,7 +56,6 @@ class ShortIdent {
 		return result;
 	}
 }
-
 
 const enum FieldType {
 	Public,
@@ -278,18 +276,25 @@ class ClassData {
 
 class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 
-	private _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
+	private readonly _cmdLine: ts.ParsedCommandLine;
+	private readonly _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
 
-	constructor(readonly cmdLine: ts.ParsedCommandLine) {
-
+	constructor(readonly projectPath: string) {
+		const existingOptions: Partial<ts.CompilerOptions> = {};
+		const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
+		if (parsed.error) {
+			throw parsed.error;
+		}
+		this._cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, path.dirname(projectPath), existingOptions);
+		if (this._cmdLine.errors.length > 0) {
+			throw parsed.error;
+		}
 	}
-
 	getCompilationSettings(): ts.CompilerOptions {
-		return this.cmdLine.options;
+		return this._cmdLine.options;
 	}
-
 	getScriptFileNames(): string[] {
-		return this.cmdLine.fileNames;
+		return this._cmdLine.fileNames;
 	}
 	getScriptVersion(_fileName: string): string {
 		return '1';
@@ -310,7 +315,7 @@ class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 		return result;
 	}
 	getCurrentDirectory(): string {
-		return dirname(projectPath);
+		return path.dirname(this.projectPath);
 	}
 	getDefaultLibFileName(options: ts.CompilerOptions): string {
 		return ts.getDefaultLibFilePath(options);
@@ -324,39 +329,29 @@ class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 	realpath = ts.sys.realpath;
 }
 
+/**
+ * TypeScript2TypeScript transformer that mangles all private and protected fields
+ *
+ * 1. Collect all class fields (properties, methods)
+ * 2. Collect all sub and super-type relations between classes
+ * 3. Compute replacement names for each field
+ * 4. Lookup rename locations for these fields
+ * 5. Prepare and apply edits
+ */
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
 
 	private readonly service: ts.LanguageService;
 
-	constructor(readonly projectPath: string) {
-
-		const existingOptions: Partial<ts.CompilerOptions> = {};
-
-		const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
-		if (parsed.error) {
-			console.log(error);
-			throw parsed.error;
-		}
-
-		const cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, dirname(projectPath), existingOptions);
-		if (cmdLine.errors.length > 0) {
-			console.log(error);
-			throw parsed.error;
-		}
-
-		const host = new StaticLanguageServiceHost(cmdLine);
-		this.service = ts.createLanguageService(host);
+	constructor(readonly projectPath: string, readonly log: typeof console.log = () => { }) {
+		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
+	computeNewFileContents(): ReadonlyMap<string, string> {
 
-	// step 1: collect all class data and store it by symbols
-	// step 2: hook up extends-chaines and populate field replacement maps
-	// step 3: generate and apply rewrites
-	async mangle() {
+		// STEP: find all classes and their field info
 
-		// (1) find all classes and field info
 		const visit = (node: ts.Node): void => {
 			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
 				const anchor = node.name ?? node;
@@ -374,8 +369,10 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		console.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
+		this.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
 
+
+		//  STEP: connect sub and super-types
 
 		const setupParents = (data: ClassData) => {
 			const extendsClause = data.node.heritageClauses?.find(h => h.token === ts.SyntaxKind.ExtendsKeyword);
@@ -404,24 +401,22 @@ export class Mangler {
 			}
 			parent.addChild(data);
 		};
-
-		// (1.1) connect all class info
 		for (const data of this.allClassDataByKey.values()) {
 			setupParents(data);
 		}
 
-		// (1.2) TS-HACK: mark implicit-public protected field as public
+		//  STEP: make implicit public (actually protected) field really public
 		for (const data of this.allClassDataByKey.values()) {
 			ClassData.makeImplicitPublicActuallyPublic(data);
 		}
 
-		// (2) fill in replacement strings
+		// STEP: compute replacement names for each class
 		for (const data of this.allClassDataByKey.values()) {
 			ClassData.fillInReplacement(data);
 		}
-		console.log(`done creating REPLACEMENTS`);
+		this.log(`done creating REPLACEMENTS`);
 
-		// (3) prepare rename edits
+		// STEP: prepare rename edits
 		type Edit = { newText: string; offset: number; length: number };
 		const editsByFile = new Map<string, Edit[]>();
 
@@ -467,11 +462,11 @@ export class Mangler {
 			}
 		}
 
-		console.log(`done preparing EDITS for ${editsByFile.size} files`);
+		this.log(`done preparing EDITS for ${editsByFile.size} files`);
 
-		// (4) apply renames
+		// STEP: apply all rename edits (per file)
+		const result = new Map<string, string>();
 		let savedBytes = 0;
-		const result: Vinyl[] = [];
 
 		for (const item of this.service.getProgram()!.getSourceFiles()) {
 
@@ -493,7 +488,7 @@ export class Mangler {
 						if (lastEdit.offset === edit.offset) {
 							//
 							if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
-								console.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
+								this.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
 								throw new Error('OVERLAPPING edit');
 							} else {
 								continue;
@@ -506,17 +501,10 @@ export class Mangler {
 				}
 				newFullText = characters.join('');
 			}
-
-			const projectBase = dirname(projectPath);
-			const newProjectBase = join(dirname(projectBase), basename(projectBase) + '-mangle');
-			const newFilePath = join(newProjectBase, relative(projectBase, item.fileName));
-
-			const file = new Vinyl({ path: newFilePath, contents: Buffer.from(newFullText) });
-			result.push(file);
+			result.set(item.fileName, newFullText);
 		}
 
-		console.log(`DONE saved ${savedBytes / 1000}kb`);
-
+		this.log(`DONE saved ${savedBytes / 1000}kb`);
 		return result;
 	}
 }
@@ -529,12 +517,19 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
 }
 
 
-const projectPath = 1
-	? join(__dirname, '../../src/tsconfig.json')
-	: '/Users/jrieken/Code/_samples/3wm/mangePrivate/tsconfig.json';
+async function _run() {
 
-new Mangler(projectPath).mangle().then(async files => {
-	for (const file of files) {
-		await fs.promises.writeFile(file.path, file.contents);
+	const projectPath = path.join(__dirname, '../../src/tsconfig.json');
+	const projectBase = path.dirname(projectPath);
+	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '-mangle');
+
+	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents()) {
+		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
+		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
+		await fs.promises.writeFile(newFilePath, contents);
 	}
-});
+}
+
+if (__filename === argv[1]) {
+	_run();
+}
