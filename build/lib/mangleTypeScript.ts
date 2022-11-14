@@ -7,6 +7,7 @@ import * as ts from 'typescript';
 import { error } from 'fancy-log';
 import { basename, dirname, join, relative } from 'path';
 import * as fs from 'fs';
+import * as Vinyl from 'vinyl';
 
 class ShortIdent {
 
@@ -32,9 +33,7 @@ class ShortIdent {
 	private readonly _isNameTaken: (name: string) => boolean;
 
 	constructor(isNameTaken: (name: string) => boolean) {
-		this._isNameTaken = name => {
-			return ShortIdent._keywords.has(name) || isNameTaken(name);
-		};
+		this._isNameTaken = name => ShortIdent._keywords.has(name) || isNameTaken(name);
 	}
 
 	next(): string {
@@ -51,7 +50,7 @@ class ShortIdent {
 		const base = this.alphabet.length;
 		let result = '';
 		do {
-			const rest = n % 50;
+			const rest = n % base;
 			result += this.alphabet[rest];
 			n = (n / base) | 0;
 		} while (n > 0);
@@ -59,72 +58,6 @@ class ShortIdent {
 	}
 }
 
-const projectPath = 1
-	? join(__dirname, '../../src/tsconfig.json')
-	: '/Users/jrieken/Code/_samples/3wm/mangePrivate/tsconfig.json';
-
-const existingOptions: Partial<ts.CompilerOptions> = {};
-
-const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
-if (parsed.error) {
-	console.log(error);
-	throw parsed.error;
-}
-
-const cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, dirname(projectPath), existingOptions);
-if (cmdLine.errors.length > 0) {
-	console.log(error);
-	throw parsed.error;
-}
-
-
-const host = new class implements ts.LanguageServiceHost {
-
-	private _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
-
-	getCompilationSettings(): ts.CompilerOptions {
-		return cmdLine.options;
-	}
-	getScriptFileNames(): string[] {
-		return cmdLine.fileNames;
-	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
-	}
-	getProjectVersion(): string {
-		return '1';
-	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
-		let result: ts.IScriptSnapshot | undefined = this._scriptSnapshots.get(fileName);
-		if (result === undefined) {
-			const content = ts.sys.readFile(fileName);
-			if (content === undefined) {
-				return undefined;
-			}
-			result = ts.ScriptSnapshot.fromString(content);
-			this._scriptSnapshots.set(fileName, result);
-		}
-		return result;
-	}
-	getCurrentDirectory(): string {
-		return dirname(projectPath);
-	}
-	getDefaultLibFileName(options: ts.CompilerOptions): string {
-		return ts.getDefaultLibFilePath(options);
-	}
-	directoryExists = ts.sys.directoryExists;
-	getDirectories = ts.sys.getDirectories;
-	fileExists = ts.sys.fileExists;
-	readFile = ts.sys.readFile;
-	readDirectory = ts.sys.readDirectory;
-	// this is necessary to make source references work.
-	realpath = ts.sys.realpath;
-};
-
-
-const allClassDataByKey = new Map<string, ClassData>();
-const service = ts.createLanguageService(host);
-const program = service.getProgram()!;
 
 const enum FieldType {
 	Public,
@@ -234,7 +167,7 @@ class ClassData {
 			let parent: ClassData | undefined = data.parent;
 			while (parent) {
 				if (parent.fields.get(name)?.type === FieldType.Protected) {
-					console.warn(`WARN: protected became PUBLIC: '${name}' defined ${parent.fileName}@${info.pos}, PUBLIC via ${data.fileName}@${info.pos}`);
+					console.warn(`WARN: protected became PUBLIC: '${name}' defined ${parent.fileName}#${info.pos}, PUBLIC via ${data.fileName} (${info.pos})`);
 
 					parent.fields.get(name)!.type = FieldType.Public;
 				}
@@ -336,57 +269,257 @@ class ClassData {
 
 	// --- parent chaining
 
-	private _addChild(child: ClassData) {
+	addChild(child: ClassData) {
 		this.children ??= [];
 		this.children.push(child);
 		child.parent = this;
 	}
-
-	static setupParents(data: ClassData) {
-		const extendsClause = data.node.heritageClauses?.find(h => h.token === ts.SyntaxKind.ExtendsKeyword);
-		if (!extendsClause) {
-			// no EXTENDS-clause
-			return;
-		}
-
-		const info = service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
-		if (!info || info.length === 0) {
-			// throw new Error('SUPER type not found');
-			return;
-		}
-
-		if (info.length !== 1) {
-			// inherits from declared/library type
-			return;
-		}
-
-		const [definition] = info;
-		const key = `${definition.fileName}|${definition.textSpan.start}`;
-		const parent = allClassDataByKey.get(key);
-		if (!parent) {
-			// throw new Error(`SUPER type not found: ${key}`);
-			return;
-		}
-		parent._addChild(data);
-	}
 }
 
-function visit(node: ts.Node): void {
+class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 
-	if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+	private _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
 
-		const anchor = node.name ?? node;
-		const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-		if (allClassDataByKey.has(key)) {
-			throw new Error('DUPE?');
-		}
+	constructor(readonly cmdLine: ts.ParsedCommandLine) {
 
-		allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 	}
 
-	ts.forEachChild(node, visit);
+	getCompilationSettings(): ts.CompilerOptions {
+		return this.cmdLine.options;
+	}
+
+	getScriptFileNames(): string[] {
+		return this.cmdLine.fileNames;
+	}
+	getScriptVersion(_fileName: string): string {
+		return '1';
+	}
+	getProjectVersion(): string {
+		return '1';
+	}
+	getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
+		let result: ts.IScriptSnapshot | undefined = this._scriptSnapshots.get(fileName);
+		if (result === undefined) {
+			const content = ts.sys.readFile(fileName);
+			if (content === undefined) {
+				return undefined;
+			}
+			result = ts.ScriptSnapshot.fromString(content);
+			this._scriptSnapshots.set(fileName, result);
+		}
+		return result;
+	}
+	getCurrentDirectory(): string {
+		return dirname(projectPath);
+	}
+	getDefaultLibFileName(options: ts.CompilerOptions): string {
+		return ts.getDefaultLibFilePath(options);
+	}
+	directoryExists = ts.sys.directoryExists;
+	getDirectories = ts.sys.getDirectories;
+	fileExists = ts.sys.fileExists;
+	readFile = ts.sys.readFile;
+	readDirectory = ts.sys.readDirectory;
+	// this is necessary to make source references work.
+	realpath = ts.sys.realpath;
 }
 
+export class Mangler {
+
+	private readonly allClassDataByKey = new Map<string, ClassData>();
+
+	private readonly service: ts.LanguageService;
+
+	constructor(readonly projectPath: string) {
+
+		const existingOptions: Partial<ts.CompilerOptions> = {};
+
+		const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
+		if (parsed.error) {
+			console.log(error);
+			throw parsed.error;
+		}
+
+		const cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, dirname(projectPath), existingOptions);
+		if (cmdLine.errors.length > 0) {
+			console.log(error);
+			throw parsed.error;
+		}
+
+		const host = new StaticLanguageServiceHost(cmdLine);
+		this.service = ts.createLanguageService(host);
+	}
+
+
+	// step 1: collect all class data and store it by symbols
+	// step 2: hook up extends-chaines and populate field replacement maps
+	// step 3: generate and apply rewrites
+	async mangle() {
+
+		// (1) find all classes and field info
+		const visit = (node: ts.Node): void => {
+			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+				const anchor = node.name ?? node;
+				const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+				if (this.allClassDataByKey.has(key)) {
+					throw new Error('DUPE?');
+				}
+				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
+			}
+			ts.forEachChild(node, visit);
+		};
+
+		for (const file of this.service.getProgram()!.getSourceFiles()) {
+			if (!file.isDeclarationFile) {
+				ts.forEachChild(file, visit);
+			}
+		}
+		console.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
+
+
+		const setupParents = (data: ClassData) => {
+			const extendsClause = data.node.heritageClauses?.find(h => h.token === ts.SyntaxKind.ExtendsKeyword);
+			if (!extendsClause) {
+				// no EXTENDS-clause
+				return;
+			}
+
+			const info = this.service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
+			if (!info || info.length === 0) {
+				// throw new Error('SUPER type not found');
+				return;
+			}
+
+			if (info.length !== 1) {
+				// inherits from declared/library type
+				return;
+			}
+
+			const [definition] = info;
+			const key = `${definition.fileName}|${definition.textSpan.start}`;
+			const parent = this.allClassDataByKey.get(key);
+			if (!parent) {
+				// throw new Error(`SUPER type not found: ${key}`);
+				return;
+			}
+			parent.addChild(data);
+		};
+
+		// (1.1) connect all class info
+		for (const data of this.allClassDataByKey.values()) {
+			setupParents(data);
+		}
+
+		// (1.2) TS-HACK: mark implicit-public protected field as public
+		for (const data of this.allClassDataByKey.values()) {
+			ClassData.makeImplicitPublicActuallyPublic(data);
+		}
+
+		// (2) fill in replacement strings
+		for (const data of this.allClassDataByKey.values()) {
+			ClassData.fillInReplacement(data);
+		}
+		console.log(`done creating REPLACEMENTS`);
+
+		// (3) prepare rename edits
+		type Edit = { newText: string; offset: number; length: number };
+		const editsByFile = new Map<string, Edit[]>();
+
+		const appendEdit = (fileName: string, edit: Edit) => {
+			const edits = editsByFile.get(fileName);
+			if (!edits) {
+				editsByFile.set(fileName, [edit]);
+			} else {
+				edits.push(edit);
+			}
+		};
+
+		for (const data of this.allClassDataByKey.values()) {
+
+			if (hasModifier(data.node, ts.SyntaxKind.DeclareKeyword)) {
+				continue;
+			}
+
+			fields: for (const [name, info] of data.fields) {
+				if (!ClassData._shouldMangle(info.type)) {
+					continue fields;
+				}
+
+				// TS-HACK: protected became public via 'some' child
+				// and because of that we might need to ignore this now
+				let parent = data.parent;
+				while (parent) {
+					if (parent.fields.get(name)?.type === FieldType.Public) {
+						continue fields;
+					}
+					parent = parent.parent;
+				}
+
+				const newText = data.lookupShortName(name);
+				const locations = this.service.findRenameLocations(data.fileName, info.pos, false, false, true) ?? [];
+				for (const loc of locations) {
+					appendEdit(loc.fileName, {
+						newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
+						offset: loc.textSpan.start,
+						length: loc.textSpan.length
+					});
+				}
+			}
+		}
+
+		console.log(`done preparing EDITS for ${editsByFile.size} files`);
+
+		// (4) apply renames
+		let savedBytes = 0;
+		const result: Vinyl[] = [];
+
+		for (const item of this.service.getProgram()!.getSourceFiles()) {
+
+			let newFullText: string;
+			const edits = editsByFile.get(item.fileName);
+			if (!edits) {
+				// just copy
+				newFullText = item.getFullText();
+
+			} else {
+				// apply renames
+				edits.sort((a, b) => b.offset - a.offset);
+				const characters = item.getFullText().split('');
+
+				let lastEdit: Edit | undefined;
+
+				for (const edit of edits) {
+					if (lastEdit) {
+						if (lastEdit.offset === edit.offset) {
+							//
+							if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
+								console.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
+								throw new Error('OVERLAPPING edit');
+							} else {
+								continue;
+							}
+						}
+					}
+					lastEdit = edit;
+					const removed = characters.splice(edit.offset, edit.length, edit.newText);
+					savedBytes += removed.length - edit.newText.length;
+				}
+				newFullText = characters.join('');
+			}
+
+			const projectBase = dirname(projectPath);
+			const newProjectBase = join(dirname(projectBase), basename(projectBase) + '-mangle');
+			const newFilePath = join(newProjectBase, relative(projectBase, item.fileName));
+
+			const file = new Vinyl({ path: newFilePath, contents: Buffer.from(newFullText) });
+			result.push(file);
+		}
+
+		console.log(`DONE saved ${savedBytes / 1000}kb`);
+
+		return result;
+	}
+}
 
 // --- ast utils
 
@@ -395,131 +528,13 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
 	return Boolean(modifiers?.find(mode => mode.kind === kind));
 }
 
-// step 1: collect all class data and store it by symbols
-// step 2: hook up extends-chaines and populate field replacement maps
-// step 3: generate and apply rewrites
 
-async function mangle() {
+const projectPath = 1
+	? join(__dirname, '../../src/tsconfig.json')
+	: '/Users/jrieken/Code/_samples/3wm/mangePrivate/tsconfig.json';
 
-	// (1) find all classes and field info
-	for (const file of program.getSourceFiles()) {
-		if (!file.isDeclarationFile) {
-			ts.forEachChild(file, visit);
-		}
+new Mangler(projectPath).mangle().then(async files => {
+	for (const file of files) {
+		await fs.promises.writeFile(file.path, file.contents);
 	}
-	console.log(`done COLLECTING ${allClassDataByKey.size} classes`);
-
-	// (1.1) connect all class info
-	for (const data of allClassDataByKey.values()) {
-		ClassData.setupParents(data);
-	}
-
-	// (1.2) TS-HACK: mark implicit-public protected field as public
-	for (const data of allClassDataByKey.values()) {
-		ClassData.makeImplicitPublicActuallyPublic(data);
-	}
-
-	// (2) fill in replacement strings
-	for (const data of allClassDataByKey.values()) {
-		ClassData.fillInReplacement(data);
-	}
-	console.log(`done creating REPLACEMENTS`);
-
-	// (3) prepare rename edits
-	type Edit = { newText: string; offset: number; length: number };
-	const editsByFile = new Map<string, Edit[]>();
-
-	const appendEdit = (fileName: string, edit: Edit) => {
-		const edits = editsByFile.get(fileName);
-		if (!edits) {
-			editsByFile.set(fileName, [edit]);
-		} else {
-			edits.push(edit);
-		}
-	};
-
-	for (const data of allClassDataByKey.values()) {
-
-		if (hasModifier(data.node, ts.SyntaxKind.DeclareKeyword)) {
-			continue;
-		}
-
-		fields: for (const [name, info] of data.fields) {
-			if (!ClassData._shouldMangle(info.type)) {
-				continue fields;
-			}
-
-			// TS-HACK: protected became public via 'some' child
-			// and because of that we might need to ignore this now
-			let parent = data.parent;
-			while (parent) {
-				if (parent.fields.get(name)?.type === FieldType.Public) {
-					continue fields;
-				}
-				parent = parent.parent;
-			}
-
-			const newText = data.lookupShortName(name);
-			const locations = service.findRenameLocations(data.fileName, info.pos, false, false, true) ?? [];
-			for (const loc of locations) {
-				appendEdit(loc.fileName, {
-					newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
-					offset: loc.textSpan.start,
-					length: loc.textSpan.length
-				});
-			}
-		}
-	}
-
-	console.log(`done preparing EDITS for ${editsByFile.size} files`);
-
-	// (4) apply renames
-	let savedBytes = 0;
-
-	for (const item of program.getSourceFiles()) {
-
-		let newFullText: string;
-		const edits = editsByFile.get(item.fileName);
-		if (!edits) {
-			// just copy
-			newFullText = item.getFullText();
-
-		} else {
-			// apply renames
-			edits.sort((a, b) => b.offset - a.offset);
-			const characters = item.getFullText().split('');
-
-			let lastEdit: Edit | undefined;
-
-			for (const edit of edits) {
-				if (lastEdit) {
-					if (lastEdit.offset === edit.offset) {
-						//
-						if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
-							console.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
-							throw new Error('OVERLAPPING edit');
-						} else {
-							continue;
-						}
-					}
-				}
-				lastEdit = edit;
-				const removed = characters.splice(edit.offset, edit.length, edit.newText);
-				savedBytes += removed.length - edit.newText.length;
-			}
-			newFullText = characters.join('');
-		}
-
-		const projectBase = dirname(projectPath);
-		const newProjectBase = join(dirname(projectBase), basename(projectBase) + '-mangle');
-		const newFilePath = join(newProjectBase, relative(projectBase, item.fileName));
-
-		await fs.promises.mkdir(dirname(newFilePath), { recursive: true });
-
-		await fs.promises.writeFile(newFilePath, newFullText);
-	}
-
-	console.log(`DONE saved ${savedBytes / 1000}kb`);
-}
-
-mangle();
+});
