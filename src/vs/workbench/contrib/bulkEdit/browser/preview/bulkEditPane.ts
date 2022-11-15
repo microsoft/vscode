@@ -37,6 +37,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { IEditorPane } from 'vs/workbench/common/editor';
 
 const enum State {
 	Data = 'data',
@@ -67,6 +68,7 @@ export class BulkEditPane extends ViewPane {
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
+	private _activeEditor?: IEditorPane;
 
 
 	constructor(
@@ -96,6 +98,22 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
+
+		this._disposables.add(this.onDidFocus(e => {
+			if (
+				!this._activeEditor
+				// Diff Editor associated with the Refactor Preview should reopen
+				// only if its not visible at the moment
+				|| this._activeEditor.isVisible()
+				|| !this._activeEditor.group?.previewEditor
+			) {
+				return;
+			}
+
+			this._activeEditor.group.openEditor(
+				this._activeEditor.group.previewEditor
+			);
+		}));
 	}
 
 	override dispose(): void {
@@ -209,6 +227,7 @@ export class BulkEditPane extends ViewPane {
 			this._currentResolve = resolve;
 			this._setTreeInput(input);
 
+			this._openEditorOnFirstApplicableEdit(input);
 			// refresh when check state changes
 			this._sessionDisposables.add(input.checked.onDidChange(() => {
 				this._tree.updateChildren();
@@ -243,6 +262,62 @@ export class BulkEditPane extends ViewPane {
 				expand.push(...this._tree.getNode(element).children);
 			}
 		}
+	}
+
+	private async _openEditorOnFirstApplicableEdit(input: BulkFileOperations) {
+		const elements = await this._treeDataSource.getChildren(input);
+		// if no item is selected, first FileElement is returned
+		const hasNoCheckedEdit = !input.checked.checkedCount;
+		const element = await this._getFirstApplicableElement(elements, hasNoCheckedEdit);
+		if (!element) {
+			return;
+		}
+
+		await this._openElementAsEditor({
+			editorOptions: {
+				pinned: false,
+				preserveFocus: true,
+				revealIfOpened: true
+			},
+			sideBySide: false,
+			element,
+		});
+	}
+
+	private async _getFirstApplicableElement(elements: BulkEditElement[], hasNoCheckedEdit: boolean):
+		Promise<FileElement | TextEditElement | undefined> {
+		const fileElementPromises = [];
+		const textEditElementPromises = [];
+
+		// the input always contains either file or category grouping,
+		// so the top-level type is either CategoryElements or FileElements
+		for (const element of elements) {
+			if (element instanceof CategoryElement) {
+				fileElementPromises.push(this._treeDataSource.getChildren(element) as Promise<FileElement[]>);
+			} else if (element instanceof FileElement) {
+				if (hasNoCheckedEdit) {
+					return element;
+				}
+				textEditElementPromises.push(this._treeDataSource.getChildren(element) as Promise<TextEditElement[]>);
+			}
+		}
+
+		for (const fileElements of await Promise.all(fileElementPromises) ?? []) {
+			for (const element of fileElements) {
+				if (hasNoCheckedEdit) {
+					return element;
+				}
+				textEditElementPromises.push(this._treeDataSource.getChildren(element) as Promise<TextEditElement[]>);
+			}
+		}
+
+		for (const textEdits of await Promise.all(textEditElementPromises) ?? []) {
+			const checkedEdit = textEdits.find(edit => edit.isChecked());
+			if (checkedEdit) {
+				return checkedEdit;
+			}
+		}
+		return undefined;
 	}
 
 	accept(): void {
@@ -336,11 +411,11 @@ export class BulkEditPane extends ViewPane {
 
 		if (fileElement.edit.type & BulkFileOperationType.Delete) {
 			// delete -> show single editor
-			this._editorService.openEditor({
+			this._activeEditor = await this._editorService.openEditor({
 				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
 				resource: previewUri,
 				options
-			});
+			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 		} else {
 			// rename, create, edits -> show diff editr
@@ -366,7 +441,7 @@ export class BulkEditPane extends ViewPane {
 				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
 			}
 
-			this._editorService.openEditor({
+			this._activeEditor = await this._editorService.openEditor({
 				original: { resource: leftResource },
 				modified: { resource: previewUri },
 				label,
