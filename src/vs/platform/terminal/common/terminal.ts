@@ -62,8 +62,7 @@ export interface TerminalCommandMatchResult {
 	command: { command: string; exitStatus: boolean };
 	commandLineMatch: RegExpMatchArray;
 	// full match and groups
-
-	outputMatch?: RegExpMatchArray | null;
+	outputMatch: RegExpMatchArray;
 }
 
 interface TerminalQuickFixCommandAction {
@@ -90,8 +89,7 @@ export interface ITerminalCommandMatchResult {
 	command: { command: string; exitStatus: boolean };
 	commandLineMatch: RegExpMatchArray;
 	// full match and groups
-
-	outputMatch?: RegExpMatchArray | null;
+	outputMatch: RegExpMatchArray;
 }
 
 export interface IInternalOptions extends ITerminalQuickFixOptions {

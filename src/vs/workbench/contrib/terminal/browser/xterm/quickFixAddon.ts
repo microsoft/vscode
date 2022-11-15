@@ -287,6 +287,9 @@ export async function getQuickFixesForCommand(
 			if (outputMatcher) {
 				outputMatch = terminalCommand.getOutputMatch(outputMatcher);
 			}
+			if (!outputMatch) {
+				continue;
+			}
 			const command = { command: newCommand, exitStatus: terminalCommand.exitCode !== 0 };
 			const matchResult = { commandLineMatch, outputMatch, command };
 			const id = option.id;
