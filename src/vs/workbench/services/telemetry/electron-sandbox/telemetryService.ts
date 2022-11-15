@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, ITelemetryInfo, ITelemetryData, TelemetryLevel, ITelemetryLogOptions } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryInfo, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -62,12 +62,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.telemetryLevel;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, options?: ITelemetryLogOptions): Promise<void> {
-		return this.impl.publicLog(eventName, data, options);
+	publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+		return this.impl.publicLog(eventName, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, options?: ITelemetryLogOptions) {
-		return this.publicLog(eventName, data as ITelemetryData, options);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {

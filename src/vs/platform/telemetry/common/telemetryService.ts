@@ -15,7 +15,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryLogOptions, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
@@ -102,7 +102,7 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.dispose();
 	}
 
-	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, options?: ITelemetryLogOptions): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData): Promise<any> {
 		// don't send events when the user is optout
 		if (this.telemetryLevel.value < eventLevel) {
 			return Promise.resolve(undefined);
@@ -113,33 +113,11 @@ export class TelemetryService implements ITelemetryService {
 			// add experiment properties
 			data = mixin(data, this._experimentProperties);
 
-			const propsThatSkippedCleaning: { [key: string]: any } = {};
-			if (data && options?.propsToSkipCleaning && options.propsToSkipCleaning.length > 0) {
-				for (const prop of options.propsToSkipCleaning) {
-					// Periods allow for referencing nested properties, so we need to split on them.
-					// Right now we only support one level nest as that is the most common
-					if (prop.includes('.')) {
-						const [parent, child] = prop.split('.');
-						if (data[parent]) {
-							propsThatSkippedCleaning[parent] = propsThatSkippedCleaning[parent] ?? {};
-							propsThatSkippedCleaning[parent][child] = data[parent][child];
-							delete data[parent][child];
-						}
-					} else {
-						propsThatSkippedCleaning[prop] = data[prop];
-						delete data[prop];
-					}
-				}
-			}
-
 			// remove all PII from data
 			data = cleanData(data as Record<string, any>, this._cleanupPatterns);
 
 			// add common properties
 			data = mixin(data, values);
-
-			// Mix in the properties that were skipped cleaning
-			data = mixin(data, propsThatSkippedCleaning);
 
 			// Log to the appenders of sufficient level
 			this._appenders.forEach(a => a.log(eventName, data));
@@ -150,12 +128,12 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, options?: ITelemetryLogOptions): Promise<any> {
-		return this._log(eventName, TelemetryLevel.USAGE, data, options);
+	publicLog(eventName: string, data?: ITelemetryData): Promise<any> {
+		return this._log(eventName, TelemetryLevel.USAGE, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, options?: ITelemetryLogOptions): Promise<any> {
-		return this.publicLog(eventName, data as ITelemetryData, options);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {

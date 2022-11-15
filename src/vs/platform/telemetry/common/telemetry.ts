@@ -22,17 +22,6 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
-/**
- * An optional set of options which can be passed in to configure the publicLog function
- */
-export interface ITelemetryLogOptions {
-	/**
-	 * A list of properties to skip cleaning, this support singly nested properties via the `.` character.
-	 * Note: This can be danagerous if there is any chance of PII being sent so only use this if approved to do so.
-	 */
-	propsToSkipCleaning?: string[];
-}
-
 export interface ITelemetryService {
 
 	/**
@@ -45,13 +34,13 @@ export interface ITelemetryService {
 	/**
 	 * @deprecated Use publicLog2 and the typescript GDPR annotation where possible
 	 */
-	publicLog(eventName: string, data?: ITelemetryData, options?: ITelemetryLogOptions): Promise<void>;
+	publicLog(eventName: string, data?: ITelemetryData): Promise<void>;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, options?: ITelemetryLogOptions): Promise<void>;
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
 
 	/**
 	 * @deprecated Use publicLogError2 and the typescript GDPR annotation where possible

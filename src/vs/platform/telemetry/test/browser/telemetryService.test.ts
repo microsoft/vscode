@@ -12,7 +12,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryLogOptions, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -224,8 +224,8 @@ suite('TelemetryService', () => {
 			return Promise.all(this.promises);
 		}
 
-		override publicLog(eventName: string, data?: ITelemetryData, options?: ITelemetryLogOptions): Promise<void> {
-			const p = super.publicLog(eventName, data, options);
+		override publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+			const p = super.publicLog(eventName, data);
 			// publicLog is called from the ctor and therefore promises can be undefined
 			this.promises = this.promises ?? [];
 			this.promises.push(p);
