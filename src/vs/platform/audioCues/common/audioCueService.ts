@@ -13,7 +13,7 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { IObservable, observableFromEvent, derived } from 'vs/base/common/observable';
 
-export const IAudioCueService = createDecorator<IAudioCueService>('audioCueService');
+export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
 export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
@@ -70,7 +70,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		this.playingSounds.add(sound);
 
 		const url = FileAccess.asBrowserUri(
-			`vs/platform/audioCues/common/media/${sound.fileName}`
+			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`
 		).toString();
 		const audio = new Audio(url);
 		audio.volume = this.getVolumeInPercent() / 100;
@@ -156,6 +156,14 @@ export class Sound {
 	}
 
 
+	public static readonly error = Sound.register({ fileName: 'error.mp3' });
+	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
+	public static readonly break = Sound.register({ fileName: 'break.mp3' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
+	public static readonly taskCompleted = Sound.register({ fileName: 'taskCompleted.mp3' });
+	public static readonly taskFailed = Sound.register({ fileName: 'taskFailed.mp3' });
+	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 
@@ -179,12 +187,73 @@ export class AudioCue {
 		return [...this._audioCues];
 	}
 
+	public static readonly error = AudioCue.register({
+		name: localize('audioCues.lineHasError.name', 'Error on Line'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.lineHasError',
+	});
+	public static readonly warning = AudioCue.register({
+		name: localize('audioCues.lineHasWarning.name', 'Warning on Line'),
+		sound: Sound.warning,
+		settingsKey: 'audioCues.lineHasWarning',
+	});
+	public static readonly foldedArea = AudioCue.register({
+		name: localize('audioCues.lineHasFoldedArea.name', 'Folded Area on Line'),
+		sound: Sound.foldedArea,
+		settingsKey: 'audioCues.lineHasFoldedArea',
+	});
+	public static readonly break = AudioCue.register({
+		name: localize('audioCues.lineHasBreakpoint.name', 'Breakpoint on Line'),
+		sound: Sound.break,
+		settingsKey: 'audioCues.lineHasBreakpoint',
+	});
+	public static readonly inlineSuggestion = AudioCue.register({
+		name: localize('audioCues.lineHasInlineSuggestion.name', 'Inline Suggestion on Line'),
+		sound: Sound.quickFixes,
+		settingsKey: 'audioCues.lineHasInlineSuggestion',
+	});
+
+	public static readonly terminalQuickFix = AudioCue.register({
+		name: localize('audioCues.terminalQuickFix.name', 'Terminal Quick Fix'),
+		sound: Sound.quickFixes,
+		settingsKey: 'audioCues.terminalQuickFix',
+	});
+
+	public static readonly onDebugBreak = AudioCue.register({
+		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
+		sound: Sound.break,
+		settingsKey: 'audioCues.onDebugBreak',
+	});
+
+	public static readonly noInlayHints = AudioCue.register({
+		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.noInlayHints'
+	});
+
+	public static readonly taskCompleted = AudioCue.register({
+		name: localize('audioCues.taskCompleted', 'Task Completed'),
+		sound: Sound.taskCompleted,
+		settingsKey: 'audioCues.taskCompleted'
+	});
+
+	public static readonly taskFailed = AudioCue.register({
+		name: localize('audioCues.taskFailed', 'Task Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.taskFailed'
+	});
+
+	public static readonly terminalBell = AudioCue.register({
+		name: localize('audioCues.terminalBell', 'Terminal Bell'),
+		sound: Sound.terminalBell,
+		settingsKey: 'audioCues.terminalBell'
+	});
+
 	public static readonly diffLineInserted = AudioCue.register({
 		name: localize('audioCues.diffLineInserted', 'Diff Line Inserted'),
 		sound: Sound.diffLineInserted,
 		settingsKey: 'audioCues.diffLineInserted'
 	});
-
 
 	public static readonly diffLineDeleted = AudioCue.register({
 		name: localize('audioCues.diffLineDeleted', 'Diff Line Deleted'),
