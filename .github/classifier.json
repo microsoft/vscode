@@ -133,7 +133,7 @@
 		"rename": {"assign": ["jrieken"]},
 		"scm": {"assign": ["lszomoru"]},
 		"screencast-mode": {"assign": ["lszomoru"]},
-		"search": {"assign": ["roblourens", "andreamah"]},
+		"search": {"assign": ["andreamah"]},
 		"search-editor": {"assign": ["roblourens"]},
 		"search-replace": {"assign": ["sandy081"]},
 		"semantic-tokens": {"assign": ["alexdima", "aeschli"]},

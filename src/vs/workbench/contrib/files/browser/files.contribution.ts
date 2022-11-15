@@ -168,7 +168,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[FILES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
+			'markdownDescription': nls.localize('associations', "Configure file associations to languages (for example `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
 			'additionalProperties': {
 				'type': 'string'
 			}
@@ -369,32 +369,56 @@ configurationRegistry.registerConfiguration({
 				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
 				nls.localize('autoReveal.focusNoScroll', 'Files will not be scrolled into view, but will still be focused.'),
 			],
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
+			'description': nls.localize('autoReveal', "Controls whether the Explorer should automatically reveal and select files when opening them.")
+		},
+		'explorer.autoRevealExclude': {
+			'type': 'object',
+			'markdownDescription': nls.localize('autoRevealExclude', "Configure glob patterns for excluding files and folders from being revealed and selected in the explorer when they are opened. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'default': { '**/node_modules': true, '**/bower_components': true },
+			'additionalProperties': {
+				'anyOf': [
+					{
+						'type': 'boolean',
+						'description': nls.localize('explorer.autoRevealExclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+					},
+					{
+						type: 'object',
+						properties: {
+							when: {
+								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+								pattern: '\\w*\\$\\(basename\\)\\w*',
+								default: '$(basename).ext',
+								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+							}
+						}
+					}
+				]
+			}
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the explorer."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the Explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the Explorer."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls whether the explorer should ask for confirmation to move files and folders via drag and drop."),
+			'description': nls.localize('confirmDragAndDrop', "Controls whether the Explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
+			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
 		'explorer.enableUndo': {
 			'type': 'boolean',
-			'description': nls.localize('enableUndo', "Controls whether the explorer should support undoing file and folder operations."),
+			'description': nls.localize('enableUndo', "Controls whether the Explorer should support undoing file and folder operations."),
 			'default': true
 		},
 		'explorer.confirmUndo': {
 			'type': 'string',
 			'enum': [UndoConfirmLevel.Verbose, UndoConfirmLevel.Default, UndoConfirmLevel.Light],
-			'description': nls.localize('confirmUndo', "Controls whether the explorer should ask for confirmation when undoing."),
+			'description': nls.localize('confirmUndo', "Controls whether the Explorer should ask for confirmation when undoing."),
 			'default': UndoConfirmLevel.Default,
 			'enumDescriptions': [
 				nls.localize('enableUndo.verbose', 'Explorer will prompt before all undo operations.'),
@@ -404,7 +428,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
-			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initialization"),
+			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the Explorer should expand multi-root workspaces containing only one folder during initialization"),
 			'default': true
 		},
 		'explorer.sortOrder': {
@@ -416,10 +440,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the Explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -429,7 +453,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrderLexicographicOptions.default', 'Uppercase and lowercase names are mixed together.'),
 				nls.localize('sortOrderLexicographicOptions.upper', 'Uppercase names are grouped together before lowercase names.'),
 				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped together before uppercase names.'),
-				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
+				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in Unicode order.')
 			],
 			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
@@ -456,7 +480,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.compactFolders': {
 			'type': 'boolean',
-			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
+			'description': nls.localize('compressSingleChildFolders', "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
 		'explorer.copyRelativePathSeparator': {
@@ -476,14 +500,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.excludeGitIgnore': {
 			type: 'boolean',
-			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to {0}.", '`#files.exclude#`'),
+			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the Explorer. Similar to {0}.", '`#files.exclude#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
 		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
 			scope: ConfigurationScope.RESOURCE,
-			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
+			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the Explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
 		'explorer.fileNesting.expand': {
@@ -494,7 +518,7 @@ configurationRegistry.registerConfiguration({
 		'explorer.fileNesting.patterns': {
 			'type': 'object',
 			scope: ConfigurationScope.RESOURCE,
-			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. {0} must be set for this to take effect. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern", '`#explorer.fileNesting.enabled#`'),
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the Explorer. {0} must be set for this to take effect. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern", '`#explorer.fileNesting.enabled#`'),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
 					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
