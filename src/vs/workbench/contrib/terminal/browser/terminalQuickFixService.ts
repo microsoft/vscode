@@ -17,10 +17,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	_providers: Map<string, ITerminalQuickFixProvider> = new Map();
 	_selectors: Map<string, ITerminalCommandSelector> = new Map();
 	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
-	get selectors(): Map<string, ITerminalCommandSelector> { return this._selectors; }
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
-		this.selectors.set(selector.id, selector);
+		this._selectors.set(selector.id, selector);
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
