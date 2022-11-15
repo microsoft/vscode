@@ -38,6 +38,7 @@ export interface IDialogOptions {
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
 	readonly disableDefaultAction?: boolean;
+	readonly buttonStyles: IButtonStyles;
 }
 
 export interface IDialogResult {
@@ -46,7 +47,7 @@ export interface IDialogResult {
 	readonly values?: string[];
 }
 
-export interface IDialogStyles extends IButtonStyles, ICheckboxStyles {
+export interface IDialogStyles extends ICheckboxStyles {
 	readonly dialogForeground?: Color;
 	readonly dialogBackground?: Color;
 	readonly dialogShadow?: Color;
@@ -81,8 +82,9 @@ export class Dialog extends Disposable {
 	private focusToReturn: HTMLElement | undefined;
 	private readonly inputs: InputBox[];
 	private readonly buttons: string[];
+	private readonly buttonStyles: IButtonStyles;
 
-	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
@@ -91,6 +93,8 @@ export class Dialog extends Disposable {
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
 		hide(this.element);
+
+		this.buttonStyles = options.buttonStyles;
 
 		if (Array.isArray(buttons) && buttons.length > 0) {
 			this.buttons = buttons;
@@ -202,7 +206,7 @@ export class Dialog extends Disposable {
 			// Handle button clicks
 			buttonMap.forEach((entry, index) => {
 				const primary = buttonMap[index].index === 0;
-				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary })) : this._register(buttonBar.addButton({ title: true, secondary: !primary }));
+				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary, ...this.buttonStyles })) : this._register(buttonBar.addButton({ title: true, secondary: !primary, ...this.buttonStyles }));
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
 					button.description = this.options.buttonDetails![buttonMap[index].index];

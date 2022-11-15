@@ -1,6 +1,5 @@
 build/**
 src/**
-web/**
 test/**
 test-workspace/**
 out/**
