@@ -181,7 +181,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal: boolean | 'focusNoScroll' = false;
+	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 
 	constructor(
@@ -725,7 +725,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
-		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		// do no retry more than once to prevent infinite loops in cases of inconsistent model
 		if (retry === 2) {
 			return;
 		}
@@ -766,7 +766,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					await this.tree.expand(item.nestedParent);
 				}
 
-				if (reveal === true && this.tree.getRelativeTop(item) === null) {
+				if ((reveal === true || reveal === 'force') && this.tree.getRelativeTop(item) === null) {
 					// Don't scroll to the item if it's already visible, or if set not to.
 					this.tree.reveal(item, 0.5);
 				}

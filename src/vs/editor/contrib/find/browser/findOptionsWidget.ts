@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./findOptionsWidget';
 import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { RunOnceScheduler } from 'vs/base/common/async';
