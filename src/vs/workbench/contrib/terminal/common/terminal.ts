@@ -742,6 +742,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							id: '$1',
 							commandLineMatcher: '$2',
 							outputMatcher: '$3',
+							exitStatus: '$4'
 						}
 					}],
 					properties: {
@@ -775,6 +776,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 									type: 'number'
 								}
 							}
+						},
+						exitStatus: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "The exit code to expect if any"),
+							type: 'number',
 						}
 					},
 				}
