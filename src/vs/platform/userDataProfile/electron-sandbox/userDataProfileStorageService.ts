@@ -8,12 +8,12 @@ import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractUserDataSyncProfilesStorageService, IProfileStorageChanges, IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { AbstractUserDataProfileStorageService, IProfileStorageChanges, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { isProfileUsingDefaultStorage, IStorageService } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
-export class UserDataSyncProfilesStorageService extends AbstractUserDataSyncProfilesStorageService implements IUserDataSyncProfilesStorageService {
+export class UserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
 
 	private readonly _onDidChange: Emitter<IProfileStorageChanges>;
 	readonly onDidChange: Event<IProfileStorageChanges>;
