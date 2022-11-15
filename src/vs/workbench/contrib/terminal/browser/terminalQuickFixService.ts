@@ -30,8 +30,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		}
 		this._onDidRegisterProvider.fire({ selector, provider });
 		return toDisposable(() => {
-			this._onDidUnregisterProvider.fire(selector.id);
+			this._selectors.delete(id);
 			this._providers.delete(id);
+			this._onDidUnregisterProvider.fire(selector.id);
 		});
 	}
 }
