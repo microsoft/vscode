@@ -636,8 +636,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
 						const lineContent = textModel.getLineContent(lineNumber);
-						sourceSB.appendASCIIString(`  ${lineNumber}: `);
-						sourceSB.appendASCIIString(lineContent + '\n');
+						sourceSB.appendString(`  ${lineNumber}: `);
+						sourceSB.appendString(lineContent + '\n');
 
 						if (instruction.endLine && lineNumber < instruction.endLine) {
 							lineNumber++;
@@ -655,27 +655,27 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		let spacesToAppend = 10;
 
 		if (instruction.address !== '-1') {
-			sb.appendASCIIString(instruction.address);
+			sb.appendString(instruction.address);
 			if (instruction.address.length < InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH) {
 				spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCIIString(' ');
+				sb.appendString(' ');
 			}
 		}
 
 		if (instruction.instructionBytes) {
-			sb.appendASCIIString(instruction.instructionBytes);
+			sb.appendString(instruction.instructionBytes);
 			spacesToAppend = 10;
 			if (instruction.instructionBytes.length < InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH) {
 				spacesToAppend = InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH - instruction.instructionBytes.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCIIString(' ');
+				sb.appendString(' ');
 			}
 		}
 
-		sb.appendASCIIString(instruction.instruction);
+		sb.appendString(instruction.instruction);
 		templateData.instruction.innerText = sb.build();
 
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);

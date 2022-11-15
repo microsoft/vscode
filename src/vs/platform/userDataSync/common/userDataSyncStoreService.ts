@@ -543,6 +543,10 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		this._onTokenSucceed.fire();
 
+		if (context.res.statusCode === 404) {
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the requested resource is not found (404).`, url, UserDataSyncErrorCode.NotFound, context.res.statusCode, operationId);
+		}
+
 		if (context.res.statusCode === 409) {
 			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Conflict (409). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.Conflict, context.res.statusCode, operationId);
 		}

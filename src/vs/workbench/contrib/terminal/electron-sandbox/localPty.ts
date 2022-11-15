@@ -80,7 +80,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		if (!this._localPtyService.freePortKillProcess) {
 			throw new Error('freePortKillProcess does not exist on the local pty service');
 		}
-		return this._localPtyService.freePortKillProcess(this.id, port);
+		return this._localPtyService.freePortKillProcess(port);
 	}
 	async getInitialCwd(): Promise<string> {
 		return this._properties.initialCwd;

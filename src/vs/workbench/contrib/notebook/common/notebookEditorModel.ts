@@ -473,7 +473,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	override isResolved(): this is IResolvedNotebookEditorModel {
-		return Boolean(this._workingCopy);
+		return Boolean(this._workingCopy?.model?.notebookModel);
 	}
 
 	isDirty(): boolean {

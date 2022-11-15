@@ -118,7 +118,6 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit {
 	width: 120px;
 	min-width: fit-content;
-	min-width: -moz-fit-content;
 	flex-shrink: 0;
 }
 
@@ -131,7 +130,6 @@
 	flex-basis: 0; /* all tabs are even */
 	flex-grow: 1; /* all tabs grow even */
 	max-width: fit-content;
-	max-width: -moz-fit-content;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.sticky-compact,

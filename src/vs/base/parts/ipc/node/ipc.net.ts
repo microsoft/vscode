@@ -32,6 +32,9 @@ export class NodeSocket implements ISocket {
 	public readonly debugLabel: string;
 	public readonly socket: Socket;
 	private readonly _errorListener: (err: any) => void;
+	private readonly _closeListener: (hadError: boolean) => void;
+	private readonly _endListener: () => void;
+	private _canWrite = true;
 
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		SocketDiagnostics.traceSocketEvent(this.socket, this.debugLabel, type, data);
@@ -57,10 +60,24 @@ export class NodeSocket implements ISocket {
 			}
 		};
 		this.socket.on('error', this._errorListener);
+
+		this._closeListener = (hadError: boolean) => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
+			this._canWrite = false;
+		};
+		this.socket.on('close', this._closeListener);
+
+		this._endListener = () => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
+			this._canWrite = false;
+		};
+		this.socket.on('end', this._endListener);
 	}
 
 	public dispose(): void {
 		this.socket.off('error', this._errorListener);
+		this.socket.off('close', this._closeListener);
+		this.socket.off('end', this._endListener);
 		this.socket.destroy();
 	}
 
@@ -77,7 +94,6 @@ export class NodeSocket implements ISocket {
 
 	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
 		const adapter = (hadError: boolean) => {
-			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			listener({
 				type: SocketCloseEventType.NodeSocketCloseEvent,
 				hadError: hadError,
@@ -92,7 +108,6 @@ export class NodeSocket implements ISocket {
 
 	public onEnd(listener: () => void): IDisposable {
 		const adapter = () => {
-			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			listener();
 		};
 		this.socket.on('end', adapter);
@@ -103,7 +118,7 @@ export class NodeSocket implements ISocket {
 
 	public write(buffer: VSBuffer): void {
 		// return early if socket has been destroyed in the meantime
-		if (this.socket.destroyed) {
+		if (this.socket.destroyed || !this._canWrite) {
 			return;
 		}
 

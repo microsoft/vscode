@@ -58,6 +58,8 @@ import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -76,8 +78,6 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 }
 
 export class InteractiveEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.interactive';
-
 	#rootElement!: HTMLElement;
 	#styleElement!: HTMLStyleElement;
 	#notebookEditorContainer!: HTMLElement;
@@ -131,7 +131,7 @@ export class InteractiveEditor extends EditorPane {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
-			InteractiveEditor.ID,
+			INTERACTIVE_WINDOW_EDITOR_ID,
 			telemetryService,
 			themeService,
 			storageService
@@ -222,24 +222,24 @@ export class InteractiveEditor extends EditorPane {
 		if (focusIndicator === 'gutter') {
 			styleSheets.push(`
 				.interactive-editor .input-cell-container:focus-within .input-focus-indicator::before {
-					border-color: var(--notebook-focused-cell-border-color) !important;
+					border-color: var(--vscode-notebook-focusedCellBorder) !important;
 				}
 				.interactive-editor .input-focus-indicator::before {
-					border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+					border-color: var(--vscode-notebook-inactiveFocusedCellBorder) !important;
 				}
 				.interactive-editor .input-cell-container .input-focus-indicator {
 					display: block;
 					top: ${INPUT_CELL_VERTICAL_PADDING}px;
 				}
 				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+					border-top: 1px solid var(--vscode-notebook-inactiveFocusedCellBorder);
 				}
 			`);
 		} else {
 			// border
 			styleSheets.push(`
 				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+					border-top: 1px solid var(--vscode-notebook-inactiveFocusedCellBorder);
 				}
 				.interactive-editor .input-cell-container .input-focus-indicator {
 					display: none;
@@ -328,7 +328,8 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
-				TimerCellStatusBarContrib.id
+				TimerCellStatusBarContrib.id,
+				NotebookFindContrib.id
 			]),
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
@@ -686,10 +687,10 @@ export class InteractiveEditor extends EditorPane {
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 	.interactive-editor .input-cell-container:focus-within .input-editor-container .monaco-editor {
-		outline: solid 1px var(--notebook-focused-cell-border-color);
+		outline: solid 1px var(--vscode-notebook-focusedCellBorder);
 	}
 	.interactive-editor .input-cell-container .input-editor-container .monaco-editor {
-		outline: solid 1px var(--notebook-inactive-focused-cell-border-color);
+		outline: solid 1px var(--vscode-notebook-inactiveFocusedCellBorder);
 	}
 	.interactive-editor .input-cell-container .input-focus-indicator {
 		top: ${INPUT_CELL_VERTICAL_PADDING}px;

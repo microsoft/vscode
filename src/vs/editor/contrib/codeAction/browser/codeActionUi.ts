@@ -12,14 +12,14 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { IActionShowOptions, IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionShowOptions, CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-import { CodeActionAutoApply, CodeActionTrigger } from './types';
+import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenuItems';
 
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
@@ -34,19 +34,20 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
 
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(_instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
 			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: this.shouldShowHeaders() })));
 			return widget;
 		});
 
-		this._register(this._editor.onDidLayoutChange(() => CodeActionWidget.INSTANCE?.hide()));
+		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
 	}
 
 	override dispose() {
@@ -114,7 +115,7 @@ export class CodeActionUi extends Disposable {
 			this.showCodeActionList(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false, showHeaders: this.shouldShowHeaders() });
 		} else {
 			// auto magically triggered
-			if (CodeActionWidget.INSTANCE?.isVisible) {
+			if (this._actionWidgetService.isVisible) {
 				// TODO: Figure out if we should update the showing menu?
 				actions.dispose();
 			} else {
@@ -151,7 +152,7 @@ export class CodeActionUi extends Disposable {
 		return undefined;
 	}
 
-	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 		const editorDom = this._editor.getDomNode();
 		if (!editorDom) {
 			return;
@@ -159,14 +160,23 @@ export class CodeActionUi extends Disposable {
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
-		CodeActionWidget.getOrCreateInstance(this._instantiationService).show(trigger, actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
-			onSelectCodeAction: async (action, trigger, options) => {
-				this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(options.preview || trigger.preview));
+		const delegate: IRenderDelegate<CodeActionItem> = {
+			onSelect: async (action: CodeActionItem, preview?: boolean) => {
+				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
+				this._actionWidgetService.hide();
 			},
 			onHide: () => {
 				this._editor?.focus();
-			},
-		});
+			}
+		};
+		this._actionWidgetService.show(
+			'codeActionWidget',
+			toMenuItems,
+			delegate,
+			actions,
+			anchor,
+			editorDom,
+			{ ...options, showHeaders: this.shouldShowHeaders() });
 	}
 
 	private toCoords(position: IPosition): IAnchor {

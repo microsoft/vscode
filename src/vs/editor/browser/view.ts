@@ -37,7 +37,6 @@ import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/select
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -50,6 +49,7 @@ import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/them
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
+import { inputLatency } from 'vs/base/browser/performance';
 
 
 export interface IContentWidgetData {
@@ -223,6 +223,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
+		inputLatency.onRenderStart();
 		this._renderNow();
 	}
 
@@ -426,11 +427,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {
-		this._context.viewModel.viewLayout.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
+		this._context.viewModel.viewLayout.setScrollPosition({
+			scrollTop: scrollPosition.scrollTop,
+			scrollLeft: scrollPosition.scrollLeft
+		}, ScrollType.Immediate);
 		this._context.viewModel.tokenizeViewport();
-		this._renderNow();
-		this._viewLines.updateLineWidths();
-		this._context.viewModel.viewLayout.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
@@ -502,15 +503,13 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
-		let newRange = widgetData.position ? widgetData.position.range || null : null;
-		if (newRange === null) {
-			const newPosition = widgetData.position ? widgetData.position.position : null;
-			if (newPosition !== null) {
-				newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
-			}
-		}
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference, widgetData.position?.positionAffinity ?? null);
+		this._contentWidgets.setWidgetPosition(
+			widgetData.widget,
+			widgetData.position?.position ?? null,
+			widgetData.position?.secondaryPosition ?? null,
+			widgetData.position?.preference ?? null,
+			widgetData.position?.positionAffinity ?? null
+		);
 		this._scheduleRender();
 	}
 

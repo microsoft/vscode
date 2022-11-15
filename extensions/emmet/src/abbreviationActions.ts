@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
 import { getEmmetHelper, getFlatNode, getHtmlFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 
-const localize = nls.loadMessageBundle();
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
 
@@ -250,7 +248,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		return '';
 	}
 
-	const prompt = localize('wrapWithAbbreviationPrompt', "Enter Abbreviation");
+	const prompt = vscode.l10n.t("Enter Abbreviation");
 	const inputAbbreviation = (args && args['abbreviation'])
 		? (args['abbreviation'] as string)
 		: await vscode.window.showInputBox({ prompt, validateInput: inputChanged });

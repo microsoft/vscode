@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -13,7 +13,6 @@ const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
 const VinylFile = require("vinyl");
-const git = require("./git");
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
@@ -253,14 +252,6 @@ function ensureDir(dirPath) {
     fs.mkdirSync(dirPath);
 }
 exports.ensureDir = ensureDir;
-function getVersion(root) {
-    let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-    if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
-        version = git.getVersion(root);
-    }
-    return version;
-}
-exports.getVersion = getVersion;
 function rebase(count) {
     return rename(f => {
         const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
@@ -311,7 +302,8 @@ function acquireWebNodePaths() {
     for (const key of Object.keys(webPackages)) {
         const packageJSON = path.join(root, 'node_modules', key, 'package.json');
         const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-        let entryPoint = packageData.browser ?? packageData.main;
+        // Only cases where the browser is a string are handled
+        let entryPoint = typeof packageData.browser === 'string' ? packageData.browser : packageData.main;
         // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
         if (!entryPoint) {
             // TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint

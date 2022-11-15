@@ -51,26 +51,22 @@ suite('UserDataProfileMainService', () => {
 
 	test('default profile', () => {
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
-		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
 	});
 
 	test('profiles always include default profile', () => {
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
-		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 	test('default profile when there are profiles', async () => {
 		await testObject.createNamedProfile('test');
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
-		assert.strictEqual(testObject.defaultProfile.extensionsResource?.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
 	});
 
 	test('default profile when profiles are removed', async () => {
 		const profile = await testObject.createNamedProfile('test');
 		await testObject.removeProfile(profile);
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
-		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
 	});
 
 });
