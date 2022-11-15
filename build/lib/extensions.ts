@@ -506,14 +506,20 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 
 	for (const { configPath, outputRoot } of webpackConfigLocations) {
 		const configOrFnOrArray = require(configPath);
-		function addConfig(configOrFnOrArray: webpack.Configuration | ((env: unknown,args: unknown) => webpack.Configuration) | webpack.Configuration[]) {
-			for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
-				const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
-				if (outputRoot) {
-					config.output!.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output!.path!));
-				}
+		function addConfig(configOrFn: webpack.Configuration | Function) {
+			let config;
+			if (typeof configOrFn === 'function') {
+				config = (configOrFn as Function)({}, {});
 				webpackConfigs.push(config);
+			} else {
+				config = configOrFn;
 			}
+
+			if (outputRoot) {
+				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+			}
+
+			webpackConfigs.push(configOrFn);
 		}
 		addConfig(configOrFnOrArray);
 	}
