@@ -36,7 +36,7 @@ export function appendKeyBindingLabel(label: string, inputKeyBinding: number | R
 }
 
 export function getSearchView(viewsService: IViewsService): SearchView | undefined {
-	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView ?? undefined;
+	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 }
 
 export function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
