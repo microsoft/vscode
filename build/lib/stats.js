@@ -9,6 +9,9 @@ const es = require("event-stream");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 class Entry {
+    name;
+    totalCount;
+    totalSize;
     constructor(name, totalCount, totalSize) {
         this.name = name;
         this.totalCount = totalCount;

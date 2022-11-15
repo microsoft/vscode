@@ -9,7 +9,7 @@ import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -154,7 +154,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
-		this._storage = new ExtHostStorage(this._extHostContext);
+		this._storage = new ExtHostStorage(this._extHostContext, this._logService);
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 

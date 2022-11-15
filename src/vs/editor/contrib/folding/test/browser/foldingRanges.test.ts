@@ -42,7 +42,7 @@ suite('FoldingRanges', () => {
 			lines.push('#endregion');
 		}
 		const model = createTextModel(lines.join('\n'));
-		const actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
+		const actual = computeRanges(model, false, markers, { limit: MAX_FOLDING_REGIONS, report: () => { } });
 		assert.strictEqual(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {
 			assert.strictEqual(actual.getStartLineNumber(i), i + 1, 'start' + i);
@@ -108,7 +108,7 @@ suite('FoldingRanges', () => {
 			lines.push('#endregion');
 		}
 		const model = createTextModel(lines.join('\n'));
-		const actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
+		const actual = computeRanges(model, false, markers);
 		assert.strictEqual(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {
 			actual.setCollapsed(i, i % 3 === 0);

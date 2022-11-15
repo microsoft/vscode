@@ -12,7 +12,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
 
@@ -29,6 +29,7 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 	public static readonly ID = 'editor.contrib.unusualLineTerminatorsDetector';
 
 	private _config: 'auto' | 'off' | 'prompt';
+	private _isPresentingDialog: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -85,13 +86,25 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 			return;
 		}
 
-		const result = await this._dialogService.confirm({
-			title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
-			message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
-			detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
-			primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
-			secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
-		});
+		if (this._isPresentingDialog) {
+			// we're currently showing the dialog, which is async.
+			// avoid spamming the user
+			return;
+		}
+
+		let result: IConfirmationResult;
+		try {
+			this._isPresentingDialog = true;
+			result = await this._dialogService.confirm({
+				title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
+				message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
+				detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
+				primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
+				secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
+			});
+		} finally {
+			this._isPresentingDialog = false;
+		}
 
 		if (!result.confirmed) {
 			// this model should be ignored

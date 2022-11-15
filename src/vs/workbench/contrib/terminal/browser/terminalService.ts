@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -68,8 +68,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalHasBeenCreated: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
 	private _configHelper: TerminalConfigHelper;
-	private _remoteTerminalsInitPromise: Promise<void> | undefined;
-	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
@@ -82,11 +80,6 @@ export class TerminalService implements ITerminalService {
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
-	}
-
-	private _primaryBackendRegistered: Barrier = new Barrier();
-	get primaryBackendRegistered(): Promise<void> {
-		return this._primaryBackendRegistered.wait().then(() => { });
 	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
@@ -273,16 +266,12 @@ export class TerminalService implements ITerminalService {
 			const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
 			if (isPersistentRemote) {
-				this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+				this._reconnectToRemoteTerminals().then(() => this._setConnected());
 			} else if (enableTerminalReconnection) {
-				this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+				this._reconnectToLocalTerminals().then(() => this._setConnected());
 			} else {
-				this._connectionState = TerminalConnectionState.Connected;
+				Promise.resolve().then(() => this._setConnected());
 			}
-
-			// Open the primary backend registered barrier to allow ITerminalService consumers to
-			// start using the backend
-			this._primaryBackendRegistered.open();
 
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
@@ -735,19 +724,6 @@ export class TerminalService implements ITerminalService {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
 
-	async initializeTerminals(): Promise<void> {
-		if (this._remoteTerminalsInitPromise) {
-			await this._remoteTerminalsInitPromise;
-			this._setConnected();
-		} else if (this._localTerminalsInitPromise) {
-			await this._localTerminalsInitPromise;
-			this._setConnected();
-		}
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ location: TerminalLocation.Panel });
-		}
-	}
-
 	moveToEditor(source: ITerminalInstance): void {
 		if (source.target === TerminalLocation.Editor) {
 			return;
@@ -973,7 +949,7 @@ export class TerminalService implements ITerminalService {
 
 		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 
-		this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
+		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
 
 		// Launch the contributed profile
 		if (contributedProfile) {

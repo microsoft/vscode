@@ -19,7 +19,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
-	fromExtensionId?: ExtensionIdentifier;
+	readonly fromExtensionId?: ExtensionIdentifier;
 }
 
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {

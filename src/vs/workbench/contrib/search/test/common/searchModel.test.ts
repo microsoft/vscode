@@ -20,10 +20,11 @@ import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { isWindows } from 'vs/base/common/platform';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -72,10 +73,12 @@ suite('SearchModel', () => {
 		restoreStubs = [];
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(ISearchService, {});
 		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
+		instantiationService.stub(ILogService, new NullLogService());
 
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('search', { searchOnType: true });

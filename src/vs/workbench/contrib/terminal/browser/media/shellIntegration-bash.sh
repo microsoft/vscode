@@ -98,7 +98,7 @@ __vsc_update_prompt() {
 		# means the user re-exported the PS1 so we should re-wrap it
 		if [[ "$__vsc_custom_PS1" == "" || "$__vsc_custom_PS1" != "$PS1" ]]; then
 			__vsc_original_PS1=$PS1
-			__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$PREFIX$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
+			__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
 			PS1="$__vsc_custom_PS1"
 		fi
 		if [[ "$__vsc_custom_PS2" == "" || "$__vsc_custom_PS2" != "$PS2" ]]; then
@@ -176,22 +176,17 @@ fi
 __vsc_update_prompt
 
 __vsc_restore_exit_code() {
-	return $1
+	return "$1"
 }
 
 __vsc_prompt_cmd_original() {
 	__vsc_status="$?"
+	__vsc_restore_exit_code "${__vsc_status}"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
 	# See https://unix.stackexchange.com/a/672843 for technique
-	if [[ ${#__vsc_original_prompt_command[@]} -gt 1 ]]; then
-		for cmd in "${__vsc_original_prompt_command[@]}"; do
-			__vsc_status="$?"
-			eval "${cmd:-}"
-		done
-	else
-		__vsc_restore_exit_code "${__vsc_status}"
-		eval "${__vsc_original_prompt_command:-}"
-	fi
+	for cmd in "${__vsc_original_prompt_command[@]}"; do
+		eval "${cmd:-}"
+	done
 	__vsc_precmd
 }
 

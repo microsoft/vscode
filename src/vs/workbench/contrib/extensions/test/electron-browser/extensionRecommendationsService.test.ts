@@ -85,6 +85,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 		coreTranslations: []
 	}),
 	aGalleryExtension('MockExtension2', {
@@ -107,6 +108,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 		coreTranslations: []
 	})
 ];
@@ -166,6 +168,7 @@ const noAssets: IGalleryExtensionAssets = {
 	manifest: null,
 	readme: null,
 	repository: null,
+	signature: null,
 	coreTranslations: []
 };
 

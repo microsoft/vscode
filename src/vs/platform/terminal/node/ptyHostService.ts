@@ -155,7 +155,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
@@ -316,11 +316,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
-	async freePortKillProcess(id: number, port: string): Promise<{ port: string; processId: string }> {
+	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		if (!this._proxy.freePortKillProcess) {
 			throw new Error('freePortKillProcess does not exist on the pty proxy');
 		}
-		return this._proxy.freePortKillProcess(id, port);
+		return this._proxy.freePortKillProcess(port);
 	}
 
 	async serializeTerminalState(ids: number[]): Promise<string> {

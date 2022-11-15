@@ -27,6 +27,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { Emitter } from 'vs/base/common/event';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -34,7 +35,7 @@ type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthentication
 const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
-	_serviceBrand = undefined;
+	declare _serviceBrand: undefined;
 
 	private serverConfiguration = this.productService['editSessions.store'];
 	private storeClient: EditSessionsStoreClient | undefined;
@@ -48,6 +49,16 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	get isSignedIn() {
 		return this.existingSessionId !== undefined;
+	}
+
+	private _didSignIn = new Emitter<void>();
+	get onDidSignIn() {
+		return this._didSignIn.event;
+	}
+
+	private _didSignOut = new Emitter<void>();
+	get onDidSignOut() {
+		return this._didSignOut.event;
 	}
 
 	constructor(
@@ -156,12 +167,15 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return [];
 	}
 
-	public async initialize(fromContinueOn: boolean) {
+	public async initialize(fromContinueOn: boolean, silent: boolean = false) {
 		if (this.initialized) {
 			return true;
 		}
-		this.initialized = await this.doInitialize(fromContinueOn);
+		this.initialized = await this.doInitialize(fromContinueOn, silent);
 		this.signedInContext.set(this.initialized);
+		if (this.initialized) {
+			this._didSignIn.fire();
+		}
 		return this.initialized;
 
 	}
@@ -172,7 +186,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async doInitialize(fromContinueOn: boolean): Promise<boolean> {
+	private async doInitialize(fromContinueOn: boolean, silent: boolean): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -197,7 +211,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
-		const authenticationSession = await this.getAuthenticationSession(fromContinueOn);
+		const authenticationSession = await this.getAuthenticationSession(fromContinueOn, silent);
 		if (authenticationSession !== undefined) {
 			this.#authenticationInfo = authenticationSession;
 			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
@@ -230,7 +244,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return currentMachineId;
 	}
 
-	private async getAuthenticationSession(fromContinueOn: boolean) {
+	private async getAuthenticationSession(fromContinueOn: boolean, silent: boolean) {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
 			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
@@ -238,6 +252,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			if (existingSession) {
 				this.logService.info(`Found existing authentication session with ID ${existingSession.session.id}`);
 				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
+			} else {
+				this._didSignOut.fire();
 			}
 		}
 
@@ -250,6 +266,12 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				this.existingSessionId = authenticationSessionInfo.id;
 				return { sessionId: authenticationSessionInfo.id, token: authenticationSessionInfo.accessToken, providerId: authenticationSessionInfo.providerId };
 			}
+		}
+
+		// If we aren't supposed to prompt the user because
+		// we're in a silent flow, just return here
+		if (silent) {
+			return;
 		}
 
 		// Ask the user to pick a preferred account
@@ -272,9 +294,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 */
 	private async getAccountPreference(fromContinueOn: boolean): Promise<AuthenticationSession & { providerId: string } | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
-		quickpick.title = localize('account preference', 'Turn on Edit Sessions to bring your working changes with you');
 		quickpick.ok = false;
-		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
+		quickpick.placeholder = localize('choose account placeholder', "Select an account to store your working changes in the cloud");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems(fromContinueOn);
 
@@ -293,7 +314,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 			quickpick.onDidTriggerItemButton(async (e) => {
 				if (e.button.tooltip === configureContinueOnPreference.tooltip) {
-					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.experimental.editSessions.continueOn');
+					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.editSessions.continueOn');
 				}
 			});
 
@@ -438,7 +459,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.signIn',
-					title: localize('sign in', 'Turn on Edit Sessions...'),
+					title: localize('sign in', 'Turn on Cloud Changes...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					menu: [{
@@ -464,7 +485,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth.v3', 'Turn off Edit Sessions...'),
+					title: localize('reset auth.v3', 'Turn off Cloud Changes...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
@@ -481,8 +502,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			async run() {
 				const result = await that.dialogService.confirm({
 					type: 'info',
-					message: localize('sign out of edit sessions clear data prompt.v2', 'Do you want to turn off Edit Sessions?'),
-					checkbox: { label: localize('delete all edit sessions.v2', 'Delete all stored data from the cloud.') },
+					message: localize('sign out of cloud changes clear data prompt', 'Do you want to disable storing working changes in the cloud?'),
+					checkbox: { label: localize('delete all cloud changes', 'Delete all stored data from the cloud.') },
 					primaryButton: localize('clear data confirm', 'Yes'),
 				});
 				if (result.confirmed) {

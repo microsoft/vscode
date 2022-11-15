@@ -15,17 +15,17 @@ import { createWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/web
 import { IModelService } from 'vs/editor/common/services/model';
 import type { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TextMateWorker } from 'vs/workbench/services/textMate/browser/textMateWorker';
+import { ICreateData, TextMateWorker } from 'vs/workbench/services/textMate/browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
@@ -192,8 +192,8 @@ export class TextMateService extends AbstractTextMateService {
 
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
 		const response = await fetch(this._environmentService.isBuilt
-			? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/vscode-oniguruma/release/onig.wasm', require).toString(true)
-			: FileAccess.asBrowserUri('../../../../../../node_modules/vscode-oniguruma/release/onig.wasm', require).toString(true));
+			? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
+			: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
 		return response;
 	}
 
@@ -202,10 +202,9 @@ export class TextMateService extends AbstractTextMateService {
 
 		if (RUN_TEXTMATE_IN_WORKER) {
 			const workerHost = new TextMateWorkerHost(this, this._extensionResourceLoaderService);
+			const createData: ICreateData = { grammarDefinitions };
 			const worker = createWebWorker<TextMateWorker>(this._modelService, this._languageConfigurationService, {
-				createData: {
-					grammarDefinitions
-				},
+				createData,
 				label: 'textMateWorker',
 				moduleId: 'vs/workbench/services/textMate/browser/textMateWorker',
 				host: workerHost

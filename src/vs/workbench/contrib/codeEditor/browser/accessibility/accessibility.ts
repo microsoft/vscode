@@ -27,8 +27,6 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -46,24 +44,26 @@ export class AccessibilityHelpController extends Disposable implements IEditorCo
 	}
 
 	private _editor: ICodeEditor;
-	private _widget: AccessibilityHelpWidget;
+	private _widget?: AccessibilityHelpWidget;
 
 	constructor(
 		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
 	}
 
 	public show(): void {
+		if (!this._widget) {
+			this._widget = this._register(this.instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
+		}
 		this._widget.show();
 	}
 
 	public hide(): void {
-		this._widget.hide();
+		this._widget?.hide();
 	}
 }
 
@@ -327,25 +327,3 @@ registerEditorCommand(new AccessibilityHelpCommand({
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-
-registerThemingParticipant((theme, collector) => {
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
-	}
-
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
-	}
-
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
-	}
-
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
-	}
-});

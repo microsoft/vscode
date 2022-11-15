@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
@@ -13,7 +12,6 @@ import { markdownDocumentation } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
@@ -61,10 +59,10 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 
 			if (source === ServerType.Syntax && this.client.hasCapabilityForResource(resource, ClientCapability.Semantic)) {
 				displayParts.push(
-					localize({
-						key: 'loadingPrefix',
+					vscode.l10n.t({
+						message: "(loading...)",
 						comment: ['Prefix displayed for hover entries while the server is still loading']
-					}, "(loading...)"));
+					}));
 			}
 
 			displayParts.push(data.displayString);

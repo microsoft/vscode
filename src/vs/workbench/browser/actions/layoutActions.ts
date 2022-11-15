@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -58,7 +58,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.closeSidebar',
 			title: { value: localize('closeSidebar', "Close Primary Side Bar"), original: 'Close Primary Side Bar' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -84,7 +84,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Activity Bar"),
 				original: 'Toggle Activity Bar Visibility'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true),
 			menu: [{
@@ -120,7 +120,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
 				original: 'Toggle Centered Layout'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			toggled: IsCenteredLayoutContext,
 			menu: [{
@@ -201,7 +201,7 @@ export class ToggleSidebarPositionAction extends Action2 {
 		super({
 			id: ToggleSidebarPositionAction.ID,
 			title: { value: localize('toggleSidebarPosition', "Toggle Primary Side Bar Position"), original: 'Toggle Primary Side Bar Position' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -329,7 +329,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
 				original: 'Toggle Editor Area Visibility'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			toggled: EditorAreaVisibleContext,
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
@@ -359,7 +359,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
 			title: { value: localize('toggleSidebar', "Toggle Primary Side Bar Visibility"), original: 'Toggle Primary Side Bar Visibility' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -467,7 +467,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miStatusbar', comment: ['&& denotes a mnemonic'] }, "S&&tatus Bar"),
 				original: 'Toggle Status Bar Visibility'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true),
 			menu: [{
@@ -502,7 +502,7 @@ registerAction2(class extends Action2 {
 				value: localize('toggleTabs', "Toggle Tab Visibility"),
 				original: 'Toggle Tab Visibility'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -529,7 +529,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize('miToggleZenMode', "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -576,7 +576,7 @@ if (isWindows || isLinux || isWeb) {
 					mnemonicTitle: localize({ key: 'miMenuBar', comment: ['&& denotes a mnemonic'] }, "Menu &&Bar"),
 					original: 'Toggle Menu Bar'
 				},
-				category: CATEGORIES.View,
+				category: Categories.View,
 				f1: true,
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
 				menu: [{
@@ -614,7 +614,7 @@ registerAction2(class extends Action2 {
 				value: localize('resetViewLocations', "Reset View Locations"),
 				original: 'Reset View Locations'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -635,7 +635,7 @@ registerAction2(class extends Action2 {
 				value: localize('moveView', "Move View"),
 				original: 'Move View'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -780,7 +780,7 @@ class MoveFocusedViewAction extends Action2 {
 				value: localize('moveFocusedView', "Move Focused View"),
 				original: 'Move Focused View'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			precondition: FocusedViewContext.notEqualsTo(''),
 			f1: true
 		});
@@ -939,7 +939,7 @@ registerAction2(class extends Action2 {
 				value: localize('resetFocusedViewLocation', "Reset Focused View Location"),
 				original: 'Reset Focused View Location'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			precondition: FocusedViewContext.notEqualsTo('')
 		});

@@ -7,50 +7,57 @@ use crate::util::errors::{AnyError, MissingLegalConsent};
 use crate::util::input::prompt_yn;
 use serde::{Deserialize, Serialize};
 
-const LICENSE_TEXT: Option<&'static str> = option_env!("LAUNCHER_REMOTE_LICENSE_TEXT");
-const LICENSE_PROMPT: Option<&'static str> = option_env!("LAUNCHER_REMOTE_LICENSE_PROMPT");
+const LICENSE_TEXT: Option<&'static str> = option_env!("VSCODE_CLI_REMOTE_LICENSE_TEXT");
+const LICENSE_PROMPT: Option<&'static str> = option_env!("VSCODE_CLI_REMOTE_LICENSE_PROMPT");
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct PersistedConsent {
-    pub consented: Option<bool>,
+	pub consented: Option<bool>,
 }
 
-pub fn require_consent(paths: &LauncherPaths) -> Result<(), AnyError> {
-    match LICENSE_TEXT {
-        Some(t) => println!("{}", t),
-        None => return Ok(()),
-    }
+pub fn require_consent(
+	paths: &LauncherPaths,
+	accept_server_license_terms: bool,
+) -> Result<(), AnyError> {
+	match LICENSE_TEXT {
+		Some(t) => println!("{}", t.replace("\\n", "\r\n")),
+		None => return Ok(()),
+	}
 
-    let prompt = match LICENSE_PROMPT {
-        Some(p) => p,
-        None => return Ok(()),
-    };
+	if accept_server_license_terms {
+		return Ok(());
+	}
 
-    let license: PersistedState<PersistedConsent> =
-        PersistedState::new(paths.root().join("license_consent.json"));
+	let prompt = match LICENSE_PROMPT {
+		Some(p) => p,
+		None => return Ok(()),
+	};
 
-    let mut save = false;
-    let mut load = license.load();
+	let license: PersistedState<PersistedConsent> =
+		PersistedState::new(paths.root().join("license_consent.json"));
 
-    if !load.consented.unwrap_or(false) {
-        match prompt_yn(prompt) {
-            Ok(true) => {
-                save = true;
-                load.consented = Some(true);
-            }
-            Ok(false) => {
-                return Err(AnyError::from(MissingLegalConsent(
-                    "Sorry you cannot use VS Code Server CLI without accepting the terms."
-                        .to_string(),
-                )))
-            }
-            Err(e) => return Err(AnyError::from(MissingLegalConsent(e.to_string()))),
-        }
-    }
+	let mut save = false;
+	let mut load = license.load();
 
-    if save {
-        license.save(load)?;
-    }
+	if !load.consented.unwrap_or(false) {
+		match prompt_yn(prompt) {
+			Ok(true) => {
+				save = true;
+				load.consented = Some(true);
+			}
+			Ok(false) => {
+				return Err(AnyError::from(MissingLegalConsent(
+					"Sorry you cannot use VS Code Server CLI without accepting the terms."
+						.to_string(),
+				)))
+			}
+			Err(e) => return Err(AnyError::from(MissingLegalConsent(e.to_string()))),
+		}
+	}
 
-    Ok(())
+	if save {
+		license.save(load)?;
+	}
+
+	Ok(())
 }

@@ -50,7 +50,10 @@ import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/brows
 import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { URI } from 'vs/base/common/uri';
 
 export const ID = 'editor.contrib.review';
 
@@ -180,11 +183,11 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[], cursorLine?: number, range?: Range) {
 		if (editor) {
 			this._editor = editor;
 			this._infos = commentInfos;
-			this._doUpdate(editor, commentInfos);
+			this._doUpdate(editor, commentInfos, cursorLine, range);
 		}
 	}
 
@@ -345,7 +348,8 @@ export class CommentController implements IEditorContribution {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -458,6 +462,13 @@ export class CommentController implements IEditorContribution {
 		this._activeCursorHasCommentingRange.set(hasCommentingRange);
 	}
 
+	private isEditorInlineOriginal(editorURI: URI | undefined, activeEditor: EditorInput | undefined): activeEditor is DiffEditorInput {
+		if (editorURI && activeEditor instanceof DiffEditorInput && !this.configurationService.getValue('diffEditor.renderSideBySide')) {
+			return activeEditor.original.resource?.toString() === editorURI.toString();
+		}
+		return false;
+	}
+
 	private beginCompute(): Promise<void> {
 		this._computePromise = createCancelablePromise(token => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
@@ -493,7 +504,7 @@ export class CommentController implements IEditorContribution {
 			}).then(commentInfos => {
 				if (this.commentService.isCommentingEnabled) {
 					const meaningfulCommentInfos = coalesce(commentInfos);
-					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
+					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos, this.editor?.getPosition()?.lineNumber, withNullAsUndefined(this.editor?.getSelection()));
 				}
 			}, (err) => {
 				onUnexpectedError(err);
@@ -721,6 +732,10 @@ export class CommentController implements IEditorContribution {
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
 		if (!this.editor) {
+			return;
+		}
+		const activeEditor = this.editorService.activeEditor;
+		if (this.isEditorInlineOriginal(this.editor.getModel()?.uri, activeEditor)) {
 			return;
 		}
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);

@@ -35,6 +35,11 @@ export const enum HoverStartMode {
 	Immediate = 1
 }
 
+export const enum HoverStartSource {
+	Mouse = 0,
+	Keyboard = 1
+}
+
 export class HoverResult<T> {
 	constructor(
 		public readonly value: T[],

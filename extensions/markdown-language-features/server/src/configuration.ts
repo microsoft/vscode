@@ -6,10 +6,14 @@
 import { Connection, Emitter } from 'vscode-languageserver';
 import { Disposable } from './util/dispose';
 
-export type ValidateEnabled = 'ignore' | 'warning' | 'error';
+export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
 interface Settings {
 	readonly markdown: {
+		readonly occurrencesHighlight: {
+			readonly enabled: boolean;
+		};
+
 		readonly suggest: {
 			readonly paths: {
 				readonly enabled: boolean;
@@ -26,9 +30,15 @@ interface Settings {
 			};
 			readonly fileLinks: {
 				readonly enabled: ValidateEnabled;
-				readonly markdownFragmentLinks: ValidateEnabled;
+				readonly markdownFragmentLinks: ValidateEnabled | 'inherit';
 			};
 			readonly ignoredLinks: readonly string[];
+			readonly unusedLinkDefinitions: {
+				readonly enabled: ValidateEnabled;
+			};
+			readonly duplicateLinkDefinitions: {
+				readonly enabled: ValidateEnabled;
+			};
 		};
 	};
 }

@@ -16,7 +16,7 @@ import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, Trac
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -25,8 +25,9 @@ import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/co
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -428,6 +429,7 @@ export interface INotebookEditor {
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
+	readonly scopedContextKeyService: IContextKeyService;
 	//#endregion
 
 	getLength(): number;
@@ -441,8 +443,11 @@ export interface INotebookEditor {
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
-	getInnerWebview(): IWebview | undefined;
+	getInnerWebview(): IWebviewElement | undefined;
 	getSelectionViewModels(): ICellViewModel[];
+	getEditorViewState(): INotebookEditorViewState;
+	restoreListViewState(viewState: INotebookEditorViewState | undefined): void;
+
 
 	/**
 	 * Focus the active cell in notebook cell list
@@ -648,6 +653,12 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	cellAt(index: number): ICellViewModel;
 	getCellIndex(cell: ICellViewModel): number;
 	getNextVisibleCellIndex(index: number): number;
+}
+
+export interface INotebookEditorPane extends IEditorPaneWithSelection {
+	getControl(): INotebookEditor | undefined;
+	readonly onDidChangeModel: Event<void>;
+	textModel: NotebookTextModel | undefined;
 }
 
 export interface IBaseCellEditorOptions extends IDisposable {

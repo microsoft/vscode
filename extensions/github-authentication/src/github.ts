@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { v4 as uuid } from 'uuid';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Keychain } from './common/keychain';
 import { GitHubServer, IGitHubServer } from './githubServer';
 import { arrayEquals } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
+import { crypto } from './node/crypto';
 
 interface SessionData {
 	id: string;
@@ -28,27 +28,49 @@ export enum AuthProviderType {
 	githubEnterprise = 'github-enterprise'
 }
 
+export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
+	public handleUri(uri: vscode.Uri) {
+		this.fire(uri);
+	}
+}
+
 export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
-	private _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	private _logger = new Log(this.type);
-	private _githubServer: IGitHubServer;
-	private _telemetryReporter: ExperimentationTelemetry;
+	private readonly _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+	private readonly _logger: Log;
+	private readonly _githubServer: IGitHubServer;
+	private readonly _telemetryReporter: ExperimentationTelemetry;
+	private readonly _keychain: Keychain;
+	private readonly _accountsSeen = new Set<string>();
+	private readonly _disposable: vscode.Disposable | undefined;
 
-	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
-	private _accountsSeen = new Set<string>();
-	private _disposable: vscode.Disposable;
 
-	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		uriHandler: UriEventHandler,
+		ghesUri?: vscode.Uri
+	) {
+		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
+		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
+
+		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+
+		this._logger = new Log(type);
+
+		this._keychain = new Keychain(
+			this.context,
+			type === AuthProviderType.github
+				? `${type}.auth`
+				: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`,
+			this._logger);
 
 		this._githubServer = new GitHubServer(
-			this.type,
+			this._logger,
+			this._telemetryReporter,
+			uriHandler,
 			// We only can use the Device Code flow when we have a full node environment because of CORS.
 			context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
-			this._logger,
-			this._telemetryReporter);
+			ghesUri);
 
 		// Contains the current state of the sessions we have available.
 		this._sessionsPromise = this.readSessions().then((sessions) => {
@@ -59,14 +81,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			this._githubServer,
 			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
 			this.context.secrets.onDidChange(() => this.checkForUpdates())
 		);
 	}
 
 	dispose() {
-		this._disposable.dispose();
+		this._disposable?.dispose();
 	}
 
 	get onDidChangeSessions() {
@@ -256,7 +277,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
 
-			vscode.window.showErrorMessage(`Sign in failed: ${e}`);
+			vscode.window.showErrorMessage(vscode.l10n.t('Sign in failed: {0}', `${e}`));
 			this._logger.error(e);
 			throw e;
 		}
@@ -265,7 +286,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
-			id: uuid(),
+			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
 			account: { label: userInfo.accountName, id: userInfo.id },
 			scopes
@@ -299,7 +320,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
 
-			vscode.window.showErrorMessage(`Sign out failed: ${e}`);
+			vscode.window.showErrorMessage(vscode.l10n.t('Sign out failed: {0}', `${e}`));
 			this._logger.error(e);
 			throw e;
 		}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/6fc051150e918f8e5df7b102977d8d72eedf66f6",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/e02a22742b3e6e0ee088e9c11109950abd7441d0",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -421,6 +421,25 @@
 					"patterns": [
 						{
 							"include": "source.yaml"
+						}
+					],
+					"end": "(\\\\end\\{minted\\})"
+				},
+				{
+					"begin": "(\\\\begin\\{minted\\}(?:\\[.*\\])?\\{(?:rust)\\})",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#begin-env-tokenizer"
+								}
+							]
+						}
+					},
+					"contentName": "source.rust",
+					"patterns": [
+						{
+							"include": "source.rust"
 						}
 					],
 					"end": "(\\\\end\\{minted\\})"
@@ -869,7 +888,7 @@
 			}
 		},
 		{
-			"begin": "(?:\\s*)((\\\\)begin)(\\{)((?:array|equation|(?:IEEE)?eqnarray|multline|align|aligned|alignat|alignedat|flalign|flaligned|flalignat|split|gather|gathered|cases|(?:display)?math|[a-zA-Z]*matrix|[pbBvV]?NiceMatrix|[pbBvV]?NiceArray|(?:(?:arg)?(?:mini|maxi)))(?:\\*|!)?)(\\})(\\s*\\n)?",
+			"begin": "(?:\\s*)((\\\\)begin)(\\{)((?:\\+?array|equation|(?:IEEE)?eqnarray|multline|align|aligned|alignat|alignedat|flalign|flaligned|flalignat|split|gather|gathered|\\+?cases|(?:display)?math|\\+?[a-zA-Z]*matrix|[pbBvV]?NiceMatrix|[pbBvV]?NiceArray|(?:(?:arg)?(?:mini|maxi)))(?:\\*|!)?)(\\})(\\s*\\n)?",
 			"captures": {
 				"1": {
 					"name": "support.function.be.latex"

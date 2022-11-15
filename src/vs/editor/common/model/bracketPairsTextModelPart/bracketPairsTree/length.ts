@@ -100,10 +100,12 @@ export function lengthIsZero(length: Length): boolean {
 /*
  * We have 52 bits available in a JS number.
  * We use the upper 26 bits to store the line and the lower 26 bits to store the column.
- *
- * Set boolean to `true` when debugging, so that debugging is easier.
  */
-const factor = /* is debug: */ false ? 100000 : 2 ** 26;
+///*
+const factor = 2 ** 26;
+/*/
+const factor = 1000000;
+// */
 
 export function toLength(lineCount: number, columnCount: number): Length {
 	// llllllllllllllllllllllllllcccccccccccccccccccccccccc (52 bits)
@@ -138,9 +140,17 @@ export function lengthGetColumnCountIfZeroLineCount(length: Length): number {
 // [10 lines, 5 cols] + [20 lines, 3 cols] = [30 lines, 3 cols]
 export function lengthAdd(length1: Length, length2: Length): Length;
 export function lengthAdd(l1: any, l2: any): Length {
-	return ((l2 < factor)
-		? (l1 + l2) // l2 is the amount of columns (zero line count). Keep the column count from l1.
-		: (l1 - (l1 % factor) + l2)); // l1 - (l1 % factor) equals toLength(l1.lineCount, 0)
+	let r = l1 + l2;
+	if (l2 >= factor) { r = r - (l1 % factor); }
+	return r;
+}
+
+export function sumLengths<T>(items: readonly T[], lengthFn: (item: T) => Length): Length {
+	return items.reduce((a, b) => lengthAdd(a, lengthFn(b)), lengthZero);
+}
+
+export function lengthEquals(length1: Length, length2: Length): boolean {
+	return length1 === length2;
 }
 
 /**
