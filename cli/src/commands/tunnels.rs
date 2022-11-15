@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
-use std::str::FromStr;
 use std::fmt;
+use std::str::FromStr;
 use sysinfo::{Pid, SystemExt};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -112,37 +112,45 @@ pub async fn service(
 	ctx: CommandContext,
 	service_args: TunnelServiceSubCommands,
 ) -> Result<i32, AnyError> {
-	let manager = create_service_manager(ctx.log.clone());
+	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
 		TunnelServiceSubCommands::Install => {
 			// ensure logged in, otherwise subsequent serving will fail
+			println!("authing");
 			Auth::new(&ctx.paths, ctx.log.clone())
 				.get_credential()
 				.await?;
 
 			// likewise for license consent
+			println!("consent");
 			legal::require_consent(&ctx.paths, false)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
-			manager.register(
-				current_exe,
-				&[
-					"--cli-data-dir",
-					ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
-					"tunnel",
-					"service",
-					"internal-run",
-				],
-			)?;
+			println!("calling register");
+			manager
+				.register(
+					current_exe,
+					&[
+						"--verbose",
+						"--cli-data-dir",
+						ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
+						"tunnel",
+						"service",
+						"internal-run",
+					],
+				)
+				.await?;
 			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
 		}
 		TunnelServiceSubCommands::Uninstall => {
-			manager.unregister()?;
+			manager.unregister().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
-			manager.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))?;
+			manager
+				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
+				.await?;
 		}
 	}
 
