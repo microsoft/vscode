@@ -5,20 +5,22 @@
 
 import assert = require('assert');
 import { readdirSync, readFileSync, existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { FileAccess } from 'vs/base/common/network';
 import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 suite('diff fixtures', () => {
-	const fixturesDir = FileAccess.asFileUri('vs/editor/test/node/diffing/fixtures').fsPath;
-	const folders = readdirSync(fixturesDir);
+	const fixturesOutDir = FileAccess.asFileUri('vs/editor/test/node/diffing/fixtures').fsPath;
+	// We want the dir in src, so we can directly update the source files if they disagree and create invalid files to capture the previous state.
+	// This makes it very easy to update the fixtures.
+	const fixturesSrcDir = resolve(fixturesOutDir).replaceAll('\\', '/').replace('/out/vs/editor/', '/src/vs/editor/');
+	const folders = readdirSync(fixturesSrcDir);
 
 	for (const folder of folders) {
 		for (const diffingAlgoName of ['smart', 'experimental']) {
-
 			test(`${folder}-${diffingAlgoName}`, () => {
-				const folderPath = join(fixturesDir, folder);
+				const folderPath = join(fixturesSrcDir, folder);
 				const files = readdirSync(folderPath);
 
 				const firstFileName = files.find(f => f.startsWith('1.'))!;
@@ -31,7 +33,7 @@ suite('diff fixtures', () => {
 
 				const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTime: Number.MAX_SAFE_INTEGER });
 
-				const diffingResult: DiffingResult = {
+				const actualDiffingResult: DiffingResult = {
 					originalFileName: `./${firstFileName}`,
 					modifiedFileName: `./${secondFileName}`,
 					diffs: diff.changes.map<IDetailedDiff>(c => ({
@@ -44,29 +46,34 @@ suite('diff fixtures', () => {
 					}))
 				};
 
-				const actualFilePath = join(folderPath, `${diffingAlgoName}.actual.diff.json`);
 				const expectedFilePath = join(folderPath, `${diffingAlgoName}.expected.diff.json`);
+				const invalidFilePath = join(folderPath, `${diffingAlgoName}.invalid.diff.json`);
 
-				const expectedFileContent = JSON.stringify(diffingResult, null, '\t');
+				const expectedFileContentFromActual = JSON.stringify(actualDiffingResult, null, '\t');
 
-				if (!existsSync(actualFilePath)) {
-					writeFileSync(actualFilePath, expectedFileContent);
-					writeFileSync(expectedFilePath, expectedFileContent);
-					throw new Error('No actual file! Actual and expected files were written.');
+				const invalidExists = existsSync(invalidFilePath);
+
+				if (!existsSync(expectedFilePath)) {
+					writeFileSync(expectedFilePath, expectedFileContentFromActual);
+					writeFileSync(invalidFilePath, '');
+					throw new Error('No expected file! Expected and invalid files were written. Delete the invalid file to make the test pass.');
 				} else {
-					const actualFileContent = readFileSync(actualFilePath, 'utf8');
-					const actualFileDiffResult: DiffingResult = JSON.parse(actualFileContent);
+					const expectedFileContent = readFileSync(invalidExists ? invalidFilePath : expectedFilePath, 'utf8');
+					const expectedFileDiffResult: DiffingResult = JSON.parse(expectedFileContent);
 
 					try {
-						assert.deepStrictEqual(actualFileDiffResult, diffingResult);
+						assert.deepStrictEqual(actualDiffingResult, expectedFileDiffResult);
 					} catch (e) {
-						writeFileSync(expectedFilePath, expectedFileContent);
+						if (!invalidExists) {
+							writeFileSync(invalidFilePath, expectedFileContent);
+						}
+						writeFileSync(expectedFilePath, expectedFileContentFromActual);
 						throw e;
 					}
 				}
 
-				if (existsSync(expectedFilePath)) {
-					throw new Error('Expected file exists! Please delete it.');
+				if (invalidExists) {
+					throw new Error('Invalid file exists and agrees with expected file! Delete the invalid file to make the test pass.');
 				}
 			});
 		}
