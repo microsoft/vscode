@@ -301,10 +301,26 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart' | 'disabled'): URI {
-	let name = resources.basenameOrAuthority(fileToPaste.resource);
+export async function findValidPasteFileTarget(
+	explorerService: IExplorerService,
+	fileService: IFileService,
+	dialogService: IDialogService,
+	targetFolder: ExplorerItem,
+	fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean },
+	incrementalNaming: 'simple' | 'smart' | 'disabled'
+): Promise<URI | undefined> {
 
+	let name = resources.basenameOrAuthority(fileToPaste.resource);
 	let candidate = resources.joinPath(targetFolder.resource, name);
+
+	// In the disabled case we must ask if it's ok to overwrite the file if it exists
+	if (incrementalNaming === 'disabled') {
+		const canOverwrite = await askForOverwrite(fileService, dialogService, candidate);
+		if (!canOverwrite) {
+			return;
+		}
+	}
+
 	while (true && !fileToPaste.allowOverwrite) {
 		if (!explorerService.findClosest(candidate)) {
 			break;
@@ -1064,13 +1080,17 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				target = element.isDirectory ? element : element.parent!;
 			}
 
-			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove || incrementalNaming === 'disabled' }, incrementalNaming);
+			const targetFile = await findValidPasteFileTarget(
+				explorerService,
+				fileService,
+				dialogService,
+				target,
+				{ resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove || incrementalNaming === 'disabled' },
+				incrementalNaming
+			);
 
-			if (incrementalNaming === 'disabled') {
-				const canOverwrite = await askForOverwrite(fileService, dialogService, targetFile);
-				if (!canOverwrite) {
-					return;
-				}
+			if (!targetFile) {
+				return undefined;
 			}
 
 			return { source: fileToPaste, target: targetFile };
@@ -1079,7 +1099,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 		if (sourceTargetPairs.length >= 1) {
 			// Move/Copy File
 			if (pasteShouldMove) {
-				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { overwrite: incrementalNaming === 'disabled' }));
 				const options = {
 					confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Moving {0} files", sourceTargetPairs.length)

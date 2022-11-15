@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { loadMessageBundle } from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from './dispose';
 
-const localize = loadMessageBundle();
 
 const typingsInstallTimeout = 30 * 1000;
 
@@ -84,7 +82,7 @@ export class AtaProgressReporter extends Disposable {
 
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
-			title: localize('installingPackages', "Fetching data for better TypeScript IntelliSense")
+			title: vscode.l10n.t("Fetching data for better TypeScript IntelliSense")
 		}, () => promise);
 	}
 
@@ -101,11 +99,10 @@ export class AtaProgressReporter extends Disposable {
 
 		if (config.get<boolean>('check.npmIsInstalled', true)) {
 			const dontShowAgain: vscode.MessageItem = {
-				title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Show Again"),
+				title: vscode.l10n.t("Don't Show Again"),
 			};
 			const selected = await vscode.window.showWarningMessage(
-				localize(
-					'typesInstallerInitializationFailed.title',
+				vscode.l10n.t(
 					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed, or configure 'typescript.npm' in your user settings. Alternatively, check the [documentation]({0}) to learn more.",
 					'https://go.microsoft.com/fwlink/?linkid=847635'
 				),

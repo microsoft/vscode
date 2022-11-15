@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'editor.codeActionWidget.showHeaders': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('showCodeActionHeaders', "Enable/disable showing group headers in the code action menu."),
+			description: nls.localize('showCodeActionHeaders', "Enable/disable showing group headers in the Code Action menu."),
 			default: true,
 		},
 	}

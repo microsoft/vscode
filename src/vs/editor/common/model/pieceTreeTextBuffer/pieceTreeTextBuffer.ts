@@ -27,7 +27,7 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
-export interface IReverseSingleEditOperation extends IValidEditOperation {
+interface IReverseSingleEditOperation extends IValidEditOperation {
 	sortIndex: number;
 }
 

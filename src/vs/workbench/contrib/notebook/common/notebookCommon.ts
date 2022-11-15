@@ -124,15 +124,15 @@ export interface NotebookCellDefaultCollapseConfig {
 
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
-export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type CellContentMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
+export type TransientCellMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { readonly [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
-	transientOutputs: boolean;
-	transientCellMetadata: TransientCellMetadata;
-	transientDocumentMetadata: TransientDocumentMetadata;
-	cellContentMetadata: CellContentMetadata;
+	readonly transientOutputs: boolean;
+	readonly transientCellMetadata: TransientCellMetadata;
+	readonly transientDocumentMetadata: TransientDocumentMetadata;
+	readonly cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */
@@ -925,7 +925,8 @@ export const NotebookSetting = {
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily'
+	outputFontFamily: 'notebook.outputFontFamily',
+	kernelPickerMRU: 'notebook.experimental.kernelPicker.mru'
 } as const;
 
 export const enum CellStatusbarAlignment {

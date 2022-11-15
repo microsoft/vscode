@@ -8,6 +8,7 @@ pub mod dev_tunnels;
 pub mod legal;
 pub mod paths;
 
+mod socket_signal;
 mod control_server;
 mod name_generator;
 mod port_forwarder;
@@ -16,6 +17,8 @@ mod protocol;
 #[cfg_attr(windows, path = "tunnels/server_bridge_windows.rs")]
 mod server_bridge;
 mod service;
+#[cfg(target_os = "linux")]
+mod service_linux;
 #[cfg(target_os = "windows")]
 mod service_windows;
 

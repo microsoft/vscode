@@ -19,7 +19,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostCell } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/common/webview';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -35,7 +35,7 @@ interface IKernelData {
 }
 
 type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
-export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
+type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
 type ControllerInfo = { id: string; extension: string };
 
 
@@ -43,6 +43,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 	private readonly _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
+
+	private _kernelDetectionTask = new Map<number, vscode.NotebookControllerDetectionTask>();
+	private _kernelDetectionTaskHandlePool: number = 0;
 
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
@@ -269,6 +272,24 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			}
 		}
 		return null;
+	}
+
+	createNotebookControllerDetectionTask(extension: IExtensionDescription, viewType: string): vscode.NotebookControllerDetectionTask {
+		const handle = this._kernelDetectionTaskHandlePool++;
+		const that = this;
+
+		this._logService.trace(`NotebookControllerDetectionTask[${handle}], CREATED by ${extension.identifier.value}`);
+		this._proxy.$addKernelDetectionTask(handle, viewType);
+
+		const detectionTask: vscode.NotebookControllerDetectionTask = {
+			dispose: () => {
+				this._kernelDetectionTask.delete(handle);
+				that._proxy.$removeKernelDetectionTask(handle);
+			}
+		};
+
+		this._kernelDetectionTask.set(handle, detectionTask);
+		return detectionTask;
 	}
 
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {

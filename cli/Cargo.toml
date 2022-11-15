@@ -53,6 +53,7 @@ winreg = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }
+zbus = { version = "3.4", default-features = false, features = ["tokio"] }
 
 [patch.crates-io]
 russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }

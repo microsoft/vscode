@@ -367,11 +367,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return initData.uiKind;
 			},
 			get logLevel() {
-				checkProposedApiEnabled(extension, 'extensionLog');
 				return extHostLogService.getLevel();
 			},
 			get onDidChangeLogLevel() {
-				checkProposedApiEnabled(extension, 'extensionLog');
 				return extHostLogService.onDidChangeLogLevel;
 			}
 		};
@@ -549,13 +547,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider);
-			},
-			registerInlineCompletionItemProviderNew(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProviderNew): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'inlineCompletionsNew');
-				if (provider.handleDidShowCompletionItem && !isProposedApiEnabled(extension, 'inlineCompletionsAdditions')) {
-					throw new Error(`When the method "handleDidShowCompletionItem" is implemented on a provider, the usage of the proposed api 'inlineCompletionsAdditions' must be declared!`);
-				}
-				return extHostLanguageFeatures.registerInlineCompletionsProviderNew(extension, checkSelector(selector), provider);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
@@ -751,7 +742,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
-				return extHostDecorations.registerFileDecorationProvider(provider, extension.identifier);
+				return extHostDecorations.registerFileDecorationProvider(provider, extension);
 			},
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
@@ -943,14 +934,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
 				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, isProposedApiEnabled(extension, 'notebookLiveShare') ? registration : undefined);
-			},
-			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
-				checkProposedApiEnabled(extension, 'notebookContentProvider');
-
-				extHostApiDeprecation.report('workspace.registerNotebookContentProvider', extension,
-					`The notebookContentProvider API is not on track for finalization and will be removed.`);
-
-				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options);
 			},
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return configProvider.onDidChangeConfiguration(listener, thisArgs, disposables);
@@ -1165,6 +1148,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createRendererMessaging(rendererId) {
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
+			createNotebookControllerDetectionTask(notebookType: string) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
+				return extHostNotebookKernels.createNotebookControllerDetectionTask(extension, notebookType);
+			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
 				return extHostNotebookKernels.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
@@ -1259,13 +1246,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineValueVariableLookup: extHostTypes.InlineValueVariableLookup,
 			InlineValueEvaluatableExpression: extHostTypes.InlineValueEvaluatableExpression,
 			InlineCompletionTriggerKind: extHostTypes.InlineCompletionTriggerKind,
-			InlineCompletionTriggerKindNew: extHostTypes.InlineCompletionTriggerKindNew,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileDecoration: extHostTypes.FileDecoration,
+			FileDecoration2: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
 			FilePermission: files.FilePermission,
@@ -1273,9 +1260,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			InlineCompletionItem: extHostTypes.InlineSuggestion,
-			InlineCompletionItemNew: extHostTypes.InlineSuggestionNew,
 			InlineCompletionList: extHostTypes.InlineSuggestionList,
-			InlineCompletionListNew: extHostTypes.InlineSuggestionsNew,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,

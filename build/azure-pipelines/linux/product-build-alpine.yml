@@ -7,7 +7,7 @@ steps:
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
+      KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
   - task: DownloadPipelineArtifact@2
@@ -55,9 +55,30 @@ steps:
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  # In Alpine, we always want to setup and authenticate against the NPM_REGISTRY
+  # because of the Prebuild step, since it always runs `yarn` from inside an alpine
+  # container
+  - script: |
+      set -e
+      npm config set registry "$NPM_REGISTRY" --location=project
+      npm config set always-auth=true --location=project
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
   - script: |
       mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" $NPM_REGISTRY > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
@@ -79,24 +100,6 @@ steps:
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
-
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
-      yarn config set registry "$NPM_REGISTRY"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
-
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: .npmrc
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Authentication
-
-  - script: node build/setup-npm-registry.js $NPM_REGISTRY
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Registry
 
   - script: |
       set -e
