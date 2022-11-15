@@ -30,6 +30,7 @@ export async function resolveMarketplaceHeaders(version: string,
 		const uuid = await getServiceMachineId(environmentService, fileService, storageService);
 		const { machineId } = await telemetryService.getTelemetryInfo();
 		headers['X-Market-User-Id'] = uuid;
+		// Send machineId as VSCode-SessionId so we can correlate telemetry events across different services
 		headers['VSCode-SessionId'] = machineId;
 	}
 
