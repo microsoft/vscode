@@ -15,8 +15,8 @@ import { IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync
 import { Event } from 'vs/base/common/event';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
-	original: 'Roaming Changes',
-	value: localize('session sync', 'Roaming Changes')
+	original: 'Cloud Changes',
+	value: localize('cloud changes', 'Cloud Changes')
 };
 
 export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
@@ -82,7 +82,7 @@ export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_
 
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';
-export const EDIT_SESSIONS_TITLE = localize('edit sessions', 'Roaming Changes');
+export const EDIT_SESSIONS_TITLE = localize('cloud changes', 'Cloud Changes');
 
 export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the roaming changes view.'));
 
