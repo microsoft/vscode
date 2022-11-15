@@ -276,7 +276,7 @@ export async function getQuickFixesForCommand(
 	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
-			if (option.exitStatus !== undefined && option.exitStatus !== (terminalCommand.exitCode === 0)) {
+			if (option.exitStatus !== (terminalCommand.exitCode === 0)) {
 				continue;
 			}
 			const commandLineMatch = newCommand.match(option.commandLineMatcher);
