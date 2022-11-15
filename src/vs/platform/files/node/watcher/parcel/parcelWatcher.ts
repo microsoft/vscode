@@ -414,26 +414,28 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
 		try {
-			await this.fileChangesDelayer.trigger(async () => {
-				const fileChanges = this.fileChangesBuffer;
-				this.fileChangesBuffer = [];
-
-				// Coalesce events: merge events of same kind
-				const coalescedEvents = coalesceEvents(fileChanges);
-
-				// Filter events: check for specific events we want to exclude
-				const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
-
-				// Broadcast to clients
-				this.emitEvents(filteredEvents);
-
-				// Handle root path delete if confirmed from coalesced events
-				if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
-					this.onWatchedPathDeleted(watcher);
-				}
-			});
+			await this.fileChangesDelayer.trigger(async () => this.handleParcelEvents(watcher, rootDeleted));
 		} catch (error) {
 			// ignore (we are likely disposed and cancelled)
+		}
+	}
+
+	private handleParcelEvents(watcher: IParcelWatcherInstance, rootDeleted: boolean): void {
+		const fileChanges = this.fileChangesBuffer;
+		this.fileChangesBuffer = [];
+
+		// Coalesce events: merge events of same kind
+		const coalescedEvents = coalesceEvents(fileChanges);
+
+		// Filter events: check for specific events we want to exclude
+		const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
+
+		// Broadcast to clients
+		this.emitEvents(filteredEvents);
+
+		// Handle root path delete if confirmed from coalesced events
+		if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
+			this.onWatchedPathDeleted(watcher);
 		}
 	}
 

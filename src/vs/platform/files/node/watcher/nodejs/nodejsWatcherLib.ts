@@ -383,37 +383,39 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
 		try {
-			await this.fileChangesDelayer.trigger(async () => {
-				const fileChanges = this.fileChangesBuffer;
-				this.fileChangesBuffer = [];
-
-				// Coalesce events: merge events of same kind
-				const coalescedFileChanges = coalesceEvents(fileChanges);
-
-				if (coalescedFileChanges.length > 0) {
-
-					// Logging
-					if (this.verboseLogging) {
-						for (const event of coalescedFileChanges) {
-							this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-						}
-					}
-
-					// Broadcast to clients via throttler
-					const worked = this.throttledFileChangesWorker.work(coalescedFileChanges);
-
-					// Logging
-					if (!worked) {
-						this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-					} else {
-						if (this.throttledFileChangesWorker.pending > 0) {
-							this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-						}
-					}
-				}
-			});
+			await this.fileChangesDelayer.trigger(async () => this.handleFileChanges());
 		} catch (error) {
 			// ignore (we are likely disposed and cancelled)
+		}
+	}
+
+	private handleFileChanges() {
+		const fileChanges = this.fileChangesBuffer;
+		this.fileChangesBuffer = [];
+
+		// Coalesce events: merge events of same kind
+		const coalescedFileChanges = coalesceEvents(fileChanges);
+
+		if (coalescedFileChanges.length > 0) {
+
+			// Logging
+			if (this.verboseLogging) {
+				for (const event of coalescedFileChanges) {
+					this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+				}
+			}
+
+			// Broadcast to clients via throttler
+			const worked = this.throttledFileChangesWorker.work(coalescedFileChanges);
+
+			// Logging
+			if (!worked) {
+				this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			} else {
+				if (this.throttledFileChangesWorker.pending > 0) {
+					this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				}
+			}
 		}
 	}
 
