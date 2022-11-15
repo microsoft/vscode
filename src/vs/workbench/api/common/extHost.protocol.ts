@@ -478,7 +478,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$registerProcessSupport(isSupported: boolean): void;
 	$registerProfileProvider(id: string, extensionIdentifier: string): void;
 	$unregisterProfileProvider(id: string): void;
-	$registerQuickFixProvider(id: string, commandSelector: TerminalCommandSelector): void;
+	$registerQuickFixProvider(id: string, extensionIdentifier: string, commandSelector: TerminalCommandSelector): void;
 	$unregisterQuickFixProvider(id: string): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 

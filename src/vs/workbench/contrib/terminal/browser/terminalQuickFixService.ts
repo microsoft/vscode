@@ -5,7 +5,8 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalCommandSelector, ITerminalQuickFixProvider, ITerminalQuickFixSelectorProvider, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalCommandSelector, ITerminalQuickFixProvider } from 'vs/platform/terminal/common/terminal';
+import { ITerminalQuickFixSelectorProvider, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixSelectorProvider>();
@@ -14,25 +15,15 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 	_serviceBrand: undefined;
 	_providers: Map<string, { selector: ITerminalCommandSelector; provider: ITerminalQuickFixProvider }> = new Map();
-	get providers(): ITerminalQuickFixSelectorProvider[] {
-		return Array.from(Object.entries(this._providers)).map(p => {
-			return {
-				id: p[0],
-				selector: p[1].selector,
-				provider: p[1].provider
-			};
-		});
-	}
-	registerQuickFixSelector(id: string, selector: ITerminalCommandSelector): void {
+	get providers(): Map<string, { selector: ITerminalCommandSelector; provider: ITerminalQuickFixProvider }> { return this._providers; }
 
-	}
-	registerQuickFixProvider(id: string, selector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable {
-		const selectorProvider = { id, selector, provider };
-		this._providers.set(id, selectorProvider);
+	registerQuickFixProvider(selector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable {
+		const selectorProvider = { id: selector.id, selector, provider };
+		this._providers.set(selector.id, selectorProvider);
 		this._onDidRegisterProvider.fire(selectorProvider);
 		return toDisposable(() => {
 			this._onDidUnregisterProvider.fire(selectorProvider);
-			this._providers.delete(id);
+			this._providers.delete(selector.id);
 		});
 	}
 }

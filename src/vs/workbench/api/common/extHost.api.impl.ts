@@ -731,7 +731,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerTerminalQuickFixProvider(id: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'terminalQuickFixProvider');
-				return extHostTerminalService.registerTerminalQuickFixProvider(id, commandSelector, provider);
+				return extHostTerminalService.registerTerminalQuickFixProvider(id, extension.identifier.value, commandSelector, provider);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);

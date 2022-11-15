@@ -246,12 +246,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._profileProviders.delete(id);
 	}
 
-	public async $registerQuickFixProvider(id: string, commandSelector: TerminalCommandSelector): Promise<void> {
-		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id, commandSelector, {
-			provideTerminalQuickFixes: (matchResult: TerminalCommandMatchResult, token: CancellationToken) => {
-				return this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
-			}
-		}));
+	public async $registerQuickFixProvider(id: string, extensionId: string, commandSelector: TerminalCommandSelector): Promise<void> {
+		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(
+			{ id, extensionId, ...commandSelector },
+			{
+				provideTerminalQuickFixes: (matchResult: TerminalCommandMatchResult, token: CancellationToken) => {
+					return this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+				}
+			})
+		);
 	}
 
 	public $unregisterQuickFixProvider(id: string): void {

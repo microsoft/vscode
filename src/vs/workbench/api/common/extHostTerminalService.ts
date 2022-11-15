@@ -49,7 +49,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
-	registerTerminalQuickFixProvider(id: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
+	registerTerminalQuickFixProvider(id: string, extensionId: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -667,15 +667,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalQuickFixProvider(id: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
-		if (!id) {
-			throw new Error('No extension ID');
-		}
+	public registerTerminalQuickFixProvider(id: string, extensionId: string, selector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 		if (this._quickFixProviders.has(id)) {
-			throw new Error(`Terminal quick fix provider "${id}" already registered`);
+			throw new Error(`Terminal quick fix provider "${id}" is already registered`);
 		}
-		this._quickFixProviders.set(id, { selector: commandSelector, provider });
-		this._proxy.$registerQuickFixProvider(id, commandSelector);
+		this._quickFixProviders.set(id, { selector, provider });
+		this._proxy.$registerQuickFixProvider(id, extensionId, selector);
 		return new VSCodeDisposable(() => {
 			this._quickFixProviders.delete(id);
 			this._proxy.$unregisterQuickFixProvider(id);

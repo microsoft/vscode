@@ -8,15 +8,14 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalCommandSelector, ITerminalQuickFixProvider } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -27,20 +26,6 @@ export const TerminalCursorStyle = {
 	LINE: 'line',
 	UNDERLINE: 'underline'
 };
-
-export interface ITerminalQuickFixCommandAction {
-	type: 'command';
-	id?: string;
-	command: string;
-	// TODO: Should this depend on whether alt is held?
-	addNewLine?: boolean;
-}
-export interface ITerminalQuickFixOpenerAction {
-	type: 'opener';
-	id?: string;
-	uri: UriComponents;
-}
-
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
@@ -100,48 +85,14 @@ export interface ITerminalProfileService {
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
-export interface TerminalCommandMatchResult {
-	command: { command: string; exitStatus?: number };
-	commandLineMatch: RegExpMatchArray;
-	// full match and groups
-
-	outputMatch?: RegExpMatchArray | null;
-}
-
-interface TerminalQuickFixCommandAction {
-	type: 'command';
-	command: string;
-}
-interface TerminalQuickFixOpenerAction {
-	type: 'opener';
-	// support line range/col? see elsewhere
-	uri: UriComponents;
-}
-
-type TerminalQuickFix = TerminalQuickFixCommandAction | TerminalQuickFixOpenerAction;
-export interface ITerminalQuickFixProvider {
-	/**
-	 * Provides terminal quick fixes
-	 * @param commandMatchResult The command match result for which to provide quick fixes
-	 * @param token A cancellation token indicating the result is no longer needed
-	 * @return Terminal quick fix(es) if any
-	 */
-	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
-}
-
-export interface ITerminalCommandSelector {
-	commandLineMatcher: string | RegExp;
-	outputMatcher?: ITerminalOutputMatcher;
-	exitStatus?: boolean;
-}
 
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
 	onDidRegisterProvider: Event<ITerminalQuickFixSelectorProvider>;
 	onDidUnregisterProvider: Event<ITerminalQuickFixSelectorProvider>;
 	readonly _serviceBrand: undefined;
-	providers: ITerminalQuickFixSelectorProvider[];
-	registerQuickFixProvider(id: string, commandSelector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable;
+	providers: Map<string, { selector: ITerminalCommandSelector; provider: ITerminalQuickFixProvider }>;
+	registerQuickFixProvider(commandSelector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable;
 }
 
 export interface ITerminalQuickFixSelectorProvider {
@@ -791,8 +742,6 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							id: '$1',
 							commandLineMatcher: '$2',
 							outputMatcher: '$3',
-							commandToRun: '$4',
-							linkToOpen: '$5'
 						}
 					}],
 					properties: {
@@ -826,14 +775,6 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 									type: 'number'
 								}
 							}
-						},
-						commandToRun: {
-							description: 'The command to run in the terminal for this match. Refer to a group found in the outputMatcher via ${group:group_name}. When provided, will take precedence over linkToOpen.',
-							type: 'string'
-						},
-						linkToOpen: {
-							description: 'The link to open for this match. Refer to a group found in the outputMatcher via ${group:group_name}. If a commandToRun is provided, this will be ignored.',
-							type: 'string'
 						}
 					},
 				}

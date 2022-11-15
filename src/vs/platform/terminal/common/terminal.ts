@@ -11,7 +11,103 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
+export interface ITerminalCommandSelector {
+	id: string;
+	extensionId: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus?: boolean;
+}
+
+
+export interface ITerminalQuickFixOptions {
+	type: 'internal' | 'resolved' | 'unresolved';
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus?: boolean;
+}
+
+
+export interface ITerminalQuickFixCommandAction {
+	type: 'command';
+	id?: string;
+	command: string;
+	// TODO: Should this depend on whether alt is held?
+	addNewLine?: boolean;
+}
+export interface ITerminalQuickFixOpenerAction {
+	type: 'opener';
+	id?: string;
+	uri: UriComponents;
+}
+
+
+export interface ITerminalCommandSelector {
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus?: boolean;
+}
+
+export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixActionExtension = ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixCallback = (matchResult: TerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
+export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<TerminalQuickFixActionExtension[] | TerminalQuickFixActionExtension | undefined>;
+
+
+export interface TerminalCommandMatchResult {
+	command: { command: string; exitStatus?: number };
+	commandLineMatch: RegExpMatchArray;
+	// full match and groups
+
+	outputMatch?: RegExpMatchArray | null;
+}
+
+interface TerminalQuickFixCommandAction {
+	type: 'command';
+	command: string;
+}
+interface TerminalQuickFixOpenerAction {
+	type: 'opener';
+	// support line range/col? see elsewhere
+	uri: UriComponents;
+}
+
+type TerminalQuickFix = TerminalQuickFixCommandAction | TerminalQuickFixOpenerAction;
+export interface ITerminalQuickFixProvider {
+	/**
+	 * Provides terminal quick fixes
+	 * @param commandMatchResult The command match result for which to provide quick fixes
+	 * @param token A cancellation token indicating the result is no longer needed
+	 * @return Terminal quick fix(es) if any
+	 */
+	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
+}
+export interface ITerminalCommandMatchResult {
+	command: { command: string; exitStatus?: number };
+	commandLineMatch: RegExpMatchArray;
+	// full match and groups
+
+	outputMatch?: RegExpMatchArray | null;
+}
+
+export interface IInternalOptions extends ITerminalQuickFixOptions {
+	type: 'internal';
+	getQuickFixes: TerminalQuickFixCallback;
+}
+
+
+export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
+	type: 'resolved';
+	getQuickFixes: TerminalQuickFixCallbackExtension;
+}
+
+export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
+	type: 'unresolved';
+}
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -798,17 +894,9 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
-	quickFixes?: ITerminalQuickFixContribution[];
+	quickFixes?: ITerminalCommandSelector[];
 }
 
-export interface ITerminalQuickFixContribution {
-	id: string;
-	commandLineMatcher: string | RegExp;
-	outputMatcher: ITerminalOutputMatcher;
-	exitStatus?: boolean;
-	commandToRun?: string;
-	linkToOpen?: string;
-}
 
 export interface ITerminalProfileContribution {
 	title: string;
