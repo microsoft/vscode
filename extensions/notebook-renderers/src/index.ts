@@ -236,6 +236,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		overflow-y: scroll;
 		max-height: 400px;
 	}
+	span.output-stream.more-above {
+		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
+	}
+	span.output-stream.more-below {
+		box-shadow: var(--vscode-scrollbar-shadow) 0px -6px 6px -6px inset
+	}
+	span.output-stream.more-above.more-below {
+		box-shadow: var(--vscode-scrollbar-shadow) 0px -6px 6px -6px inset, var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
+	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
 	.traceback .code-bold {

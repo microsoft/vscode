@@ -52,6 +52,22 @@ export function truncatedArrayOfString(id: string, outputs: string[], linesLimit
 
 function scrollableArrayOfString(outputs: string[], container: HTMLElement) {
 	container.classList.add('scrollable');
+
+	container.onscroll = (e) => {
+		const target = e.target as HTMLElement;
+		if (target.scrollTop === 0) {
+			container.classList.remove('more-above');
+		} else {
+			container.classList.add('more-above');
+		}
+
+		if (target.scrollTop + target.clientHeight === target.scrollHeight) {
+			container.classList.remove('more-below');
+		} else {
+			container.classList.add('more-below');
+		}
+	};
+
 	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
 	const spanElement = handleANSIOutput(buffer.slice(0, 5000).join('\n'));
 	container.appendChild(spanElement);
