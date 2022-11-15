@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use async_trait::async_trait;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use lazy_static::lazy_static;
 use std::{ffi::OsString, sync::Mutex, thread, time::Duration};
@@ -44,8 +45,9 @@ impl WindowsService {
 	}
 }
 
+#[async_trait]
 impl CliServiceManager for WindowsService {
-	fn register(&self, exe: std::path::PathBuf, args: &[&str]) -> Result<(), AnyError> {
+	async fn register(&self, exe: std::path::PathBuf, args: &[&str]) -> Result<(), AnyError> {
 		let service_manager = ServiceManager::local_computer(
 			None::<&str>,
 			ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE,
@@ -118,8 +120,8 @@ impl CliServiceManager for WindowsService {
 	}
 
 	#[allow(unused_must_use)] // triggers incorrectly on `define_windows_service!`
-	fn run(
-		&self,
+	async fn run(
+		self,
 		launcher_paths: LauncherPaths,
 		handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError> {
@@ -149,7 +151,7 @@ impl CliServiceManager for WindowsService {
 			.map_err(|e| wrap(e, "error starting service dispatcher").into())
 	}
 
-	fn unregister(&self) -> Result<(), AnyError> {
+	async fn unregister(&self) -> Result<(), AnyError> {
 		let service_manager =
 			ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
 				.map_err(|e| wrap(e, "error getting service manager"))?;
@@ -214,7 +216,9 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 		match control_event {
 			ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
 			ServiceControl::Stop => {
-				shutdown_tx.take().and_then(|tx| tx.blocking_send(ShutdownSignal::ServiceStopped).ok());
+				shutdown_tx
+					.take()
+					.and_then(|tx| tx.blocking_send(ShutdownSignal::ServiceStopped).ok());
 				ServiceControlHandlerResult::NoError
 			}
 			_ => ServiceControlHandlerResult::NotImplemented,

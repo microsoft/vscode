@@ -46,6 +46,9 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_VERSION', packageJson.version],
 		['VSCODE_CLI_UPDATE_ENDPOINT', product.updateUrl],
 		['VSCODE_CLI_QUALITY', product.quality],
+		['VSCODE_CLI_NAME_SHORT', product.nameShort],
+		['VSCODE_CLI_NAME_LONG', product.nameLong],
+		['VSCODE_CLI_APPLICATION_NAME', product.applicationName],
 		['VSCODE_CLI_COMMIT', commit],
 		[
 			'VSCODE_CLI_WIN32_APP_IDS',

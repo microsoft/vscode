@@ -98,7 +98,7 @@ export const DEBUG_SCHEME = 'debug';
 export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 	default: 'openOnFirstSessionStart',
-	description: nls.localize('internalConsoleOptions', "Controls when the internal debug console should open.")
+	description: nls.localize('internalConsoleOptions', "Controls when the internal Debug Console should open.")
 };
 
 // raw
