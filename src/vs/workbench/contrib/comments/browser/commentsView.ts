@@ -103,33 +103,6 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}, this.contextKeyService));
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 
-		this._register(this.commentService.onDidSetAllCommentThreads(e => {
-			this.totalComments += e.commentThreads.length;
-
-			let unresolved = 0;
-			for (const thread of e.commentThreads) {
-				if (thread.state === CommentThreadState.Unresolved) {
-					unresolved++;
-				}
-			}
-			this.updateBadge(unresolved);
-		}));
-
-		this._register(this.commentService.onDidUpdateCommentThreads(e => {
-			this.totalComments += e.added.length;
-			this.totalComments -= e.removed.length;
-
-			let unresolved = 0;
-			for (const resource of this.commentsModel.resourceCommentThreads) {
-				for (const thread of resource.commentThreads) {
-					if (thread.threadState === CommentThreadState.Unresolved) {
-						unresolved++;
-					}
-				}
-			}
-			this.updateBadge(unresolved);
-		}));
-
 		this._register(this.filters.onDidChange((event: CommentsFiltersChangeEvent) => {
 			if (event.showResolved || event.showUnresolved) {
 				this.updateFilter();
@@ -423,11 +396,36 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {
 		this.commentsModel.setCommentThreads(e.ownerId, e.commentThreads);
+
+		this.totalComments += e.commentThreads.length;
+
+		let unresolved = 0;
+		for (const thread of e.commentThreads) {
+			if (thread.state === CommentThreadState.Unresolved) {
+				unresolved++;
+			}
+		}
+		this.updateBadge(unresolved);
+
 		this.refresh();
 	}
 
 	private onCommentsUpdated(e: ICommentThreadChangedEvent): void {
 		const didUpdate = this.commentsModel.updateCommentThreads(e);
+
+		this.totalComments += e.added.length;
+		this.totalComments -= e.removed.length;
+
+		let unresolved = 0;
+		for (const resource of this.commentsModel.resourceCommentThreads) {
+			for (const thread of resource.commentThreads) {
+				if (thread.threadState === CommentThreadState.Unresolved) {
+					unresolved++;
+				}
+			}
+		}
+		this.updateBadge(unresolved);
+
 		if (didUpdate) {
 			this.refresh();
 		}
