@@ -9,8 +9,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { editorInactiveSelection, editorSelectionBackground, editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const enum CornerStyle {
@@ -401,21 +399,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const editorSelectionColor = theme.getColor(editorSelectionBackground);
-	if (editorSelectionColor) {
-		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
-	}
-	const editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
-	if (editorInactiveSelectionColor) {
-		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
-	}
-	const editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
-	if (editorSelectionForegroundColor && !editorSelectionForegroundColor.isTransparent()) {
-		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
-	}
-});
 
 function abs(n: number): number {
 	return n < 0 ? -n : n;
