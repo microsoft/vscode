@@ -6,6 +6,7 @@
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { isCancellationError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -28,10 +29,12 @@ import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import 'vs/css!./linkedEditing';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
 
@@ -457,6 +460,7 @@ function getLinkedEditingRanges(providers: LanguageFeatureRegistry<LinkedEditing
 	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
 }
 
+export const editorLinkedEditingBackground = registerColor('editor.linkedEditingBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hcDark: Color.fromHex('#f00').transparent(0.3), hcLight: Color.white }, nls.localize('editorLinkedEditingBackground', 'Background color when the editor auto renames on type.'));
 
 registerModelAndPositionCommand('_executeLinkedEditingProvider', (_accessor, model, position) => {
 	const { linkedEditingRangeProvider } = _accessor.get(ILanguageFeaturesService);
