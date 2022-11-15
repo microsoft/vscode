@@ -87,6 +87,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available"),
 			...audioCueFeatureBase,
 		},
+		'audioCues.diffLineInserted': {
+			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode"),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineDeleted': {
+			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode"),
+			...audioCueFeatureBase,
+		},
 	}
 });
 

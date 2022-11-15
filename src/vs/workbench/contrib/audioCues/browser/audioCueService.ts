@@ -255,7 +255,6 @@ export class AudioCue {
 		settingsKey: 'audioCues.diffLineInserted'
 	});
 
-
 	public static readonly diffLineDeleted = AudioCue.register({
 		name: localize('audioCues.diffLineDeleted', 'Diff Line Deleted'),
 		sound: Sound.diffLineDeleted,

@@ -67,6 +67,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
+import { AudioCueService, IAudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 //#region Editor Registrations
 
@@ -129,7 +131,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, LifecyclePhase.Ready);
 
 registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu);
-
+registerSingleton(IAudioCueService, AudioCueService, InstantiationType.Delayed);
 //#endregion
 
 //#region Quick Access
