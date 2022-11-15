@@ -5,14 +5,9 @@
 
 declare module 'vscode' {
 
-	/**
-	 * The decoration provider interfaces defines the contract between extensions and
-	 * file decorations.
-	 */
-	export interface FileDecorationProvider {
-		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration | FileDecoration1>;
-	}
-
+	// export interface FileDecorationProvider {
+	// 	provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration | FileDecoration1>;
+	// }
 	/**
 	 * A file decoration represents metadata that can be rendered with a file.
 	 */
