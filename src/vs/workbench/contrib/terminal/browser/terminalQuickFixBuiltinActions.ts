@@ -41,7 +41,7 @@ export function gitSimilar(): IInternalOptions {
 					actions.push({
 						id: 'Git Similar',
 						type: 'command',
-						command: matchResult.command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
+						command: matchResult.commandLine.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
 						addNewLine: true
 					});
 				}
@@ -71,7 +71,7 @@ export function gitTwoDashes(): IInternalOptions {
 			return {
 				type: 'command',
 				id: 'Git Two Dashes',
-				command: matchResult.command.command.replace(` -${problemArg}`, ` --${problemArg}`),
+				command: matchResult.commandLine.replace(` -${problemArg}`, ` --${problemArg}`),
 				addNewLine: true
 			};
 		}
@@ -102,7 +102,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 				label,
 				enabled: true,
 				run: async () => {
-					await terminalInstance?.freePortKillProcess?.(port, matchResult.command.command);
+					await terminalInstance?.freePortKillProcess?.(port, matchResult.commandLine);
 				}
 			};
 		}

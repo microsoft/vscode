@@ -291,8 +291,7 @@ export async function getQuickFixesForCommand(
 			if (!outputMatch) {
 				continue;
 			}
-			const command = { command: newCommand, exitStatus: terminalCommand.exitCode !== 0 };
-			const matchResult = { commandLineMatch, outputMatch, command };
+			const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
 			const id = option.id;
 			let quickFixes;
 			switch (option.type) {

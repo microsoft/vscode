@@ -59,7 +59,7 @@ export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMat
 
 
 export interface TerminalCommandMatchResult {
-	command: { command: string; exitStatus: boolean };
+	commandLine: string;
 	commandLineMatch: RegExpMatchArray;
 	// full match and groups
 	outputMatch: RegExpMatchArray;
@@ -86,7 +86,7 @@ export interface ITerminalQuickFixProvider {
 	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
 }
 export interface ITerminalCommandMatchResult {
-	command: { command: string; exitStatus: boolean };
+	commandLine: string;
 	commandLineMatch: RegExpMatchArray;
 	// full match and groups
 	outputMatch: RegExpMatchArray;

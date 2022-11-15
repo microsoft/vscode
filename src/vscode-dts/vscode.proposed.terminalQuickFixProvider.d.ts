@@ -22,7 +22,7 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalCommandMatchResult {
-		command: TerminalCommand;
+		commandLine: string;
 		commandLineMatch: RegExpMatchArray;
 		// full match and groups
 
@@ -74,11 +74,6 @@ declare module 'vscode' {
 		length: number;
 
 		// ensure we can support all git similar using multiple lines
-	}
-
-	export interface TerminalCommand {
-		command: string;
-		exitCode?: number;
 	}
 
 	enum TerminalOutputAnchor {
