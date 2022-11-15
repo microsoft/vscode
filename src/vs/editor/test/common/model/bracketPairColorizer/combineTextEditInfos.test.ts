@@ -48,6 +48,10 @@ function runTest(seed: number) {
 	}
 
 	assert.deepStrictEqual(textModelS2.getValue(), textModelS0.getValue());
+
+	textModelS0.dispose();
+	textModelS1.dispose();
+	textModelS2.dispose();
 }
 
 function getRandomEditInfos(textModel: TextModel, count: number, rng: MersenneTwister): TextEditInfo[] {
