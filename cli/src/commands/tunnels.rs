@@ -116,13 +116,11 @@ pub async fn service(
 	match service_args {
 		TunnelServiceSubCommands::Install => {
 			// ensure logged in, otherwise subsequent serving will fail
-			println!("authing");
 			Auth::new(&ctx.paths, ctx.log.clone())
 				.get_credential()
 				.await?;
 
 			// likewise for license consent
-			println!("consent");
 			legal::require_consent(&ctx.paths, false)?;
 
 			let current_exe =
@@ -146,6 +144,9 @@ pub async fn service(
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
+		}
+		TunnelServiceSubCommands::Log => {
+			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
 			manager

@@ -371,6 +371,37 @@ impl std::fmt::Display for CorruptDownload {
 	}
 }
 
+#[derive(Debug)]
+pub struct MissingHomeDirectory();
+
+impl std::fmt::Display for MissingHomeDirectory {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "Could not find your home directory. Please ensure this command is running in the context of an normal user.")
+	}
+}
+
+#[derive(Debug)]
+pub struct CommandFailed {
+	pub output: std::process::Output,
+	pub command: String,
+}
+
+impl std::fmt::Display for CommandFailed {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Failed to run command \"{}\" (code {}): {}",
+			self.command,
+			self.output.status,
+			String::from_utf8_lossy(if self.output.stderr.is_empty() {
+				&self.output.stdout
+			} else {
+				&self.output.stderr
+			})
+		)
+	}
+}
+
 // Makes an "AnyError" enum that contains any of the given errors, in the form
 // `enum AnyError { FooError(FooError) }` (when given `makeAnyError!(FooError)`).
 // Useful to easily deal with application error types without making tons of "From"
@@ -433,7 +464,9 @@ makeAnyError!(
 	ServiceAlreadyRegistered,
 	WindowsNeedsElevation,
 	UpdatesNotConfigured,
-	CorruptDownload
+	CorruptDownload,
+	MissingHomeDirectory,
+	CommandFailed
 );
 
 impl From<reqwest::Error> for AnyError {

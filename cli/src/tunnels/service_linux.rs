@@ -7,6 +7,7 @@ use std::{
 	fs::File,
 	io::{self, Write},
 	path::PathBuf,
+	process::Command,
 };
 
 use async_trait::async_trait;
@@ -113,6 +114,29 @@ impl ServiceManager for SystemdService {
 		});
 
 		handle.run_service(self.log, launcher_paths, rx).await
+	}
+
+	async fn show_logs(&self) -> Result<(), AnyError> {
+		// show the systemctl status header...
+		Command::new("systemctl")
+			.args([
+				"--user",
+				"status",
+				"-n",
+				"0",
+				&SystemdService::service_name_string(),
+			])
+			.status()
+			.map(|s| s.code().unwrap_or(1))
+			.map_err(|e| wrap(e, format!("error running journalctl")))?;
+
+		// then follow log files
+		Command::new("journalctl")
+			.args(["--user", "-f", "-u", &SystemdService::service_name_string()])
+			.status()
+			.map(|s| s.code().unwrap_or(1))
+			.map_err(|e| wrap(e, format!("error running journalctl")))?;
+		Ok(())
 	}
 
 	async fn unregister(&self) -> Result<(), crate::util::errors::AnyError> {

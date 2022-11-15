@@ -119,6 +119,10 @@ impl CliServiceManager for WindowsService {
 		Ok(())
 	}
 
+	async fn show_logs(&self) -> Result<(), AnyError> {
+		todo!();
+	}
+
 	#[allow(unused_must_use)] // triggers incorrectly on `define_windows_service!`
 	async fn run(
 		self,
