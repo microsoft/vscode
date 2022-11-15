@@ -98,6 +98,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._scopedInstatiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
+		this._register(this._body);
 
 		this._styleElement = dom.createStyleSheet(this.container);
 

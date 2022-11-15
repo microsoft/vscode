@@ -238,29 +238,6 @@ export const defaultListStyles: IColorMapping = {
 	inputValidationErrorBorder,
 };
 
-export interface IButtonStyleOverrides extends IStyleOverrides {
-	buttonForeground?: ColorIdentifier;
-	buttonSeparator?: ColorIdentifier;
-	buttonBackground?: ColorIdentifier;
-	buttonHoverBackground?: ColorIdentifier;
-	buttonSecondaryForeground?: ColorIdentifier;
-	buttonSecondaryBackground?: ColorIdentifier;
-	buttonSecondaryHoverBackground?: ColorIdentifier;
-	buttonBorder?: ColorIdentifier;
-}
-
-export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: IButtonStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		buttonForeground: style?.buttonForeground || buttonForeground,
-		buttonSeparator: style?.buttonSeparator || buttonSeparator,
-		buttonBackground: style?.buttonBackground || buttonBackground,
-		buttonHoverBackground: style?.buttonHoverBackground || buttonHoverBackground,
-		buttonSecondaryForeground: style?.buttonSecondaryForeground || buttonSecondaryForeground,
-		buttonSecondaryBackground: style?.buttonSecondaryBackground || buttonSecondaryBackground,
-		buttonSecondaryHoverBackground: style?.buttonSecondaryHoverBackground || buttonSecondaryHoverBackground,
-		buttonBorder: style?.buttonBorder || buttonBorder,
-	} as IButtonStyleOverrides, widget);
-}
 
 export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
 	return attachStyler(themeService, colors, callback);
@@ -314,6 +291,17 @@ export const defaultMenuStyles = <IMenuStyleOverrides>{
 
 export function attachMenuStyler(widget: IThemable, themeService: IThemeService, style?: IMenuStyleOverrides): IDisposable {
 	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
+}
+
+interface IButtonStyleOverrides extends IStyleOverrides {
+	buttonForeground?: ColorIdentifier;
+	buttonSeparator?: ColorIdentifier;
+	buttonBackground?: ColorIdentifier;
+	buttonHoverBackground?: ColorIdentifier;
+	buttonSecondaryForeground?: ColorIdentifier;
+	buttonSecondaryBackground?: ColorIdentifier;
+	buttonSecondaryHoverBackground?: ColorIdentifier;
+	buttonBorder?: ColorIdentifier;
 }
 
 export interface IDialogStyleOverrides extends IButtonStyleOverrides {

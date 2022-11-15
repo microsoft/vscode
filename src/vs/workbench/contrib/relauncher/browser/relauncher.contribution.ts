@@ -33,18 +33,18 @@ interface IConfiguration extends IWindowsConfiguration {
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
-	private titleBarStyle: 'native' | 'custom' | undefined;
-	private windowControlsOverlayEnabled: boolean | undefined;
-	private windowSandboxEnabled: boolean | undefined;
-	private nativeTabs: boolean | undefined;
-	private nativeFullScreen: boolean | undefined;
-	private clickThroughInactive: boolean | undefined;
-	private updateMode: string | undefined;
+	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
+	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
+	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
+	private readonly nativeTabs = new ChangeObserver('boolean');
+	private readonly nativeFullScreen = new ChangeObserver('boolean');
+	private readonly clickThroughInactive = new ChangeObserver('boolean');
+	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
-	private workspaceTrustEnabled: boolean | undefined;
-	private settingsProfilesEnabled: boolean | undefined;
-	private experimentsEnabled: boolean | undefined;
-	private enablePPEExtensionsGallery: boolean | undefined;
+	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
+	private readonly profilesEnabled = new ChangeObserver('boolean');
+	private readonly experimentsEnabled = new ChangeObserver('boolean');
+	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -61,49 +61,32 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
 
+		function processChanged(didChange: boolean) {
+			changed = changed || didChange;
+		}
+
 		if (isNative) {
 
 			// Titlebar style
-			if (typeof config.window?.titleBarStyle === 'string' && config.window?.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
-				this.titleBarStyle = config.window.titleBarStyle;
-				changed = true;
-			}
+			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 
 			// Windows: Window Controls Overlay
-			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window.experimental.windowControlsOverlay.enabled !== this.windowControlsOverlayEnabled) {
-				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
-				changed = true;
-			}
+			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled));
 
 			// Windows: Sandbox
-			if (typeof config.window?.experimental?.useSandbox === 'boolean' && config.window.experimental.useSandbox !== this.windowSandboxEnabled) {
-				this.windowSandboxEnabled = config.window.experimental.useSandbox;
-				changed = true;
-			}
+			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
 
 			// macOS: Native tabs
-			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
-				this.nativeTabs = config.window.nativeTabs;
-				changed = true;
-			}
+			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
 
 			// macOS: Native fullscreen
-			if (isMacintosh && typeof config.window?.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
-				this.nativeFullScreen = config.window.nativeFullScreen;
-				changed = true;
-			}
+			processChanged(isMacintosh && this.nativeFullScreen.handleChange(config.window?.nativeFullScreen));
 
 			// macOS: Click through (accept first mouse)
-			if (isMacintosh && typeof config.window?.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
-				this.clickThroughInactive = config.window.clickThroughInactive;
-				changed = true;
-			}
+			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 
 			// Update channel
-			if (typeof config.update?.mode === 'string' && config.update.mode !== this.updateMode) {
-				this.updateMode = config.update.mode;
-				changed = true;
-			}
+			processChanged(this.updateMode.handleChange(config.update?.mode));
 
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
@@ -114,29 +97,17 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 
 			// Workspace trust
-			if (typeof config?.security?.workspace?.trust?.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
-				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
-				changed = true;
-			}
+			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
 		}
 
 		// Profiles
-		if (this.productService.quality === 'stable' && typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
-			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
-			changed = true;
-		}
+		processChanged(this.productService.quality === 'stable' && this.profilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
 
 		// Experiments
-		if (typeof config.workbench?.enableExperiments === 'boolean' && config.workbench.enableExperiments !== this.experimentsEnabled) {
-			this.experimentsEnabled = config.workbench.enableExperiments;
-			changed = true;
-		}
+		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));
 
 		// Profiles
-		if (this.productService.quality !== 'stable' && typeof config._extensionsGallery?.enablePPE === 'boolean' && config._extensionsGallery?.enablePPE !== this.enablePPEExtensionsGallery) {
-			this.enablePPEExtensionsGallery = config._extensionsGallery?.enablePPE;
-			changed = true;
-		}
+		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
@@ -162,6 +133,34 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				confirmed();
 			}
 		}
+	}
+}
+
+interface TypeNameToType {
+	readonly boolean: boolean;
+	readonly string: string;
+}
+
+class ChangeObserver<T> {
+
+	static create<TTypeName extends 'boolean' | 'string'>(typeName: TTypeName): ChangeObserver<TypeNameToType[TTypeName]> {
+		return new ChangeObserver(typeName);
+	}
+
+	constructor(private readonly typeName: string) { }
+
+	private lastValue: T | undefined = undefined;
+
+	/**
+	 * Returns if there was a change compared to the last value
+	 */
+	handleChange(value: T | undefined): boolean {
+		if (typeof value === this.typeName && value !== this.lastValue) {
+			this.lastValue = value;
+			return true;
+		}
+
+		return false;
 	}
 }
 

@@ -38,12 +38,7 @@ export class EditSessionsDataViews extends Disposable {
 		const treeView = this.instantiationService.createInstance(TreeView, viewId, name);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);
-			}
-		});
+		treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.74.0",
-  "distro": "ac4b725ef14bfa1d8e3a768c5caab2a75cd6ad99",
+  "distro": "e573500de567e185e183768eb0e614a4d48bca0f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -65,7 +65,7 @@
     "@parcel/watcher": "2.0.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.2",
-    "@vscode/sqlite3": "5.0.8",
+    "@vscode/sqlite3": "5.1.2-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "graceful-fs": "4.2.8",

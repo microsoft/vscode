@@ -12,7 +12,7 @@ use crate::util::command::{capture_command, kill_tree};
 use crate::util::errors::{
 	wrap, AnyError, ExtensionInstallFailed, MissingEntrypointError, WrappedError,
 };
-use crate::util::http;
+use crate::util::http::{self, SimpleHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::{debug, info, log, span, spanf, trace, warning};
@@ -170,14 +170,22 @@ impl ResolvedServerParams {
 }
 
 impl ServerParamsRaw {
-	pub async fn resolve(self, log: &log::Logger) -> Result<ResolvedServerParams, AnyError> {
+	pub async fn resolve(
+		self,
+		log: &log::Logger,
+		http: impl SimpleHttp + Send + Sync + 'static,
+	) -> Result<ResolvedServerParams, AnyError> {
 		Ok(ResolvedServerParams {
-			release: self.get_or_fetch_commit_id(log).await?,
+			release: self.get_or_fetch_commit_id(log, http).await?,
 			code_server_args: self.code_server_args,
 		})
 	}
 
-	async fn get_or_fetch_commit_id(&self, log: &log::Logger) -> Result<Release, AnyError> {
+	async fn get_or_fetch_commit_id(
+		&self,
+		log: &log::Logger,
+		http: impl SimpleHttp + Send + Sync + 'static,
+	) -> Result<Release, AnyError> {
 		let target = match self.headless {
 			true => TargetKind::Server,
 			false => TargetKind::Web,
@@ -193,7 +201,7 @@ impl ServerParamsRaw {
 			});
 		}
 
-		UpdateService::new(log.clone(), reqwest::Client::new())
+		UpdateService::new(log.clone(), http)
 			.get_latest_commit(self.platform, target, self.quality)
 			.await
 	}
@@ -285,6 +293,7 @@ async fn install_server_if_needed(
 	log: &log::Logger,
 	paths: &ServerPaths,
 	release: &Release,
+	http: impl SimpleHttp + Send + Sync + 'static,
 ) -> Result<(), AnyError> {
 	if paths.executable.exists() {
 		info!(
@@ -298,7 +307,7 @@ async fn install_server_if_needed(
 	let tar_file_path = spanf!(
 		log,
 		log.span("server.download"),
-		download_server(&paths.server_dir, release, log)
+		download_server(&paths.server_dir, release, log, http)
 	)?;
 
 	span!(
@@ -314,28 +323,21 @@ async fn download_server(
 	path: &Path,
 	release: &Release,
 	log: &log::Logger,
+	http: impl SimpleHttp + Send + Sync + 'static,
 ) -> Result<PathBuf, AnyError> {
-	let response = UpdateService::new(log.clone(), reqwest::Client::new())
+	let response = UpdateService::new(log.clone(), http)
 		.get_download_stream(release)
 		.await?;
 
 	let mut save_path = path.to_owned();
-
-	let fname = response
-		.url()
-		.path_segments()
-		.and_then(|segments| segments.last())
-		.and_then(|name| if name.is_empty() { None } else { Some(name) })
-		.unwrap_or("tmp.zip");
+	save_path.push("archive");
 
 	info!(
 		log,
-		"Downloading VS Code server {} -> {}",
-		response.url(),
+		"Downloading VS Code server -> {}",
 		save_path.display()
 	);
 
-	save_path.push(fname);
 	http::download_into_file(
 		&save_path,
 		log.get_download_logger("server download progress:"),
@@ -402,18 +404,20 @@ async fn do_extension_install_on_running_server(
 	}
 }
 
-pub struct ServerBuilder<'a> {
+pub struct ServerBuilder<'a, Http: SimpleHttp + Send + Sync + Clone> {
 	logger: &'a log::Logger,
 	server_params: &'a ResolvedServerParams,
 	last_used: LastUsedServers<'a>,
 	server_paths: ServerPaths,
+	http: Http,
 }
 
-impl<'a> ServerBuilder<'a> {
+impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Http> {
 	pub fn new(
 		logger: &'a log::Logger,
 		server_params: &'a ResolvedServerParams,
 		launcher_paths: &'a LauncherPaths,
+		http: Http,
 	) -> Self {
 		Self {
 			logger,
@@ -422,6 +426,7 @@ impl<'a> ServerBuilder<'a> {
 			server_paths: server_params
 				.as_installed_server()
 				.server_paths(launcher_paths),
+			http,
 		}
 	}
 
@@ -476,8 +481,13 @@ impl<'a> ServerBuilder<'a> {
 	pub async fn setup(&self) -> Result<(), AnyError> {
 		debug!(self.logger, "Installing and setting up VS Code Server...");
 		check_and_create_dir(&self.server_paths.server_dir).await?;
-		install_server_if_needed(self.logger, &self.server_paths, &self.server_params.release)
-			.await?;
+		install_server_if_needed(
+			self.logger,
+			&self.server_paths,
+			&self.server_params.release,
+			self.http.clone(),
+		)
+		.await?;
 		debug!(self.logger, "Server setup complete");
 
 		match self.last_used.add(self.server_params.as_installed_server()) {
