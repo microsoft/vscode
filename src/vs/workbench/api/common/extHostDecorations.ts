@@ -38,10 +38,10 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerFileDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: IExtensionDescription): vscode.Disposable {
+	registerFileDecorationProvider(provider: vscode.FileDecorationProvider, extensionDescription: IExtensionDescription): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
-		this._provider.set(handle, { provider, extensionDescription: extensionId });
-		this._proxy.$registerDecorationProvider(handle, extensionId.identifier.value);
+		this._provider.set(handle, { provider, extensionDescription });
+		this._proxy.$registerDecorationProvider(handle, extensionDescription.identifier.value);
 
 		const listener = provider.onDidChangeFileDecorations && provider.onDidChangeFileDecorations(e => {
 			if (!e) {
@@ -56,7 +56,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 
 			// too many resources per event. pick one resource per folder, starting
 			// with parent folders
-			this._logService.warn('[Decorations] CAPPING events from decorations provider', extensionId.identifier.value, array.length);
+			this._logService.warn('[Decorations] CAPPING events from decorations provider', extensionDescription.identifier.value, array.length);
 			const mapped = array.map(uri => ({ uri, rank: count(uri.path, '/') }));
 			const groups = groupBy(mapped, (a, b) => a.rank - b.rank || compare(a.uri.path, b.uri.path));
 			const picked: URI[] = [];
