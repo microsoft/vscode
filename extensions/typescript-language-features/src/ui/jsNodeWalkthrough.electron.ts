@@ -50,7 +50,9 @@ export class CreateNewJSFileCommand {
 	public static readonly id = 'javascript-walkthrough.commands.createJsFile';
 	public readonly id = CreateNewJSFileCommand.id;
 
-	constructor(private walkthroughState: JsWalkthroughState) { }
+	constructor(
+		private readonly walkthroughState: JsWalkthroughState
+	) { }
 
 	public execute() {
 		createNewJSFile(this.walkthroughState);
@@ -61,7 +63,9 @@ export class DebugJsFileCommand {
 	public static readonly id = 'javascript-walkthrough.commands.debugJsFile';
 	public readonly id = DebugJsFileCommand.id;
 
-	constructor(private walkthroughState: JsWalkthroughState) { }
+	constructor(
+		private readonly walkthroughState: JsWalkthroughState
+	) { }
 
 	public execute() {
 		debugJsFile(this.walkthroughState);
