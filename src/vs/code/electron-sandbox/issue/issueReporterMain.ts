@@ -7,7 +7,7 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { localize } from 'vs/nls';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button, defaultOptions } from 'vs/base/browser/ui/button/button';
+import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Delayer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -88,7 +88,7 @@ export class IssueReporter extends Disposable {
 
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement, defaultOptions);
+			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
 		}
 
