@@ -3584,10 +3584,10 @@ decompress@^4.2.1:
     pify "^2.3.0"
     strip-dirs "^2.0.0"
 
-deemon@^1.7.2:
-  version "1.7.2"
-  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.7.2.tgz#8b04aff88bf5752ba6dfea4242758b98ec6fd57c"
-  integrity sha512-KxR0zGNLbeNZyXLLrAiRtj5f3gpXn85UEgrCWD49IlPzSPQg9iFR/uQnEKQzvt9kP5latEHQkM+SNcnJOBfP3Q==
+deemon@^1.8.0:
+  version "1.8.0"
+  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.8.0.tgz#7b9498905634a89bfe6db11b5edf779e2fac5248"
+  integrity sha512-qcuSMls/W5DdoEKKAF0PiNQrc8+tItFjvszfjNm1YqNv1p5wwEt+6qILA9sws6eM81nmNwD38ducqlgIXzQlsQ==
   dependencies:
     bl "^4.0.2"
     tree-kill "^1.2.2"
