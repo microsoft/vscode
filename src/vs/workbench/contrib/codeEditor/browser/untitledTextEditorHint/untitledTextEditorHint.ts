@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./untitledTextEditorHint';
 import * as dom from 'vs/base/browser/dom';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ChangeLanguageAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -192,16 +191,5 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		dispose(this.toDispose);
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
-	if (inputPlaceholderForegroundColor) {
-		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint { color: ${inputPlaceholderForegroundColor}; }`);
-	}
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint a { color: ${textLinkForegroundColor}; }`);
-	}
-});
 
 registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution);

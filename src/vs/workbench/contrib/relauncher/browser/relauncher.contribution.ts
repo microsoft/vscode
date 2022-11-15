@@ -42,7 +42,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
-	private readonly settingsProfilesEnabled = new ChangeObserver('boolean');
+	private readonly profilesEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 
@@ -101,7 +101,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// Profiles
-		processChanged(this.productService.quality === 'stable' && this.settingsProfilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
+		processChanged(this.productService.quality === 'stable' && this.profilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
 
 		// Experiments
 		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));

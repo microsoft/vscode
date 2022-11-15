@@ -1,5 +1,5 @@
 {
 	"displayName": ".ipynb Support",
 	"description": "Provides basic support for opening and reading Jupyter's .ipynb notebook files",
-	"ipynb.experimental.pasteImages.enabled":"Enable/Disable pasting images into markdown cells within ipynb files. Requires enabling `#editor.experimental.pasteActions.enabled#`."
+	"ipynb.pasteImagesAsAttachments.enabled": "Enable/disable pasting of images into Markdown cells in ipynb notebook files. Pasted images are inserted as attachments to the cell."
 }

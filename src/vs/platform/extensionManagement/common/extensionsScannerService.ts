@@ -355,7 +355,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		this.logService.trace('Started scanning dev system extensions');
 		const builtinExtensionControl = checkControlFile ? await this.getBuiltInExtensionControl() : {};
 		const devSystemExtensionsLocations: URI[] = [];
-		const devSystemExtensionsLocation = URI.file(path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions')));
+		const devSystemExtensionsLocation = URI.file(path.normalize(path.join(FileAccess.asFileUri('').fsPath, '..', '.build', 'builtInExtensions')));
 		for (const extension of devSystemExtensionsList) {
 			const controlState = builtinExtensionControl[extension.name] || 'marketplace';
 			switch (controlState) {

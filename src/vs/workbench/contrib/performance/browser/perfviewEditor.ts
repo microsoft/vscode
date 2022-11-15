@@ -256,9 +256,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		map.set(LoaderEventType.CachedDataFound, []);
 		map.set(LoaderEventType.CachedDataMissed, []);
 		map.set(LoaderEventType.CachedDataRejected, []);
-		for (const stat of require.getStats()) {
-			if (map.has(stat.type)) {
-				map.get(stat.type)!.push(stat.detail);
+		if (typeof require.getStats === 'function') {
+			for (const stat of require.getStats()) {
+				if (map.has(stat.type)) {
+					map.get(stat.type)!.push(stat.detail);
+				}
 			}
 		}
 

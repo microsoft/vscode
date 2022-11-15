@@ -7,7 +7,6 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -45,7 +44,7 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/views/viewFilter';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -588,14 +587,13 @@ export abstract class ViewPane extends Pane implements IView {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, disposables);
 					disposables.add(button);
-					disposables.add(attachButtonStyler(button, this.themeService));
 
 					if (precondition) {
 						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
