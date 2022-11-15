@@ -21,7 +21,7 @@ Visual Studio Code is updated monthly with new features and bug fixes. You can d
 
 ## Contributing
 
-There are many ways in which you can participate in this project, for example:
+There are many ways in which you can participate in this project, for example (Please see below for description):
 
 * [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
 * Review [source code changes](https://github.com/microsoft/vscode/pulls)
