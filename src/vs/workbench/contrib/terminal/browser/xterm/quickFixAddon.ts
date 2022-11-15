@@ -122,7 +122,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			id: selector.id,
 			type: 'unresolved',
 			commandLineMatcher: selector.commandLineMatcher,
-			outputMatcher: selector.outputMatcher
+			outputMatcher: selector.outputMatcher,
+			exitStatus: selector.exitStatus
 		});
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
@@ -261,7 +262,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 }
 
 export async function getQuickFixesForCommand(
-	command: ITerminalCommand,
+	terminalCommand: ITerminalCommand,
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
@@ -270,11 +271,11 @@ export async function getQuickFixesForCommand(
 	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: IAction[] = [];
-	const newCommand = command.command;
+	const newCommand = terminalCommand.command;
 	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
-			if (option.exitStatus !== undefined && option.exitStatus !== (command.exitCode === 0)) {
+			if (option.exitStatus !== undefined && option.exitStatus !== (terminalCommand.exitCode === 0)) {
 				continue;
 			}
 			const commandLineMatch = newCommand.match(option.commandLineMatcher);
@@ -284,22 +285,24 @@ export async function getQuickFixesForCommand(
 			const outputMatcher = option.outputMatcher;
 			let outputMatch;
 			if (outputMatcher) {
-				outputMatch = command.getOutputMatch(outputMatcher);
+				outputMatch = terminalCommand.getOutputMatch(outputMatcher);
 			}
+			const command = { command: newCommand, exitStatus: terminalCommand.exitCode !== 0 };
+			const matchResult = { commandLineMatch, outputMatch, command };
 			const id = option.id;
 			let quickFixes;
 			switch (option.type) {
 				case 'internal':
-					quickFixes = (option as IInternalOptions).getQuickFixes({ commandLineMatch, outputMatch, command });
+					quickFixes = (option as IInternalOptions).getQuickFixes(matchResult);
 					break;
 				case 'resolved':
-					quickFixes = await (option as IResolvedExtensionOptions).getQuickFixes({ commandLineMatch, outputMatch, command }, new CancellationTokenSource().token);
+					quickFixes = await (option as IResolvedExtensionOptions).getQuickFixes(matchResult, new CancellationTokenSource().token);
 					break;
 				case 'unresolved':
 					if (!getResolvedFixes) {
 						throw new Error('No resolved fix provider');
 					}
-					quickFixes = await getResolvedFixes(id, { command, commandLineMatch, outputMatch });
+					quickFixes = await getResolvedFixes(id, matchResult);
 					break;
 			}
 

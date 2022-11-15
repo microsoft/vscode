@@ -18,7 +18,7 @@ declare module 'vscode' {
 	export interface TerminalCommandSelector {
 		commandLineMatcher: string | RegExp;
 		outputMatcher?: TerminalOutputMatcher;
-		exitStatus?: boolean;
+		exitStatus: boolean;
 	}
 
 	export interface TerminalCommandMatchResult {

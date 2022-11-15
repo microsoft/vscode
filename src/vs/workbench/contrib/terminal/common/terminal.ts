@@ -736,7 +736,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
 				items: {
 					type: 'object',
-					required: ['id', 'commandLineMatcher', 'outputMatcher'],
+					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
 					defaultSnippets: [{
 						body: {
 							id: '$1',
@@ -778,8 +778,8 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							}
 						},
 						exitStatus: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "The exit code to expect if any"),
-							type: 'number',
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "True if the exit code is non-zero"),
+							type: 'boolean',
 						}
 					},
 				}

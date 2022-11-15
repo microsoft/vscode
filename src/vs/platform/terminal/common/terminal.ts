@@ -19,7 +19,7 @@ export interface ITerminalCommandSelector {
 	extensionId: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	exitStatus?: boolean;
+	exitStatus: boolean;
 }
 
 
@@ -28,7 +28,7 @@ export interface ITerminalQuickFixOptions {
 	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	exitStatus?: boolean;
+	exitStatus: boolean;
 }
 
 
@@ -49,7 +49,7 @@ export interface ITerminalQuickFixOpenerAction {
 export interface ITerminalCommandSelector {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	exitStatus?: boolean;
+	exitStatus: boolean;
 }
 
 export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
@@ -59,7 +59,7 @@ export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMat
 
 
 export interface TerminalCommandMatchResult {
-	command: { command: string; exitStatus?: number };
+	command: { command: string; exitStatus: boolean };
 	commandLineMatch: RegExpMatchArray;
 	// full match and groups
 
@@ -87,7 +87,7 @@ export interface ITerminalQuickFixProvider {
 	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
 }
 export interface ITerminalCommandMatchResult {
-	command: { command: string; exitStatus?: number };
+	command: { command: string; exitStatus: boolean };
 	commandLineMatch: RegExpMatchArray;
 	// full match and groups
 
