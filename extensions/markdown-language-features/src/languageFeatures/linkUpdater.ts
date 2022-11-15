@@ -7,14 +7,12 @@ import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { TextDocumentEdit } from 'vscode-languageclient';
-import * as nls from 'vscode-nls';
 import { MdLanguageClient } from '../client/client';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { convertRange } from './fileReferences';
 
-const localize = nls.loadMessageBundle();
 
 const settingNames = Object.freeze({
 	enabled: 'updateLinksOnFileMove.enabled',
@@ -54,7 +52,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 				this._delayer.trigger(() => {
 					vscode.window.withProgress({
 						location: vscode.ProgressLocation.Window,
-						title: localize('renameProgress.title', "Checking for Markdown links to update")
+						title: vscode.l10n.t("Checking for Markdown links to update")
 					}, () => this._flushRenames());
 				});
 			}
@@ -121,26 +119,26 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		}
 
 		const rejectItem: vscode.MessageItem = {
-			title: localize('reject.title', "No"),
+			title: vscode.l10n.t("No"),
 			isCloseAffordance: true,
 		};
 
 		const acceptItem: vscode.MessageItem = {
-			title: localize('accept.title', "Yes"),
+			title: vscode.l10n.t("Yes"),
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: localize('always.title', "Always"),
+			title: vscode.l10n.t("Always"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: localize('never.title', "Never"),
+			title: vscode.l10n.t("Never"),
 		};
 
 		const choice = await vscode.window.showInformationMessage(
 			newResources.length === 1
-				? localize('prompt', "Update Markdown links for '{0}'?", path.basename(newResources[0].fsPath))
-				: this._getConfirmMessage(localize('promptMoreThanOne', "Update Markdown links for the following {0} files?", newResources.length), newResources), {
+				? vscode.l10n.t("Update Markdown links for '{0}'?", path.basename(newResources[0].fsPath))
+				: this._getConfirmMessage(vscode.l10n.t("Update Markdown links for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
@@ -203,9 +201,9 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 
 		if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
 			if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
-				paths.push(localize('moreFile', "...1 additional file not shown"));
+				paths.push(vscode.l10n.t("...1 additional file not shown"));
 			} else {
-				paths.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+				paths.push(vscode.l10n.t("...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
 			}
 		}
 

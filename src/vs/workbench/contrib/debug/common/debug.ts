@@ -98,7 +98,7 @@ export const DEBUG_SCHEME = 'debug';
 export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 	default: 'openOnFirstSessionStart',
-	description: nls.localize('internalConsoleOptions', "Controls when the internal debug console should open.")
+	description: nls.localize('internalConsoleOptions', "Controls when the internal Debug Console should open.")
 };
 
 // raw
@@ -820,11 +820,7 @@ export interface IDebugAdapterDescriptorFactory {
 	createDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor>;
 }
 
-export interface IDebugAdapterTrackerFactory {
-	readonly type: string;
-}
-
-export interface ITerminalLauncher {
+interface ITerminalLauncher {
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 

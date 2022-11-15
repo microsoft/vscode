@@ -45,7 +45,7 @@ Registry
 		...editorConfigurationBaseNode,
 		'properties': {
 			'editor.snippets.codeActions.enabled': {
-				'description': nls.localize('editor.snippets.codeActions.enabled', 'Controls if surround-with-snippets or file template snippets show as code actions.'),
+				'description': nls.localize('editor.snippets.codeActions.enabled', 'Controls if surround-with-snippets or file template snippets show as Code Actions.'),
 				'type': 'boolean',
 				'default': true
 			}

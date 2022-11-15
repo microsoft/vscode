@@ -8,19 +8,19 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ExtensionsProfile } from 'vs/workbench/services/userDataProfile/common/extensionsProfile';
-import { GlobalStateProfile } from 'vs/workbench/services/userDataProfile/common/globalStateProfile';
+import { ExtensionsResource } from 'vs/workbench/services/userDataProfile/common/extensionsResource';
+import { GlobalStateResource } from 'vs/workbench/services/userDataProfile/common/globalStateResource';
 import { IUserDataProfileTemplate, IUserDataProfileImportExportService, PROFILES_CATEGORY, IUserDataProfileManagementService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { SettingsProfile } from 'vs/workbench/services/userDataProfile/common/settingsProfile';
+import { SettingsResource } from 'vs/workbench/services/userDataProfile/common/settingsResource';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class UserDataProfileImportExportService implements IUserDataProfileImportExportService {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly settingsProfile: SettingsProfile;
-	private readonly globalStateProfile: GlobalStateProfile;
-	private readonly extensionsProfile: ExtensionsProfile;
+	private readonly settingsResourceProfile: SettingsResource;
+	private readonly globalStateProfile: GlobalStateResource;
+	private readonly extensionsProfile: ExtensionsResource;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -29,15 +29,15 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
-		this.settingsProfile = instantiationService.createInstance(SettingsProfile);
-		this.globalStateProfile = instantiationService.createInstance(GlobalStateProfile);
-		this.extensionsProfile = instantiationService.createInstance(ExtensionsProfile);
+		this.settingsResourceProfile = instantiationService.createInstance(SettingsResource);
+		this.globalStateProfile = instantiationService.createInstance(GlobalStateResource);
+		this.extensionsProfile = instantiationService.createInstance(ExtensionsResource);
 	}
 
 	async exportProfile(options?: { skipComments: boolean }): Promise<IUserDataProfileTemplate> {
-		const settings = await this.settingsProfile.getProfileContent(options);
-		const globalState = await this.globalStateProfile.getProfileContent();
-		const extensions = await this.extensionsProfile.getProfileContent();
+		const settings = await this.settingsResourceProfile.getContent(options);
+		const globalState = await this.globalStateProfile.getContent();
+		const extensions = await this.extensionsProfile.getContent();
 		return {
 			settings,
 			globalState,
@@ -60,13 +60,13 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 		}, async progress => {
 			await this.userDataProfileManagementService.createAndEnterProfile(name);
 			if (profileTemplate.settings) {
-				await this.settingsProfile.applyProfile(profileTemplate.settings);
+				await this.settingsResourceProfile.apply(profileTemplate.settings);
 			}
 			if (profileTemplate.globalState) {
-				await this.globalStateProfile.applyProfile(profileTemplate.globalState);
+				await this.globalStateProfile.apply(profileTemplate.globalState);
 			}
 			if (profileTemplate.extensions) {
-				await this.extensionsProfile.applyProfile(profileTemplate.extensions);
+				await this.extensionsProfile.apply(profileTemplate.extensions);
 			}
 		});
 
@@ -79,13 +79,13 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 			title: localize('profiles.applying', "{0}: Applying...", PROFILES_CATEGORY.value),
 		}, async progress => {
 			if (profile.settings) {
-				await this.settingsProfile.applyProfile(profile.settings);
+				await this.settingsResourceProfile.apply(profile.settings);
 			}
 			if (profile.globalState) {
-				await this.globalStateProfile.applyProfile(profile.globalState);
+				await this.globalStateProfile.apply(profile.globalState);
 			}
 			if (profile.extensions) {
-				await this.extensionsProfile.applyProfile(profile.extensions);
+				await this.extensionsProfile.apply(profile.extensions);
 			}
 		});
 		this.notificationService.info(localize('applied profile', "{0}: Applied successfully.", PROFILES_CATEGORY.value));

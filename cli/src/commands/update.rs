@@ -8,13 +8,16 @@ use indicatif::ProgressBar;
 use crate::{
 	self_update::SelfUpdate,
 	update_service::UpdateService,
-	util::{errors::AnyError, input::ProgressBarReporter},
+	util::{errors::AnyError, http::ReqwestSimpleHttp, input::ProgressBarReporter},
 };
 
 use super::{args::StandaloneUpdateArgs, CommandContext};
 
 pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i32, AnyError> {
-	let update_service = UpdateService::new(ctx.log.clone(), ctx.http.clone());
+	let update_service = UpdateService::new(
+		ctx.log.clone(),
+		ReqwestSimpleHttp::with_client(ctx.http.clone()),
+	);
 	let update_service = SelfUpdate::new(&update_service)?;
 
 	let current_version = update_service.get_current_release().await?;

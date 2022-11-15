@@ -222,67 +222,69 @@ class State {
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
 
-		if (update.type === 'selectionStatus') {
-			if (this._selectionStatus !== update.selectionStatus) {
-				this._selectionStatus = update.selectionStatus;
-				change.selectionStatus = true;
-			}
-		}
+		switch (update.type) {
+			case 'selectionStatus':
+				if (this._selectionStatus !== update.selectionStatus) {
+					this._selectionStatus = update.selectionStatus;
+					change.selectionStatus = true;
+				}
+				break;
 
-		if (update.type === 'indentation') {
-			if (this._indentation !== update.indentation) {
-				this._indentation = update.indentation;
-				change.indentation = true;
-			}
-		}
+			case 'indentation':
+				if (this._indentation !== update.indentation) {
+					this._indentation = update.indentation;
+					change.indentation = true;
+				}
+				break;
 
-		if (update.type === 'languageId') {
-			if (this._languageId !== update.languageId) {
-				this._languageId = update.languageId;
-				change.languageId = true;
-			}
-		}
+			case 'languageId':
+				if (this._languageId !== update.languageId) {
+					this._languageId = update.languageId;
+					change.languageId = true;
+				}
+				break;
 
-		if (update.type === 'encoding') {
-			if (this._encoding !== update.encoding) {
-				this._encoding = update.encoding;
-				change.encoding = true;
-			}
-		}
+			case 'encoding':
+				if (this._encoding !== update.encoding) {
+					this._encoding = update.encoding;
+					change.encoding = true;
+				}
+				break;
 
-		if (update.type === 'EOL') {
-			if (this._EOL !== update.EOL) {
-				this._EOL = update.EOL;
-				change.EOL = true;
-			}
-		}
+			case 'EOL':
+				if (this._EOL !== update.EOL) {
+					this._EOL = update.EOL;
+					change.EOL = true;
+				}
+				break;
 
-		if (update.type === 'tabFocusMode') {
-			if (this._tabFocusMode !== update.tabFocusMode) {
-				this._tabFocusMode = update.tabFocusMode;
-				change.tabFocusMode = true;
-			}
-		}
+			case 'tabFocusMode':
+				if (this._tabFocusMode !== update.tabFocusMode) {
+					this._tabFocusMode = update.tabFocusMode;
+					change.tabFocusMode = true;
+				}
+				break;
 
-		if (update.type === 'columnSelectionMode') {
-			if (this._columnSelectionMode !== update.columnSelectionMode) {
-				this._columnSelectionMode = update.columnSelectionMode;
-				change.columnSelectionMode = true;
-			}
-		}
+			case 'columnSelectionMode':
+				if (this._columnSelectionMode !== update.columnSelectionMode) {
+					this._columnSelectionMode = update.columnSelectionMode;
+					change.columnSelectionMode = true;
+				}
+				break;
 
-		if (update.type === 'screenReaderMode') {
-			if (this._screenReaderMode !== update.screenReaderMode) {
-				this._screenReaderMode = update.screenReaderMode;
-				change.screenReaderMode = true;
-			}
-		}
+			case 'screenReaderMode':
+				if (this._screenReaderMode !== update.screenReaderMode) {
+					this._screenReaderMode = update.screenReaderMode;
+					change.screenReaderMode = true;
+				}
+				break;
 
-		if (update.type === 'metadata') {
-			if (this._metadata !== update.metadata) {
-				this._metadata = update.metadata;
-				change.metadata = true;
-			}
+			case 'metadata':
+				if (this._metadata !== update.metadata) {
+					this._metadata = update.metadata;
+					change.metadata = true;
+				}
+				break;
 		}
 
 		return change;

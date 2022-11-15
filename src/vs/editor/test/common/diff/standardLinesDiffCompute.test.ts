@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { lineRangeMappingFromRangeMappings, StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';

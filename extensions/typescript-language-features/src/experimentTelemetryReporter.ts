@@ -16,10 +16,11 @@ export interface IExperimentationTelemetryReporter extends tas.IExperimentationT
  * but will only do so when passed to an {@link ExperimentationService}.
  */
 
-export class ExperimentationTelemetryReporter
-	implements IExperimentationTelemetryReporter {
+export class ExperimentationTelemetryReporter implements IExperimentationTelemetryReporter {
+
 	private _sharedProperties: Record<string, string> = {};
-	private _reporter: VsCodeTelemetryReporter;
+	private readonly _reporter: VsCodeTelemetryReporter;
+
 	constructor(reporter: VsCodeTelemetryReporter) {
 		this._reporter = reporter;
 	}

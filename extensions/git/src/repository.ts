@@ -308,11 +308,14 @@ export const enum Operation {
 	Diff = 'Diff',
 	MergeBase = 'MergeBase',
 	Add = 'Add',
+	AddNoProgress = 'AddNoProgress',
 	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
+	RevertFilesNoProgress = 'RevertFilesNoProgress',
 	Commit = 'Commit',
 	PostCommitCommand = 'PostCommitCommand',
 	Clean = 'Clean',
+	CleanNoProgress = 'CleanNoProgress',
 	Branch = 'Branch',
 	GetBranch = 'GetBranch',
 	GetBranches = 'GetBranches',
@@ -376,7 +379,10 @@ function isReadOnly(operation: Operation): boolean {
 
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
+		case Operation.AddNoProgress:
+		case Operation.CleanNoProgress:
 		case Operation.FetchNoProgress:
+		case Operation.RevertFilesNoProgress:
 		case Operation.CheckIgnore:
 		case Operation.GetObjectDetails:
 		case Operation.Show:
@@ -445,6 +451,13 @@ class OperationsImpl implements Operations {
 
 export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
+}
+
+interface GitResourceGroups {
+	indexGroup?: Resource[];
+	mergeGroup?: Resource[];
+	untrackedGroup?: Resource[];
+	workingTreeGroup?: Resource[];
 }
 
 export interface OperationResult {
@@ -974,7 +987,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
-		)(this.updateModelState, this, this.disposables);
+		)(() => this.updateModelState(), this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1218,10 +1231,41 @@ export class Repository implements Disposable {
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
-		await this.run(Operation.Add, async () => {
-			await this.repository.add(resources.map(r => r.fsPath), opts);
-			this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
-		});
+		await this.run(
+			this.optimisticUpdateEnabled() ? Operation.AddNoProgress : Operation.Add,
+			async () => {
+				await this.repository.add(resources.map(r => r.fsPath), opts);
+				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
+			},
+			() => {
+				const resourcePaths = resources.map(r => r.fsPath);
+				const indexGroupResourcePaths = this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath);
+
+				// Collect added resources
+				const addedResourceStates: Resource[] = [];
+				for (const resource of [...this.mergeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.workingTreeGroup.resourceStates]) {
+					if (resourcePaths.includes(resource.resourceUri.fsPath) && !indexGroupResourcePaths.includes(resource.resourceUri.fsPath)) {
+						addedResourceStates.push(resource);
+					}
+				}
+
+				// Add new resource(s) to index group
+				const indexGroup = [...this.indexGroup.resourceStates, ...addedResourceStates];
+
+				// Remove resource(s) from merge group
+				const mergeGroup = this.mergeGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Remove resource(s) from working group
+				const workingTreeGroup = this.workingTreeGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Remove resource(s) from untracked group
+				const untrackedGroup = this.untrackedGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				return { indexGroup, mergeGroup, workingTreeGroup, untrackedGroup };
+			});
 	}
 
 	async rm(resources: Uri[]): Promise<void> {
@@ -1238,49 +1282,88 @@ export class Repository implements Disposable {
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
-		await this.run(Operation.RevertFiles, async () => {
-			await this.repository.revert('HEAD', resources.map(r => r.fsPath));
-			this.closeDiffEditors([...resources.length !== 0 ?
-				resources.map(r => r.fsPath) :
-				this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
-		});
+		await this.run(
+			this.optimisticUpdateEnabled() ? Operation.RevertFilesNoProgress : Operation.RevertFiles,
+			async () => {
+				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
+				this.closeDiffEditors([...resources.length !== 0 ?
+					resources.map(r => r.fsPath) :
+					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
+			},
+			() => {
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+
+				const resourcePaths = resources.length === 0 ?
+					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
+
+				// Collect removed resources
+				const trackedResources: Resource[] = [];
+				const untrackedResources: Resource[] = [];
+				for (const resource of this.indexGroup.resourceStates) {
+					if (resourcePaths.includes(resource.resourceUri.fsPath)) {
+						if (resource.type === Status.INDEX_ADDED) {
+							untrackedResources.push(resource);
+						} else {
+							trackedResources.push(resource);
+						}
+					}
+				}
+
+				// Remove resource(s) from index group
+				const indexGroup = this.indexGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Add resource(s) to working group
+				const workingTreeGroup = untrackedChanges === 'mixed' ?
+					[...this.workingTreeGroup.resourceStates, ...trackedResources, ...untrackedResources] :
+					[...this.workingTreeGroup.resourceStates, ...trackedResources];
+
+				// Add resource(s) to untracked group
+				const untrackedGroup = untrackedChanges === 'separate' ?
+					[...this.untrackedGroup.resourceStates, ...untrackedResources] : undefined;
+
+				return { indexGroup, workingTreeGroup, untrackedGroup };
+			});
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
-		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
-
 		if (this.rebaseCommit) {
-			await this.run(Operation.RebaseContinue, async () => {
-				if (opts.all) {
-					const addOpts = opts.all === 'tracked' ? { update: true } : {};
-					await this.repository.add([], addOpts);
-				}
+			await this.run(
+				Operation.RebaseContinue,
+				async () => {
+					if (opts.all) {
+						const addOpts = opts.all === 'tracked' ? { update: true } : {};
+						await this.repository.add([], addOpts);
+					}
 
-				await this.repository.rebaseContinue();
-				this.closeDiffEditors(indexResources, workingGroupResources);
-			});
+					await this.repository.rebaseContinue();
+					await this.commitOperationCleanup(message, opts);
+				},
+				() => this.commitOperationGetOptimisticResourceGroups(opts));
 		} else {
 			// Set post-commit command to render the correct action button
 			this.commitCommandCenter.postCommitCommand = opts.postCommitCommand;
 
-			await this.run(Operation.Commit, async () => {
-				if (opts.all) {
-					const addOpts = opts.all === 'tracked' ? { update: true } : {};
-					await this.repository.add([], addOpts);
-				}
+			await this.run(
+				Operation.Commit,
+				async () => {
+					if (opts.all) {
+						const addOpts = opts.all === 'tracked' ? { update: true } : {};
+						await this.repository.add([], addOpts);
+					}
 
-				delete opts.all;
+					delete opts.all;
 
-				if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
-					const config = workspace.getConfiguration('git', Uri.file(this.root));
-					opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
-				}
+					if (opts.requireUserConfig === undefined || opts.requireUserConfig === null) {
+						const config = workspace.getConfiguration('git', Uri.file(this.root));
+						opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
+					}
 
-				await this.repository.commit(message, opts);
-				this.closeDiffEditors(indexResources, workingGroupResources);
-			});
+					await this.repository.commit(message, opts);
+					await this.commitOperationCleanup(message, opts);
+				},
+				() => this.commitOperationGetOptimisticResourceGroups(opts));
 
 			// Execute post-commit command
 			await this.run(Operation.PostCommitCommand, async () => {
@@ -1289,48 +1372,89 @@ export class Repository implements Disposable {
 		}
 	}
 
+	private async commitOperationCleanup(message: string | undefined, opts: CommitOptions) {
+		if (message) {
+			this.inputBox.value = await this.getInputTemplate();
+		}
+
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
+		this.closeDiffEditors(indexResources, workingGroupResources);
+	}
+
+	private commitOperationGetOptimisticResourceGroups(opts: CommitOptions): GitResourceGroups {
+		let untrackedGroup: Resource[] | undefined = undefined,
+			workingTreeGroup: Resource[] | undefined = undefined;
+
+		if (opts.all === 'tracked') {
+			workingTreeGroup = this.workingTreeGroup.resourceStates
+				.filter(r => r.type === Status.UNTRACKED);
+		} else if (opts.all) {
+			untrackedGroup = workingTreeGroup = [];
+		}
+
+		return { indexGroup: [], mergeGroup: [], untrackedGroup, workingTreeGroup };
+	}
+
 	async clean(resources: Uri[]): Promise<void> {
-		await this.run(Operation.Clean, async () => {
-			const toClean: string[] = [];
-			const toCheckout: string[] = [];
-			const submodulesToUpdate: string[] = [];
-			const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
+		await this.run(
+			this.optimisticUpdateEnabled() ? Operation.CleanNoProgress : Operation.Clean,
+			async () => {
+				const toClean: string[] = [];
+				const toCheckout: string[] = [];
+				const submodulesToUpdate: string[] = [];
+				const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
 
-			resources.forEach(r => {
-				const fsPath = r.fsPath;
+				resources.forEach(r => {
+					const fsPath = r.fsPath;
 
-				for (const submodule of this.submodules) {
-					if (path.join(this.root, submodule.path) === fsPath) {
-						submodulesToUpdate.push(fsPath);
+					for (const submodule of this.submodules) {
+						if (path.join(this.root, submodule.path) === fsPath) {
+							submodulesToUpdate.push(fsPath);
+							return;
+						}
+					}
+
+					const raw = r.toString();
+					const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+
+					if (!scmResource) {
 						return;
 					}
-				}
 
-				const raw = r.toString();
-				const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+					switch (scmResource.type) {
+						case Status.UNTRACKED:
+						case Status.IGNORED:
+							toClean.push(fsPath);
+							break;
 
-				if (!scmResource) {
-					return;
-				}
+						default:
+							toCheckout.push(fsPath);
+							break;
+					}
+				});
 
-				switch (scmResource.type) {
-					case Status.UNTRACKED:
-					case Status.IGNORED:
-						toClean.push(fsPath);
-						break;
+				await this.repository.clean(toClean);
+				await this.repository.checkout('', toCheckout);
+				await this.repository.updateSubmodules(submodulesToUpdate);
 
-					default:
-						toCheckout.push(fsPath);
-						break;
-				}
+				this.closeDiffEditors([], [...toClean, ...toCheckout]);
+			},
+			() => {
+				const resourcePaths = resources.map(r => r.fsPath);
+
+				// Remove resource(s) from working group
+				const workingTreeGroup = this.workingTreeGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Remove resource(s) from untracked group
+				const untrackedGroup = this.untrackedGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				return { workingTreeGroup, untrackedGroup };
 			});
-
-			await this.repository.clean(toClean);
-			await this.repository.checkout('', toCheckout);
-			await this.repository.updateSubmodules(submodulesToUpdate);
-
-			this.closeDiffEditors([], [...toClean, ...toCheckout]);
-		});
 	}
 
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
@@ -1869,7 +1993,10 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+	private async run<T>(
+		operation: Operation,
+		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
+		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
@@ -1883,7 +2010,7 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
-				await this.updateModelState();
+				await this.updateModelState(this.optimisticUpdateEnabled() ? getOptimisticResourceGroups() : undefined);
 			}
 
 			return result;
@@ -1942,55 +2069,53 @@ export class Repository implements Disposable {
 		return folderPaths.filter(p => !ignored.has(p));
 	}
 
-	private async updateModelState() {
+	private async updateModelState(optimisticResourcesGroups?: GitResourceGroups) {
 		this.updateModelStateCancellationTokenSource?.cancel();
 
 		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
-		await this._updateModelState(this.updateModelStateCancellationTokenSource.token);
+		await this._updateModelState(optimisticResourcesGroups, this.updateModelStateCancellationTokenSource.token);
 	}
 
-	private async _updateModelState(cancellationToken?: CancellationToken): Promise<void> {
-		if (cancellationToken && cancellationToken.isCancellationRequested) {
-			return;
-		}
-
+	private async _updateModelState(optimisticResourcesGroups?: GitResourceGroups, cancellationToken?: CancellationToken): Promise<void> {
 		try {
+			// Optimistically update resource groups
+			if (optimisticResourcesGroups) {
+				this._updateResourceGroupsState(optimisticResourcesGroups);
+			}
+
+			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
+				await Promise.all([
+					this.repository.getHEADBranch(),
+					this.repository.getRemotes(),
+					this.repository.getSubmodules(),
+					this.getRebaseCommit(),
+					this.isMergeInProgress(),
+					this.getInputTemplate()]);
+
+			this._HEAD = HEAD;
+			this._remotes = remotes!;
+			this._submodules = submodules!;
+			this.rebaseCommit = rebaseCommit;
+			this.mergeInProgress = mergeInProgress;
+
+			this._sourceControl.commitTemplate = commitTemplate;
+
+			// Execute cancellable long-running operations
 			const config = workspace.getConfiguration('git');
 			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
 			if (sort !== 'alphabetically' && sort !== 'committerdate') {
 				sort = 'alphabetically';
 			}
 
-			const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
+			const [resourceGroups, refs] =
 				await Promise.all([
-					this.repository.getHEADBranch(),
-					this.repository.getRefs({ sort }),
-					this.repository.getRemotes(),
-					this.repository.getSubmodules(),
 					this.getStatus(cancellationToken),
-					this.getRebaseCommit(),
-					this.isMergeInProgress(),
-					this.getInputTemplate()]);
+					this.repository.getRefs({ sort, cancellationToken })]);
 
-			this._HEAD = HEAD;
 			this._refs = refs!;
-			this._remotes = remotes!;
-			this._submodules = submodules!;
-			this.rebaseCommit = rebaseCommit;
-			this.mergeInProgress = mergeInProgress;
-
-			// set resource groups
-			this.mergeGroup.resourceStates = status.merge;
-			this.indexGroup.resourceStates = status.index;
-			this.workingTreeGroup.resourceStates = status.workingTree;
-			this.untrackedGroup.resourceStates = status.untracked;
-
-			// set count badge
-			this.setCountBadge();
+			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
-
-			this._sourceControl.commitTemplate = commitTemplate;
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -2001,7 +2126,18 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async getStatus(cancellationToken?: CancellationToken): Promise<{ index: Resource[]; workingTree: Resource[]; merge: Resource[]; untracked: Resource[] }> {
+	private _updateResourceGroupsState(resourcesGroups: GitResourceGroups): void {
+		// set resource groups
+		if (resourcesGroups.indexGroup) { this.indexGroup.resourceStates = resourcesGroups.indexGroup; }
+		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
+		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
+		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+
+		// set count badge
+		this.setCountBadge();
+	}
+
+	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {
 		if (cancellationToken && cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2088,10 +2224,10 @@ export class Repository implements Disposable {
 			}
 		}
 
-		const index: Resource[] = [],
-			workingTree: Resource[] = [],
-			merge: Resource[] = [],
-			untracked: Resource[] = [];
+		const indexGroup: Resource[] = [],
+			mergeGroup: Resource[] = [],
+			untrackedGroup: Resource[] = [],
+			workingTreeGroup: Resource[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
@@ -2101,42 +2237,42 @@ export class Repository implements Disposable {
 
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
-					case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
-					case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
+					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+					case 'separate': return untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
 				case '!!': switch (untrackedChanges) {
-					case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
-					case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
+					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+					case 'separate': return untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
 					default: return undefined;
 				}
-				case 'DD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
-				case 'AU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
-				case 'UD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
-				case 'UA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM, useIcons));
-				case 'DU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_US, useIcons));
-				case 'AA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_ADDED, useIcons));
-				case 'UU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
+				case 'DD': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
+				case 'AU': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
+				case 'UD': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
+				case 'UA': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM, useIcons));
+				case 'DU': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_US, useIcons));
+				case 'AA': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_ADDED, useIcons));
+				case 'UU': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
-				case 'A': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
-				case 'D': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
-				case 'R': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
-				case 'C': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
+				case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
+				case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
+				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
+				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
+				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
-				case 'D': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
-				case 'A': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
+				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
+				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
+				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 			}
 
 			return undefined;
 		});
 
-		return { index, workingTree, merge, untracked };
+		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
 	}
 
 	private setCountBadge(): void {
@@ -2334,6 +2470,11 @@ export class Repository implements Disposable {
 		} else {
 			this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
 		}
+	}
+
+	private optimisticUpdateEnabled(): boolean {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		return config.get<boolean>('optimisticUpdate') === true;
 	}
 
 	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {

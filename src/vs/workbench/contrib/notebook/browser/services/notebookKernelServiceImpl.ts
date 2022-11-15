@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent, INotebookKernelDetectionTask } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -105,12 +105,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
 	private readonly _onDidChangeSourceActions = this._register(new Emitter<INotebookSourceActionChangeEvent>());
 	private readonly _kernelSources = new Map<string, IKernelInfoCache>();
+	private readonly _kernelDetectionTasks = new Map<string, INotebookKernelDetectionTask[]>();
+	private readonly _onDidChangeKernelDetectionTasks = this._register(new Emitter<string>());
 
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
 	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
 	readonly onDidChangeSourceActions: Event<INotebookSourceActionChangeEvent> = this._onDidChangeSourceActions.event;
+	readonly onDidChangeKernelDetectionTasks: Event<string> = this._onDidChangeKernelDetectionTasks.event;
 
 	private static _storageNotebookBinding = 'notebook.controller2NotebookBindings';
 
@@ -341,5 +344,26 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		loadActionsFromMenu(sourceMenu);
 
 		return info.actions.map(a => a[0]);
+	}
+
+	registerNotebookKernelDetectionTask(task: INotebookKernelDetectionTask): IDisposable {
+		const notebookType = task.notebookType;
+		const all = this._kernelDetectionTasks.get(notebookType) ?? [];
+		all.push(task);
+		this._kernelDetectionTasks.set(notebookType, all);
+		this._onDidChangeKernelDetectionTasks.fire(notebookType);
+		return toDisposable(() => {
+			const all = this._kernelDetectionTasks.get(notebookType) ?? [];
+			const idx = all.indexOf(task);
+			if (idx >= 0) {
+				all.splice(idx, 1);
+				this._kernelDetectionTasks.set(notebookType, all);
+				this._onDidChangeKernelDetectionTasks.fire(notebookType);
+			}
+		});
+	}
+
+	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[] {
+		return this._kernelDetectionTasks.get(notebook.viewType) ?? [];
 	}
 }

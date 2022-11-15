@@ -16,8 +16,8 @@
     "onAuthenticationRequest:microsoft"
   ],
   "enabledApiProposals": [
-    "idToken",
-    "extensionLog"
+    "telemetryLogger",
+    "idToken"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -55,13 +55,8 @@
     "@types/uuid": "8.0.0"
   },
   "dependencies": {
-    "buffer": "^5.6.0",
     "node-fetch": "2.6.7",
-    "randombytes": "~2.1.0",
-    "sha.js": "2.4.11",
-    "stream": "0.0.2",
-    "uuid": "^8.2.0",
-    "@vscode/extension-telemetry": "0.6.2"
+    "@vscode/extension-telemetry": "0.7.1-preview"
   },
   "repository": {
     "type": "git",

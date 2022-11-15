@@ -162,3 +162,6 @@ import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contributi
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
 
 //#endregion
+
+
+export { main } from 'vs/workbench/electron-sandbox/desktop.main';
