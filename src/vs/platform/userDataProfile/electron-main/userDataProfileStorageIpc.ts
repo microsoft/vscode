@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProfileStorageChanges, IProfileStorageValueChanges } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { IProfileStorageChanges, IProfileStorageValueChanges } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { loadKeyTargets, StorageScope, TARGET_KEY } from 'vs/platform/storage/common/storage';
 import { IBaseSerializableStorageRequest } from 'vs/platform/storage/common/storageIpc';
 import { IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
