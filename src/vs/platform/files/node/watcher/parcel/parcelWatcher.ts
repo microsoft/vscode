@@ -6,7 +6,7 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { DeferredPromise, RunOnceScheduler, ThrottledWorker } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler, ThrottledDelayer, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -75,6 +75,15 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		GlobStarPathEndWindows: '\\**'
 	};
 
+	// A delay for collecting file changes from parcel
+	// before collecting them for coalescing and emitting
+	//
+	// This was only added after parcel changed their
+	// debouncing logic to emit events immediately.
+	//
+	// See: https://github.com/parcel-bundler/watcher/pull/113
+	private static readonly FILE_CHANGES_HANDLER_DELAY = 60;
+
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
 	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
@@ -101,6 +110,9 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	private verboseLogging = false;
 	private enospcErrorLogged = false;
+
+	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(ParcelWatcher.FILE_CHANGES_HANDLER_DELAY));
+	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	constructor() {
 		super();
@@ -309,7 +321,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				}
 
 				// Handle & emit events
-				this.onParcelEvents(parcelEvents, watcher, excludePatterns, includePatterns, realPathDiffers, realPathLength);
+				await this.onParcelEvents(parcelEvents, watcher, excludePatterns, includePatterns, realPathDiffers, realPathLength);
 			}
 
 			// Store a snapshot of files to the snapshot file
@@ -387,7 +399,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		});
 	}
 
-	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, excludes: ParsedPattern[], includes: ParsedPattern[] | undefined, realPathDiffers: boolean, realPathLength: number): void {
+	private async onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, excludes: ParsedPattern[], includes: ParsedPattern[] | undefined, realPathDiffers: boolean, realPathLength: number): Promise<void> {
 		if (parcelEvents.length === 0) {
 			return;
 		}
@@ -397,21 +409,31 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// and excludes to check on the original path.
 		const { events: normalizedEvents, rootDeleted } = this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
-		// Check for excludes
-		const includedEvents = this.handleExcludeIncludes(normalizedEvents, excludes, includes);
+		// Store included events into buffer
+		this.fileChangesBuffer.push(...this.handleExcludeIncludes(normalizedEvents, excludes, includes));
 
-		// Coalesce events: merge events of same kind
-		const coalescedEvents = coalesceEvents(includedEvents);
+		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
+		try {
+			await this.fileChangesDelayer.trigger(async () => {
+				const fileChanges = this.fileChangesBuffer;
+				this.fileChangesBuffer = [];
 
-		// Filter events: check for specific events we want to exclude
-		const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
+				// Coalesce events: merge events of same kind
+				const coalescedEvents = coalesceEvents(fileChanges);
 
-		// Broadcast to clients
-		this.emitEvents(filteredEvents);
+				// Filter events: check for specific events we want to exclude
+				const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
 
-		// Handle root path delete if confirmed from coalesced events
-		if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
-			this.onWatchedPathDeleted(watcher);
+				// Broadcast to clients
+				this.emitEvents(filteredEvents);
+
+				// Handle root path delete if confirmed from coalesced events
+				if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
+					this.onWatchedPathDeleted(watcher);
+				}
+			});
+		} catch (error) {
+			// ignore (we are likely disposed and cancelled)
 		}
 	}
 

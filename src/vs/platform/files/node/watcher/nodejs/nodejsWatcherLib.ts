@@ -26,7 +26,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	// A delay for collecting file changes from node.js
 	// before collecting them for coalescing and emitting
-	// (same delay as Parcel is using)
+	// (same delay as Parcel library is using internally)
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
 
 	// Reduce likelyhood of spam from file events via throttling.
