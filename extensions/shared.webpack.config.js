@@ -47,7 +47,12 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 							'sourceMap': true,
 						}
 					}
-				}]
+				}, {
+					loader: path.resolve(__dirname, './mangle-loader.js'),
+					options: {
+						configFile: path.join(extConfig.context, 'tsconfig.json')
+					},
+				},]
 			}]
 		},
 		externals: {
@@ -125,7 +130,14 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 							},
 							...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
 						}
-					}]
+					},
+					{
+						loader: path.resolve(__dirname, './mangle-loader.js'),
+						options: {
+							configFile: path.join(extConfig.context, additionalOptions?.configFile ?? 'tsconfig.json')
+						},
+					},
+				]
 			}]
 		},
 		externals: {
