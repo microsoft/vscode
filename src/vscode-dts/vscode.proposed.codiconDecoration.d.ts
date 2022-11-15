@@ -5,9 +5,12 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/135591 @jrieken
+
 	// export interface FileDecorationProvider {
 	// 	provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration | FileDecoration1>;
 	// }
+
 	/**
 	 * A file decoration represents metadata that can be rendered with a file.
 	 */
