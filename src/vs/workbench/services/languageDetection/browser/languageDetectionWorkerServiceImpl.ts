@@ -234,7 +234,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		private readonly _regexpModelUri: string,
 		languageConfigurationService: ILanguageConfigurationService,
 	) {
-		super(modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
+		super(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
 	}
 
 	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {

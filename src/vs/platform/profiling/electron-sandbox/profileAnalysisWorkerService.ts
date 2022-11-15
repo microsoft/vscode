@@ -5,6 +5,7 @@
 
 
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -41,7 +42,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _workerFactory = new DefaultWorkerFactory('CpuProfileAnalysis');
+	private readonly _workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'CpuProfileAnalysis');
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
