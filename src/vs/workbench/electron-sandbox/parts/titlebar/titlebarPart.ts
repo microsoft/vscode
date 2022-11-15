@@ -216,7 +216,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super.updateStyles();
 
 		// WCO styles only supported on Windows currently
-		if (useWindowControlsOverlay(this.configurationService)) {
+		if (useWindowControlsOverlay(this.configurationService, this.productService)) {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
@@ -228,7 +228,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
-		if (useWindowControlsOverlay(this.configurationService) ||
+		if (useWindowControlsOverlay(this.configurationService, this.productService) ||
 			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')) {
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
 			// Instead, set it back to the default titlebar height for Catalina users
