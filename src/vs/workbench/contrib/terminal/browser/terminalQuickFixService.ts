@@ -6,24 +6,33 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalCommandSelector, ITerminalQuickFixProvider } from 'vs/platform/terminal/common/terminal';
-import { ITerminalQuickFixSelectorProvider, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
-	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixSelectorProvider>();
+	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
 	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
-	private readonly _onDidUnregisterProvider = new Emitter<ITerminalQuickFixSelectorProvider>();
+	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 	_serviceBrand: undefined;
-	_providers: Map<string, { selector: ITerminalCommandSelector; provider: ITerminalQuickFixProvider }> = new Map();
-	get providers(): Map<string, { selector: ITerminalCommandSelector; provider: ITerminalQuickFixProvider }> { return this._providers; }
+	_providers: Map<string, ITerminalQuickFixProvider> = new Map();
+	_selectors: Map<string, ITerminalCommandSelector> = new Map();
+	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
+	get selectors(): Map<string, ITerminalCommandSelector> { return this._selectors; }
 
-	registerQuickFixProvider(selector: ITerminalCommandSelector, provider: ITerminalQuickFixProvider): IDisposable {
-		const selectorProvider = { id: selector.id, selector, provider };
-		this._providers.set(selector.id, selectorProvider);
-		this._onDidRegisterProvider.fire(selectorProvider);
+	registerCommandSelector(selector: ITerminalCommandSelector): void {
+		this.selectors.set(selector.id, selector);
+	}
+
+	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
+		this._providers.set(id, provider);
+		const selector = this._selectors.get(id);
+		if (!selector) {
+			throw new Error(`No registered selector for ID: ${id}`);
+		}
+		this._onDidRegisterProvider.fire({ selector, provider });
 		return toDisposable(() => {
-			this._onDidUnregisterProvider.fire(selectorProvider);
-			this._providers.delete(selector.id);
+			this._onDidUnregisterProvider.fire(selector.id);
+			this._providers.delete(id);
 		});
 	}
 }

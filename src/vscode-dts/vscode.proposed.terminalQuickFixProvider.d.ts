@@ -31,11 +31,10 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-			 * @param commandSelector A selector that defines the commands that this provider is applicable to.
 			 * @param provider A terminal quick fix provider
 			 * @return A {@link Disposable} that unregisters the provider when being disposed
 			 */
-		export function registerTerminalQuickFixProvider(id: string, commandSelector: TerminalCommandSelector, provider: TerminalQuickFixProvider): Disposable;
+		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
 

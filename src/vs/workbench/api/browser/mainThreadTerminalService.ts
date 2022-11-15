@@ -20,7 +20,7 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalCommandMatchResult, TerminalCommandSelector, TerminalEditorLocationOptions } from 'vscode';
+import { TerminalCommandMatchResult, TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -246,9 +246,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._profileProviders.delete(id);
 	}
 
-	public async $registerQuickFixProvider(id: string, extensionId: string, commandSelector: TerminalCommandSelector): Promise<void> {
-		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(
-			{ id, extensionId, ...commandSelector },
+	public async $registerQuickFixProvider(id: string): Promise<void> {
+		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
 			{
 				provideTerminalQuickFixes: (matchResult: TerminalCommandMatchResult, token: CancellationToken) => {
 					return this._proxy.$provideTerminalQuickFixes(id, matchResult, token);

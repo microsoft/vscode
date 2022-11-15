@@ -49,7 +49,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
-	registerTerminalQuickFixProvider(id: string, extensionId: string, commandSelector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
+	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -362,7 +362,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
-	private readonly _quickFixProviders: Map<string, { selector: vscode.TerminalCommandSelector; provider: vscode.TerminalQuickFixProvider }> = new Map();
+	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
@@ -667,12 +667,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalQuickFixProvider(id: string, extensionId: string, selector: vscode.TerminalCommandSelector, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
+	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 		if (this._quickFixProviders.has(id)) {
 			throw new Error(`Terminal quick fix provider "${id}" is already registered`);
 		}
-		this._quickFixProviders.set(id, { selector, provider });
-		this._proxy.$registerQuickFixProvider(id, extensionId, selector);
+		this._quickFixProviders.set(id, provider);
+		this._proxy.$registerQuickFixProvider(id, extensionId);
 		return new VSCodeDisposable(() => {
 			this._quickFixProviders.delete(id);
 			this._proxy.$unregisterQuickFixProvider(id);
@@ -688,7 +688,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (!provider) {
 			return;
 		}
-		return provider.provider.provideTerminalQuickFixes(matchResult, token);
+		return provider.provideTerminalQuickFixes(matchResult, token);
 	}
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
