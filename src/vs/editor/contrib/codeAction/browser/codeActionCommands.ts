@@ -16,12 +16,10 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { acceptSelectedCodeActionCommand, applyCodeAction, ApplyCodeActionReason, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, previewSelectedCodeActionCommand, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { applyCodeAction, ApplyCodeActionReason, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
-import { CodeActionWidget, Context } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -102,7 +100,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorProgressService progressService: IEditorProgressService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 
@@ -416,117 +414,3 @@ export class AutoFixAction extends EditorAction {
 			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.AutoFix);
 	}
 }
-
-const weight = KeybindingWeight.EditorContrib + 1000;
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'hideCodeActionWidget',
-			title: {
-				value: nls.localize('hideCodeActionWidget.title', "Hide code action widget"),
-				original: 'Hide code action widget'
-			},
-			precondition: Context.Visible,
-			keybinding: {
-				weight,
-				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape]
-			},
-		});
-	}
-
-	run(): void {
-		CodeActionWidget.INSTANCE?.hide();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'selectPrevCodeAction',
-			title: {
-				value: nls.localize('selectPrevCodeAction.title', "Select previous code action"),
-				original: 'Select previous code action'
-			},
-			precondition: Context.Visible,
-			keybinding: {
-				weight,
-				primary: KeyCode.UpArrow,
-				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
-				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
-			}
-		});
-	}
-
-	run(): void {
-		CodeActionWidget.INSTANCE?.focusPrevious();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'selectNextCodeAction',
-			title: {
-				value: nls.localize('selectNextCodeAction.title', "Select next code action"),
-				original: 'Select next code action'
-			},
-			precondition: Context.Visible,
-			keybinding: {
-				weight,
-				primary: KeyCode.DownArrow,
-				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
-				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
-			}
-		});
-	}
-
-	run(): void {
-		CodeActionWidget.INSTANCE?.focusNext();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: acceptSelectedCodeActionCommand,
-			title: {
-				value: nls.localize('acceptSelected.title', "Accept selected code action"),
-				original: 'Accept selected code action'
-			},
-			precondition: Context.Visible,
-			keybinding: {
-				weight,
-				primary: KeyCode.Enter,
-				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
-			}
-		});
-	}
-
-	run(): void {
-		CodeActionWidget.INSTANCE?.acceptSelected();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: previewSelectedCodeActionCommand,
-			title: {
-				value: nls.localize('previewSelected.title', "Preview selected code action"),
-				original: 'Preview selected code action'
-			},
-			precondition: Context.Visible,
-			keybinding: {
-				weight,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-			}
-		});
-	}
-
-	run(): void {
-		CodeActionWidget.INSTANCE?.acceptSelected({ preview: true });
-	}
-});
-
