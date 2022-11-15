@@ -1873,6 +1873,11 @@ function createDecoration(startLineNumber: number, startColumn: number, endLineN
 	};
 }
 
+export const enum DiffEditorLineClasses {
+	Insert = 'line-insert',
+	Delete = 'line-delete'
+}
+
 const DECORATIONS = {
 
 	arrowRevertChange: ModelDecorationOptions.register({
@@ -1902,13 +1907,13 @@ const DECORATIONS = {
 
 	lineInsert: ModelDecorationOptions.register({
 		description: 'diff-editor-line-insert',
-		className: 'line-insert',
+		className: DiffEditorLineClasses.Insert,
 		marginClassName: 'gutter-insert',
 		isWholeLine: true
 	}),
 	lineInsertWithSign: ModelDecorationOptions.register({
 		description: 'diff-editor-line-insert-with-sign',
-		className: 'line-insert',
+		className: DiffEditorLineClasses.Insert,
 		linesDecorationsClassName: 'insert-sign ' + ThemeIcon.asClassName(diffInsertIcon),
 		marginClassName: 'gutter-insert',
 		isWholeLine: true
@@ -1916,13 +1921,13 @@ const DECORATIONS = {
 
 	lineDelete: ModelDecorationOptions.register({
 		description: 'diff-editor-line-delete',
-		className: 'line-delete',
+		className: DiffEditorLineClasses.Delete,
 		marginClassName: 'gutter-delete',
 		isWholeLine: true
 	}),
 	lineDeleteWithSign: ModelDecorationOptions.register({
 		description: 'diff-editor-line-delete-with-sign',
-		className: 'line-delete',
+		className: DiffEditorLineClasses.Delete,
 		linesDecorationsClassName: 'delete-sign ' + ThemeIcon.asClassName(diffRemoveIcon),
 		marginClassName: 'gutter-delete',
 		isWholeLine: true
