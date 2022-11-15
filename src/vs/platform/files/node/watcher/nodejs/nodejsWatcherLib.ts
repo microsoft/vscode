@@ -389,7 +389,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		}
 	}
 
-	private handleFileChanges() {
+	private handleFileChanges(): void {
 		const fileChanges = this.fileChangesBuffer;
 		this.fileChangesBuffer = [];
 
