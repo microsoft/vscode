@@ -493,10 +493,6 @@ const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-
-
-
-
 async function focusNextSearchResult(accessor: ServicesAccessor): Promise<any> {
 	const editorService = accessor.get(IEditorService);
 	const input = editorService.activeEditor;

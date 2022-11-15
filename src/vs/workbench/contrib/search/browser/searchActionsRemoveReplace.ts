@@ -71,7 +71,6 @@ registerAction2(class RemoveAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: Constants.FileMatchOrMatchFocusKey,
 					group: 'search',
 					order: 2,
 				},

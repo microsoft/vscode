@@ -71,8 +71,8 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 			]
 		});
 	}
-	run(accessor: ServicesAccessor, folderMatch?: FolderMatchWithResource) {
-		searchWithFolderCommand(accessor, false, true, undefined, folderMatch);
+	async run(accessor: ServicesAccessor, folderMatch?: FolderMatchWithResource) {
+		await searchWithFolderCommand(accessor, false, true, undefined, folderMatch);
 	}
 });
 
@@ -95,8 +95,8 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 			]
 		});
 	}
-	run(accessor: ServicesAccessor, folderMatch?: FolderMatchWithResource) {
-		searchWithFolderCommand(accessor, false, false, undefined, folderMatch);
+	async run(accessor: ServicesAccessor, folderMatch?: FolderMatchWithResource) {
+		await searchWithFolderCommand(accessor, false, false, undefined, folderMatch);
 	}
 });
 
@@ -238,8 +238,8 @@ registerAction2(class FindInFolderAction extends Action2 {
 			]
 		});
 	}
-	run(accessor: ServicesAccessor, resource?: URI) {
-		searchWithFolderCommand(accessor, true, true, resource);
+	async run(accessor: ServicesAccessor, resource?: URI) {
+		await searchWithFolderCommand(accessor, true, true, resource);
 	}
 });
 
