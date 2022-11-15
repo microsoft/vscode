@@ -9,6 +9,8 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Event } from 'vs/base/common/event';
 import { Dimension } from 'vs/base/browser/dom';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { URI } from 'vs/base/common/uri';
 
 export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
 
@@ -20,9 +22,11 @@ export interface INotebookEditorService {
 	_serviceBrand: undefined;
 
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, dimension?: Dimension): IBorrowValue<INotebookEditor>;
+	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined;
 
 	onDidAddNotebookEditor: Event<INotebookEditor>;
 	onDidRemoveNotebookEditor: Event<INotebookEditor>;
+	onDidAddNotebookEditorWidget: Event<NotebookEditorWidget>;
 	addNotebookEditor(editor: INotebookEditor): void;
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;

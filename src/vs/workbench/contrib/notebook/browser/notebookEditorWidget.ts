@@ -112,6 +112,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
 	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
+	private readonly _onWillChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
+	readonly onWillChangeModel: Event<NotebookTextModel | undefined> = this._onWillChangeModel.event;
 	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
@@ -144,8 +146,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
-
-
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -196,6 +196,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
+		this._onWillChangeModel.fire(this._notebookViewModel?.notebookDocument);
 		this._notebookViewModel = newModel;
 		this._onDidChangeModel.fire(newModel?.notebookDocument);
 	}
@@ -2387,7 +2388,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
-		// here
 		if (!this._notebookViewModel) {
 			return [];
 		}
@@ -2924,6 +2924,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
+		this.viewModel = undefined;
 
 		this._renderedEditors.clear();
 		this._baseCellEditorOptions.forEach(v => v.dispose());

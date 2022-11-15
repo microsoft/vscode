@@ -14,6 +14,7 @@ import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/co
 import { Emitter } from 'vs/base/common/event';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { Dimension } from 'vs/base/browser/dom';
+import { URI } from 'vs/base/common/uri';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -28,6 +29,9 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	private readonly _onNotebookEditorsRemove = new Emitter<INotebookEditor>();
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
+
+	private readonly _onDidAddNotebookEditorWidget = new Emitter<NotebookEditorWidget>();
+	readonly onDidAddNotebookEditorWidget = this._onDidAddNotebookEditorWidget.event;
 
 	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; token: number | undefined }>>();
 
@@ -129,6 +133,16 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		targetMap.set(input.resource, widget);
 	}
 
+	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined {
+		for (const widgetInfo of this._borrowableEditors.values()) {
+			const widget = widgetInfo.get(resource);
+			if (widget) {
+				return this._createBorrowValue(widget.token!, widget);
+			}
+		}
+		return undefined;
+	}
+
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension): IBorrowValue<NotebookEditorWidget> {
 
 		let value = this._borrowableEditors.get(group.id)?.get(input.resource);
@@ -137,6 +151,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			// NEW widget
 			const instantiationService = accessor.get(IInstantiationService);
 			const widget = instantiationService.createInstance(NotebookEditorWidget, creationOptions ?? getDefaultNotebookCreationOptions(), initialDimension);
+			this._onDidAddNotebookEditorWidget.fire(widget);
 			const token = this._tokenPool++;
 			value = { widget, token };
 
