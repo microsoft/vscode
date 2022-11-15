@@ -739,6 +739,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'workbench.localHistory.exclude' ||
+		setting.key === 'explorer.autoRevealExclude' ||
 		setting.key === 'files.watcherExclude';
 }
 

@@ -17,6 +17,8 @@ mod protocol;
 #[cfg_attr(windows, path = "tunnels/server_bridge_windows.rs")]
 mod server_bridge;
 mod service;
+#[cfg(target_os = "linux")]
+mod service_linux;
 #[cfg(target_os = "windows")]
 mod service_windows;
 

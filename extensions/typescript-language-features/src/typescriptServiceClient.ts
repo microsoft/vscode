@@ -99,9 +99,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private readonly workspaceState: vscode.Memento;
 
-	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
+	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
-	private pluginPathsProvider: TypeScriptPluginPathsProvider;
+	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
 	private readonly _versionManager: TypeScriptVersionManager;
 
 	private readonly logger = new Logger();
