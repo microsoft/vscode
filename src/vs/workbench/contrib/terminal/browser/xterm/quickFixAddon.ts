@@ -25,9 +25,10 @@ import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IActionWidgetService, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionWidget';
+import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+import { previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
