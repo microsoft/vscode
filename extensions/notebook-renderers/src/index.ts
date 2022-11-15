@@ -234,7 +234,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	span.output-stream.scrollable {
 		overflow-y: scroll;
-		max-height: 400px;
+		max-height: var(--notebook-cell-output-max-height);
 	}
 	span.output-stream.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
