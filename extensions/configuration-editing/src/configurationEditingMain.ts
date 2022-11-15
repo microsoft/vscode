@@ -21,6 +21,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	// task.json variable suggestions
 	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
 
+	// Workspace file launch/tasks variable completions
+	context.subscriptions.push(registerVariableCompletions('**/*.code-workspace'));
+
 	// keybindings.json/package.json context key suggestions
 	context.subscriptions.push(registerContextKeyCompletions());
 }
@@ -38,6 +41,10 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (isCompletingInsidePropertyStringValue(document, location, position)) {
+				if (document.fileName.endsWith('.code-workspace') && !isLocationInsideTopLevelProperty(location, ['launch', 'tasks'])) {
+					return [];
+				}
+
 				let range = document.getWordRangeAtPosition(position, /\$\{[^"\}]*\}?/);
 				if (!range || range.start.isEqual(position) || range.end.isEqual(position) && document.getText(range).endsWith('}')) {
 					range = new vscode.Range(position, position);
@@ -82,6 +89,10 @@ function isCompletingInsidePropertyStringValue(document: vscode.TextDocument, lo
 		return offset > previousNode.offset && offset < previousNode.offset + previousNode.length;
 	}
 	return false;
+}
+
+function isLocationInsideTopLevelProperty(location: Location, values: string[]) {
+	return values.includes(location.path[0] as string);
 }
 
 interface IExtensionsContent {

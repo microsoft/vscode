@@ -309,7 +309,7 @@ class ExtensionHostProcess extends Disposable {
 		}
 		const sw = StopWatch.create(false);
 		this._process = fork(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			FileAccess.asFileUri('bootstrap-fork').fsPath,
 			['--type=extensionHost', '--skipWorkspaceStorageLock'],
 			mixin({ cwd: cwd() }, opts),
 		);
@@ -434,7 +434,7 @@ class UtilityExtensionHostProcess extends Disposable {
 		}
 
 		const serviceName = `extensionHost${this.id}`;
-		const modulePath = FileAccess.asFileUri('bootstrap-fork.js', require).fsPath;
+		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
 		const args: string[] = ['--type=extensionHost', '--skipWorkspaceStorageLock'];
 		const execArgv: string[] = opts.execArgv || [];
 		const env: { [key: string]: any } = { ...opts.env };

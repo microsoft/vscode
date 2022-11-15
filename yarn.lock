@@ -1272,12 +1272,13 @@
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
-"@vscode/sqlite3@5.0.8":
-  version "5.0.8"
-  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.0.8.tgz#72b07061c5f90a9dd598a5506f598fcc817fab90"
-  integrity sha512-6wvQdMjpi1kwYI5mfzm98siEQb2mlBKX4xdNtJFj/uNqb6wqd3JOhk+5FL7geR0hduXE5lHjv+q69jtsEtUJDA==
+"@vscode/sqlite3@5.1.2-vscode":
+  version "5.1.2-vscode"
+  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.2-vscode.tgz#ba15962d23ad784a43ecbaaa22c93f17f93b2400"
+  integrity sha512-CIH0BWzQJA97teb1f3aAoyylztPdg1WqThHEvVPWXr8UO0+VtIa+ha20Q2PGYV4AGfPtkPnhUrSYpJDxnVhW/g==
   dependencies:
     node-addon-api "^4.2.0"
+    tar "^6.1.11"
 
 "@vscode/sudo-prompt@9.3.1":
   version "9.3.1"
@@ -10430,6 +10431,18 @@ tar@^6.0.2:
     mkdirp "^1.0.3"
     yallist "^4.0.0"
 
+tar@^6.1.11:
+  version "6.1.12"
+  resolved "https://registry.yarnpkg.com/tar/-/tar-6.1.12.tgz#3b742fb05669b55671fb769ab67a7791ea1a62e6"
+  integrity sha512-jU4TdemS31uABHd+Lt5WEYJuzn+TJTCBLljvIAHZOz6M9Os5pJ4dD+vRFLxPa/n3T0iEFzpi+0x1UfuDZYbRMw==
+  dependencies:
+    chownr "^2.0.0"
+    fs-minipass "^2.0.0"
+    minipass "^3.0.0"
+    minizlib "^2.1.1"
+    mkdirp "^1.0.3"
+    yallist "^4.0.0"
+
 tas-client-umd@0.1.6:
   version "0.1.6"
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.6.tgz#a0cf70a68f50d406773457630666224f0eb545a6"
@@ -10845,10 +10858,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.0.0-dev.20221103:
-  version "5.0.0-dev.20221103"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20221103.tgz#673cc041603bb7faed88f41ca5e9481c678f33d8"
-  integrity sha512-hfqcsmiJ+5ktli1OAkwu4PyDDJ3kWW3tiUofd2t1uxwmni3ZT3Mrv1m2dZFg9VNDKqHrkt49izB3tAtD2bsyGw==
+typescript@^5.0.0-dev.20221108:
+  version "5.0.0-dev.20221108"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20221108.tgz#52cecdf226b983a33eadb2e6c9a8c040f7a7349f"
+  integrity sha512-np7hLTLHztenzHetS6xnYYo/P+VcjgUYWkblyl8jCeKgrC7fHJt1QlcjL83uC7YQiHLz5o9zgMZKtZbQBHPzkg==
 
 typical@^4.0.0:
   version "4.0.0"

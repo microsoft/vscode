@@ -36,7 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -64,6 +64,7 @@ import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIn
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { defaultButtonStyles, getButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -1006,7 +1007,6 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	templateId = SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID;
 
 	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 	}
@@ -1016,7 +1016,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 
 		container.classList.add('setting-item-new-extensions');
 
-		const button = new Button(container, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
+		const button = new Button(container, { title: true, ...defaultButtonStyles });
 		toDispose.add(button);
 		toDispose.add(button.onDidClick(() => {
 			if (template.context) {
@@ -1025,7 +1025,6 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 		}));
 		button.label = localize('newExtensionsButtonLabel', "Show matching extensions");
 		button.element.classList.add('settings-new-extensions-button');
-		toDispose.add(attachButtonStyler(button, this._themeService));
 
 		const template: ISettingNewExtensionsTemplate = {
 			button,
@@ -1052,17 +1051,17 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	renderTemplate(container: HTMLElement): ISettingComplexItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'complex');
 
-		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
+		const openSettingsButton = new Button(common.controlElement, {
+			title: true, ...getButtonStyles({
+				buttonBackground: Color.transparent.toString(),
+				buttonHoverBackground: Color.transparent.toString(),
+				buttonForeground: 'foreground'
+			})
+		});
 		common.toDispose.add(openSettingsButton);
 
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-
-		common.toDispose.add(attachButtonStyler(openSettingsButton, this._themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
-		}));
 
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		common.containerElement.appendChild(validationErrorMessageElement);

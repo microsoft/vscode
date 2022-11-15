@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { transaction } from 'vs/base/common/observable';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

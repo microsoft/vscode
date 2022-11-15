@@ -37,7 +37,7 @@ function minifyExtensionResources(input) {
         .pipe(buffer())
         .pipe(es.mapSync((f) => {
         const errors = [];
-        const value = jsoncParser.parse(f.contents.toString('utf8'), errors);
+        const value = jsoncParser.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
         if (errors.length === 0) {
             // file parsed OK => just stringify to drop whitespace and comments
             f.contents = Buffer.from(JSON.stringify(value));
@@ -414,19 +414,14 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpackConfigs = [];
     for (const { configPath, outputRoot } of webpackConfigLocations) {
         const configOrFnOrArray = require(configPath);
-        function addConfig(configOrFn) {
-            let config;
-            if (typeof configOrFn === 'function') {
-                config = configOrFn({}, {});
+        function addConfig(configOrFnOrArray) {
+            for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
+                const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
+                if (outputRoot) {
+                    config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+                }
                 webpackConfigs.push(config);
             }
-            else {
-                config = configOrFn;
-            }
-            if (outputRoot) {
-                config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
-            }
-            webpackConfigs.push(configOrFn);
         }
         addConfig(configOrFnOrArray);
     }

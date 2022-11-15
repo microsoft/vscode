@@ -318,17 +318,11 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 				}
 			}
 			State::LookingForLocation => {
-				if line.starts_with(LOCATION_PREFIX) {
+				if let Some(suffix) = line.strip_prefix(LOCATION_PREFIX) {
 					output.push(
-						[
-							&line[LOCATION_PREFIX.len()..].trim(),
-							"Contents/Resources",
-							"app",
-							"bin",
-							"code",
-						]
-						.iter()
-						.collect(),
+						[suffix.trim(), "Contents/Resources", "app", "bin", "code"]
+							.iter()
+							.collect(),
 					);
 					state = State::LookingForName;
 				}
@@ -338,7 +332,7 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 
 	// Sort shorter paths to the front, preferring "more global" installs, and
 	// incidentally preferring local installs over Parallels 'installs'.
-	output.sort_by(|a, b| a.as_os_str().len().cmp(&b.as_os_str().len()));
+	output.sort_by_key(|a| a.as_os_str().len());
 
 	Ok(output)
 }
