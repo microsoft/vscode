@@ -538,7 +538,10 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				quickPick.busy = false;
 				const matchResult = this._notebookKernelService.getMatchingKernel(notebook);
 				const others = matchResult.all.filter(item => item.extension.value !== JUPYTER_EXTENSION_ID);
-				quickPickItems.push(...others.map(kernel => toQuickPick(kernel, matchResult.selected)));
+				quickPickItems.push(...others.map(kernel => ({
+					label: kernel.label,
+					detail: kernel.extension.value
+				})));
 				const validActions = actions.filter(action => action.command);
 
 				quickPickItems.push(...validActions.map(action => {
