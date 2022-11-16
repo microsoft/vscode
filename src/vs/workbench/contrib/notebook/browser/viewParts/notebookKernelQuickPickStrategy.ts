@@ -31,6 +31,9 @@ import { Command } from 'vs/editor/common/languages';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { IAction } from 'vs/base/common/actions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -499,6 +502,65 @@ export class KernelPickerFlatStrategy extends KernelPickerStrategyBase {
 		});
 		quickPickItems.push(...suggestions.map(kernel => toQuickPick(kernel, selected)));
 	}
+
+	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService, scopedContextKeyService?: IContextKeyService) {
+		const detectionTasks = notebookKernelService.getKernelDetectionTasks(notebook);
+		if (detectionTasks.length) {
+			action.enabled = true;
+			action.label = localize('kernels.detecting', "Detecting Kernels");
+			action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
+			return;
+		}
+
+		const runningActions = notebookKernelService.getRunningSourceActions(notebook);
+
+		const updateActionFromSourceAction = (sourceAction: ISourceAction, running: boolean) => {
+			const sAction = sourceAction.action;
+			action.class = running ? ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin')) : ThemeIcon.asClassName(selectKernelIcon);
+			action.label = sAction.label;
+			action.enabled = true;
+		};
+
+		if (runningActions.length) {
+			return updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
+		}
+
+		const info = notebookKernelService.getMatchingKernel(notebook);
+		if (info.all.length === 0) {
+			action.enabled = true;
+			const sourceActions = notebookKernelService.getSourceActions(notebook, scopedContextKeyService);
+			if (sourceActions.length === 1) {
+				// exact one action
+				updateActionFromSourceAction(sourceActions[0], false);
+			} else if (sourceActions.filter(sourceAction => sourceAction.isPrimary).length === 1) {
+				// exact one primary action
+				updateActionFromSourceAction(sourceActions.filter(sourceAction => sourceAction.isPrimary)[0], false);
+			} else {
+				action.class = ThemeIcon.asClassName(selectKernelIcon);
+				action.label = localize('select', "Select Kernel");
+				action.tooltip = '';
+			}
+			return;
+		}
+
+		action.enabled = true;
+		action.class = ThemeIcon.asClassName(selectKernelIcon);
+		const selectedOrSuggested = info.selected
+			?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+			?? (info.all.length === 1 ? info.all[0] : undefined);
+		if (selectedOrSuggested) {
+			// selected or suggested kernel
+			action.label = selectedOrSuggested.label;
+			action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
+			if (!info.selected) {
+				// special UI for selected kernel?
+			}
+		} else {
+			// many kernels or no kernels
+			action.label = localize('select', "Select Kernel");
+			action.tooltip = '';
+		}
+	}
 }
 
 export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
@@ -635,6 +697,18 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			return this._commandService.executeCommand(id);
 		} else {
 			return this._commandService.executeCommand(id, ...args);
+		}
+	}
+
+	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService) {
+		const info = notebookKernelService.getMatchingKernel(notebook);
+
+		if (info.selected) {
+			action.label = info.selected.label;
+			action.tooltip = info.selected.description ?? info.selected.detail ?? '';
+		} else {
+			action.label = localize('select', "Select Kernel");
+			action.tooltip = '';
 		}
 	}
 }
