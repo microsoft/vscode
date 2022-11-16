@@ -34,20 +34,9 @@ import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
-import { FromWebviewMessage, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
+import { FromWebviewMessage, KeyEvent, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-
-interface IKeydownEvent {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
-}
 
 interface WebviewContent {
 	readonly html: string;
@@ -77,8 +66,8 @@ namespace WebviewState {
 }
 
 interface WebviewActionContext {
-	webview?: string;
-	[key: string]: unknown;
+	readonly webview?: string;
+	readonly [key: string]: unknown;
 }
 
 const webviewIdContext = 'webviewId';
@@ -696,7 +685,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 	}
 
-	private handleKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
+	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
 		// Create a fake KeyboardEvent from the data provided
 		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target

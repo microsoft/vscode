@@ -1,0 +1,122 @@
+{
+	"originalFileName": "./1.tst",
+	"modifiedFileName": "./2.tst",
+	"diffs": [
+		{
+			"originalRange": "[73,85)",
+			"modifiedRange": "[73,87)",
+			"innerChanges": [
+				{
+					"originalRange": "[73,1 -> 73,1]",
+					"modifiedRange": "[73,1 -> 75,1]"
+				},
+				{
+					"originalRange": "[73,1 -> 73,1]",
+					"modifiedRange": "[75,1 -> 75,2]"
+				},
+				{
+					"originalRange": "[74,1 -> 74,1]",
+					"modifiedRange": "[76,1 -> 76,2]"
+				},
+				{
+					"originalRange": "[75,1 -> 75,1]",
+					"modifiedRange": "[77,1 -> 77,2]"
+				},
+				{
+					"originalRange": "[76,1 -> 76,1]",
+					"modifiedRange": "[78,1 -> 78,2]"
+				},
+				{
+					"originalRange": "[77,1 -> 77,1]",
+					"modifiedRange": "[79,1 -> 79,2]"
+				},
+				{
+					"originalRange": "[78,1 -> 78,1]",
+					"modifiedRange": "[80,1 -> 80,2]"
+				},
+				{
+					"originalRange": "[79,1 -> 79,1]",
+					"modifiedRange": "[81,1 -> 81,2]"
+				},
+				{
+					"originalRange": "[80,1 -> 80,1]",
+					"modifiedRange": "[82,1 -> 82,2]"
+				},
+				{
+					"originalRange": "[81,1 -> 81,1]",
+					"modifiedRange": "[83,1 -> 83,2]"
+				},
+				{
+					"originalRange": "[82,1 -> 82,1]",
+					"modifiedRange": "[84,1 -> 84,2]"
+				},
+				{
+					"originalRange": "[83,1 -> 83,1]",
+					"modifiedRange": "[85,1 -> 85,2]"
+				},
+				{
+					"originalRange": "[84,1 -> 84,1]",
+					"modifiedRange": "[86,1 -> 86,2]"
+				}
+			]
+		},
+		{
+			"originalRange": "[86,98)",
+			"modifiedRange": "[88,101)",
+			"innerChanges": [
+				{
+					"originalRange": "[86,1 -> 86,1]",
+					"modifiedRange": "[88,1 -> 88,2]"
+				},
+				{
+					"originalRange": "[87,1 -> 87,1]",
+					"modifiedRange": "[89,1 -> 89,2]"
+				},
+				{
+					"originalRange": "[88,1 -> 88,1]",
+					"modifiedRange": "[90,1 -> 90,2]"
+				},
+				{
+					"originalRange": "[89,1 -> 89,1]",
+					"modifiedRange": "[91,1 -> 91,2]"
+				},
+				{
+					"originalRange": "[90,1 -> 90,1]",
+					"modifiedRange": "[92,1 -> 92,2]"
+				},
+				{
+					"originalRange": "[91,1 -> 91,1]",
+					"modifiedRange": "[93,1 -> 93,2]"
+				},
+				{
+					"originalRange": "[92,1 -> 92,1]",
+					"modifiedRange": "[94,1 -> 94,2]"
+				},
+				{
+					"originalRange": "[93,1 -> 93,1]",
+					"modifiedRange": "[95,1 -> 95,2]"
+				},
+				{
+					"originalRange": "[94,1 -> 94,1]",
+					"modifiedRange": "[96,1 -> 96,2]"
+				},
+				{
+					"originalRange": "[95,1 -> 95,1]",
+					"modifiedRange": "[97,1 -> 97,2]"
+				},
+				{
+					"originalRange": "[96,1 -> 96,1]",
+					"modifiedRange": "[98,1 -> 98,2]"
+				},
+				{
+					"originalRange": "[97,1 -> 97,1]",
+					"modifiedRange": "[99,1 -> 99,2]"
+				},
+				{
+					"originalRange": "[98,1 -> 98,1]",
+					"modifiedRange": "[100,1 -> 101,1]"
+				}
+			]
+		}
+	]
+}
