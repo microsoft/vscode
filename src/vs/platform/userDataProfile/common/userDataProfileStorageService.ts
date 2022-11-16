@@ -25,8 +25,8 @@ export interface IStorageValue {
 	readonly target: StorageTarget;
 }
 
-export const IUserDataSyncProfilesStorageService = createDecorator<IUserDataSyncProfilesStorageService>('IUserDataSyncProfilesStorageService');
-export interface IUserDataSyncProfilesStorageService {
+export const IUserDataProfileStorageService = createDecorator<IUserDataProfileStorageService>('IUserDataProfileStorageService');
+export interface IUserDataProfileStorageService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -54,7 +54,7 @@ export interface IUserDataSyncProfilesStorageService {
 	withProfileScopedStorageService<T>(profile: IUserDataProfile, fn: (storageService: IStorageService) => Promise<T>): Promise<T>;
 }
 
-export abstract class AbstractUserDataSyncProfilesStorageService extends Disposable implements IUserDataSyncProfilesStorageService {
+export abstract class AbstractUserDataProfileStorageService extends Disposable implements IUserDataProfileStorageService {
 
 	_serviceBrand: undefined;
 

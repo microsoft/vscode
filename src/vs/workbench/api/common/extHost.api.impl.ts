@@ -746,7 +746,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
-				return extHostDecorations.registerFileDecorationProvider(provider, extension.identifier);
+				return extHostDecorations.registerFileDecorationProvider(provider, extension);
 			},
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
@@ -1257,6 +1257,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileDecoration: extHostTypes.FileDecoration,
+			FileDecoration2: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
 			FilePermission: files.FilePermission,

@@ -10,13 +10,10 @@ import { IAction } from 'vs/base/common/actions';
 import { asArray } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
-import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -27,6 +24,10 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalCommandMatchResult, TerminalQuickFixActionExtension, IInternalOptions } from 'vs/platform/terminal/common/terminal';
+import { IActionWidgetService, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
+import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -67,8 +68,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
-
 	private _fixesShown: boolean = false;
 	private _expectedCommands: string[] | undefined;
 	private _fixId: string | undefined;
@@ -76,16 +75,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -98,7 +96,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 		for (const commandSelector of this._terminalContributionService.quickFixes) {
 			this.registerCommandSelector(commandSelector);
 		}
@@ -240,8 +237,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		this._decoration = decoration;
-		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
-		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
 		const fixes = this._quickFixes;
 		if (!fixes) {
 			decoration.dispose();
@@ -255,9 +250,49 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => fixes, autoSelectFirstItem: true });
+				const rect = e.getBoundingClientRect();
+				const anchor = {
+					x: rect.x,
+					y: rect.y,
+					width: rect.width,
+					height: rect.height
+				};
+				// TODO: What's documentation do? Need a vscode command?
+				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
+				const actions = fixes.map(f => new TerminalQuickFix(f, f.label));
+				const actionSet = {
+					// TODO: Documentation and actions are separate?
+					documentation,
+					allActions: actions,
+					hasAutoFix: false,
+					validActions: actions,
+					dispose: () => { }
+				} as ActionSet<TerminalQuickFix>;
+
+				const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
+				if (!parentElement) {
+					return;
+				}
+				const delegate = {
+					onSelect: async (fix: TerminalQuickFix, preview?: boolean) => {
+						if (preview) {
+							this._commandService.executeCommand(previewSelectedActionCommand);
+						} else {
+							fix.action?.run();
+							this._actionWidgetService.hide();
+						}
+					},
+					onHide: () => {
+						this._terminal?.focus();
+					},
+				};
+				this._actionWidgetService.show('quickFixWidget', toMenuItems, delegate, actionSet, anchor, parentElement,
+					{
+						showHeaders: true,
+						includeDisabledActions: false,
+						fromLightbulb: true
+					});
 			}));
-			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
 	}
 }
