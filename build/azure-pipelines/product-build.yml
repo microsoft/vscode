@@ -139,8 +139,6 @@ variables:
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
     value: true
-  - name: Codeql.SkipTaskAutoInjection
-    value: true
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
