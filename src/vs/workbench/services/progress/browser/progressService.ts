@@ -26,6 +26,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -563,7 +564,8 @@ export class ProgressService extends Disposable implements IProgressService {
 								EventHelper.stop(event, true);
 							}
 						}
-					}
+					},
+					buttonStyles: defaultButtonStyles
 				}
 			);
 

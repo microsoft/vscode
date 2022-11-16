@@ -442,14 +442,9 @@ export class MergeEditorModel extends EditorModel {
 			}
 		}
 
-		if (markInputAsHandled !== false) {
-			if (markInputAsHandled === true || markInputAsHandled === 1) {
-				existingState.handledInput1.set(true, transaction);
-			}
-			if (markInputAsHandled === true || markInputAsHandled === 2) {
-				existingState.handledInput2.set(true, transaction);
-			}
-		}
+		// always set conflict as handled
+		existingState.handledInput1.set(true, transaction);
+		existingState.handledInput2.set(true, transaction);
 	}
 
 	public resetDirtyConflictsToBase(): void {

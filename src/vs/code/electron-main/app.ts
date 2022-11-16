@@ -107,7 +107,7 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
-import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataSync/electron-main/userDataSyncProfilesStorageIpc';
+import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 /**
