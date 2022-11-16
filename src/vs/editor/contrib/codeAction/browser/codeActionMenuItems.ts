@@ -5,10 +5,10 @@
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionWidget';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
+import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 
 export interface ActionGroup {
 	readonly kind: CodeActionKind;
