@@ -287,13 +287,8 @@
 	padding: 0 4px;
 }
 
-/* split commit button */
-.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button.codicon-drop-down-button {
-	border-radius: 0 2px 2px 0;
-}
 
 .scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
-	border-radius: 2px 0 0 2px;
 	min-width: 0;
 }
 
