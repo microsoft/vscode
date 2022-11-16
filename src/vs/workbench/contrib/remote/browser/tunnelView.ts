@@ -28,7 +28,7 @@ import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelIt
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -54,6 +54,7 @@ import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDel
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
@@ -408,10 +409,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.container.style.paddingLeft = '7px';
 		templateData.container.style.height = '28px';
-		templateData.button = this._register(new Button(templateData.container));
+		templateData.button = this._register(new Button(templateData.container, defaultButtonStyles));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
-		this._register(attachButtonStyler(templateData.button, this.themeService));
 		this._register(templateData.button.onDidClick(() => {
 			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
 		}));
