@@ -160,9 +160,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 
 		// Listen to selection changes if the editor pane
-		// is having a selection concept.
+		// is having a selection concept. We use `accumulate`
+		// on the event to reduce the pressure on the editor
+		// to reduce input latency.
+
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(Event.accumulate(activeEditorPane.onDidChangeSelection)(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(Event.accumulate(activeEditorPane.onDidChangeSelection)(e => this.handleActiveEditorSelectionChangeEvents(activeEditorGroup, activeEditorPane, e)));
 		}
 
 		// Context keys
@@ -198,7 +201,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChangeInNavigationStacks(group, editorPane);
 	}
 
-	private handleActiveEditorSelectionChangeEvent(group: IEditorGroup, editorPane: IEditorPaneWithSelection, events: IEditorPaneSelectionChangeEvent[]): void {
+	private handleActiveEditorSelectionChangeEvents(group: IEditorGroup, editorPane: IEditorPaneWithSelection, events: IEditorPaneSelectionChangeEvent[]): void {
 		for (const event of events) {
 			this.handleActiveEditorSelectionChangeInNavigationStacks(group, editorPane, event);
 		}
