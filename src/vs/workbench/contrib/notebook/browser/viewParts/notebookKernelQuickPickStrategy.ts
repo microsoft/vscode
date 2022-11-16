@@ -701,6 +701,14 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	}
 
 	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService) {
+		const detectionTasks = notebookKernelService.getKernelDetectionTasks(notebook);
+		if (detectionTasks.length) {
+			action.enabled = true;
+			action.label = localize('kernels.detecting', "Detecting Kernels");
+			action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
+			return;
+		}
+
 		const info = notebookKernelService.getMatchingKernel(notebook);
 
 		if (info.selected) {
