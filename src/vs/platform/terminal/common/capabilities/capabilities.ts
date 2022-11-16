@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
 interface IEvent<T, U = void> {
@@ -221,7 +222,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
 }
 
@@ -248,6 +249,12 @@ export interface ITerminalOutputMatcher {
 	 * reasons.
 	 */
 	length: number;
+
+	/**
+	 * If multiple matches are expected - this will result in {@link outputLines} being returned
+	 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+	 */
+	multipleMatches?: boolean;
 }
 
 /**

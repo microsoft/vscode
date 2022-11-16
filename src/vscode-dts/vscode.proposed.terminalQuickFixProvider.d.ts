@@ -29,7 +29,10 @@ declare module 'vscode' {
 	export interface TerminalCommandMatchResult {
 		commandLine: string;
 		commandLineMatch: RegExpMatchArray;
-		outputMatch?: RegExpMatchArray;
+		outputMatch?: {
+			regexMatch: RegExpMatchArray;
+			outputLines: string[];
+		};
 	}
 
 	export namespace window {
@@ -72,7 +75,11 @@ declare module 'vscode' {
 		 */
 		length: number;
 
-		// ensure we can support all git similar using multiple lines
+		/**
+		 * If multiple matches are expected - this will result in {@link outputLines} being returned
+		 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+		 */
+		multipleMatches?: boolean;
 	}
 
 	enum TerminalOutputAnchor {

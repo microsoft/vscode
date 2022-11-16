@@ -29,9 +29,10 @@ suite('QuickFixAddon', () => {
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
 	let openerService: OpenerService;
+	let terminal: Terminal;
 	setup(() => {
 		const instantiationService = new TestInstantiationService();
-		const xterm = new Terminal({
+		terminal = new Terminal({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30
@@ -40,7 +41,7 @@ suite('QuickFixAddon', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
-		commandDetection = instantiationService.createInstance(CommandDetectionCapability, xterm);
+		commandDetection = instantiationService.createInstance(CommandDetectionCapability, terminal);
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		openerService = instantiationService.createInstance(OpenerService);
@@ -49,7 +50,7 @@ suite('QuickFixAddon', () => {
 			async freePortKillProcess(port: string): Promise<void> { }
 		} as Pick<ITerminalInstance, 'freePortKillProcess'>;
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, capabilities);
-		xterm.loadAddon(quickFixAddon);
+		terminal.loadAddon(quickFixAddon);
 	});
 	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', async () => {
@@ -330,7 +331,10 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		getOutput: () => { return output; },
 		getOutputMatch: (matcher: ITerminalOutputMatcher) => {
 			if (outputMatcher) {
-				return output.match(outputMatcher) ?? undefined;
+				const regexMatch = output.match(outputMatcher) ?? undefined;
+				if (regexMatch) {
+					return { regexMatch, outputLines: [] };
+				}
 			}
 			return undefined;
 		},

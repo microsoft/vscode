@@ -34,7 +34,7 @@ export function gitSimilar(): IInternalOptions {
 				return;
 			}
 			const actions: TerminalQuickFixActionInternal[] = [];
-			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
+			const results = matchResult.outputMatch.regexMatch[0].split('\n').map(r => r.trim());
 			for (let i = 1; i < results.length; i++) {
 				const fixedCommand = results[i];
 				if (fixedCommand) {
@@ -64,7 +64,7 @@ export function gitTwoDashes(): IInternalOptions {
 		},
 		exitStatus: false,
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			const problemArg = matchResult?.outputMatch?.[1];
+			const problemArg = matchResult?.outputMatch?.regexMatch?.[1];
 			if (!problemArg) {
 				return;
 			}
@@ -90,7 +90,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 		},
 		exitStatus: false,
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			const port = matchResult?.outputMatch?.groups?.portNumber;
+			const port = matchResult?.outputMatch?.regexMatch?.groups?.portNumber;
 			if (!port) {
 				return;
 			}
@@ -127,7 +127,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 			if (!matches) {
 				return;
 			}
-			const groups = matches.groups;
+			const groups = matches.regexMatch.groups;
 			if (!groups) {
 				return;
 			}
@@ -167,7 +167,7 @@ export function gitCreatePr(): IInternalOptions {
 		},
 		exitStatus: true,
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			const link = matchResult?.outputMatch?.groups?.link;
+			const link = matchResult?.outputMatch?.regexMatch?.groups?.link;
 			if (!link) {
 				return;
 			}

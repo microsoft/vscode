@@ -57,16 +57,8 @@ export interface ITerminalCommandSelector {
 }
 
 export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
-export type TerminalQuickFixCallback = (matchResult: TerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
-export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
-
-
-export interface TerminalCommandMatchResult {
-	commandLine: string;
-	commandLineMatch: RegExpMatchArray;
-	// full match and groups
-	outputMatch: RegExpMatchArray;
-}
+export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
+export type TerminalQuickFixCallbackExtension = (matchResult: ITerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
 export interface ITerminalQuickFixProvider {
 	/**
@@ -75,12 +67,17 @@ export interface ITerminalQuickFixProvider {
 	 * @param token A cancellation token indicating the result is no longer needed
 	 * @return Terminal quick fix(es) if any
 	 */
-	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
+	provideTerminalQuickFixes(commandMatchResult: ITerminalCommandMatchResult, token?: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 }
 export interface ITerminalCommandMatchResult {
 	commandLine: string;
 	commandLineMatch: RegExpMatchArray;
-	outputMatch: RegExpMatchArray;
+	outputMatch?: ITerminalOutputMatch;
+}
+
+export interface ITerminalOutputMatch {
+	regexMatch: RegExpMatchArray;
+	outputLines?: string[];
 }
 
 export interface IInternalOptions extends ITerminalQuickFixOptions {

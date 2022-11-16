@@ -8,6 +8,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -647,7 +648,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined {
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -657,6 +658,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
 	const lines: string[] = [];
+	let match: RegExpMatchArray | null | undefined;
 	if (outputMatcher.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
 			let wrappedLineStart = i;
@@ -669,9 +671,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length > linesToCheck) {
 				lines.pop();
 			}
-			const match = lines.join('\n').match(matcher);
-			if (match) {
-				return match;
+			if (!match) {
+				match = lines.join('\n').match(matcher);
+				if (!outputMatcher.multipleMatches && match) {
+					return { regexMatch: match };
+				}
 			}
 		}
 	} else {
@@ -686,15 +690,15 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length === linesToCheck) {
 				lines.shift();
 			}
-			if (outputMatcher) {
-				const match = lines.join('\n').match(matcher);
-				if (match) {
-					return match;
+			if (!match) {
+				match = lines.join('\n').match(matcher);
+				if (!outputMatcher.multipleMatches && match) {
+					return { regexMatch: match };
 				}
 			}
 		}
 	}
-	return undefined;
+	return match ? { regexMatch: match, outputLines: lines } : undefined;
 }
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {

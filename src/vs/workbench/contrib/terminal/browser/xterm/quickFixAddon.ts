@@ -173,6 +173,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	 * @param command & its output
 	 */
 	private async _resolveQuickFixes(command: ITerminalCommand): Promise<void> {
+		const terminal = this._terminal;
+		if (!terminal) {
+			return;
+		}
 		if (command.command !== '') {
 			this._disposeQuickFix();
 		}
