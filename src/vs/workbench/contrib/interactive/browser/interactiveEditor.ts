@@ -258,7 +258,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#styleElement.textContent = styleSheets.join('\n');
 	}
 
-	override saveState(): void {
+	protected override saveState(): void {
 		this.#saveEditorViewState(this.input);
 		super.saveState();
 	}

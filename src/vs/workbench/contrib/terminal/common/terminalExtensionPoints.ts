@@ -5,7 +5,6 @@
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
-import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, ITerminalCommandSelector, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';

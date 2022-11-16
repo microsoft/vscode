@@ -21,6 +21,8 @@ mod service;
 mod service_linux;
 #[cfg(target_os = "windows")]
 mod service_windows;
+#[cfg(target_os = "macos")]
+mod service_macos;
 
 pub use control_server::serve;
 pub use service::{

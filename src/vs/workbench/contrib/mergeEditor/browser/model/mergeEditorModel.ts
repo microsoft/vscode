@@ -29,7 +29,7 @@ export interface InputData {
 export class MergeEditorModel extends EditorModel {
 	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1.textModel, this.diffComputer));
 	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2.textModel, this.diffComputer));
-	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.resultTextModel, this.diffComputerConflictProjection));
+	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.resultTextModel, this.diffComputer));
 	public readonly modifiedBaseRanges = derived<ModifiedBaseRange[]>('modifiedBaseRanges', (reader) => {
 		const input1Diffs = this.input1TextModelDiffs.diffs.read(reader);
 		const input2Diffs = this.input2TextModelDiffs.diffs.read(reader);
@@ -54,7 +54,6 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2: InputData,
 		readonly resultTextModel: ITextModel,
 		private readonly diffComputer: IMergeDiffComputer,
-		private readonly diffComputerConflictProjection: IMergeDiffComputer,
 		private readonly options: { resetResult: boolean },
 		public readonly telemetry: MergeEditorTelemetry,
 		@IModelService private readonly modelService: IModelService,

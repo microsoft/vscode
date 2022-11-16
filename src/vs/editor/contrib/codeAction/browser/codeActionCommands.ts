@@ -27,7 +27,6 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { IdleValue } from 'vs/base/common/async';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -91,7 +90,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	private readonly _editor: ICodeEditor;
-	private readonly _model: IdleValue<CodeActionModel>;
+	private readonly _model: CodeActionModel;
 	private readonly _ui: Lazy<CodeActionUi>;
 
 	constructor(
@@ -106,13 +105,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		this._editor = editor;
 
-		this._model = this._register(new IdleValue(() => {
-			const model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
 
-			this._register(model.onDidChangeState(newState => this.update(newState)));
-
-			return model;
-		}));
+		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._ui = new Lazy(() =>
 			this._register(_instantiationService.createInstance(CodeActionUi, editor, QuickFixAction.Id, AutoFixAction.Id, {
@@ -154,7 +149,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
-		return this._model.value.trigger(trigger);
+		return this._model.trigger(trigger);
 	}
 
 	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {

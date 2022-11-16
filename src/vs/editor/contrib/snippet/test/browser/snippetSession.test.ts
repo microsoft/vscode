@@ -706,7 +706,7 @@ suite('SnippetSession', function () {
 	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {
 		const model = editor.getModel()!;
 		model.setValue('\n{\n  \n}');
-		model.updateOptions({ insertSpaces: true, tabSize: 2 });
+		model.updateOptions({ insertSpaces: true, indentSize: 2 });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(3, 6, 3, 6)]);
 		const session = new SnippetSession(editor, [
 			'function animate () {',

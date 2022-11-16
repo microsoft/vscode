@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.74.0",
-  "distro": "e573500de567e185e183768eb0e614a4d48bca0f",
+  "distro": "d7139fbecd8c263fbe78f29e5cebc53f220e10b2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,7 +55,7 @@
     "minify-vscode-reh": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
     "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
-    "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
+    "core-ci": "node --max_old_space_size=8095 ./node_modules/gulp/bin/gulp.js core-ci",
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
     "webview-generate-csp-hash": "npx github:apaatsio/csp-hash-from-html csp-hash ./src/vs/workbench/contrib/webview/browser/pre/index.html"
   },

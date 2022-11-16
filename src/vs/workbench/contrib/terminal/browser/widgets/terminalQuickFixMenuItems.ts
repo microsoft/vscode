@@ -7,7 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
-import { IListMenuItem, ActionListItemKind } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 
 export class TerminalQuickFix implements IActionItem {

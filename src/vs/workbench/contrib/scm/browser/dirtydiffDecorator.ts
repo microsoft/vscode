@@ -305,7 +305,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(this.diffEditor);
 	}
 
-	override _onWidth(width: number): void {
+	protected override _onWidth(width: number): void {
 		if (typeof this.height === 'undefined') {
 			return;
 		}

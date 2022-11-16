@@ -42,7 +42,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 export class DebugSession implements IDebugSession {
 
 	private _subId: string | undefined;
-	private raw: RawDebugSession | undefined;
+	raw: RawDebugSession | undefined; // used in tests
 	private initialized = false;
 	private _options: IDebugSessionOptions;
 

@@ -71,23 +71,6 @@ export namespace Event {
 	}
 
 	/**
-	 * Debounces an event, firing after some delay (default=0) with an array of all event original objects.
-	 *
-	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
-	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
-	 * returned event causes this utility to leak a listener on the original event.
-	 */
-	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
-		return Event.debounce<T, T[]>(event, (last, e) => {
-			if (!last) {
-				return [e];
-			}
-			last.push(e);
-			return last;
-		}, delay, undefined, undefined, disposable);
-	}
-
-	/**
 	 * Given an event, returns another event which only fires once.
 	 */
 	export function once<T>(event: Event<T>): Event<T> {
@@ -258,6 +241,23 @@ export namespace Event {
 		disposable?.add(emitter);
 
 		return emitter.event;
+	}
+
+	/**
+	 * Debounces an event, firing after some delay (default=0) with an array of all event original objects.
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 */
+	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+		return Event.debounce<T, T[]>(event, (last, e) => {
+			if (!last) {
+				return [e];
+			}
+			last.push(e);
+			return last;
+		}, delay, undefined, undefined, disposable);
 	}
 
 	/**
