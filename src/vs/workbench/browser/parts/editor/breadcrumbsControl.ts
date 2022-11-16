@@ -586,7 +586,8 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
 				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-			}
+			},
+			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]): void {
