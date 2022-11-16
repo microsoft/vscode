@@ -65,17 +65,6 @@ export interface TerminalCommandMatchResult {
 	outputMatch: RegExpMatchArray;
 }
 
-interface TerminalQuickFixCommandAction {
-	type: 'command';
-	command: string;
-}
-interface TerminalQuickFixOpenerAction {
-	type: 'opener';
-	// support line range/col? see elsewhere
-	uri: UriComponents;
-}
-
-type TerminalQuickFix = TerminalQuickFixCommandAction | TerminalQuickFixOpenerAction;
 export interface ITerminalQuickFixProvider {
 	/**
 	 * Provides terminal quick fixes
@@ -83,7 +72,9 @@ export interface ITerminalQuickFixProvider {
 	 * @param token A cancellation token indicating the result is no longer needed
 	 * @return Terminal quick fix(es) if any
 	 */
-	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
+	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<(ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction
+	)[] | (ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction
+		) | undefined>;
 }
 export interface ITerminalCommandMatchResult {
 	commandLine: string;
