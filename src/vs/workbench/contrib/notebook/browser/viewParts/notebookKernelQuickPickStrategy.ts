@@ -591,8 +591,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		);
 	}
 	protected _getKernelPickerQuickPickItems(notebookTextModel: NotebookTextModel, matchResult: INotebookKernelMatchResult, notebookKernelService: INotebookKernelService, scopedContextKeyService: IContextKeyService): QuickPickInput<KernelQuickPickItem>[] {
-		// const { selected, all, suggestions, hidden } = matchResult;
-
 		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 		if (matchResult.selected) {
 			quickPickItems.push(toQuickPick(matchResult.selected, matchResult.selected));
@@ -639,18 +637,23 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			disposables.add(quickPick.onDidAccept(async () => {
 				quickPick.hide();
 				quickPick.dispose();
-				if (quickPick.selectedItems.length && 'command' in quickPick.selectedItems[0]) {
-					const selectedKernelId = await this._executeCommand<string>(notebook, quickPick.selectedItems[0].command);
-					if (selectedKernelId) {
-						const { all } = await this._notebookKernelService.getMatchingKernel(notebook);
-						const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
-						if (kernel) {
-							await this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
+				if (quickPick.selectedItems) {
+					if ('command' in quickPick.selectedItems[0]) {
+						const selectedKernelId = await this._executeCommand<string>(notebook, quickPick.selectedItems[0].command);
+						if (selectedKernelId) {
+							const { all } = await this._notebookKernelService.getMatchingKernel(notebook);
+							const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
+							if (kernel) {
+								await this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
+								resolve(true);
+							}
 							resolve(true);
+						} else {
+							return resolve(this.displaySelectAnotherQuickPick(notebook));
 						}
+					} else if ('kernel' in quickPick.selectedItems[0]) {
+						await this._notebookKernelService.selectKernelForNotebook(quickPick.selectedItems[0].kernel, notebook);
 						resolve(true);
-					} else {
-						return resolve(this.displaySelectAnotherQuickPick(notebook));
 					}
 				}
 			}));
