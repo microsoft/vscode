@@ -344,6 +344,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: inline-block; /* size to contents for hover to show context button */
+	padding-bottom: 2px; /* so that focus outlines wrap around nicely for indicators, especially ones with codicons */
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-modified-indicator {
@@ -368,7 +369,7 @@
 	bottom: 23px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .setting-indicators-container {
 	font-style: italic;
 }
 
@@ -379,8 +380,8 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-indicator:hover {
-	text-decoration: underline;
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .setting-indicators-container .setting-indicator {
+	padding-bottom: 2px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .codicon {
