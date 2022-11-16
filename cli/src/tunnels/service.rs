@@ -74,13 +74,14 @@ pub fn create_service_manager(log: log::Logger, paths: &LauncherPaths) -> Servic
 	}
 }
 
+#[allow(dead_code)] // unused on Linux
 pub(crate) async fn tail_log_file(log_file: &Path) -> Result<(), AnyError> {
 	if !log_file.exists() {
 		println!("The tunnel service has not started yet.");
 		return Ok(());
 	}
 
-	let file = std::fs::File::open(&log_file).map_err(|e| wrap(e, "error opening log file"))?;
+	let file = std::fs::File::open(log_file).map_err(|e| wrap(e, "error opening log file"))?;
 	let mut rx = tailf(file, 20);
 	while let Some(line) = rx.recv().await {
 		match line {
