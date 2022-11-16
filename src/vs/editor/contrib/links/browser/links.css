@@ -6,6 +6,7 @@
 .monaco-editor .detected-link-active {
 	text-decoration: underline;
 	text-underline-position: under;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
 .monaco-editor .detected-link-active {

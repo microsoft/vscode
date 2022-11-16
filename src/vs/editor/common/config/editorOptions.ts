@@ -15,6 +15,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
+import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 
 //#region typed options
 
@@ -739,7 +740,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'smart' | 'experimental';
+	diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
 }
 
 /**
@@ -1183,7 +1184,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
+				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -1781,9 +1782,9 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 			enum: ['peek', 'gotoAndPeek', 'goto'],
 			default: defaults.multiple,
 			enumDescriptions: [
-				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
-				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
-				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
+				nls.localize('editor.gotoLocation.multiple.peek', 'Show Peek view of the results (default)'),
+				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a Peek view'),
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable Peek-less navigation to others')
 			]
 		};
 		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
@@ -2567,7 +2568,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 				'editor.lightbulb.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
+					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
 			}
 		);
@@ -3600,14 +3601,14 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 					type: ['boolean', 'string'],
 					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeComments,
-					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
+					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to Unicode highlighting.")
 				},
 				[unicodeHighlightConfigKeys.includeStrings]: {
 					restricted: true,
 					type: ['boolean', 'string'],
 					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeStrings,
-					description: nls.localize('unicodeHighlight.includeStrings', "Controls whether characters in strings should also be subject to unicode highlighting.")
+					description: nls.localize('unicodeHighlight.includeStrings', "Controls whether characters in strings should also be subject to Unicode highlighting.")
 				},
 				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
@@ -3963,6 +3964,10 @@ export interface ISuggestOptions {
 	 */
 	shareSuggestSelections?: boolean;
 	/**
+	 * Select suggestions when triggered via quick suggest or trigger characters
+	 */
+	selectQuickSuggestions?: boolean;
+	/**
 	 * Enable or disable icons in suggestions. Defaults to true.
 	 */
 	showIcons?: boolean;
@@ -4114,6 +4119,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
 			shareSuggestSelections: false,
+			selectQuickSuggestions: true,
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
@@ -4200,7 +4206,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
 					default: defaults.showInlineDetails,
-					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget")
+					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -4233,7 +4239,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				'editor.suggest.matchOnWordStartOnly': {
 					type: 'boolean',
 					default: true,
-					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start, e.g `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
+					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start. For example, `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4375,6 +4381,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+			selectQuickSuggestions: boolean(input.selectQuickSuggestions, this.defaultValue.selectQuickSuggestions),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),
@@ -4917,7 +4924,7 @@ export const EditorOptions = {
 		default: 0,
 		minimum: 0,
 		maximum: 100,
-		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, 90% of `#editor.fontSize#` is used.")
+		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to 0, 90% of `#editor.fontSize#` is used.")
 	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
@@ -5077,7 +5084,7 @@ export const EditorOptions = {
 	)),
 	linkedEditing: register(new EditorBooleanOption(
 		EditorOption.linkedEditing, 'linkedEditing', false,
-		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols, e.g. HTML tags, are updated while editing.") }
+		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols such as HTML tags, are updated while editing.") }
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,

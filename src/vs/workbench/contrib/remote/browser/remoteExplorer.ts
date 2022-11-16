@@ -21,7 +21,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
+import { ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -199,7 +199,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, contextKeyService, () => false));
+					remoteExplorerService, configurationService, debugService, tunnelService, hostService, logService, contextKeyService, () => false));
 			} else {
 				const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 				if (useProc()) {
@@ -207,7 +207,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 						openerService, externalOpenerService, tunnelService, hostService, logService, contextKeyService));
 				}
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, contextKeyService, useProc));
+					remoteExplorerService, configurationService, debugService, tunnelService, hostService, logService, contextKeyService, useProc));
 			}
 		});
 	}
@@ -417,7 +417,6 @@ class OutputAutomaticPortForwarding extends Disposable {
 		private readonly configurationService: IConfigurationService,
 		private readonly debugService: IDebugService,
 		readonly tunnelService: ITunnelService,
-		private readonly remoteAgentService: IRemoteAgentService,
 		readonly hostService: IHostService,
 		readonly logService: ILogService,
 		readonly contextKeyService: IContextKeyService,
@@ -459,7 +458,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 			if (attributes?.onAutoForward === OnPortForward.Ignore) {
 				return;
 			}
-			if (this.privilegedOnly() && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
+			if (this.privilegedOnly() && !this.tunnelService.isPortPrivileged(localUrl.port)) {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl, source: AutoTunnelSource }, attributes ?? null);
@@ -559,13 +558,16 @@ class ProcAutomaticPortForwarding extends Disposable {
 		for (const value of startingCandidates) {
 			this.initialCandidates.add(makeAddress(value.host, value.port));
 		}
+		this.logService.debug(`ForwardedPorts: (ProcForwarding) Initial candidates set to ${startingCandidates.join(', ')}`);
 	}
 
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {
 		let attributes: Map<number, Attributes> | undefined;
 		const allTunnels: RemoteTunnel[] = [];
+		this.logService.trace(`ForwardedPorts: (ProcForwarding) Attempting to forward ${this.remoteExplorerService.tunnelModel.candidates.length} candidates`);
 		for (const value of this.remoteExplorerService.tunnelModel.candidates) {
 			if (!value.detail) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} missing detail`);
 				continue;
 			}
 
@@ -587,18 +589,22 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 			const portAttributes = attributes?.get(value.port);
 			if (portAttributes?.onAutoForward === OnPortForward.Ignore) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} is ignored`);
 				continue;
 			}
 			const forwarded = await this.remoteExplorerService.forward({ remote: value, source: AutoTunnelSource }, portAttributes ?? null);
 			if (!alreadyForwarded && forwarded) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been forwarded`);
 				this.autoForwarded.add(address);
 			} else if (forwarded) {
+				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} has been notified`);
 				this.notifiedOnly.add(address);
 			}
 			if (forwarded) {
 				allTunnels.push(forwarded);
 			}
 		}
+		this.logService.trace(`ForwardedPorts: (ProcForwarding) Forwarded ${allTunnels.length} candidates`);
 		if (allTunnels.length === 0) {
 			return undefined;
 		}

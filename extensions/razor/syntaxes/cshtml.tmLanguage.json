@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor-tooling/commit/558b502fbef5ecdf386ccd6d47b0b40b5f8800a7",
+	"version": "https://github.com/dotnet/razor-tooling/commit/4d5eeeaeeadf6371354e5fd8ad4c195185806f0c",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"patterns": [
@@ -558,7 +558,7 @@
 			"contentName": "source.cs",
 			"patterns": [
 				{
-					"include": "source.cs"
+					"include": "source.cs#class-or-struct-members"
 				}
 			],
 			"end": "(\\})",

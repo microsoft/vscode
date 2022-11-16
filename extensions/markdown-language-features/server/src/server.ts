@@ -7,7 +7,6 @@ import { CancellationToken, Connection, InitializeParams, InitializeResult, Note
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
-import * as nls from 'vscode-nls';
 import { URI } from 'vscode-uri';
 import { getLsConfiguration, LsConfiguration } from './config';
 import { ConfigurationManager } from './configuration';
@@ -16,8 +15,7 @@ import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
 import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
-
-const localize = nls.loadMessageBundle();
+import * as l10n from '@vscode/l10n';
 
 interface MdServerInitializationOptions extends LsConfiguration { }
 
@@ -79,6 +77,7 @@ export async function startServer(connection: Connection, serverConfig: {
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
+		registerDocumentHightlightSupport(connection, documents, mdLs, configurationManager);
 		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
 
 		return {
@@ -93,7 +92,7 @@ export async function startServer(connection: Connection, serverConfig: {
 				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
-				documentHighlightProvider: false, // TODO: Disabling for now
+				documentHighlightProvider: true,
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
 				referencesProvider: true,
@@ -203,7 +202,7 @@ export async function startServer(connection: Connection, serverConfig: {
 
 		if (params.context.only?.some(kind => kind === 'source' || kind.startsWith('source.'))) {
 			const action: lsp.CodeAction = {
-				title: localize('organizeLinkDefAction.title', "Organize link definitions"),
+				title: l10n.t("Organize link definitions"),
 				kind: organizeLinkDefKind,
 				data: <OrganizeLinkActionData>{ uri: document.uri }
 			};
@@ -231,14 +230,6 @@ export async function startServer(connection: Connection, serverConfig: {
 		}
 
 		return codeAction;
-	});
-
-	connection.onDocumentHighlight(async (params, token) => {
-		const document = documents.get(params.textDocument.uri);
-		if (!document) {
-			return undefined;
-		}
-		return mdLs!.getDocumentHighlights(document, params.position, token);
 	});
 
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
@@ -307,4 +298,25 @@ function registerCompletionsSupport(
 
 	update();
 	return config.onDidChangeConfiguration(() => update());
+}
+
+function registerDocumentHightlightSupport(
+	connection: Connection,
+	documents: TextDocuments<md.ITextDocument>,
+	mdLs: md.IMdLanguageService,
+	configurationManager: ConfigurationManager
+) {
+	connection.onDocumentHighlight(async (params, token) => {
+		const settings = configurationManager.getSettings();
+		if (!settings?.markdown.occurrencesHighlight.enabled) {
+			return undefined;
+		}
+
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.getDocumentHighlights(document, params.position, token);
+	});
 }

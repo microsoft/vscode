@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { isWindows, OS } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -420,21 +420,27 @@ class ReplaceActionRunner {
 	}
 }
 
-export class RemoveAction extends Action {
+export class RemoveAction implements IAction {
 
 	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
+	readonly id = Constants.RemoveActionId;
+	public class = ThemeIcon.asClassName(searchRemoveIcon);
+	public label: string;
+	public tooltip = '';
+	public enabled = true;
+
 	constructor(
-		private viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
-		private element: RenderableMatch,
+		private readonly viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
+		private readonly element: RenderableMatch,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
-		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
+		this.label = appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService);
 	}
 
-	override async run(): Promise<any> {
+	run(): void {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
 		let focusElement = this.viewer.getFocus()[0];

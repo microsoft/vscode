@@ -417,7 +417,12 @@ export class Dimension implements IDimension {
 	}
 }
 
-export function getTopLeftOffset(element: HTMLElement): { left: number; top: number } {
+export interface IDomPosition {
+	readonly left: number;
+	readonly top: number;
+}
+
+export function getTopLeftOffset(element: HTMLElement): IDomPosition {
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
@@ -1194,7 +1199,7 @@ export function asCSSUrl(uri: URI | null | undefined): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.uriToBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
 export function asCSSPropertyValue(value: string) {

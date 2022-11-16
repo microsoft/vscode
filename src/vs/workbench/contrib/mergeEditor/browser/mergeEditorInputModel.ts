@@ -11,7 +11,6 @@ import { derived, IObservable, observableFromEvent, observableValue } from 'vs/b
 import { basename, isEqual } from 'vs/base/common/resources';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
@@ -103,15 +102,14 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 		);
 		store.add(temporaryResultModel);
 
-		const diffProvider = this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider);
+		const mergeDiffComputer = this._instantiationService.createInstance(MergeDiffComputer);
 		const model = this._instantiationService.createInstance(
 			MergeEditorModel,
 			base.object.textEditorModel,
 			input1Data,
 			input2Data,
 			temporaryResultModel,
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
+			mergeDiffComputer,
 			{
 				resetResult: true,
 			},
@@ -314,15 +312,15 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 		const hasConflictMarkers = lines.some(l => l.startsWith(conflictMarkers.start));
 		const resetResult = hasConflictMarkers;
 
-		const diffProvider = this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider);
+		const mergeDiffComputer = this._instantiationService.createInstance(MergeDiffComputer);
+
 		const model = this._instantiationService.createInstance(
 			MergeEditorModel,
 			base.object.textEditorModel,
 			input1Data,
 			input2Data,
 			result.object.textEditorModel,
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
+			mergeDiffComputer,
 			{
 				resetResult
 			},

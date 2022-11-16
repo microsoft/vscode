@@ -119,7 +119,7 @@ export function getShellIntegrationInjection(
 
 	const originalArgs = shellLaunchConfig.args;
 	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
-	const appRoot = path.dirname(FileAccess.asFileUri('', require).fsPath);
+	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	let newArgs: string[] | undefined;
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtensionStoragePaths, IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
@@ -14,5 +14,5 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);

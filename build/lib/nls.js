@@ -95,18 +95,22 @@ var _nls;
         return { line: position.line - 1, character: position.column };
     }
     class SingleFileServiceHost {
+        options;
+        filename;
+        file;
+        lib;
         constructor(ts, options, filename, contents) {
             this.options = options;
             this.filename = filename;
-            this.getCompilationSettings = () => this.options;
-            this.getScriptFileNames = () => [this.filename];
-            this.getScriptVersion = () => '1';
-            this.getScriptSnapshot = (name) => name === this.filename ? this.file : this.lib;
-            this.getCurrentDirectory = () => '';
-            this.getDefaultLibFileName = () => 'lib.d.ts';
             this.file = ts.ScriptSnapshot.fromString(contents);
             this.lib = ts.ScriptSnapshot.fromString('');
         }
+        getCompilationSettings = () => this.options;
+        getScriptFileNames = () => [this.filename];
+        getScriptVersion = () => '1';
+        getScriptSnapshot = (name) => name === this.filename ? this.file : this.lib;
+        getCurrentDirectory = () => '';
+        getDefaultLibFileName = () => 'lib.d.ts';
         readFile(path, _encoding) {
             if (path === this.filename) {
                 return this.file.getText(0, this.file.getLength());
@@ -208,6 +212,8 @@ var _nls;
         };
     }
     class TextModel {
+        lines;
+        lineEndings;
         constructor(contents) {
             const regex = /\r\n|\r|\n/g;
             let index = 0;

@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
-
-const localize = nls.loadMessageBundle();
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -54,7 +51,7 @@ export class GitTimelineItem extends TimelineItem {
 		this.tooltip = new MarkdownString('', true);
 
 		if (email) {
-			const emailTitle = localize('git.timeline.email', "Email");
+			const emailTitle = l10n.t('Email');
 			this.tooltip.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
 		} else {
 			this.tooltip.appendMarkdown(`$(account) **${author}**\n\n`);
@@ -79,7 +76,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	}
 
 	readonly id = 'git-history';
-	readonly label = localize('git.timeline.source', 'Git History');
+	readonly label = l10n.t('Git History');
 
 	private readonly disposable: Disposable;
 	private providerDisposable: Disposable | undefined;
@@ -171,7 +168,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		const showAuthor = config.get<boolean>('showAuthor');
 		const showUncommitted = config.get<boolean>('showUncommitted');
 
-		const openComparison = localize('git.timeline.openComparison', "Open Comparison");
+		const openComparison = l10n.t('Open Comparison');
 
 		const items = commits.map<GitTimelineItem>((c, i) => {
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
@@ -199,13 +196,13 @@ export class GitTimelineProvider implements TimelineProvider {
 		});
 
 		if (options.cursor === undefined) {
-			const you = localize('git.timeline.you', 'You');
+			const you = l10n.t('You');
 
 			const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
 			if (index) {
 				const date = this.repoStatusDate ?? new Date();
 
-				const item = new GitTimelineItem('~', 'HEAD', localize('git.timeline.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:file:index');
+				const item = new GitTimelineItem('~', 'HEAD', l10n.t('Staged Changes'), date.getTime(), 'index', 'git:file:index');
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
@@ -228,7 +225,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				if (working) {
 					const date = new Date();
 
-					const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
+					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
 					item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));

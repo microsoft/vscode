@@ -444,6 +444,34 @@ suite('TasksSync', () => {
 		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
 	});
 
+	test('when tasks file was removed in one client', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
+		await fileService.writeFile(tasksResource, VSBuffer.fromString(JSON.stringify({
+			'version': '2.0.0',
+			'tasks': []
+		})));
+		await testObject.sync(await client.getResourceManifest());
+
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		await client2.sync();
+
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
+		const fileService2 = client2.instantiationService.get(IFileService);
+		fileService2.del(tasksResource2);
+		await client2.sync();
+
+		await testObject.sync(await client.getResourceManifest());
+
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), null);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), null);
+		assert.strictEqual(await fileService.exists(tasksResource), false);
+	});
+
 	test('when tasks file is created after first sync', async () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
@@ -491,7 +519,7 @@ suite('TasksSync', () => {
 		assert.deepStrictEqual(server.requests, []);
 	});
 
-	test('sync profile snippets', async () => {
+	test('sync profile tasks', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 		const profile = await client2.instantiationService.get(IUserDataProfilesService).createNamedProfile('profile1');

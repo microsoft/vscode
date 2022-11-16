@@ -41,8 +41,8 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
-import { ProfilingOutput, WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -61,8 +61,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
 	}
@@ -782,14 +781,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	// #region Performance
 
-	async profileRenderer(windowId: number | undefined, session: string, duration: number, baseline: number): Promise<boolean> {
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
 		const win = this.windowById(windowId);
 		if (!win || !win.win) {
-			return false;
+			throw new Error();
 		}
-		const profiler = new WindowProfiler(win.win, session, this.logService, this.telemetryService);
-		const result = await profiler.inspect(duration, baseline);
-		return result === ProfilingOutput.Interesting;
+		const profiler = new WindowProfiler(win.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
 	}
 
 	// #endregion

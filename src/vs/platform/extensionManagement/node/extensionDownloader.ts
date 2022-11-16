@@ -58,6 +58,7 @@ export class ExtensionsDownloader extends Disposable {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			try {
 				verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
+				this.logService.info(`Verified extension: ${extension.identifier.id}`, verified);
 			} catch (error) {
 				await this.delete(signatureArchiveLocation);
 				await this.delete(location);

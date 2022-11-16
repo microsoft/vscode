@@ -472,6 +472,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange; replace: IRange }, data: ISuggestDataDto): languages.CompletionItem {
 
 		const label = data[ISuggestDataDtoField.label];
+		const commandId = data[ISuggestDataDtoField.commandId];
+		const commandIdent = data[ISuggestDataDtoField.commandIdent];
+		const commitChars = data[ISuggestDataDtoField.commitCharacters];
 
 		return {
 			label,
@@ -485,9 +488,14 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			insertText: data[ISuggestDataDtoField.insertText] ?? (typeof label === 'string' ? label : label.label),
 			range: data[ISuggestDataDtoField.range] ?? defaultRange,
 			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
-			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
+			commitCharacters: commitChars ? Array.from(commitChars) : undefined,
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
-			command: data[ISuggestDataDtoField.command],
+			command: commandId ? {
+				$ident: commandIdent,
+				id: commandId,
+				title: '',
+				arguments: commandIdent ? [commandIdent] : data[ISuggestDataDtoField.commandArguments], // Automatically fill in ident as first argument
+			} as languages.Command : undefined,
 			// not-standard
 			_id: data.x,
 		};
@@ -695,8 +703,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- folding
 
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, eventHandle: number | undefined): void {
 		const provider = <languages.FoldingRangeProvider>{
+			id: extensionId.value,
 			provideFoldingRanges: (model, context, token) => {
 				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
