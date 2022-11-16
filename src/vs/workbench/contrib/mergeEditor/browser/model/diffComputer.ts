@@ -7,9 +7,9 @@ import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { IReader, observableFromEvent } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { Range } from 'vs/editor/common/core/range';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
@@ -23,29 +23,32 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-
 	private readonly mergeAlgorithm = observableFromEvent(
 		this.configurationService.onDidChangeConfiguration,
 		() => /** @description config: mergeAlgorithm.diffAlgorithm */ this.configurationService.getValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm')
 	);
 
 	constructor(
-		private readonly documentDiffProvider: IDocumentDiffProvider,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
 		const diffAlgorithm = this.mergeAlgorithm.read(reader);
-		const result = await this.documentDiffProvider.computeDiff(
-			textModel1,
-			textModel2,
+		const result = await this.editorWorkerService.computeDiff(
+			textModel1.uri,
+			textModel2.uri,
 			{
 				ignoreTrimWhitespace: false,
-				maxComputationTime: 0,
-				diffAlgorithm,
-			}
+				maxComputationTimeMs: 0,
+			},
+			diffAlgorithm,
 		);
+
+		if (!result) {
+			throw new Error('Diff computation failed');
+		}
 
 		if (textModel1.isDisposed() || textModel2.isDisposed()) {
 			return { diffs: null };
@@ -76,15 +79,15 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 	}
 }
 
-function toLineRange(range: DiffLineRange): LineRange {
+export function toLineRange(range: DiffLineRange): LineRange {
 	return new LineRange(range.startLineNumber, range.length);
 }
 
-function toRangeMapping(mapping: DiffRangeMapping): RangeMapping {
+export function toRangeMapping(mapping: DiffRangeMapping): RangeMapping {
 	return new RangeMapping(mapping.originalRange, mapping.modifiedRange);
 }
 
-function normalizeRangeMapping(rangeMapping: RangeMapping, inputTextModel: ITextModel, outputTextModel: ITextModel): RangeMapping | undefined {
+export function normalizeRangeMapping(rangeMapping: RangeMapping, inputTextModel: ITextModel, outputTextModel: ITextModel): RangeMapping | undefined {
 	const inputRangeEmpty = rangeMapping.inputRange.isEmpty();
 	const outputRangeEmpty = rangeMapping.outputRange.isEmpty();
 
