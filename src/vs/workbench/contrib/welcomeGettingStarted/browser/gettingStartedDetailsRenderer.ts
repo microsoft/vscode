@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { locale } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
-import { asWebviewUri } from 'vs/workbench/common/webview';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';

@@ -33,9 +33,6 @@ export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
 
-export const acceptSelectedCodeActionCommand = 'acceptSelectedCodeAction';
-export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
-
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {

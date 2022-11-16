@@ -28,10 +28,12 @@ pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
+const MAYBE_APPLICATION_NAME: Option<&'static str> = option_env!("VSCODE_CLI_APPLICATION_NAME");
+const MAYBE_PRODUCT_NAME_LONG: Option<&'static str> = option_env!("VSCODE_CLI_NAME_LONG");
 // JSON map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
-const VSCODE_CLI_WIN32_APP_IDS: Option<&'static str> = option_env!("VSCODE_CLI_WIN32_APP_IDS");
+const MAYBE_CLI_WIN32_APP_IDS: Option<&'static str> = option_env!("VSCODE_CLI_WIN32_APP_IDS");
 // JSON map of quality names to download URIs
-const VSCODE_CLI_QUALITY_DOWNLOAD_URIS: Option<&'static str> =
+const MAYBE_CLI_QUALITY_DOWNLOAD_URIS: Option<&'static str> =
 	option_env!("VSCODE_CLI_QUALITY_DOWNLOAD_URIS");
 
 pub fn get_default_user_agent() -> String {
@@ -48,7 +50,10 @@ lazy_static! {
 			_ => get_default_user_agent(),
 		};
 	pub static ref WIN32_APP_IDS: Option<HashMap<Quality, Vec<String>>> =
-		VSCODE_CLI_WIN32_APP_IDS.and_then(|s| serde_json::from_str(s).unwrap());
+		MAYBE_CLI_WIN32_APP_IDS.and_then(|s| serde_json::from_str(s).unwrap());
 	pub static ref QUALITY_DOWNLOAD_URIS: Option<HashMap<Quality, String>> =
-		VSCODE_CLI_QUALITY_DOWNLOAD_URIS.and_then(|s| serde_json::from_str(s).unwrap());
+		MAYBE_CLI_QUALITY_DOWNLOAD_URIS.and_then(|s| serde_json::from_str(s).unwrap());
+	pub static ref PRODUCT_NAME_LONG: &'static str =
+		MAYBE_PRODUCT_NAME_LONG.unwrap_or("Code - OSS");
+	pub static ref APPLICATION_NAME: &'static str = MAYBE_APPLICATION_NAME.unwrap_or("code");
 }

@@ -43,8 +43,8 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
-import { TestUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/test/common/userDataSyncProfilesStorageService.test';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
+import { TestUserDataProfileStorageService } from 'vs/platform/userDataProfile/test/common/userDataProfileStorageService.test';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -94,7 +94,7 @@ export class UserDataSyncClient extends Disposable {
 
 		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
 		this.instantiationService.stub(IStorageService, this._register(storageService));
-		this.instantiationService.stub(IUserDataSyncProfilesStorageService, this._register(new TestUserDataSyncProfilesStorageService(storageService)));
+		this.instantiationService.stub(IUserDataProfileStorageService, this._register(new TestUserDataProfileStorageService(storageService)));
 
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();

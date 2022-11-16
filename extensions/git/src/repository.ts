@@ -1291,6 +1291,9 @@ export class Repository implements Disposable {
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
 			},
 			() => {
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+
 				const resourcePaths = resources.length === 0 ?
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
 
@@ -1312,10 +1315,13 @@ export class Repository implements Disposable {
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Add resource(s) to working group
-				const workingTreeGroup = [...this.workingTreeGroup.resourceStates, ...trackedResources];
+				const workingTreeGroup = untrackedChanges === 'mixed' ?
+					[...this.workingTreeGroup.resourceStates, ...trackedResources, ...untrackedResources] :
+					[...this.workingTreeGroup.resourceStates, ...trackedResources];
 
 				// Add resource(s) to untracked group
-				const untrackedGroup = [...this.untrackedGroup.resourceStates, ...untrackedResources];
+				const untrackedGroup = untrackedChanges === 'separate' ?
+					[...this.untrackedGroup.resourceStates, ...untrackedResources] : undefined;
 
 				return { indexGroup, workingTreeGroup, untrackedGroup };
 			});
