@@ -51,7 +51,8 @@ type InstallExtensionPick = IQuickPickItem & { extensionId: string };
 function isInstallExtensionPick(item: QuickPickInput<IQuickPickItem>): item is InstallExtensionPick {
 	return item.id === 'installSuggested' && 'extensionId' in item;
 }
-type KernelQuickPickItem = IQuickPickItem | InstallExtensionPick | KernelPick | SourcePick;
+type KernelSourceQuickPickItem = IQuickPickItem & { command: Command };
+type KernelQuickPickItem = IQuickPickItem | InstallExtensionPick | KernelPick | SourcePick | KernelSourceQuickPickItem;
 const KERNEL_PICKER_UPDATE_DEBOUNCE = 200;
 
 type KernelQuickPickContext =
@@ -500,19 +501,38 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 	protected override async _handlePick(notebook: NotebookTextModel, pick: KernelQuickPickItem): Promise<boolean> {
 		if (pick.id === 'selectAnother') {
+			return this.displaySelectAnotherQuickPick(notebook);
+		}
+
+		return super._handlePick(notebook, pick);
+	}
+
+	private async displaySelectAnotherQuickPick(notebook: NotebookTextModel) {
+		return new Promise<boolean>(resolve => {
 			// select from kernel sources
-			const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
-			const quickPickItems: QuickPickInput<IQuickPickItem>[] = [];
+			const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
+			const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 			quickPick.show();
 			quickPick.busy = true;
 			quickPick.onDidAccept(async () => {
-				if (quickPick.selectedItems.length && (quickPick.selectedItems[0] as any).command) {
-					const item = quickPick.selectedItems[0];
-					// TODO, get kernel id
-					const result = await this._executeCommand((item as any).command!);
-					console.log(result);
-				}
 				quickPick.hide();
+				quickPick.dispose();
+				if (quickPick.selectedItems.length && 'command' in quickPick.selectedItems[0]) {
+					// TODO, get kernel id
+					const selectedKernelId = await this._executeCommand<string>(quickPick.selectedItems[0].command);
+					console.log(selectedKernelId);
+					if (selectedKernelId) {
+						const { all } = await this._notebookKernelService.getMatchingKernel(notebook);
+						const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
+						if (kernel) {
+							await this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
+							resolve(true);
+						}
+						resolve(true);
+					} else {
+						return resolve(this.displaySelectAnotherQuickPick(notebook));
+					}
+				}
 			});
 			this._notebookKernelService.getKernelSourceActions2(notebook).then(actions => {
 				quickPick.busy = false;
@@ -533,14 +553,10 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 				quickPick.items = quickPickItems;
 			});
-
-			return true;
-		}
-
-		return super._handlePick(notebook, pick);
+		});
 	}
 
-	private async _executeCommand(command: string | Command) {
+	private async _executeCommand<T>(command: string | Command): Promise<T | undefined | void> {
 		const id = typeof command === 'string' ? command : command.id;
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
