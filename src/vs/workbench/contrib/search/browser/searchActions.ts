@@ -142,6 +142,7 @@ export interface IFindInFilesArgs {
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 	onlyOpenEditors?: boolean;
+	shouldReveal?: boolean;
 }
 
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
@@ -159,7 +160,9 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 				} else {
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
-				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				if (args.shouldReveal !== false) {
+					openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				}
 			}
 		});
 	} else {

@@ -55,6 +55,7 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 }
 
 export const enum FindStartFocusAction {
+	NoReveal,
 	NoFocusChange,
 	FocusFindInput,
 	FocusReplaceInput
@@ -69,6 +70,7 @@ export interface IFindStartOptions {
 	shouldAnimate: boolean;
 	updateSearchScope: boolean;
 	loop: boolean;
+	moveCursor?: boolean;
 }
 
 export interface IFindStartArguments {
@@ -79,6 +81,8 @@ export interface IFindStartArguments {
 	isCaseSensitive?: boolean;
 	preserveCase?: boolean;
 	findInSelection?: boolean;
+	shouldReveal?: boolean;
+	moveCursor?: boolean;
 }
 
 export class CommonFindController extends Disposable implements IEditorContribution {
@@ -291,10 +295,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		const stateChanges: INewFindReplaceState = {
-			...newState,
-			isRevealed: true
-		};
+		const stateChanges: INewFindReplaceState = opts.shouldFocus !== FindStartFocusAction.NoReveal ? { ...newState, isRevealed: true, } : { ...newState };
 
 		if (opts.seedSearchStringFromSelection === 'single') {
 			const selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
@@ -344,7 +345,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._state.change(stateChanges, false);
 
 		if (!this._model) {
-			this._model = new FindModelBoundToEditorModel(this._editor, this._state);
+			this._model = new FindModelBoundToEditorModel(this._editor, this._state, opts.moveCursor);
 		}
 	}
 
@@ -560,6 +561,7 @@ const findArgDescription = {
 					description: nls.localize('actions.find.preserveCaseOverride', 'Overrides "Preserve Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
 				},
 				findInSelection: { type: 'boolean' },
+				shouldReveal: { type: 'boolean' },
 			}
 		}
 	}]
@@ -599,12 +601,16 @@ export class StartFindWithArgsAction extends EditorAction {
 				// preserveCaseOverride: args.preserveCaseOverride,
 			} : {};
 
+			const noSearchStringPassed = !args?.searchString;
+			const editorConfigSeedFromSelection = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
+			const noCurrentSearchString = controller.getState().searchString.length === 0;
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
-				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-				seedSearchStringFromGlobalClipboard: true,
-				shouldFocus: FindStartFocusAction.FocusFindInput,
+				seedSearchStringFromSelection: noSearchStringPassed && noCurrentSearchString && editorConfigSeedFromSelection !== 'never' ? 'single' : 'none',
+				seedSearchStringFromNonEmptySelection: noSearchStringPassed && editorConfigSeedFromSelection === 'selection',
+				seedSearchStringFromGlobalClipboard: noSearchStringPassed,
+				shouldFocus: args?.shouldReveal === false ? FindStartFocusAction.NoReveal : FindStartFocusAction.FocusFindInput,
+				moveCursor: args?.moveCursor,
 				shouldAnimate: true,
 				updateSearchScope: args?.findInSelection || false,
 				loop: editor.getOption(EditorOption.find).loop
