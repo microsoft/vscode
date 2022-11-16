@@ -605,7 +605,7 @@ export interface IEditorOptions {
 	/**
 	 * The font family
 	 */
-	fontFamily?: string;
+	fontFamily?: string | string[];
 	/**
 	 * The font weight
 	 */
@@ -1605,7 +1605,7 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 /**
  * @internal
  */
-export class EditorFontFamily extends BaseEditorOption<EditorOption.fontFamily, string | [string], string> {
+export class EditorFontFamily extends BaseEditorOption<EditorOption.fontFamily, string | string[], string> {
 	constructor() {
 		super(
 			EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
@@ -1627,16 +1627,13 @@ export class EditorFontFamily extends BaseEditorOption<EditorOption.fontFamily, 
 		);
 	}
 	public validate(input: any): string {
-		if (typeof input === 'undefined') {
-			return this.defaultValue;
-		}
 		if (typeof input === 'string') {
 			return input;
 		}
-		if (input.length === 0) {
-			return this.defaultValue;
+		if (Array.isArray(input) && input.length > 0) {
+			return input.map((f: string) => { return JSON.stringify(f); }).join(',');
 		}
-		return input.map((f: string) => { return JSON.stringify(f); }).join(',');
+		return this.defaultValue;
 	}
 }
 
