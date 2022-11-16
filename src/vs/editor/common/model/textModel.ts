@@ -6,7 +6,7 @@
 import { ArrayQueue, pushMany } from 'vs/base/common/arrays';
 import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -429,9 +429,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public setValue(value: string | model.ITextSnapshot): void {
 		this._assertNotDisposed();
-		if (value === null) {
-			// There's nothing to do
-			return;
+
+		if (value === null || value === undefined) {
+			throw illegalArgument();
 		}
 
 		const { textBuffer, disposable } = createTextBuffer(value, this._options.defaultEOL);
