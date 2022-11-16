@@ -35,7 +35,7 @@ export interface ITerminalQuickFixOptions {
 export interface ITerminalQuickFixCommandAction {
 	type: 'command';
 	id?: string;
-	command: string;
+	terminalCommand: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine?: boolean;
 }

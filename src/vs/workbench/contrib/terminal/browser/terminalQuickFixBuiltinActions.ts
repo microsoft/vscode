@@ -41,7 +41,7 @@ export function gitSimilar(): IInternalOptions {
 					actions.push({
 						id: 'Git Similar',
 						type: 'command',
-						command: matchResult.commandLine.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
+						terminalCommand: matchResult.commandLine.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
 						addNewLine: true
 					});
 				}
@@ -71,7 +71,7 @@ export function gitTwoDashes(): IInternalOptions {
 			return {
 				type: 'command',
 				id: 'Git Two Dashes',
-				command: matchResult.commandLine.replace(` -${problemArg}`, ` --${problemArg}`),
+				terminalCommand: matchResult.commandLine.replace(` -${problemArg}`, ` --${problemArg}`),
 				addNewLine: true
 			};
 		}
@@ -144,7 +144,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 				actions.push({
 					type: 'command',
 					id: 'Git Push Set Upstream',
-					command: fixedCommand,
+					terminalCommand: fixedCommand,
 					addNewLine: true
 				});
 				return actions;

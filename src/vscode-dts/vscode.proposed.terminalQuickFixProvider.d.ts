@@ -42,7 +42,7 @@ declare module 'vscode' {
 
 	interface TerminalQuickFixCommandAction {
 		type: 'command';
-		command: string;
+		terminalCommand: string;
 	}
 	interface TerminalQuickFixOpenerAction {
 		type: 'opener';

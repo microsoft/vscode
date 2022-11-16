@@ -351,7 +351,7 @@ export async function getQuickFixesForCommand(
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
 							case 'command': {
-								const label = localize('quickFix.command', 'Run: {0}', quickFix.command);
+								const label = localize('quickFix.command', 'Run: {0}', quickFix.terminalCommand);
 								action = {
 									id: quickFix.id,
 									label,
@@ -359,14 +359,14 @@ export async function getQuickFixesForCommand(
 									enabled: true,
 									run: () => {
 										onDidRequestRerunCommand?.fire({
-											command: quickFix.command,
+											command: quickFix.terminalCommand,
 											addNewLine: quickFix.addNewLine
 										});
 									},
 									tooltip: label,
-									command: quickFix.command
+									command: quickFix.terminalCommand
 								} as IAction;
-								expectedCommands.push(quickFix.command);
+								expectedCommands.push(quickFix.terminalCommand);
 								break;
 							}
 							case 'opener': {
