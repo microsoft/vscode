@@ -18,7 +18,7 @@ import { Disposable, IDisposable, dispose, DisposableStore, DisposableMap } from
 import { Schemas } from 'vs/base/common/network';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
@@ -60,6 +60,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IdleValue } from 'vs/base/common/async';
 
 let EDITOR_ID = 0;
 
@@ -241,7 +242,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected readonly _contributions = new DisposableMap<string, editorCommon.IEditorContribution>();
+	protected readonly _contributions = new DisposableMap<string, editorCommon.IEditorContribution | IdleValue<editorCommon.IEditorContribution | null>>();
 	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();
 
 	// --- Members logically associated to a model
@@ -338,8 +339,25 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				continue;
 			}
 			try {
-				const contribution = this._instantiationService.createInstance(desc.ctor, this);
-				this._contributions.set(desc.id, contribution);
+				if (desc.instantiation === EditorContributionInstantiation.Idle) {
+					const contribution = new IdleValue(() => {
+						try {
+							// Replace the original entry in _contributions with the resolved contribution
+							const instance = this._instantiationService.createInstance(desc.ctor, this);
+							this._contributions.set(desc.id, instance);
+							return instance;
+						} catch (err) {
+							// In case of an exception, we delete the idle value from _contributions
+							onUnexpectedError(err);
+							this._contributions.deleteAndDispose(desc.id);
+							return null;
+						}
+					});
+					this._contributions.set(desc.id, contribution);
+				} else {
+					const contribution = this._instantiationService.createInstance(desc.ctor, this);
+					this._contributions.set(desc.id, contribution);
+				}
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -993,7 +1011,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const contributionsState: { [key: string]: any } = {};
 
 		for (const [id, contribution] of this._contributions) {
-			if (typeof contribution.saveViewState === 'function') {
+			if (!(contribution instanceof IdleValue) && typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
@@ -1025,7 +1043,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 			const contributionsState = codeEditorState.contributionsState || {};
 			for (const [id, contribution] of this._contributions) {
-				if (typeof contribution.restoreViewState === 'function') {
+				if (!(contribution instanceof IdleValue) && typeof contribution.restoreViewState === 'function') {
 					contribution.restoreViewState(contributionsState[id]);
 				}
 			}
@@ -1045,7 +1063,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null {
-		return <T>(this._contributions.get(id) || null);
+		const entry = this._contributions.get(id);
+		if (!entry) {
+			return null;
+		}
+
+		return (entry instanceof IdleValue ? entry.value : entry) as T | null;
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {

@@ -1,0 +1,508 @@
+{
+	"originalFileName": "./1.tst",
+	"modifiedFileName": "./2.tst",
+	"diffs": [
+		{
+			"originalRange": "[2,3)",
+			"modifiedRange": "[2,3)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,1 -> 2,5]",
+					"modifiedRange": "[2,1 -> 2,2]"
+				}
+			]
+		},
+		{
+			"originalRange": "[4,5)",
+			"modifiedRange": "[4,5)",
+			"innerChanges": [
+				{
+					"originalRange": "[4,69 -> 4,69]",
+					"modifiedRange": "[4,69 -> 4,72]"
+				},
+				{
+					"originalRange": "[4,70 -> 4,71]",
+					"modifiedRange": "[4,73 -> 4,74]"
+				},
+				{
+					"originalRange": "[4,72 -> 4,84]",
+					"modifiedRange": "[4,75 -> 4,75]"
+				},
+				{
+					"originalRange": "[4,85 -> 4,89]",
+					"modifiedRange": "[4,76 -> 4,76]"
+				},
+				{
+					"originalRange": "[4,91 -> 4,95]",
+					"modifiedRange": "[4,78 -> 4,82]"
+				},
+				{
+					"originalRange": "[4,96 -> 4,103]",
+					"modifiedRange": "[4,83 -> 4,88]"
+				},
+				{
+					"originalRange": "[4,109 -> 4,110]",
+					"modifiedRange": "[4,94 -> 4,98]"
+				},
+				{
+					"originalRange": "[4,114 -> 4,126]",
+					"modifiedRange": "[4,102 -> 4,103]"
+				}
+			]
+		},
+		{
+			"originalRange": "[11,12)",
+			"modifiedRange": "[11,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[11,61 -> 11,87]",
+					"modifiedRange": "[11,61 -> 11,61]"
+				},
+				{
+					"originalRange": "[11,88 -> 11,89]",
+					"modifiedRange": "[11,62 -> 11,62]"
+				},
+				{
+					"originalRange": "[11,90 -> 11,93]",
+					"modifiedRange": "[11,63 -> 11,63]"
+				},
+				{
+					"originalRange": "[11,97 -> 11,101]",
+					"modifiedRange": "[11,67 -> 11,68]"
+				}
+			]
+		},
+		{
+			"originalRange": "[14,15)",
+			"modifiedRange": "[14,18)",
+			"innerChanges": [
+				{
+					"originalRange": "[14,120 -> 14,120]",
+					"modifiedRange": "[14,120 -> 14,123]"
+				},
+				{
+					"originalRange": "[14,121 -> 14,123]",
+					"modifiedRange": "[14,124 -> 14,124]"
+				},
+				{
+					"originalRange": "[14,124 -> 14,125]",
+					"modifiedRange": "[14,125 -> 14,133]"
+				},
+				{
+					"originalRange": "[14,126 -> 14,128]",
+					"modifiedRange": "[14,134 -> 14,136]"
+				},
+				{
+					"originalRange": "[14,129 -> 14,129]",
+					"modifiedRange": "[14,137 -> 14,141]"
+				},
+				{
+					"originalRange": "[14,130 -> 14,133]",
+					"modifiedRange": "[14,142 -> 14,144]"
+				},
+				{
+					"originalRange": "[14,135 -> 14,136]",
+					"modifiedRange": "[14,146 -> 14,148]"
+				},
+				{
+					"originalRange": "[14,137 -> 14,143]",
+					"modifiedRange": "[14,149 -> 14,151]"
+				},
+				{
+					"originalRange": "[14,144 -> 14,148]",
+					"modifiedRange": "[14,152 -> 14,152]"
+				},
+				{
+					"originalRange": "[14,149 -> 14,150]",
+					"modifiedRange": "[14,153 -> 14,156]"
+				},
+				{
+					"originalRange": "[14,151 -> 14,154]",
+					"modifiedRange": "[14,157 -> 14,162]"
+				},
+				{
+					"originalRange": "[14,165 -> 14,168]",
+					"modifiedRange": "[14,173 -> 14,174]"
+				},
+				{
+					"originalRange": "[14,169 -> 14,170]",
+					"modifiedRange": "[14,175 -> 14,179]"
+				},
+				{
+					"originalRange": "[14,171 -> 14,171]",
+					"modifiedRange": "[14,180 -> 16,5]"
+				},
+				{
+					"originalRange": "[14,172 -> 14,176]",
+					"modifiedRange": "[16,6 -> 16,17]"
+				},
+				{
+					"originalRange": "[14,177 -> 14,178]",
+					"modifiedRange": "[16,18 -> 16,22]"
+				},
+				{
+					"originalRange": "[14,181 -> 14,181]",
+					"modifiedRange": "[16,25 -> 16,30]"
+				},
+				{
+					"originalRange": "[14,191 -> 14,192]",
+					"modifiedRange": "[16,40 -> 16,47]"
+				},
+				{
+					"originalRange": "[14,196 -> 14,198]",
+					"modifiedRange": "[16,51 -> 16,51]"
+				},
+				{
+					"originalRange": "[14,199 -> 14,200]",
+					"modifiedRange": "[16,52 -> 16,58]"
+				},
+				{
+					"originalRange": "[14,201 -> 14,201]",
+					"modifiedRange": "[16,59 -> 16,63]"
+				},
+				{
+					"originalRange": "[14,202 -> 14,202]",
+					"modifiedRange": "[16,64 -> 16,66]"
+				},
+				{
+					"originalRange": "[14,203 -> 14,204]",
+					"modifiedRange": "[16,67 -> 16,70]"
+				},
+				{
+					"originalRange": "[14,205 -> 14,205]",
+					"modifiedRange": "[16,71 -> 16,80]"
+				},
+				{
+					"originalRange": "[14,206 -> 14,207]",
+					"modifiedRange": "[16,81 -> 16,83]"
+				},
+				{
+					"originalRange": "[14,209 -> 14,209]",
+					"modifiedRange": "[16,85 -> 16,119]"
+				},
+				{
+					"originalRange": "[14,210 -> 14,211]",
+					"modifiedRange": "[16,120 -> 17,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[17,24)",
+			"modifiedRange": "[20,24)",
+			"innerChanges": [
+				{
+					"originalRange": "[17,1 -> 17,1]",
+					"modifiedRange": "[20,1 -> 21,1]"
+				},
+				{
+					"originalRange": "[17,8 -> 17,8]",
+					"modifiedRange": "[21,8 -> 21,17]"
+				},
+				{
+					"originalRange": "[17,13 -> 17,14]",
+					"modifiedRange": "[21,22 -> 21,33]"
+				},
+				{
+					"originalRange": "[17,20 -> 17,28]",
+					"modifiedRange": "[21,39 -> 21,39]"
+				},
+				{
+					"originalRange": "[17,32 -> 17,40]",
+					"modifiedRange": "[21,43 -> 21,43]"
+				},
+				{
+					"originalRange": "[17,71 -> 17,72]",
+					"modifiedRange": "[21,74 -> 22,1]"
+				},
+				{
+					"originalRange": "[18,3 -> 18,4]",
+					"modifiedRange": "[23,3 -> 23,6]"
+				},
+				{
+					"originalRange": "[18,5 -> 18,9]",
+					"modifiedRange": "[23,7 -> 23,10]"
+				},
+				{
+					"originalRange": "[18,10 -> 18,15]",
+					"modifiedRange": "[23,11 -> 23,13]"
+				},
+				{
+					"originalRange": "[18,16 -> 18,19]",
+					"modifiedRange": "[23,14 -> 23,16]"
+				},
+				{
+					"originalRange": "[18,20 -> 18,29]",
+					"modifiedRange": "[23,17 -> 23,20]"
+				},
+				{
+					"originalRange": "[18,30 -> 18,31]",
+					"modifiedRange": "[23,21 -> 23,22]"
+				},
+				{
+					"originalRange": "[18,32 -> 18,33]",
+					"modifiedRange": "[23,23 -> 23,23]"
+				},
+				{
+					"originalRange": "[18,34 -> 19,4]",
+					"modifiedRange": "[23,24 -> 23,24]"
+				},
+				{
+					"originalRange": "[19,5 -> 19,7]",
+					"modifiedRange": "[23,25 -> 23,25]"
+				},
+				{
+					"originalRange": "[19,10 -> 19,14]",
+					"modifiedRange": "[23,28 -> 23,28]"
+				},
+				{
+					"originalRange": "[19,14 -> 19,17]",
+					"modifiedRange": "[23,28 -> 23,29]"
+				},
+				{
+					"originalRange": "[19,18 -> 19,26]",
+					"modifiedRange": "[23,30 -> 23,30]"
+				},
+				{
+					"originalRange": "[19,32 -> 19,32]",
+					"modifiedRange": "[23,36 -> 23,56]"
+				},
+				{
+					"originalRange": "[19,35 -> 20,4]",
+					"modifiedRange": "[23,59 -> 23,61]"
+				},
+				{
+					"originalRange": "[20,5 -> 20,6]",
+					"modifiedRange": "[23,62 -> 23,65]"
+				},
+				{
+					"originalRange": "[20,7 -> 20,9]",
+					"modifiedRange": "[23,66 -> 23,66]"
+				},
+				{
+					"originalRange": "[20,10 -> 20,15]",
+					"modifiedRange": "[23,67 -> 23,67]"
+				},
+				{
+					"originalRange": "[20,16 -> 20,17]",
+					"modifiedRange": "[23,68 -> 23,71]"
+				},
+				{
+					"originalRange": "[20,18 -> 20,24]",
+					"modifiedRange": "[23,72 -> 23,72]"
+				},
+				{
+					"originalRange": "[20,25 -> 20,29]",
+					"modifiedRange": "[23,73 -> 23,75]"
+				},
+				{
+					"originalRange": "[20,30 -> 20,32]",
+					"modifiedRange": "[23,76 -> 23,78]"
+				},
+				{
+					"originalRange": "[20,33 -> 20,35]",
+					"modifiedRange": "[23,79 -> 23,83]"
+				},
+				{
+					"originalRange": "[20,36 -> 20,39]",
+					"modifiedRange": "[23,84 -> 23,84]"
+				},
+				{
+					"originalRange": "[20,41 -> 20,44]",
+					"modifiedRange": "[23,86 -> 23,87]"
+				},
+				{
+					"originalRange": "[20,45 -> 20,49]",
+					"modifiedRange": "[23,88 -> 23,89]"
+				},
+				{
+					"originalRange": "[20,50 -> 20,51]",
+					"modifiedRange": "[23,90 -> 23,92]"
+				},
+				{
+					"originalRange": "[20,52 -> 21,6]",
+					"modifiedRange": "[23,93 -> 23,96]"
+				},
+				{
+					"originalRange": "[21,7 -> 21,9]",
+					"modifiedRange": "[23,97 -> 23,97]"
+				},
+				{
+					"originalRange": "[21,10 -> 21,13]",
+					"modifiedRange": "[23,98 -> 23,98]"
+				},
+				{
+					"originalRange": "[21,14 -> 21,25]",
+					"modifiedRange": "[23,99 -> 23,101]"
+				},
+				{
+					"originalRange": "[21,26 -> 22,4]",
+					"modifiedRange": "[23,102 -> 23,102]"
+				},
+				{
+					"originalRange": "[22,5 -> 22,8]",
+					"modifiedRange": "[23,103 -> 23,103]"
+				},
+				{
+					"originalRange": "[22,9 -> 22,15]",
+					"modifiedRange": "[23,104 -> 23,107]"
+				},
+				{
+					"originalRange": "[22,16 -> 22,18]",
+					"modifiedRange": "[23,108 -> 23,110]"
+				},
+				{
+					"originalRange": "[22,19 -> 22,21]",
+					"modifiedRange": "[23,111 -> 23,111]"
+				},
+				{
+					"originalRange": "[22,22 -> 22,26]",
+					"modifiedRange": "[23,112 -> 23,112]"
+				},
+				{
+					"originalRange": "[22,27 -> 22,32]",
+					"modifiedRange": "[23,113 -> 23,113]"
+				},
+				{
+					"originalRange": "[22,33 -> 22,36]",
+					"modifiedRange": "[23,114 -> 23,115]"
+				},
+				{
+					"originalRange": "[22,37 -> 22,41]",
+					"modifiedRange": "[23,116 -> 23,117]"
+				},
+				{
+					"originalRange": "[22,42 -> 23,4]",
+					"modifiedRange": "[23,118 -> 23,120]"
+				}
+			]
+		},
+		{
+			"originalRange": "[25,27)",
+			"modifiedRange": "[25,25)",
+			"innerChanges": [
+				{
+					"originalRange": "[25,1 -> 27,1]",
+					"modifiedRange": "[25,1 -> 25,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[28,31)",
+			"modifiedRange": "[26,38)",
+			"innerChanges": [
+				{
+					"originalRange": "[28,4 -> 28,4]",
+					"modifiedRange": "[26,4 -> 27,4]"
+				},
+				{
+					"originalRange": "[28,15 -> 28,20]",
+					"modifiedRange": "[27,15 -> 27,16]"
+				},
+				{
+					"originalRange": "[29,4 -> 29,7]",
+					"modifiedRange": "[28,4 -> 28,7]"
+				},
+				{
+					"originalRange": "[29,8 -> 29,8]",
+					"modifiedRange": "[28,8 -> 28,18]"
+				},
+				{
+					"originalRange": "[29,9 -> 29,10]",
+					"modifiedRange": "[28,19 -> 28,20]"
+				},
+				{
+					"originalRange": "[29,11 -> 29,11]",
+					"modifiedRange": "[28,21 -> 28,47]"
+				},
+				{
+					"originalRange": "[29,13 -> 29,14]",
+					"modifiedRange": "[28,49 -> 28,71]"
+				},
+				{
+					"originalRange": "[29,15 -> 29,15]",
+					"modifiedRange": "[28,72 -> 28,76]"
+				},
+				{
+					"originalRange": "[29,16 -> 29,16]",
+					"modifiedRange": "[28,77 -> 28,90]"
+				},
+				{
+					"originalRange": "[29,17 -> 29,17]",
+					"modifiedRange": "[28,91 -> 28,94]"
+				},
+				{
+					"originalRange": "[29,18 -> 29,18]",
+					"modifiedRange": "[28,95 -> 28,124]"
+				},
+				{
+					"originalRange": "[29,19 -> 29,19]",
+					"modifiedRange": "[28,125 -> 28,129]"
+				},
+				{
+					"originalRange": "[29,20 -> 29,20]",
+					"modifiedRange": "[28,130 -> 28,134]"
+				},
+				{
+					"originalRange": "[29,21 -> 29,21]",
+					"modifiedRange": "[28,135 -> 28,176]"
+				},
+				{
+					"originalRange": "[29,22 -> 29,22]",
+					"modifiedRange": "[28,177 -> 29,13]"
+				},
+				{
+					"originalRange": "[29,24 -> 29,24]",
+					"modifiedRange": "[29,15 -> 29,36]"
+				},
+				{
+					"originalRange": "[30,4 -> 30,6]",
+					"modifiedRange": "[30,4 -> 30,16]"
+				},
+				{
+					"originalRange": "[30,10 -> 30,10]",
+					"modifiedRange": "[30,20 -> 30,21]"
+				},
+				{
+					"originalRange": "[30,11 -> 30,13]",
+					"modifiedRange": "[30,22 -> 31,23]"
+				},
+				{
+					"originalRange": "[30,14 -> 30,14]",
+					"modifiedRange": "[31,24 -> 33,10]"
+				},
+				{
+					"originalRange": "[30,16 -> 30,17]",
+					"modifiedRange": "[33,12 -> 33,15]"
+				},
+				{
+					"originalRange": "[30,18 -> 30,18]",
+					"modifiedRange": "[33,16 -> 33,19]"
+				},
+				{
+					"originalRange": "[30,19 -> 30,19]",
+					"modifiedRange": "[33,20 -> 33,21]"
+				},
+				{
+					"originalRange": "[30,20 -> 30,22]",
+					"modifiedRange": "[33,22 -> 33,22]"
+				},
+				{
+					"originalRange": "[30,23 -> 30,23]",
+					"modifiedRange": "[33,23 -> 34,6]"
+				},
+				{
+					"originalRange": "[30,24 -> 30,26]",
+					"modifiedRange": "[34,7 -> 34,16]"
+				},
+				{
+					"originalRange": "[30,30 -> 30,30]",
+					"modifiedRange": "[34,20 -> 34,21]"
+				},
+				{
+					"originalRange": "[30,31 -> 30,31]",
+					"modifiedRange": "[34,22 -> 37,9]"
+				}
+			]
+		}
+	]
+}
