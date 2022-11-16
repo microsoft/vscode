@@ -31,17 +31,21 @@ export interface ITerminalQuickFixOptions {
 	exitStatus: boolean;
 }
 
-
-export interface ITerminalQuickFixCommandAction {
-	type: 'command';
+export interface ITerminalQuickFix {
+	type: 'command' | 'opener';
 	id?: string;
+}
+
+export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
+	type: 'command';
 	terminalCommand: string;
+	id: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine?: boolean;
 }
-export interface ITerminalQuickFixOpenerAction {
+export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
 	type: 'opener';
-	id?: string;
+	id: string;
 	uri: UriComponents;
 }
 
@@ -53,9 +57,8 @@ export interface ITerminalCommandSelector {
 }
 
 export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
-export type TerminalQuickFixActionExtension = ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
 export type TerminalQuickFixCallback = (matchResult: TerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
-export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<TerminalQuickFixActionExtension[] | TerminalQuickFixActionExtension | undefined>;
+export type TerminalQuickFixCallbackExtension = (matchResult: TerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
 
 export interface TerminalCommandMatchResult {
@@ -72,14 +75,11 @@ export interface ITerminalQuickFixProvider {
 	 * @param token A cancellation token indicating the result is no longer needed
 	 * @return Terminal quick fix(es) if any
 	 */
-	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<(ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction
-	)[] | (ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction
-		) | undefined>;
+	provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token?: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 }
 export interface ITerminalCommandMatchResult {
 	commandLine: string;
 	commandLineMatch: RegExpMatchArray;
-	// full match and groups
 	outputMatch: RegExpMatchArray;
 }
 

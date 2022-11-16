@@ -73,7 +73,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalQuickFix, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalQuickFixAddon, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -216,7 +216,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Enables opening the contextual actions, if any, that are available
 	 * and registering of command finished listeners
 	 */
-	get quickFix(): ITerminalQuickFix | undefined { return this._quickFixAddon; }
+	get quickFix(): ITerminalQuickFixAddon | undefined { return this._quickFixAddon; }
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 

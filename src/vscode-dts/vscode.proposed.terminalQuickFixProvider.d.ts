@@ -12,10 +12,13 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): (TerminalQuickFixCommandAction | TerminalQuickFixOpenerAction
-		)[] | (TerminalQuickFixCommandAction | TerminalQuickFixOpenerAction
-			) | undefined;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): TerminalQuickFix[] | TerminalQuickFix | undefined;
 	}
+
+	interface TerminalQuickFix {
+		type: TerminalQuickFixType;
+	}
+
 
 	export interface TerminalCommandSelector {
 		commandLineMatcher: string | RegExp;
@@ -26,7 +29,7 @@ declare module 'vscode' {
 	export interface TerminalCommandMatchResult {
 		commandLine: string;
 		commandLineMatch: RegExpMatchArray;
-		outputMatch?: RegExpMatchArray | null;
+		outputMatch?: RegExpMatchArray;
 	}
 
 	export namespace window {
@@ -37,13 +40,12 @@ declare module 'vscode' {
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export interface TerminalQuickFixCommandAction {
-		type: 'command';
+	export interface TerminalQuickFixCommandAction extends TerminalQuickFix {
+		type: TerminalQuickFixType.command;
 		terminalCommand: string;
 	}
-	export interface TerminalQuickFixOpenerAction {
-		type: 'opener';
-		// support line range/col? see elsewhere
+	export interface TerminalQuickFixOpenerAction extends TerminalQuickFix {
+		type: TerminalQuickFixType.opener;
 		uri: Uri;
 	}
 
@@ -76,5 +78,10 @@ declare module 'vscode' {
 	enum TerminalOutputAnchor {
 		top = 'top',
 		bottom = 'bottom'
+	}
+
+	enum TerminalQuickFixType {
+		command = 'command',
+		opener = 'opener'
 	}
 }

@@ -679,7 +679,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<(vscode.TerminalQuickFixCommandAction | vscode.TerminalQuickFixOpenerAction)[] | (vscode.TerminalQuickFixCommandAction | vscode.TerminalQuickFixOpenerAction) | undefined> {
+	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<vscode.TerminalQuickFix[] | vscode.TerminalQuickFix | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested) {
 			return;

@@ -17,7 +17,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -457,7 +457,7 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	quickFix: ITerminalQuickFix | undefined;
+	quickFix: ITerminalQuickFixAddon | undefined;
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 
