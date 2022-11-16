@@ -663,7 +663,8 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				const others = matchResult.all.filter(item => item.extension.value !== JUPYTER_EXTENSION_ID);
 				quickPickItems.push(...others.map(kernel => ({
 					label: kernel.label,
-					detail: kernel.extension.value
+					detail: kernel.extension.value,
+					kernel
 				})));
 				const validActions = actions.filter(action => action.command);
 
