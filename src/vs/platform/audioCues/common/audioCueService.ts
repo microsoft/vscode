@@ -17,7 +17,7 @@ export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
 export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
-	playAudioCue(cue: AudioCue): Promise<void>;
+	playAudioCue(cue: AudioCue, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCues(cues: AudioCue[]): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
 
@@ -39,9 +39,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		super();
 	}
 
-	public async playAudioCue(cue: AudioCue): Promise<void> {
+	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
 		if (this.isEnabled(cue).get()) {
-			await this.playSound(cue.sound);
+			await this.playSound(cue.sound, allowManyInParallel);
 		}
 	}
 
