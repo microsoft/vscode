@@ -233,7 +233,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 					: n === creationOpts.tabSize
 						? nls.localize('defaultTabSize', "Default Tab Size")
 						: n === modelOpts.tabSize
-							? nls.localize('selectedTabSize', "Selected Tab Size")
+							? nls.localize('currentTabSize', "Current Tab Size")
 							: undefined
 			)
 		}));

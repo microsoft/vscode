@@ -165,10 +165,10 @@ export class ExtHostTextEditorOptions {
 			set tabSize(value: number | string) {
 				that._setTabSize(value);
 			},
-			get indentSize(): number | string {
+			get indentSize(): number | 'tabSize' {
 				return that._indentSize;
 			},
-			set indentSize(value: number | string) {
+			set indentSize(value: number | 'tabSize') {
 				that._setIndentSize(value);
 			},
 			get insertSpaces(): boolean | string {
