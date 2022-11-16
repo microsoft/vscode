@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { insertOutput, truncatedArrayOfString } from './textHelper';
+import { insertOutput } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
@@ -125,7 +125,7 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
@@ -143,7 +143,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 		stack.classList.add('traceback');
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
-		truncatedArrayOfString(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, element);
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element);
 		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
@@ -196,12 +196,12 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	}
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode);
 	container.appendChild(contentNode);
 }
 
@@ -217,6 +217,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-plaintext,
 	.output-stream,
 	.traceback {
+		display: inline-block;
+		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
 		white-space: pre-wrap;
@@ -228,21 +230,17 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
-	span.output-stream {
-		display: inline-block;
-		width: 100%;
-	}
-	span.output-stream.scrollable {
+	.output > span.scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
 	}
-	span.output-stream.more-above {
+	.output > span.output-stream.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 	}
-	span.output-stream.more-below {
+	.output > span.output-stream.more-below {
 		box-shadow: var(--vscode-scrollbar-shadow) 0px -6px 6px -6px inset
 	}
-	span.output-stream.more-above.more-below {
+	.output > span.output-stream.more-above.more-below {
 		box-shadow: var(--vscode-scrollbar-shadow) 0px -6px 6px -6px inset, var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 	}
 	.output-plaintext .code-bold,

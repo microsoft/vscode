@@ -31,7 +31,7 @@ function generateViewMoreElement(outputId: string, adjustableSize: boolean) {
 	return container;
 }
 
-export function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement) {
+function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement) {
 	const lineCount = buffer.length;
 	container.appendChild(generateViewMoreElement(id, true));
 
