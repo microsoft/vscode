@@ -258,37 +258,14 @@ class KernelPickerFlatStrategy implements IKernelPickerStrategy {
 	): QuickPickInput<KernelQuickPickItem>[] {
 		const { selected, all, suggestions, hidden } = matchResult;
 
-		function toQuickPick(kernel: INotebookKernel) {
-			const res = <KernelPick>{
-				kernel,
-				picked: kernel.id === selected?.id,
-				label: kernel.label,
-				description: kernel.description,
-				detail: kernel.detail
-			};
-			if (kernel.id === selected?.id) {
-				if (!res.description) {
-					res.description = localize('current1', "Currently Selected");
-				} else {
-					res.description = localize('current2', "{0} - Currently Selected", res.description);
-				}
-			}
-			return res;
-		}
 		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 		if (all.length) {
 			// Always display suggested kernels on the top.
-			if (suggestions.length) {
-				quickPickItems.push({
-					type: 'separator',
-					label: localize('suggestedKernels', "Suggested")
-				});
-				quickPickItems.push(...suggestions.map(toQuickPick));
-			}
+			this._fillInSuggestions(quickPickItems, suggestions, selected);
 
 			// Next display all of the kernels not marked as hidden grouped by categories or extensions.
 			// If we don't have a kind, always display those at the bottom.
-			const picks = all.filter(item => (!suggestions.includes(item) && !hidden.includes(item))).map(toQuickPick);
+			const picks = all.filter(item => (!suggestions.includes(item) && !hidden.includes(item))).map(kernel => this._toQuickPick(kernel, selected));
 			const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
 			kernelsPerCategory.forEach(items => {
 				quickPickItems.push({
@@ -320,6 +297,47 @@ class KernelPickerFlatStrategy implements IKernelPickerStrategy {
 		return quickPickItems;
 	}
 
+	private _toQuickPick(kernel: INotebookKernel, selected: INotebookKernel | undefined) {
+		const res = <KernelPick>{
+			kernel,
+			picked: kernel.id === selected?.id,
+			label: kernel.label,
+			description: kernel.description,
+			detail: kernel.detail
+		};
+		if (kernel.id === selected?.id) {
+			if (!res.description) {
+				res.description = localize('current1', "Currently Selected");
+			} else {
+				res.description = localize('current2', "{0} - Currently Selected", res.description);
+			}
+		}
+		return res;
+	}
+
+	private _fillInSuggestions(quickPickItems: QuickPickInput<KernelQuickPickItem>[], suggestions: INotebookKernel[], selected: INotebookKernel | undefined) {
+		if (!suggestions.length) {
+			return;
+		}
+
+		if (suggestions.length === 1 && suggestions[0].id === selected?.id) {
+			quickPickItems.push({
+				type: 'separator',
+				label: localize('selectedKernels', "Selected")
+			});
+
+			// The title is already set to "Selected" so we don't need to set it again in description, thus passing in `undefined`.
+			quickPickItems.push(this._toQuickPick(suggestions[0], undefined));
+			return;
+		}
+
+		quickPickItems.push({
+			type: 'separator',
+			label: localize('suggestedKernels', "Suggested")
+		});
+		quickPickItems.push(...suggestions.map(kernel => this._toQuickPick(kernel, selected)));
+	}
+
 	private async _showInstallKernelExtensionRecommendation(
 		notebookTextModel: NotebookTextModel,
 		quickPick: IQuickPick<KernelQuickPickItem>,
@@ -339,7 +357,6 @@ class KernelPickerFlatStrategy implements IKernelPickerStrategy {
 			quickPick.items = newQuickPickItems;
 		}
 	}
-
 
 	private async _getKernelRecommendationsQuickPickItems(
 		notebookTextModel: NotebookTextModel,
