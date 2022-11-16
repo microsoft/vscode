@@ -199,4 +199,3 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.regex.style(inputStyles);
 	}
 }
-
