@@ -5,8 +5,8 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent, INotebookKernelDetectionTask } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelSourceAction, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent, INotebookKernelDetectionTask, IKernelSourceActionProvider } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -107,6 +107,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private readonly _kernelSources = new Map<string, IKernelInfoCache>();
 	private readonly _kernelDetectionTasks = new Map<string, INotebookKernelDetectionTask[]>();
 	private readonly _onDidChangeKernelDetectionTasks = this._register(new Emitter<string>());
+	private readonly _kernelSourceActionProviders = new Map<string, IKernelSourceActionProvider[]>();
 
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
@@ -365,5 +366,32 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 
 	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[] {
 		return this._kernelDetectionTasks.get(notebook.viewType) ?? [];
+	}
+
+	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable {
+		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
+		providers.push(provider);
+		this._kernelSourceActionProviders.set(viewType, providers);
+
+		return toDisposable(() => {
+			const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
+			const idx = providers.indexOf(provider);
+			if (idx >= 0) {
+				providers.splice(idx, 1);
+				this._kernelSourceActionProviders.set(viewType, providers);
+			}
+		});
+	}
+
+	/**
+	 * Get kernel source actions from providers
+	 */
+	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]> {
+		const viewType = notebook.viewType;
+		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
+		const promises = providers.map(provider => provider.provideKernelSourceActions());
+		return Promise.all(promises).then(actions => {
+			return actions.reduce((a, b) => a.concat(b), []);
+		});
 	}
 }

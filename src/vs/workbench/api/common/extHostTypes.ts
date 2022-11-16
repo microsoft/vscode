@@ -3617,6 +3617,15 @@ export class NotebookRendererScript {
 	}
 }
 
+export class NotebookKernelSourceAction {
+	description?: string;
+	detail?: string;
+	command?: vscode.Command;
+	constructor(
+		public label: string
+	) { }
+}
+
 //#endregion
 
 //#region Timeline

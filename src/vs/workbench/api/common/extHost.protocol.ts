@@ -1047,6 +1047,9 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 
 	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
 	$removeKernelDetectionTask(handle: number): void;
+
+	$addKernelSourceActionProvider(handle: number, notebookType: string): Promise<void>;
+	$removeKernelSourceActionProvider(handle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -2136,6 +2139,7 @@ export interface ExtHostNotebookKernelsShape {
 	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
+	$provideKernelSourceActions(handle: number, token: CancellationToken): Promise<notebookCommon.INotebookKernelSourceAction[]>;
 }
 
 export interface ExtHostInteractiveShape {
