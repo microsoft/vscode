@@ -549,8 +549,8 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 		super({
 			id: 'breadcrumbs.focusAndSelect',
 			title: {
-				value: localize('cmd.focus', "Focus Breadcrumbs"),
-				original: 'Focus Breadcrumbs'
+				value: localize('cmd.focusAndSelect', "Focus and Select Breadcrumbs"),
+				original: 'Focus and Select Breadcrumbs'
 			},
 			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
 			keybinding: {
