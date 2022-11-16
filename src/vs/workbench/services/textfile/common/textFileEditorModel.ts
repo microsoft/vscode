@@ -96,7 +96,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
 	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
 
-	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
+	lastResolvedFileStat: IFileStatWithMetadata | undefined; // used in tests
 
 	private readonly saveSequentializer = new TaskSequentializer();
 

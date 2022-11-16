@@ -144,7 +144,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }
@@ -225,7 +225,7 @@ class NotebookFindInput extends FindInput {
 		this.applyStyles();
 	}
 
-	override applyStyles(): void {
+	protected override applyStyles(): void {
 		super.applyStyles();
 
 		this._filterButtonContainer.style.borderColor = this._filterChecked && this.inputActiveOptionBorder ? this.inputActiveOptionBorder.toString() : '';
