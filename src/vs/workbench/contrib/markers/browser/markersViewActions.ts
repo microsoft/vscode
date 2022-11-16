@@ -14,7 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import 'vs/css!./markersViewAction';
+import 'vs/css!./markersViewActions';
 
 export interface IMarkersFiltersChangeEvent {
 	excludedFiles?: boolean;
