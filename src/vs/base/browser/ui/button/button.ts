@@ -263,7 +263,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 			this.separatorContainer.style.borderBottomStyle = 'solid';
 			this.separatorContainer.style.borderBottomColor = border;
 		}
-		this.separatorContainer.style.backgroundColor = options.buttonBackground?.toString() ?? '';
+		const buttonBackground = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
+		this.separatorContainer.style.backgroundColor = background?.toString() ?? '';
 		this.separator.style.backgroundColor = options.buttonSeparator?.toString() ?? '';
 
 
