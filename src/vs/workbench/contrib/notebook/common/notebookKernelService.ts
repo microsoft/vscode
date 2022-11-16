@@ -96,6 +96,7 @@ export interface INotebookKernelService {
 	readonly onDidChangeNotebookAffinity: Event<void>;
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
+	getUsedKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; used: INotebookKernel[] };
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 
 	/**

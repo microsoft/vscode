@@ -257,6 +257,23 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		return info.all.length === 1 ? info.all[0] : undefined;
 	}
 
+	getUsedKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; used: INotebookKernel[] } {
+		let selected: INotebookKernel | undefined;
+		const used: INotebookKernel[] = [];
+		for (const entry of this._notebookBindings) {
+			if (entry[0] === NotebookTextModelLikeId.str(notebook)) {
+				selected = this._kernels.get(entry[1])?.kernel;
+			}
+
+			const kernel = this._kernels.get(entry[1])?.kernel;
+			if (kernel && !used.includes(kernel) && kernel.id !== selected?.id) {
+				used.push(kernel);
+			}
+		}
+
+		return { selected, used };
+	}
+
 	// a notebook has one kernel, a kernel has N notebooks
 	// notebook <-1----N-> kernel
 	selectKernelForNotebook(kernel: INotebookKernel | undefined, notebook: INotebookTextModelLike): void {
