@@ -58,6 +58,10 @@ export class TelemetryService implements ITelemetryService {
 
 		for (const piiPath of this._piiPaths) {
 			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
+
+			if (piiPath.indexOf('\\') >= 0) {
+				this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath.replace(/\\/g, '/')), 'gi'));
+			}
 		}
 
 		this._updateTelemetryLevel();
