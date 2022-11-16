@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IdleValue, raceCancellation } from 'vs/base/common/async';
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -131,7 +131,7 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private readonly _renameInputField: IdleValue<RenameInputField>;
+	private readonly _renameInputField: RenameInputField;
 	private readonly _disposableStore = new DisposableStore();
 	private _cts: CancellationTokenSource = new CancellationTokenSource();
 
@@ -145,7 +145,7 @@ class RenameController implements IEditorContribution {
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
-		this._renameInputField = this._disposableStore.add(new IdleValue(() => this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
+		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
 
 	dispose(): void {
@@ -207,7 +207,7 @@ class RenameController implements IEditorContribution {
 		}
 
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.value.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, this._cts.token);
+		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, this._cts.token);
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
@@ -260,11 +260,11 @@ class RenameController implements IEditorContribution {
 	}
 
 	acceptRenameInput(wantsPreview: boolean): void {
-		this._renameInputField.value.acceptInput(wantsPreview);
+		this._renameInputField.acceptInput(wantsPreview);
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.value.cancelInput(true);
+		this._renameInputField.cancelInput(true);
 	}
 }
 
@@ -319,7 +319,7 @@ export class RenameAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(RenameController.ID, RenameController);
+registerEditorContribution(RenameController.ID, RenameController, EditorContributionInstantiation.Idle);
 registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);

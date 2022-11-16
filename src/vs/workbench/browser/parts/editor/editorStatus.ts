@@ -19,7 +19,7 @@ import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/l
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
+import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -383,6 +383,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
 			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
 			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
 			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
 			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
@@ -760,7 +761,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				const modelOpts = model.getOptions();
 				update.indentation = (
 					modelOpts.insertSpaces
-						? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
+						? modelOpts.tabSize === modelOpts.indentSize
+							? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
+							: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
 						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
 				);
 			}
