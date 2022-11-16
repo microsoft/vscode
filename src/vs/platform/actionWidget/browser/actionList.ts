@@ -127,7 +127,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 		} else {
 			data.container.title = '';
 		}
