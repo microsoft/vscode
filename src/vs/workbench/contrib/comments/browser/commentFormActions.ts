@@ -46,7 +46,8 @@ export class CommentFormActions implements IDisposable {
 							contextMenuProvider: this.contextMenuService,
 							actions: submenuAction.actions.slice(1),
 							addPrimaryActionToDropdown: false,
-							secondary: !isPrimary
+							secondary: !isPrimary,
+							...defaultButtonStyles
 						});
 				} else {
 					button = new Button(this.container, { secondary: !isPrimary, ...defaultButtonStyles });
