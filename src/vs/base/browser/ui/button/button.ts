@@ -259,7 +259,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		}
 
 		const buttonBackground = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
-		this.separatorContainer.style.backgroundColor = background ?? '';
+		this.separatorContainer.style.backgroundColor = buttonBackground ?? '';
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));

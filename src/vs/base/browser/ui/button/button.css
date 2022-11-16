@@ -60,8 +60,6 @@
 .monaco-button-dropdown .monaco-button-dropdown-separator {
 	padding: 4px 0;
 	cursor: default;
-	/* since button has rouned edges, the separator has to be shifted left to cover whitespace */
-	margin: -3px;
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator > div {
@@ -72,6 +70,10 @@
 .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
 	border-left-width: 0 !important;
 	border-radius: 0 2px 2px 0;
+}
+
+.monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: 2px 0 0 2px;
 }
 
 .monaco-description-button {
