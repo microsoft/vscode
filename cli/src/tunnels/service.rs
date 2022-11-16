@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -11,7 +11,8 @@ use tokio::sync::mpsc;
 use crate::commands::tunnels::ShutdownSignal;
 use crate::log;
 use crate::state::LauncherPaths;
-use crate::util::errors::AnyError;
+use crate::util::errors::{wrap, AnyError};
+use crate::util::io::{tailf, TailEvent};
 
 pub const SERVICE_LOG_FILE_NAME: &str = "tunnel-service.log";
 
@@ -21,7 +22,7 @@ pub trait ServiceContainer: Send {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::Receiver<ShutdownSignal>,
+		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError>;
 }
 
@@ -65,10 +66,29 @@ pub fn create_service_manager(log: log::Logger, paths: &LauncherPaths) -> Servic
 	}
 	#[cfg(target_os = "windows")]
 	{
-		super::service_windows::WindowsService::new(log)
+		super::service_windows::WindowsService::new(log, paths)
 	}
 	#[cfg(target_os = "linux")]
 	{
 		super::service_linux::SystemdService::new(log, paths.clone())
 	}
+}
+
+pub(crate) async fn tail_log_file(log_file: &Path) -> Result<(), AnyError> {
+	if !log_file.exists() {
+		println!("The tunnel service has not started yet.");
+		return Ok(());
+	}
+
+	let file = std::fs::File::open(&log_file).map_err(|e| wrap(e, "error opening log file"))?;
+	let mut rx = tailf(file, 20);
+	while let Some(line) = rx.recv().await {
+		match line {
+			TailEvent::Line(l) => print!("{}", l),
+			TailEvent::Reset => println!("== Tunnel service restarted =="),
+			TailEvent::Err(e) => return Err(wrap(e, "error reading log file").into()),
+		}
+	}
+
+	Ok(())
 }

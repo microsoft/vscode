@@ -43,6 +43,17 @@ impl From<reqwest::Error> for WrappedError {
 	}
 }
 
+pub fn wrapdbg<T, S>(original: T, message: S) -> WrappedError
+where
+	T: std::fmt::Debug,
+	S: Into<String>,
+{
+	WrappedError {
+		message: message.into(),
+		original: format!("{:?}", original),
+	}
+}
+
 pub fn wrap<T, S>(original: T, message: S) -> WrappedError
 where
 	T: Display,

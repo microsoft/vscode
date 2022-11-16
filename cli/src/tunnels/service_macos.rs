@@ -20,11 +20,10 @@ use crate::{
 	util::{
 		command::capture_command_and_check_status,
 		errors::{wrap, AnyError, MissingHomeDirectory},
-		io::{tailf, TailEvent},
 	},
 };
 
-use super::ServiceManager;
+use super::{ServiceManager, service::tail_log_file};
 
 pub struct LaunchdService {
 	log: log::Logger,
@@ -67,23 +66,7 @@ impl ServiceManager for LaunchdService {
 	}
 
 	async fn show_logs(&self) -> Result<(), AnyError> {
-		if !self.log_file.exists() {
-			println!("The tunnel service has not started yet.");
-			return Ok(());
-		}
-
-		let file =
-			std::fs::File::open(&self.log_file).map_err(|e| wrap(e, "error opening log file"))?;
-		let mut rx = tailf(file, 20);
-		while let Some(line) = rx.recv().await {
-			match line {
-				TailEvent::Line(l) => print!("{}", l),
-				TailEvent::Reset => println!("== Tunnel service restarted =="),
-				TailEvent::Err(e) => return Err(wrap(e, "error reading log file").into()),
-			}
-		}
-
-		Ok(())
+		tail_log_file(&self.log_file).await
 	}
 
 	async fn run(
@@ -91,10 +74,10 @@ impl ServiceManager for LaunchdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let (tx, rx) = mpsc::channel::<ShutdownSignal>(1);
+		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
 		tokio::spawn(async move {
 			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).await.ok();
+			tx.send(ShutdownSignal::CtrlC).ok();
 		});
 
 		handle.run_service(self.log, launcher_paths, rx).await
