@@ -102,7 +102,7 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.dispose();
 	}
 
-	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData): Promise<any> {
 		// don't send events when the user is optout
 		if (this.telemetryLevel.value < eventLevel) {
 			return Promise.resolve(undefined);
@@ -128,12 +128,12 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
-		return this._log(eventName, TelemetryLevel.USAGE, data, anonymizeFilePaths);
+	publicLog(eventName: string, data?: ITelemetryData): Promise<any> {
+		return this._log(eventName, TelemetryLevel.USAGE, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
@@ -142,7 +142,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		// Send error event and anonymize paths
-		return this._log(errorEventName, TelemetryLevel.ERROR, data, true);
+		return this._log(errorEventName, TelemetryLevel.ERROR, data);
 	}
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {

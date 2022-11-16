@@ -62,12 +62,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.telemetryLevel;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+		return this.impl.publicLog(eventName, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {

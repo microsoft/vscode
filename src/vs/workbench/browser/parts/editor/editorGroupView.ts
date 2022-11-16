@@ -53,6 +53,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -642,7 +643,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Remove query parameters from the resource extension
 			const queryStringLocation = resourceExt.indexOf('?');
 			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
-			descriptor['resource'] = { mimeType: getMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
+			descriptor['resource'] = { mimeType: new TrustedTelemetryValue(getMimeTypes(resource).join(', ')), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
