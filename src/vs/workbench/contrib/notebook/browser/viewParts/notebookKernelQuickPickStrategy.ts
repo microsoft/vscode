@@ -29,6 +29,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { Command } from 'vs/editor/common/languages';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -233,7 +234,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		});
 
 		if (pick) {
-			return await this._handleQuickPick(notebook, pick);
+			return await this._handleQuickPick(notebook, pick, context);
 		}
 
 		return false;
@@ -246,7 +247,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		scopedContextKeyService: IContextKeyService
 	): QuickPickInput<KernelQuickPickItem>[];
 
-	protected async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem) {
+	protected async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem, context?: KernelQuickPickContext) {
 		if (isKernelPick(pick)) {
 			const newKernel = pick.kernel;
 			this._notebookKernelService.selectKernelForNotebook(newKernel, notebook);
@@ -550,22 +551,30 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		return quickPickItems;
 	}
 
-	protected override async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem): Promise<boolean> {
+	protected override async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem, context?: KernelQuickPickContext): Promise<boolean> {
 		if (pick.id === 'selectAnother') {
-			return this.displaySelectAnotherQuickPick(notebook);
+			return this.displaySelectAnotherQuickPick(notebook, context);
 		}
 
-		return super._handleQuickPick(notebook, pick);
+		return super._handleQuickPick(notebook, pick, context);
 	}
 
-	private async displaySelectAnotherQuickPick(notebook: NotebookTextModel) {
+	private async displaySelectAnotherQuickPick(notebook: NotebookTextModel, context?: KernelQuickPickContext) {
+		const disposables = new DisposableStore();
 		return new Promise<boolean>(resolve => {
 			// select from kernel sources
 			const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
 			const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 			quickPick.show();
 			quickPick.busy = true;
-			quickPick.onDidAccept(async () => {
+			quickPick.buttons = [this._quickInputService.backButton];
+			disposables.add(quickPick.onDidTriggerButton(button => {
+				if (button === this._quickInputService.backButton) {
+					quickPick.hide();
+					resolve(this.showQuickPick(context));
+				}
+			}));
+			disposables.add(quickPick.onDidAccept(async () => {
 				quickPick.hide();
 				quickPick.dispose();
 				if (quickPick.selectedItems.length && 'command' in quickPick.selectedItems[0]) {
@@ -582,7 +591,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 						return resolve(this.displaySelectAnotherQuickPick(notebook));
 					}
 				}
-			});
+			}));
 			this._notebookKernelService.getKernelSourceActions2(notebook).then(actions => {
 				quickPick.busy = false;
 				const matchResult = this._notebookKernelService.getMatchingKernel(notebook);
@@ -605,6 +614,8 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 				quickPick.items = quickPickItems;
 			});
+		}).finally(() => {
+			disposables.dispose();
 		});
 	}
 
