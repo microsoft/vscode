@@ -5,7 +5,7 @@
 
 import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';

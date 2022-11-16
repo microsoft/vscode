@@ -15,7 +15,7 @@ import { InlayHintItem, asCommandLink } from 'vs/editor/contrib/inlayHints/brows
 import { InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';

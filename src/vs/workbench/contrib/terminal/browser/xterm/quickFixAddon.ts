@@ -23,7 +23,7 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';

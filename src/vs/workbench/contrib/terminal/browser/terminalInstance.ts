@@ -88,7 +88,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
-import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/common/audioCueService';
+import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 
 const enum Constants {
 	/**
