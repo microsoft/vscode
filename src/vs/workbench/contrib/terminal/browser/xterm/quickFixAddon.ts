@@ -411,7 +411,7 @@ export function convertToQuickFixOptions(quickFix: IExtensionTerminalQuickFix): 
 				}
 				link = link.replaceAll(varToResolve, value);
 			}
-			return link ? { type: 'opener', uri: URI.parse(link) } as ITerminalQuickFixOpenerAction : [];
+			return link ? { type: 'opener', uri: URI.parse(link), id: quickFix.id } as ITerminalQuickFixOpenerAction : [];
 		},
 		exitStatus: quickFix.exitStatus,
 		source: quickFix.extensionIdentifier
