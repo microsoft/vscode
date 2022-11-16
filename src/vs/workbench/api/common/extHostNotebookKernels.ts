@@ -299,6 +299,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const handle = this._kernelSourceActionProviderHandlePool++;
 		const that = this;
 
+		this._kernelSourceActionProviders.set(handle, provider);
 		this._logService.trace(`NotebookKernelSourceActionProvider[${handle}], CREATED by ${extension.identifier.value}`);
 		this._proxy.$addKernelSourceActionProvider(handle, viewType);
 
