@@ -15,10 +15,11 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
@@ -113,6 +114,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
 	private readonly _kernelDetectionTasks = new Map<number, [task: MainThreadKernelDetectionTask, registraion: IDisposable]>();
+	private readonly _kernelSourceActionProviders = new Map<number, [provider: IKernelSourceActionProvider, registraion: IDisposable]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
 	private readonly _executions = new Map<number, INotebookCellExecution>();
@@ -307,6 +309,27 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		if (tuple) {
 			tuple[1].dispose();
 			this._kernelDetectionTasks.delete(handle);
+		}
+	}
+
+	// --- notebook kernel source action provider
+
+	async $addKernelSourceActionProvider(handle: number, notebookType: string): Promise<void> {
+		const kernelSourceActionProvider: IKernelSourceActionProvider = {
+			viewType: notebookType,
+			provideKernelSourceActions: async () => {
+				return this._proxy.$provideKernelSourceActions(handle, CancellationToken.None);
+			}
+		};
+		const registration = this._notebookKernelService.registerKernelSourceActionProvider(notebookType, kernelSourceActionProvider);
+		this._kernelSourceActionProviders.set(handle, [kernelSourceActionProvider, registration]);
+	}
+
+	$removeKernelSourceActionProvider(handle: number): void {
+		const tuple = this._kernelSourceActionProviders.get(handle);
+		if (tuple) {
+			tuple[1].dispose();
+			this._kernelSourceActionProviders.delete(handle);
 		}
 	}
 }

@@ -36,6 +36,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Command } from 'vs/editor/common/languages';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -101,15 +103,16 @@ function toQuickPick(kernel: INotebookKernel, selected: INotebookKernel | undefi
 
 class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	constructor(
-		private readonly _notebookKernelService: INotebookKernelService,
-		private readonly _editorService: IEditorService,
-		private readonly _productService: IProductService,
-		private readonly _quickInputService: IQuickInputService,
-		private readonly _labelService: ILabelService,
-		private readonly _logService: ILogService,
-		private readonly _paneCompositePartService: IPaneCompositePartService,
-		private readonly _extensionWorkbenchService: IExtensionsWorkbenchService,
-		private readonly _extensionService: IExtensionService,
+		protected readonly _notebookKernelService: INotebookKernelService,
+		protected readonly _editorService: IEditorService,
+		protected readonly _productService: IProductService,
+		protected readonly _quickInputService: IQuickInputService,
+		protected readonly _labelService: ILabelService,
+		protected readonly _logService: ILogService,
+		protected readonly _paneCompositePartService: IPaneCompositePartService,
+		protected readonly _extensionWorkbenchService: IExtensionsWorkbenchService,
+		protected readonly _extensionService: IExtensionService,
+		protected readonly _commandService: ICommandService
 	) { }
 
 	async showQuickPick(context?: KernelQuickPickContext): Promise<boolean> {
@@ -495,12 +498,47 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		return quickPickItems;
 	}
 
-	protected override _handlePick(notebook: NotebookTextModel, pick: KernelQuickPickItem): Promise<boolean> {
+	protected override async _handlePick(notebook: NotebookTextModel, pick: KernelQuickPickItem): Promise<boolean> {
 		if (pick.id === 'selectAnother') {
 			// select from kernel sources
+			const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
+			const quickPickItems: QuickPickInput<IQuickPickItem>[] = [];
+			quickPick.show();
+			quickPick.busy = true;
+
+			this._notebookKernelService.getKernelSourceActions2(notebook).then(actions => {
+				quickPick.busy = false;
+				const validActions = actions.filter(action => action.command);
+
+				quickPickItems.push(...validActions.map(action => {
+					return {
+						id: typeof action.command! === 'string' ? action.command! : action.command!.id,
+						label: action.label,
+						accept: async () => {
+							// TODO, get kernel id
+							await this._executeCommand(action.command!);
+							quickPick.hide();
+						}
+					};
+				}));
+			});
+
+			return true;
 		}
 
 		return super._handlePick(notebook, pick);
+	}
+
+	private async _executeCommand(command: string | Command) {
+		const id = typeof command === 'string' ? command : command.id;
+		const args = typeof command === 'string' ? [] : command.arguments ?? [];
+
+
+		if (typeof command === 'string') {
+			await this._commandService.executeCommand(id);
+		} else {
+			await this._commandService.executeCommand(id, ...args);
+		}
 	}
 }
 
@@ -569,6 +607,7 @@ registerAction2(class extends Action2 {
 		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const extensionHostService = accessor.get(IExtensionService);
 		const configurationService = accessor.get(IConfigurationService);
+		const commandService = accessor.get(ICommandService);
 		const usingMru = configurationService.getValue<boolean>('notebook.experimental.kernelPicker.mru');
 
 		if (usingMru) {
@@ -581,7 +620,8 @@ registerAction2(class extends Action2 {
 				logService,
 				paneCompositeService,
 				extensionWorkbenchService,
-				extensionHostService
+				extensionHostService,
+				commandService
 			);
 			return await strategy.showQuickPick(context);
 		} else {
@@ -594,7 +634,8 @@ registerAction2(class extends Action2 {
 				logService,
 				paneCompositeService,
 				extensionWorkbenchService,
-				extensionHostService
+				extensionHostService,
+				commandService
 			);
 			return await strategy.showQuickPick(context);
 		}
