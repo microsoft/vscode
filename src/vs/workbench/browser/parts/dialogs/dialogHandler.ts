@@ -20,6 +20,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { fromNow } from 'vs/base/common/date';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class BrowserDialogHandler implements IDialogHandler {
 
@@ -117,7 +118,8 @@ export class BrowserDialogHandler implements IDialogHandler {
 				buttonDetails: customOptions?.buttonDetails,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
-				inputs
+				inputs,
+				buttonStyles: defaultButtonStyles
 			});
 
 		dialogDisposables.add(dialog);
