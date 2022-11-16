@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { AbstractUserDataSyncProfilesStorageService, IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { AbstractUserDataProfileStorageService, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
@@ -26,7 +26,7 @@ class TestStorageDatabase extends InMemoryStorageDatabase {
 	}
 }
 
-export class TestUserDataSyncProfilesStorageService extends AbstractUserDataSyncProfilesStorageService implements IUserDataSyncProfilesStorageService {
+export class TestUserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
 
 	readonly onDidChange = Event.None;
 	private databases = new Map<string, InMemoryStorageDatabase>();
@@ -46,11 +46,11 @@ suite('ProfileStorageService', () => {
 
 	const disposables = new DisposableStore();
 	const profile = toUserDataProfile('test', 'test', URI.file('foo'));
-	let testObject: TestUserDataSyncProfilesStorageService;
+	let testObject: TestUserDataProfileStorageService;
 	let storage: Storage;
 
 	setup(async () => {
-		testObject = disposables.add(new TestUserDataSyncProfilesStorageService(new InMemoryStorageService()));
+		testObject = disposables.add(new TestUserDataProfileStorageService(new InMemoryStorageService()));
 		storage = new Storage(await testObject.createStorageDatabase(profile));
 		await storage.init();
 	});
