@@ -334,13 +334,13 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this.action.label;
 		}
 	}
 
-	override getTooltip() {
+	protected override getTooltip() {
 		let title: string | null = null;
 
 		if (this.action.tooltip) {
@@ -356,7 +356,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		return title ?? undefined;
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
@@ -377,7 +377,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateEnabled(): void {
+	protected override updateEnabled(): void {
 		if (this.action.enabled) {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
@@ -395,14 +395,14 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateAriaLabel(): void {
+	protected override updateAriaLabel(): void {
 		if (this.label) {
 			const title = this.getTooltip() ?? '';
 			this.label.setAttribute('aria-label', title);
 		}
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		if (this.label) {
 			if (this.action.checked) {
 				this.label.classList.add('checked');

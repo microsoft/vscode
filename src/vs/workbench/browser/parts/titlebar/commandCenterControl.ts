@@ -98,7 +98,7 @@ export class CommandCenterControl {
 							return label;
 						}
 
-						override getTooltip() {
+						protected override getTooltip() {
 
 							// tooltip: full windowTitle
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
