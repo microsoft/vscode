@@ -159,7 +159,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.filterWidget.checkMoreFilters(!this.filters.showResolved || !this.filters.showUnresolved);
 	}
 
-	public override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		container.classList.add('comments-panel');
@@ -249,7 +249,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		return !!this.tree;
 	}
 
-	public override layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
+	protected override layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
 		if (this.messageBoxContainer) {
 			this.messageBoxContainer.style.height = `${height}px`;
 		}
