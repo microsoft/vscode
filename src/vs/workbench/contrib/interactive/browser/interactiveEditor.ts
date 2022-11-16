@@ -60,6 +60,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { isEqual } from 'vs/base/common/resources';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import 'vs/css!./interactiveEditor';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';

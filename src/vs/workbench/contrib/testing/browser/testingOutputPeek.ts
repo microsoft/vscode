@@ -76,6 +76,7 @@ import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/test
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import 'vs/css!./testingOutputPeek';
 
 class TestDto {
 	public readonly test: ITestItem;
