@@ -274,7 +274,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (useWindowControlsOverlay(this.configurationService)) {
+				if (useWindowControlsOverlay(this.configurationService, this.productService)) {
 
 					// This logic will not perfectly guess the right colors
 					// to use on initialization, but prefer to keep things
@@ -305,7 +305,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService, this.productService)) || isMacintosh)) {
 				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
