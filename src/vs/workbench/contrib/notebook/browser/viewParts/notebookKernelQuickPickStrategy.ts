@@ -621,7 +621,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		// select another kernel quick pick
 		quickPickItems.push({
 			id: 'selectAnother',
-			label: localize('selectAnotherKernel', "Select another kernel..."),
+			label: localize('selectAnotherKernel.more', "Select Another Kernel..."),
 		});
 
 		return quickPickItems;
@@ -640,10 +640,12 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		return new Promise<boolean>(resolve => {
 			// select from kernel sources
 			const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
-			const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
-			quickPick.show();
+			quickPick.title = localize('selectAnotherKernel', "Select Another Kernel");
 			quickPick.busy = true;
 			quickPick.buttons = [this._quickInputService.backButton];
+			quickPick.show();
+
+			const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 			disposables.add(quickPick.onDidTriggerButton(button => {
 				if (button === this._quickInputService.backButton) {
 					quickPick.hide();
