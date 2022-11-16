@@ -482,7 +482,7 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			quickPickItems.push(toQuickPick(matchResult.selected, matchResult.selected));
 		}
 
-		quickPickItems.push(...matchResult.suggestions.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toQuickPick(kernel, matchResult.selected)));
+		quickPickItems.push(...matchResult.all.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toQuickPick(kernel, matchResult.selected)));
 
 		quickPickItems.push({
 			type: 'separator',
@@ -505,22 +505,32 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			const quickPickItems: QuickPickInput<IQuickPickItem>[] = [];
 			quickPick.show();
 			quickPick.busy = true;
-
+			quickPick.onDidAccept(async () => {
+				if (quickPick.selectedItems.length && (quickPick.selectedItems[0] as any).command) {
+					const item = quickPick.selectedItems[0];
+					// TODO, get kernel id
+					const result = await this._executeCommand((item as any).command!);
+					console.log(result);
+				}
+				quickPick.hide();
+			});
 			this._notebookKernelService.getKernelSourceActions2(notebook).then(actions => {
 				quickPick.busy = false;
+				// const matchResult = this._notebookKernelService.getMatchingKernel(notebook);
+				// const others = matchResult.all.filter(item => item.extension.value !== 'ms-toolsai.jupyter');
 				const validActions = actions.filter(action => action.command);
 
 				quickPickItems.push(...validActions.map(action => {
 					return {
 						id: typeof action.command! === 'string' ? action.command! : action.command!.id,
 						label: action.label,
-						accept: async () => {
-							// TODO, get kernel id
-							await this._executeCommand(action.command!);
-							quickPick.hide();
-						}
+						detail: action.detail,
+						description: action.description,
+						command: action.command
 					};
 				}));
+
+				quickPick.items = quickPickItems;
 			});
 
 			return true;
@@ -535,9 +545,9 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 
 		if (typeof command === 'string') {
-			await this._commandService.executeCommand(id);
+			return this._commandService.executeCommand(id);
 		} else {
-			await this._commandService.executeCommand(id, ...args);
+			return this._commandService.executeCommand(id, ...args);
 		}
 	}
 }
