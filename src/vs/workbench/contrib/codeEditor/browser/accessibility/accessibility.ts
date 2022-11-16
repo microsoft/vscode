@@ -216,7 +216,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				}
 				break;
 			case 'on':
-				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
+				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this via the command `Toggle Screen Reader Accessibility Mode` or by editing the setting `editor.accessibilitySupport`");
 				break;
 			case 'off':
 				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader.");
@@ -327,3 +327,22 @@ registerEditorCommand(new AccessibilityHelpCommand({
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+class ToggleScreenReaderMode extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleScreenReaderAccessibilityMode',
+			title: { value: nls.localize('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"), original: 'Toggle Screen Reader Accessibility Mode' },
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const value = configurationService.getValue('editor.accessibilitySupport');
+		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on');
+	}
+}
+
+registerAction2(ToggleScreenReaderMode);
