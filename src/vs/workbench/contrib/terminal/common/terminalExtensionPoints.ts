@@ -34,12 +34,12 @@ export class TerminalContributionService implements ITerminalContributionService
 
 	constructor() {
 		terminalsExtPoint.setHandler(contributions => {
-			this._terminalProfiles = flatten(contributions.map(c => {
+			this._terminalProfiles = contributions.map(c => {
 				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
 					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
-			}));
-			this._quickFixes = flatten(contributions.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : []));
+			}).flat();
+			this._quickFixes = (contributions.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : [])).flat();
 		});
 	}
 }
