@@ -3,11 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ErrorReporter, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+
+// ESM-comment-begin
+import * as assert from 'assert';
+// ESM-comment-end
+// ESM-uncomment-begin
+// function assert(condition: boolean, message: string) {
+// 	if (!condition) {
+// 		throw new Error(message);
+// 	}
+// }
+// ESM-uncomment-end
 
 const MIN_MAX_MEMORY_SIZE_MB = 2048;
 

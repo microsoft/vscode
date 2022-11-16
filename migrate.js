@@ -156,6 +156,18 @@ function migrateTS(filePath, fileContents) {
 			importedFilepath = importedFilename;
 		}
 
+		// list of node modules that we swap out for ESM-AMD magic files
+		// to some guess for what files endup in the shared process
+		if (!filePath.includes('vs/workbench/') && !filePath.includes('vs/editor/')) {
+			const monacoNodeModules = new Set([
+				'child_process', 'console', 'crypto', 'fs', 'graceful-fs', 'https', 'minimist', 'net',
+				'os', 'path', 'util', 'xterm-headless', 'xterm', 'yauzl', 'yazl',
+			]);
+			if (monacoNodeModules.has(importedFilename) && !filePath.includes('/typings-esm/')) {
+				importedFilepath = `vs/base/node/typings-esm/${importedFilename}`;
+			}
+		}
+
 		if (
 			importedFilepath === 'electron'
 			&& !filePath.endsWith('vs/base/electron-main/electron.ts')
@@ -170,12 +182,12 @@ function migrateTS(filePath, fileContents) {
 			}
 		}
 
-		if (
-			importedFilepath === 'graceful-fs'
-			&& !filePath.endsWith('vs/base/node/graceful-fs.ts')
-		) {
-			importedFilepath = 'vs/base/node/graceful-fs';
-		}
+		// if (
+		// 	importedFilepath === 'graceful-fs'
+		// 	&& !filePath.endsWith('vs/base/node/graceful-fs.ts')
+		// ) {
+		// 	importedFilepath = 'vs/base/node/graceful-fs';
+		// }
 
 		/** @type {boolean} */
 		let isRelativeImport;

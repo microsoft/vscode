@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // ESM-uncomment-begin
-// import pkg from 'graceful-fs';
-// export const { gracefulify } = pkg;
+// const _graceful_fs = globalThis.MonacoNodeModules['graceful-fs'];
+// export const { gracefulify } = _graceful_fs;
 // ESM-uncomment-end

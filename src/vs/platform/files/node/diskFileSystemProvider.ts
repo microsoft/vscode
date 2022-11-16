@@ -37,6 +37,7 @@ import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodej
 		gracefulify(fs);
 	} catch (error) {
 		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
+		console.error(error);
 	}
 })();
 

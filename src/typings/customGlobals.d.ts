@@ -21,6 +21,19 @@ declare global {
 		zlib: typeof import('zlib');
 		net: typeof import('net');
 		os: typeof import('os');
+		['node:module']: typeof import('node:module');
+		fs: typeof import('fs'),
+		util: typeof import('util'),
+		child_process: typeof import('child_process'),
+		path: typeof import('path'),
+		yauzl: typeof import('yauzl'),
+		yazl: typeof import('yazl'),
+		['graceful-fs']: typeof import('graceful-fs'),
+		minimist: typeof import('minimist'),
+		https: typeof import('https'),
+		['xterm-headless']: typeof import('xterm-headless'),
+		console: typeof import('console'),
+		xterm: typeof import('xterm'),
 	}
 }
 

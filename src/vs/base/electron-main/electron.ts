@@ -7,9 +7,9 @@
 import * as electron from 'electron';
 // ESM-comment-end
 // ESM-uncomment-begin
-// import { createRequire } from 'node:module';
+// const { createRequire } = globalThis.MonacoNodeModules['node:module'];
 // import type * as Electron from 'electron';
-// const require = createRequire(import.meta.url);
+// const require = createRequire(new URL(import.meta.url).pathname);
 // const electron = require('electron/main') as typeof Electron;
 // ESM-uncomment-end
 

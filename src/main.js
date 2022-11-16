@@ -138,12 +138,14 @@ function startup(codeCachePath, nlsConfig) {
 	perf.mark('code/willLoadMainBundle');
 	if (isESM) {
 		globalThis.MonacoFileRoot = __dirname;
-		globalThis.MonacoNodeModules = {
-			crypto: require('crypto'),
-			zlib: require('zlib'),
-			net: require('net'),
-			os: require('os'),
-		};
+		globalThis.MonacoNodeModules = new Proxy({}, {
+			get(target, mod) {
+				if (!target[mod] && typeof mod === 'string') {
+					target[mod] = require(mod);
+				}
+				return target[mod];
+			}
+		});
 		globalThis.vscode = {};
 		globalThis.vscode.context = {
 			configuration: () => {
@@ -351,6 +353,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
