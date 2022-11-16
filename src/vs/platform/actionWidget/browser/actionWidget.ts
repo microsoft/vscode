@@ -203,7 +203,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	async show(user: string, toMenuItems: (inputQuickFixes: readonly IActionItem[], showHeaders: boolean) => IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, actions: ActionSet<any>, anchor: IAnchor, container: HTMLElement | undefined, options: IActionShowOptions, resolver?: IActionKeybindingResolver): Promise<void> {
 		this._currentShowingContext = undefined;
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
-		const list = this._instantiationService.createInstance(ActionList, user, actions.allActions, true, delegate, resolver, toMenuItems);
 
 		const actionsToShow = options.includeDisabledActions && (this._showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
 		if (!actionsToShow.length) {
@@ -213,6 +212,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 		this._currentShowingContext = { user, toMenuItems, delegate, actions, anchor, container, options, resolver };
 
+		const list = this._instantiationService.createInstance(ActionList, user, actionsToShow, true, delegate, resolver, toMenuItems);
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
