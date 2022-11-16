@@ -1252,7 +1252,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (node.collapsible) {
-			const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
+			const model = this.tree.model; // internal
 			const location = model.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
 			this.tree.setFocus([location]);
@@ -1375,7 +1375,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	protected view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, TRef, any>[];
-	protected model: ITreeModel<T, TFilterData, TRef>;
+	model: ITreeModel<T, TFilterData, TRef>; // used in MouseController
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private anchor: Trait<T>;

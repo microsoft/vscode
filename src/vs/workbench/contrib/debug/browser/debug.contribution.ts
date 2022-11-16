@@ -503,7 +503,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.console.historySuggestions': {
 			type: 'boolean',
-			description: nls.localize('debug.console.historySuggestions', "Controls if the Sebug Console should suggest previously typed input."),
+			description: nls.localize('debug.console.historySuggestions', "Controls if the Debug Console should suggest previously typed input."),
 			default: true
 		},
 		'debug.console.collapseIdenticalLines': {

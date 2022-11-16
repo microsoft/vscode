@@ -137,6 +137,11 @@ impl LauncherPaths {
 		&self.root
 	}
 
+	/// Suggested path for tunnel service logs, when using file logs
+	pub fn service_log_file(&self) -> PathBuf {
+		self.root.join("tunnel-service.log")
+	}
+
 	/// Removes the launcher data directory.
 	pub fn remove(&self) -> Result<(), WrappedError> {
 		remove_dir_all(&self.root).map_err(|e| {
