@@ -12,7 +12,7 @@ import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -178,5 +178,5 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 }
 
 
-registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController);
+registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.Idle);
 
