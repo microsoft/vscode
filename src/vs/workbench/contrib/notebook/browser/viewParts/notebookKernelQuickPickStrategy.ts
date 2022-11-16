@@ -716,9 +716,11 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 		if (info.selected) {
 			action.label = info.selected.label;
+			action.class = ThemeIcon.asClassName(selectKernelIcon);
 			action.tooltip = info.selected.description ?? info.selected.detail ?? '';
 		} else {
 			action.label = localize('select', "Select Kernel");
+			action.class = ThemeIcon.asClassName(selectKernelIcon);
 			action.tooltip = '';
 		}
 	}
