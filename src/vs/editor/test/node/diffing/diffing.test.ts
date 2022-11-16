@@ -31,7 +31,7 @@ suite('diff fixtures', () => {
 
 				const diffingAlgo = diffingAlgoName === 'smart' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
 
-				const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTime: Number.MAX_SAFE_INTEGER });
+				const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER });
 
 				const actualDiffingResult: DiffingResult = {
 					originalFileName: `./${firstFileName}`,
