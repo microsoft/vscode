@@ -23,6 +23,7 @@ import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/con
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -38,6 +39,7 @@ suite('QuickFixAddon', () => {
 			rows: 30
 		});
 		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
+		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: undefined, onDidUnregisterProvider: undefined } as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
