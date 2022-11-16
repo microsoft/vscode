@@ -33,7 +33,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const DIFF_LINES_PADDING = 3;
 
