@@ -27,7 +27,7 @@ import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contri
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IActionWidgetService, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
-import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+import { TerminalQuickFix, TerminalQuickFixType, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -232,7 +232,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				};
 				// TODO: What's documentation do? Need a vscode command?
 				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
-				const actions = fixes.map(f => new TerminalQuickFix(f, f.label));
+				const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.label));
 				const actionSet = {
 					// TODO: Documentation and actions are separate?
 					documentation,
@@ -302,12 +302,12 @@ export function getQuickFixesForCommand(
 					let action: IAction | undefined;
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
-							case 'command': {
+							case TerminalQuickFixType.Command: {
 								const label = localize('quickFix.command', 'Run: {0}', quickFix.command);
 								action = {
 									id: quickFix.id,
 									label,
-									class: undefined,
+									class: quickFix.type,
 									enabled: true,
 									run: () => {
 										onDidRequestRerunCommand?.fire({
@@ -321,12 +321,12 @@ export function getQuickFixesForCommand(
 								expectedCommands.push(quickFix.command);
 								break;
 							}
-							case 'opener': {
+							case TerminalQuickFixType.Opener: {
 								const label = localize('quickFix.opener', 'Open: {0}', quickFix.uri.toString());
 								action = {
-									id: `quickFix.opener`,
+									id: quickFix.id,
 									label,
-									class: undefined,
+									class: quickFix.type,
 									enabled: true,
 									run: () => {
 										openerService.open(quickFix.uri);
