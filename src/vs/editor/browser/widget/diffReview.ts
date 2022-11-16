@@ -16,7 +16,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffEditorLineClasses, DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IComputedEditorOptions, EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
@@ -65,6 +65,11 @@ class DiffEntry {
 		}
 		return DiffEntryType.Equal;
 	}
+}
+
+const enum DiffEditorLineClasses {
+	Insert = 'line-insert',
+	Delete = 'line-delete'
 }
 
 class Diff {

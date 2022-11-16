@@ -1878,7 +1878,7 @@ function createDecoration(startLineNumber: number, startColumn: number, endLineN
 	};
 }
 
-export const enum DiffEditorLineClasses {
+const enum DiffEditorLineClasses {
 	Insert = 'line-insert',
 	Delete = 'line-delete'
 }
