@@ -2,7 +2,7 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light (Visual Studio)",
 	"colors": {
-		"activityBarItem.settingsProfilesBackground": "#4d4d4d",
+		"activityBarItem.profilesBackground": "#4d4d4d",
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#000000",
 		"editor.inactiveSelectionBackground": "#E5EBF1",

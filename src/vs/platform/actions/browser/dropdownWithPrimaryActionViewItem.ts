@@ -49,7 +49,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down', className],
+			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			keybindingProvider: this._options?.getKeyBinding
 		});
 	}

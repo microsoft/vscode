@@ -76,7 +76,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.taskCompleted': {
-			'description': localize('audioCues.taskCompleted', "Plays a sound when a task completed."),
+			'description': localize('audioCues.taskCompleted', "Plays a sound when a task is completed."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.taskFailed': {
@@ -84,7 +84,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.terminalQuickFix': {
-			'description': localize('audioCues.terminalQuickFix', "Plays a sound when a terminal quick fixes are available"),
+			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available"),
 			...audioCueFeatureBase,
 		},
 	}

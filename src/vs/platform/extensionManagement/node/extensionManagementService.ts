@@ -230,6 +230,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return { location, cleanup };
 	}
 
+	protected getCurrentExtensionsManifestLocation(): URI {
+		return this.userDataProfilesService.defaultProfile.extensionsResource;
+	}
+
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
 		let installExtensionTask: IInstallExtensionTask | undefined;
 		if (URI.isUri(extension)) {
@@ -277,13 +281,17 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {
 		if (removed) {
 			for (const identifier of removed.extensions) {
+				this.logService.info('Extensions removed from another source', identifier.id, removed.profileLocation.toString());
 				this._onDidUninstallExtension.fire({ identifier, profileLocation: removed.profileLocation });
 			}
 		}
 		if (added) {
 			const extensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, added.profileLocation);
 			const addedExtensions = extensions.filter(e => added.extensions.some(identifier => areSameExtensions(identifier, e.identifier)));
-			this._onDidInstallExtensions.fire(addedExtensions.map(local => ({ identifier: local.identifier, local, profileLocation: added.profileLocation, operation: InstallOperation.None })));
+			this._onDidInstallExtensions.fire(addedExtensions.map(local => {
+				this.logService.info('Extensions added from another source', local.identifier.id, added.profileLocation.toString());
+				return { identifier: local.identifier, local, profileLocation: added.profileLocation, operation: InstallOperation.None };
+			}));
 		}
 	}
 
@@ -751,9 +759,6 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			this.wasVerified = !!verified;
 			this.validateManifest(location.fsPath);
 			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
-			if (existingExtension && !this.options.profileLocation && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
-				await this.extensionsScanner.setUninstalled(existingExtension);
-			}
 			return { local, metadata };
 		} catch (error) {
 			try {

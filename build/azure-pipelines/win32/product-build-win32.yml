@@ -32,7 +32,7 @@ steps:
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
           azureSubscription: "vscode-builds-subscription"
-          KeyVaultName: vscode
+          KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
