@@ -167,7 +167,7 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
-	shutdown_rx: mpsc::Receiver<ShutdownSignal>,
+	shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
 	print_listening(log, &tunnel.name);
