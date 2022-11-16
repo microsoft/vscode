@@ -601,8 +601,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		quickPickItems.push(...matchResult.suggestions.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toQuickPick(kernel, matchResult.selected)));
 
 		quickPickItems.push({
-			type: 'separator',
-			label: localize('selectOtherKernel.more', "More")
+			type: 'separator'
 		});
 
 		// select another kernel quick pick
