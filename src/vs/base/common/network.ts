@@ -276,8 +276,8 @@ class FileAccessImpl {
 			return uriOrModule;
 		}
 
-		if ((<any>globalThis).MonacoFileRoot) {
-			const rootPath = (<any>globalThis).MonacoFileRoot;
+		if (globalThis.MonacoFileRoot) {
+			const rootPath = globalThis.MonacoFileRoot;
 			const modulePath = path.join(rootPath, uriOrModule);
 			return URI.parse(modulePath);
 		}

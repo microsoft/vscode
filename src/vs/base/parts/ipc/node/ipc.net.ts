@@ -22,10 +22,10 @@ import { isESM } from 'vs/base/common/amd';
 function getNodeDependencies() {
 	if (isESM) {
 		return {
-			crypto: (<any>globalThis).MonacoNodeModules.crypto,
-			zlib: (<any>globalThis).MonacoNodeModules.zlib,
-			net: (<any>globalThis).MonacoNodeModules.net,
-			os: (<any>globalThis).MonacoNodeModules.os,
+			crypto: globalThis.MonacoNodeModules.crypto,
+			zlib: globalThis.MonacoNodeModules.zlib,
+			net: globalThis.MonacoNodeModules.net,
+			os: globalThis.MonacoNodeModules.os,
 		};
 	} else {
 		return {
