@@ -573,6 +573,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => focusAndSelectHandler(accessor, false)
 });
 
+registerAction2(class FocusBreadcrumbs extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.focus',
+			title: {
+				value: localize('cmd.focus', "Focus Breadcrumbs"),
+				original: 'Focus Breadcrumbs'
+			},
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		focusAndSelectHandler(accessor, false);
+	}
+});
+
 // this commands is only enabled when breadcrumbs are
 // disabled which it then enables and focuses
 KeybindingsRegistry.registerCommandAndKeybindingRule({
