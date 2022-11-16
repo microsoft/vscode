@@ -30,6 +30,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { Command } from 'vs/editor/common/languages';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -619,10 +620,16 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		});
 	}
 
-	private async _executeCommand<T>(command: string | Command): Promise<T | undefined | void> {
+	private async _executeCommand<T>(notebook: NotebookTextModel, command: string | Command): Promise<T | undefined | void> {
 		const id = typeof command === 'string' ? command : command.id;
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
+		if (typeof command === 'string' || !command.arguments || !Array.isArray(command.arguments) || command.arguments.length === 0) {
+			args.unshift({
+				uri: notebook.uri,
+				$mid: MarshalledId.NotebookActionContext
+			});
+		}
 
 		if (typeof command === 'string') {
 			return this._commandService.executeCommand(id);
