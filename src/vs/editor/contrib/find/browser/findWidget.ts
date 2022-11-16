@@ -16,7 +16,6 @@ import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/b
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -36,7 +35,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, errorForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, toolbarHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
@@ -1387,79 +1386,13 @@ export class SimpleButton extends Widget {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
-		if (color) {
-			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
-		}
-	};
-
-	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
-	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
-	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
-
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	addBackgroundColorRule('.find-widget', widgetBackground);
-
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
-	}
-
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
 	if (findMatchHighlightBorder) {
 		collector.addRule(`.monaco-editor .findMatch { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
 	}
 
-	const findMatchBorder = theme.getColor(editorFindMatchBorder);
-	if (findMatchBorder) {
-		collector.addRule(`.monaco-editor .currentFindMatch { border: 2px solid ${findMatchBorder}; padding: 1px; box-sizing: border-box; }`);
-	}
-
 	const findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
 	if (findRangeHighlightBorder) {
 		collector.addRule(`.monaco-editor .findScope { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${findRangeHighlightBorder}; }`);
-	}
-
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
-	}
-
-	const foreground = theme.getColor(editorWidgetForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
-	}
-
-	const error = theme.getColor(errorForeground);
-	if (error) {
-		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
-	}
-
-	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
-	if (resizeBorderBackground) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${resizeBorderBackground}; }`);
-	} else {
-		const border = theme.getColor(editorWidgetBorder);
-		if (border) {
-			collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; }`);
-		}
-	}
-
-	// Action bars
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-		.monaco-editor .find-widget .button:not(.disabled):hover,
-		.monaco-editor .find-widget .codicon-find-selection:hover {
-			background-color: ${toolbarHoverBackgroundColor} !important;
-		}
-	`);
-	}
-
-	// This rule is used to override the outline color for synthetic-focus find input.
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-inputbox.synthetic-focus { outline-color: ${focusOutline}; }`);
-
 	}
 });
