@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
 import 'vs/css!./media/gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -1116,14 +1117,7 @@ export class GettingStartedPage extends EditorPane {
 			if (this.groupsService.count === 1) {
 				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
 
-				let gettingStartedSize: number;
-				if (fullSize.width > 1600) {
-					gettingStartedSize = 800;
-				} else if (fullSize.width > 800) {
-					gettingStartedSize = 400;
-				} else {
-					gettingStartedSize = 350;
-				}
+				const gettingStartedSize = Math.floor(fullSize.width / 2);
 
 				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
 				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });

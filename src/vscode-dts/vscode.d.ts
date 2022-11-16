@@ -2066,7 +2066,9 @@ declare module 'vscode' {
 	export class RelativePattern {
 
 		/**
-		 * A base file path to which this pattern will be matched against relatively.
+		 * A base file path to which this pattern will be matched against relatively. The
+		 * file path must be absolute, should not have any trailing path separators and
+		 * not include any relative segments (`.` or `..`).
 		 */
 		baseUri: Uri;
 

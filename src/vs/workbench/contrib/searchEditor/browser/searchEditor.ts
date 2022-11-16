@@ -124,7 +124,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
 	}
 
-	override createEditor(parent: HTMLElement) {
+	protected override createEditor(parent: HTMLElement) {
 		DOM.append(parent, this.container);
 		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
 		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));

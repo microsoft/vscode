@@ -84,7 +84,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.terminalQuickFix': {
-			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available"),
+			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
 			...audioCueFeatureBase,
 		},
 	}

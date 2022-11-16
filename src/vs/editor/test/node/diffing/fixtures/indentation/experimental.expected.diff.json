@@ -1,0 +1,78 @@
+{
+	"originalFileName": "./1.tst",
+	"modifiedFileName": "./2.tst",
+	"diffs": [
+		{
+			"originalRange": "[9,11)",
+			"modifiedRange": "[9,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[9,1 -> 9,1]",
+					"modifiedRange": "[9,1 -> 10,1]"
+				},
+				{
+					"originalRange": "[9,1 -> 9,1]",
+					"modifiedRange": "[10,1 -> 10,2]"
+				},
+				{
+					"originalRange": "[10,1 -> 10,1]",
+					"modifiedRange": "[11,1 -> 11,2]"
+				}
+			]
+		},
+		{
+			"originalRange": "[12,23)",
+			"modifiedRange": "[13,25)",
+			"innerChanges": [
+				{
+					"originalRange": "[12,1 -> 12,1]",
+					"modifiedRange": "[13,1 -> 13,2]"
+				},
+				{
+					"originalRange": "[13,1 -> 13,1]",
+					"modifiedRange": "[14,1 -> 14,2]"
+				},
+				{
+					"originalRange": "[14,1 -> 14,1]",
+					"modifiedRange": "[15,1 -> 15,2]"
+				},
+				{
+					"originalRange": "[15,1 -> 15,1]",
+					"modifiedRange": "[16,1 -> 16,2]"
+				},
+				{
+					"originalRange": "[16,1 -> 16,1]",
+					"modifiedRange": "[17,1 -> 17,2]"
+				},
+				{
+					"originalRange": "[17,1 -> 17,1]",
+					"modifiedRange": "[18,1 -> 18,2]"
+				},
+				{
+					"originalRange": "[18,1 -> 18,1]",
+					"modifiedRange": "[19,1 -> 19,2]"
+				},
+				{
+					"originalRange": "[19,1 -> 19,1]",
+					"modifiedRange": "[20,1 -> 20,2]"
+				},
+				{
+					"originalRange": "[20,1 -> 20,1]",
+					"modifiedRange": "[21,1 -> 21,2]"
+				},
+				{
+					"originalRange": "[21,1 -> 21,1]",
+					"modifiedRange": "[22,1 -> 22,2]"
+				},
+				{
+					"originalRange": "[22,1 -> 22,1]",
+					"modifiedRange": "[23,1 -> 23,2]"
+				},
+				{
+					"originalRange": "[23,1 -> 23,1]",
+					"modifiedRange": "[24,1 -> 25,1]"
+				}
+			]
+		}
+	]
+}
