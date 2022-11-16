@@ -579,7 +579,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				quickPick.hide();
 				quickPick.dispose();
 				if (quickPick.selectedItems.length && 'command' in quickPick.selectedItems[0]) {
-					const selectedKernelId = await this._executeCommand<string>(quickPick.selectedItems[0].command);
+					const selectedKernelId = await this._executeCommand<string>(notebook, quickPick.selectedItems[0].command);
 					if (selectedKernelId) {
 						const { all } = await this._notebookKernelService.getMatchingKernel(notebook);
 						const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
