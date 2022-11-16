@@ -242,7 +242,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected readonly _contributions = new DisposableMap<string, editorCommon.IEditorContribution | IdleValue<editorCommon.IEditorContribution>>();
+	protected readonly _contributions = new DisposableMap<string, editorCommon.IEditorContribution | IdleValue<editorCommon.IEditorContribution | null>>();
 	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();
 
 	// --- Members logically associated to a model
@@ -341,10 +341,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			try {
 				if (desc.instantiation === EditorContributionInstantiation.Idle) {
 					const contribution = new IdleValue(() => {
-						// Replace the original entry in _contributions with the resolved contribution
-						const instance = this._instantiationService.createInstance(desc.ctor, this);
-						this._contributions.set(desc.id, instance);
-						return instance;
+						try {
+							// Replace the original entry in _contributions with the resolved contribution
+							const instance = this._instantiationService.createInstance(desc.ctor, this);
+							this._contributions.set(desc.id, instance);
+							return instance;
+						} catch (err) {
+							// In case of an exception, we delete the idle value from _contributions
+							onUnexpectedError(err);
+							this._contributions.deleteAndDispose(desc.id);
+							return null;
+						}
 					});
 					this._contributions.set(desc.id, contribution);
 				} else {
@@ -1061,7 +1068,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return null;
 		}
 
-		return (entry instanceof IdleValue ? entry.value : entry) as T;
+		return (entry instanceof IdleValue ? entry.value : entry) as T | null;
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
