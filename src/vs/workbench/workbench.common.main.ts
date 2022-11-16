@@ -347,7 +347,7 @@ import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
 // Audio Cues
-import 'vs/base/common/audioCues/audioCues/audioCues.contribution';
+import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
