@@ -22,10 +22,11 @@ import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -295,10 +296,9 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	private renderAddButton(): HTMLElement {
 		const rowElement = $('.setting-list-new-row');
 
-		const startAddButton = this._register(new Button(rowElement));
+		const startAddButton = this._register(new Button(rowElement, defaultButtonStyles));
 		startAddButton.label = this.getLocalizedStrings().addButtonLabel;
 		startAddButton.element.classList.add('setting-list-addButton');
-		this._register(attachButtonStyler(startAddButton, this.themeService));
 
 		this._register(startAddButton.onDidClick(() => {
 			this.model.setEditKey('create');
@@ -632,11 +632,10 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			valueInput.element.classList.add('no-sibling');
 		}
 
-		const okButton = this._register(new Button(rowElement));
+		const okButton = this._register(new Button(rowElement, defaultButtonStyles));
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
-		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => {
 			if (item.value.type === 'string') {
 				this.handleItemChange(item, updatedInputBoxItem(), idx);
@@ -645,11 +644,10 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			}
 		}));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
-		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
 
 		this.listDisposables.add(
@@ -970,19 +968,17 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 
 		rowElement.append(keyElement, valueContainer);
 
-		const okButton = this._register(new Button(rowElement));
+		const okButton = this._register(new Button(rowElement, defaultButtonStyles));
 		okButton.enabled = changedItem.key.data !== '';
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
-		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
-		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
 
 		this.listDisposables.add(

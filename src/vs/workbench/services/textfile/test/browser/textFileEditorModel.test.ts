@@ -815,51 +815,81 @@ suite('Files - TextFileEditorModel', () => {
 		participant.dispose();
 	});
 
-	test('Save Participant, calling save from within is unsupported but does not explode (sync save)', async function () {
+	test('Save Participant, calling save from within is unsupported but does not explode (sync save, no model change)', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await testSaveFromSaveParticipant(model, false);
+		await testSaveFromSaveParticipant(model, false, false, false);
 
 		model.dispose();
 	});
 
-	test('Save Participant, calling save from within is unsupported but does not explode (async save)', async function () {
+	test('Save Participant, calling save from within is unsupported but does not explode (async save, no model change)', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await testSaveFromSaveParticipant(model, true);
+		await testSaveFromSaveParticipant(model, true, false, false);
 
 		model.dispose();
 	});
 
-	async function testSaveFromSaveParticipant(model: TextFileEditorModel, async: boolean): Promise<void> {
+	test('Save Participant, calling save from within is unsupported but does not explode (sync save, model change)', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		let breakLoop = false;
+		await testSaveFromSaveParticipant(model, false, true, false);
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async model => {
-				if (breakLoop) {
-					return;
-				}
+		model.dispose();
+	});
 
-				breakLoop = true;
+	test('Save Participant, calling save from within is unsupported but does not explode (async save, model change)', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
+		await testSaveFromSaveParticipant(model, true, true, false);
+
+		model.dispose();
+	});
+
+	test('Save Participant, calling save from within is unsupported but does not explode (force)', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await testSaveFromSaveParticipant(model, false, false, true);
+
+		model.dispose();
+	});
+
+	async function testSaveFromSaveParticipant(model: TextFileEditorModel, async: boolean, modelChange: boolean, force: boolean): Promise<void> {
+
+		const disposable = accessor.textFileService.files.addSaveParticipant({
+			participate: async () => {
 				if (async) {
 					await timeout(10);
 				}
-				const newSavePromise = model.save();
 
-				// assert that this is the same promise as the outer one
-				assert.strictEqual(savePromise, newSavePromise);
+				if (modelChange) {
+					model.updateTextEditorModel(createTextBufferFactory('bar'));
+
+					const newSavePromise = model.save(force ? { force } : undefined);
+
+					// assert that this is not the same promise as the outer one
+					assert.notStrictEqual(savePromise, newSavePromise);
+
+					await newSavePromise;
+				} else {
+					const newSavePromise = model.save(force ? { force } : undefined);
+
+					// assert that this is the same promise as the outer one
+					assert.strictEqual(savePromise, newSavePromise);
+
+					await savePromise;
+				}
 			}
 		});
 
 		await model.resolve();
 		model.updateTextEditorModel(createTextBufferFactory('foo'));
 
-		const savePromise = model.save();
+		const savePromise = model.save(force ? { force } : undefined);
 		await savePromise;
 
-		participant.dispose();
+		disposable.dispose();
 	}
 
 	test('backup and restore (simple)', async function () {

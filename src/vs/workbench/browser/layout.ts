@@ -299,6 +299,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
+
+		// WCO changes
+		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
+			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
+		}
 	}
 
 	private onMenubarToggled(visible: boolean): void {
@@ -1102,6 +1107,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default:
 				return isWeb ? false : !this.state.runtime.fullscreen || this.state.runtime.menuBar.toggled;
 		}
+	}
+
+	private shouldShowBannerFirst(): boolean {
+		return isWeb && !isWCOVisible();
 	}
 
 	focus(): void {
@@ -2008,6 +2017,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
+	private onDidChangeWCO(): void {
+		const bannerFirst = this.workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Up, false).length > 0;
+		const shouldBannerBeFirst = this.shouldShowBannerFirst();
+
+		if (bannerFirst !== shouldBannerBeFirst) {
+			this.workbenchGrid.moveView(this.bannerPartView, Sizing.Distribute, this.titleBarPartView, shouldBannerBeFirst ? Direction.Up : Direction.Down);
+		}
+
+		this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+	}
+
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
 		if (!nodes.sideBar && !nodes.auxiliaryBar) {
 			nodes.editor.size = availableHeight;
@@ -2187,7 +2207,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				type: 'branch',
 				size: width,
 				data: [
-					...(isWeb ? titleAndBanner.reverse() : titleAndBanner),
+					...(this.shouldShowBannerFirst() ? titleAndBanner.reverse() : titleAndBanner),
 					{
 						type: 'branch',
 						data: middleSection,

@@ -43,7 +43,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -1939,10 +1939,10 @@ export interface EditorReplacement extends IEditorReplacement {
 registerThemingParticipant((theme, collector) => {
 
 	// Letterpress
-	const letterpress = `./media/letterpress-${theme.type}.svg`;
+	const letterpress: AppResourcePath = `vs/workbench/browser/parts/editor/media/letterpress-${theme.type}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
+			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress))}
 		}
 	`);
 
