@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IAudioCueService, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
 import { AudioCueLineFeatureContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueLineFeatureContribution';
-import { AudioCueService, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
-import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 registerSingleton(IAudioCueService, AudioCueService, InstantiationType.Delayed);
 
@@ -85,6 +85,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'audioCues.terminalQuickFix': {
 			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineInserted': {
+			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode"),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineDeleted': {
+			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode"),
 			...audioCueFeatureBase,
 		},
 	}
