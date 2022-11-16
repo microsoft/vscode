@@ -16,7 +16,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { autorun, autorunDelta, constObservable, debouncedObservable, derived, IObservable, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export class AudioCueLineFeatureContribution
 	extends Disposable

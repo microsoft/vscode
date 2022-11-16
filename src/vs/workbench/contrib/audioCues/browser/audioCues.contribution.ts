@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IAudioCueService, AudioCueService } from 'vs/platform/audioCues/common/audioCueService';
+import { IAudioCueService, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
 import { AudioCueLineFeatureContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueLineFeatureContribution';
 
