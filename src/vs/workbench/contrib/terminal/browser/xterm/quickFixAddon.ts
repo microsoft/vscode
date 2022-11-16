@@ -24,11 +24,9 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { TerminalQuickFix, TerminalQuickFixType, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
-import { previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -80,7 +78,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
@@ -248,13 +245,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					return;
 				}
 				const delegate = {
-					onSelect: async (fix: TerminalQuickFix, preview?: boolean) => {
-						if (preview) {
-							this._commandService.executeCommand(previewSelectedActionCommand);
-						} else {
-							fix.action?.run();
-							this._actionWidgetService.hide();
-						}
+					onSelect: async (fix: TerminalQuickFix) => {
+						fix.action?.run();
+						this._actionWidgetService.hide();
 					},
 					onHide: () => {
 						this._terminal?.focus();
