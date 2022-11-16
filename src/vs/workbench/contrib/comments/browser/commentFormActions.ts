@@ -21,13 +21,13 @@ export class CommentFormActions implements IDisposable {
 		private contextMenuService?: IContextMenuService
 	) { }
 
-	setActions(menu: IMenu) {
+	setActions(menu: IMenu, hasOnlySecondaryActions: boolean = false) {
 		this._toDispose.clear();
 
 		this._buttonElements.forEach(b => b.remove());
 
 		const groups = menu.getActions({ shouldForwardArgs: true });
-		let isPrimary: boolean = true;
+		let isPrimary: boolean = !hasOnlySecondaryActions;
 		for (const group of groups) {
 			const [, actions] = group;
 
