@@ -482,7 +482,7 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			quickPickItems.push(toQuickPick(matchResult.selected, matchResult.selected));
 		}
 
-		quickPickItems.push(...matchResult.all.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toQuickPick(kernel, matchResult.selected)));
+		quickPickItems.push(...matchResult.suggestions.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toQuickPick(kernel, matchResult.selected)));
 
 		quickPickItems.push({
 			type: 'separator',
