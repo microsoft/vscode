@@ -26,7 +26,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookExtensionRecommendation, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -516,8 +516,9 @@ class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			});
 			this._notebookKernelService.getKernelSourceActions2(notebook).then(actions => {
 				quickPick.busy = false;
-				// const matchResult = this._notebookKernelService.getMatchingKernel(notebook);
-				// const others = matchResult.all.filter(item => item.extension.value !== 'ms-toolsai.jupyter');
+				const matchResult = this._notebookKernelService.getMatchingKernel(notebook);
+				const others = matchResult.all.filter(item => item.extension.value !== JUPYTER_EXTENSION_ID);
+				quickPickItems.push(...others.map(kernel => toQuickPick(kernel, matchResult.selected)));
 				const validActions = actions.filter(action => action.command);
 
 				quickPickItems.push(...validActions.map(action => {
