@@ -19,7 +19,6 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 interface IViewsCustomizations {
@@ -114,11 +113,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
 
-		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
-			.registerKeys([{
-				key: ViewDescriptorService.VIEWS_CUSTOMIZATIONS,
-				description: localize('views customizations', "Views Customizations"),
-			}]);
 	}
 
 	private migrateToViewsCustomizationsStorage(): void {
