@@ -182,6 +182,10 @@ export class CellPartsCollection extends Disposable {
 		for (const part of this.contentParts) {
 			part.updateInternalLayoutNow(viewCell);
 		}
+
+		for (const part of this.overlayParts) {
+			part.updateInternalLayoutNow(viewCell);
+		}
 	}
 
 	prepareLayout() {

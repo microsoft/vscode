@@ -295,7 +295,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	private async getAccountPreference(fromContinueOn: boolean): Promise<AuthenticationSession & { providerId: string } | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
-		quickpick.placeholder = localize('choose account placeholder', "Select an account to turn on Edit Sessions");
+		quickpick.placeholder = localize('choose account placeholder', "Select an account to store your working changes in the cloud");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems(fromContinueOn);
 
@@ -459,7 +459,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.signIn',
-					title: localize('sign in', 'Turn on Edit Sessions...'),
+					title: localize('sign in', 'Turn on Cloud Changes...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					menu: [{
@@ -485,7 +485,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth.v3', 'Turn off Edit Sessions...'),
+					title: localize('reset auth.v3', 'Turn off Cloud Changes...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
@@ -502,8 +502,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			async run() {
 				const result = await that.dialogService.confirm({
 					type: 'info',
-					message: localize('sign out of edit sessions clear data prompt.v2', 'Do you want to turn off Edit Sessions?'),
-					checkbox: { label: localize('delete all edit sessions.v2', 'Delete all stored data from the cloud.') },
+					message: localize('sign out of cloud changes clear data prompt', 'Do you want to disable storing working changes in the cloud?'),
+					checkbox: { label: localize('delete all cloud changes', 'Delete all stored data from the cloud.') },
 					primaryButton: localize('clear data confirm', 'Yes'),
 				});
 				if (result.confirmed) {

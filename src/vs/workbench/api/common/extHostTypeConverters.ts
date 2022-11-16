@@ -5,11 +5,14 @@
 
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { IDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { once } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
+import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isEmptyObject, isNumber, isString, isUndefinedOrNull, withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -19,8 +22,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import * as languages from 'vs/editor/common/languages';
 import * as encodedTokenAttributes from 'vs/editor/common/encodedTokenAttributes';
+import * as languages from 'vs/editor/common/languages';
 import * as languageSelector from 'vs/editor/common/languageSelector';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -39,8 +42,6 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { once } from 'vs/base/common/functional';
-import { IDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -1966,7 +1967,7 @@ export namespace ViewBadge {
 }
 
 export namespace DataTransferItem {
-	export function toDataTransferItem(item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
+	export function to(mime: string, item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
@@ -1978,16 +1979,62 @@ export namespace DataTransferItem {
 					};
 				}
 			}('', item.id);
-		} else {
-			return new types.DataTransferItem(item.asString);
 		}
+
+		if (mime === Mimes.uriList && item.uriListData) {
+			return new types.DataTransferItem(reviveUriList(item.uriListData));
+		}
+
+		return new types.DataTransferItem(item.asString);
+	}
+
+	export async function from(mime: string, item: vscode.DataTransferItem | IDataTransferItem): Promise<extHostProtocol.DataTransferItemDTO> {
+		const stringValue = await item.asString();
+
+		if (mime === Mimes.uriList) {
+			return {
+				id: (item as IDataTransferItem | types.DataTransferItem).id,
+				asString: '',
+				fileData: undefined,
+				uriListData: serializeUriList(stringValue),
+			};
+		}
+
+		const fileValue = item.asFile();
+		return {
+			id: (item as IDataTransferItem | types.DataTransferItem).id,
+			asString: stringValue,
+			fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
+		};
+	}
+
+	function serializeUriList(stringValue: string): ReadonlyArray<string | URI> {
+		return UriList.split(stringValue).map(part => {
+			if (part.startsWith('#')) {
+				return part;
+			}
+
+			try {
+				return URI.parse(part);
+			} catch {
+				// noop
+			}
+
+			return part;
+		});
+	}
+
+	function reviveUriList(parts: ReadonlyArray<string | UriComponents>): string {
+		return UriList.create(parts.map(part => {
+			return typeof part === 'string' ? part : URI.revive(part);
+		}));
 	}
 }
 
 export namespace DataTransfer {
 	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (itemId: string) => Promise<Uint8Array>): types.DataTransfer {
 		const init = value.items.map(([type, item]) => {
-			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(item.id))] as const;
+			return [type, DataTransferItem.to(type, item, () => resolveFileData(item.id))] as const;
 		});
 		return new types.DataTransfer(init);
 	}
@@ -1999,13 +2046,7 @@ export namespace DataTransfer {
 
 		value.forEach((value, key) => {
 			promises.push((async () => {
-				const stringValue = await value.asString();
-				const fileValue = value.asFile();
-				newDTO.items.push([key, {
-					id: (value as IDataTransferItem | types.DataTransferItem).id,
-					asString: stringValue,
-					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
-				}]);
+				newDTO.items.push([key, await DataTransferItem.from(key, value)]);
 			})());
 		});
 

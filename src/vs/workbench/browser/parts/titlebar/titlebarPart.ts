@@ -236,7 +236,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// App Icon (Native Windows/Linux and Web)
-		if (!isMacintosh || isWeb) {
+		if (!isMacintosh && !isWeb) {
 			this.appIcon = prepend(this.rootContainer, $('a.window-appicon'));
 
 			// Web-only home indicator and menu
