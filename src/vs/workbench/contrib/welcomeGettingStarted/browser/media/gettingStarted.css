@@ -397,9 +397,9 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step {
 	display: flex;
 	width: 100%;
-	margin: 4px 0;
+	margin: 8px 0;
 	overflow: hidden;
-	border-radius: 3px;
+	border-radius: 6px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .button-container:not(:last-of-type) {
@@ -416,9 +416,13 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) {
-	height: 54px;
+	height: 48px;
 	background: none;
-	opacity: 0.8;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded):hover {
+	background: var(--vscode-welcomePage-tileHoverBackground);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
