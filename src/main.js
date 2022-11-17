@@ -151,6 +151,10 @@ function startup(codeCachePath, nlsConfig) {
 		}
 	});
 
+	// VSCODE_GLOBALS: package/product.json
+	globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+	globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
+
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
 	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {

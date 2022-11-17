@@ -6,6 +6,15 @@
 declare global {
 
 	/**
+	 * @deprecated You MUST use `IProductService` whenever possible.
+	 */
+	var _VSCODE_PRODUCT_JSON: Record<string, any>;
+	/**
+	 * @deprecated You MUST use `IProductService` whenever possible.
+	 */
+	var _VSCODE_PACKAGE_JSON: Record<string, any>;
+
+	/**
 	 * @deprecated node modules that are in used in a context that
 	 * shouldn't have access to node_modules (node-free renderer or
 	 * shared process)

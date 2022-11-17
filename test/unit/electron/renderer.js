@@ -81,6 +81,9 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), {
 		return target[mod];
 	}
 });
+// VSCODE_GLOBALS: package/product.json
+globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)('../../../product.json');
+globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)('../../../package.json');
 
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
