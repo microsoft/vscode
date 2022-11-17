@@ -38,6 +38,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Mutable } from 'vs/base/common/types';
 
 const enum State {
 	Data = 'data',
@@ -314,9 +315,6 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
-		type Mutable<T> = {
-			-readonly [P in keyof T]: T[P]
-		};
 
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
 		let fileElement: FileElement;
