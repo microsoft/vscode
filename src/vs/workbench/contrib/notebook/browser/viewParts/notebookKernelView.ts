@@ -80,9 +80,9 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const usingMru = configurationService.getValue<boolean>('notebook.experimental.kernelPicker.mru');
+		const kernelPickerType = configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
 
-		if (usingMru) {
+		if (kernelPickerType === 'mru') {
 			const strategy = instantiationService.createInstance(KernelPickerMRUStrategy);
 			return await strategy.showQuickPick(context);
 		} else {
@@ -139,8 +139,8 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const usingMru = this._configurationService.getValue<boolean>('notebook.experimental.kernelPicker.mru');
-		if (usingMru) {
+		const kernelPickerType = this._configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
+		if (kernelPickerType === 'mru') {
 			KernelPickerMRUStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService);
 		} else {
 			KernelPickerFlatStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService, this._editor.scopedContextKeyService);
