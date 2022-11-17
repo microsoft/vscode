@@ -163,7 +163,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'comments/commentThread/additionalActions',
 		id: MenuId.CommentThreadAdditionalActions,
 		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
-		supportsSubmenus: true,
+		supportsSubmenus: false,
 		proposed: 'contribCommentThreadAdditionalMenu'
 	},
 	{
