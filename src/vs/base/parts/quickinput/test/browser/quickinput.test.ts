@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
+import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { raceTimeout } from 'vs/base/common/async';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
@@ -55,7 +57,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			styles: {
 				button: unthemedButtonStyles,
 				countBadge: {},
-				inputBox: {},
+				inputBox: unthemedInboxStyles,
+				toggle: unthemedToggleStyles,
 				keybindingLabel: {},
 				list: {},
 				progressBar: {},

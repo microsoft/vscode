@@ -790,6 +790,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor!,
 			menuId: MenuId.ProblemsPanelContext,
+			contextKeyService: this.widget.contextKeyService,
 			getActions: () => this.getMenuActions(element),
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);

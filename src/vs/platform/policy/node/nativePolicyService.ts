@@ -23,7 +23,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
-		this.logService.trace(`NativePolicyService#_updatePolicyDefinitions - Found ${policyDefinitions.length} policy definitions`);
+		this.logService.trace(`NativePolicyService#_updatePolicyDefinitions - Found ${Object.keys(policyDefinitions).length} policy definitions`);
 
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
@@ -39,7 +39,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 	}
 
 	private _onDidPolicyChange(update: PolicyUpdate<IStringDictionary<PolicyDefinition>>): void {
-		this.logService.trace(`NativePolicyService#_onDidPolicyChange - Updated policy values: ${Object.keys(update).join(', ')}`);
+		this.logService.trace(`NativePolicyService#_onDidPolicyChange - Updated policy values: ${JSON.stringify(update)}`);
 
 		for (const key in update) {
 			const value = update[key] as any;

@@ -350,7 +350,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		if (initInfo.options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
-			this.styledFindWidget();
 		}
 
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
@@ -668,13 +667,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		const screenReader = this._accessibilityService.isScreenReaderOptimized();
 
 		this._send('styles', { styles, activeTheme, themeId, themeLabel, reduceMotion, screenReader });
-
-		this.styledFindWidget();
 	}
 
-	private styledFindWidget() {
-		this._webviewFindWidget?.updateTheme(this.webviewThemeDataProvider.getTheme());
-	}
 
 	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;

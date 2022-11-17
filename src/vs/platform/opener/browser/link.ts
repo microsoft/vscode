@@ -11,8 +11,6 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;
@@ -119,15 +117,3 @@ export class Link extends Disposable {
 		this.enabled = true;
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-link { color: ${textLinkForegroundColor}; }`);
-	}
-
-	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
-	if (textLinkActiveForegroundColor) {
-		collector.addRule(`.monaco-link:hover { color: ${textLinkActiveForegroundColor}; }`);
-	}
-});
