@@ -26,7 +26,7 @@ declare module 'vscode' {
 		 * @param eventName The event name to log
 		 * @param data The data to log
 		 */
-		logUsage(eventName: string, data?: Record<string, string | number | boolean>): void;
+		logUsage(eventName: string, data?: Record<string, any>): void;
 
 		/**
 		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetryAppender.logEvent` to log the event. Differs from `logUsage` in that it will log the event if the telemetry setting is Error+.
