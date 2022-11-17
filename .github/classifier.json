@@ -84,7 +84,6 @@
 		"grammar": {"assign": ["mjbvz"]},
 		"grid-view": {"assign": ["joaomoreno"]},
 		"html": {"assign": ["aeschli"]},
-		"i18n": {"assign": []},
 		"icon-brand": {"assign": []},
 		"icons-product": {"assign": ["daviddossett"]},
 		"inlay-hints": {"assign": ["jrieken", "hediet"]},
