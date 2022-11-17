@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { contrastBorder, editorErrorForeground, editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import 'vs/css!./media/testing';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
@@ -71,6 +72,10 @@ export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBack
 	hcDark: null,
 	hcLight: null
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
+
+
+
+
 
 export const testMessageSeverityColors: {
 	[K in TestMessageType]: {
