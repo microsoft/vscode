@@ -72,6 +72,16 @@ if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
+// VSCODE_GLOBALS: node_modules
+globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), {
+	get(target, mod) {
+		if (!target[mod] && typeof mod === 'string') {
+			target[mod] = (require.__$__nodeRequire ?? require)(mod);
+		}
+		return target[mod];
+	}
+});
+
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
