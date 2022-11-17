@@ -21,6 +21,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1023,6 +1024,10 @@ export interface ITextModel {
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
 	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	/**
+	 * @internal
+	 */
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
