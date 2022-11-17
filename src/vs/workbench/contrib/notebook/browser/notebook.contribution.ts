@@ -910,11 +910,16 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.kernelPickerMRU]: {
-			markdownDescription: nls.localize('notebook.kernelPickerMRU', "Controls whether the kernel picker should show the most recently used kernels."),
-			type: 'boolean',
+		[NotebookSetting.kernelPickerType]: {
+			markdownDescription: nls.localize('notebook.kernelPickerType', "Controls the type of kernel picker to use."),
+			type: 'string',
+			enum: ['all', 'mru'],
+			enumDescriptions: [
+				nls.localize('notebook.kernelPickerType.all', "Show all kernels."),
+				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
+			],
 			tags: ['notebookLayout'],
-			default: false
+			default: 'all'
 		}
 	}
 });
