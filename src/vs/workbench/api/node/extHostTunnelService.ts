@@ -61,7 +61,7 @@ export function loadListeningPorts(...stdouts: string[]): { socket: number; ip: 
 	];
 }
 
-export function parseIpAddress(hex: string): string {
+function parseIpAddress(hex: string): string {
 	let result = '';
 	if (hex.length === 8) {
 		for (let i = hex.length - 2; i >= 0; i -= 2) {

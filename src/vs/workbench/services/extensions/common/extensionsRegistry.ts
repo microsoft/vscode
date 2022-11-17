@@ -15,6 +15,7 @@ import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
+import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -305,6 +306,11 @@ export const schema: IJSONSchema = {
 						body: 'onFileSystem:${1:scheme}'
 					},
 					{
+						label: 'onEditSession',
+						description: nls.localize('vscode.extension.activationEvents.onEditSession', 'An activation event emitted whenever an edit session is accessed with the given scheme.'),
+						body: 'onEditSession:${1:scheme}'
+					},
+					{
 						label: 'onSearch',
 						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
 						body: 'onSearch:${7:scheme}'
@@ -313,11 +319,6 @@ export const schema: IJSONSchema = {
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
-					},
-					{
-						label: 'onIdentity',
-						body: 'onIdentity:${8:identity}',
-						description: nls.localize('vscode.extension.activationEvents.onIdentity', 'An activation event emitted whenever the specified user identity.'),
 					},
 					{
 						label: 'onUri',
@@ -545,27 +546,47 @@ export const schema: IJSONSchema = {
 		icon: {
 			type: 'string',
 			description: nls.localize('vscode.extension.icon', 'The path to a 128x128 pixel icon.')
+		},
+		l10n: {
+			type: 'string',
+			description: nls.localize({
+				key: 'vscode.extension.l10n',
+				comment: [
+					'{Locked="bundle.l10n._locale_.json"}',
+					'{Locked="vscode.l10n API"}'
+				]
+			}, 'The relative path to a folder containing localization (bundle.l10n.*.json) files. Must be specified if you are using the vscode.l10n API.')
 		}
 	}
 };
 
-export interface IExtensionPointDescriptor {
+export type toArray<T> = T extends Array<any> ? T : T[];
+
+export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
+	/**
+	 * A function which runs before the extension point has been validated and which
+	 * can should collect automatic activation events from the contribution.
+	 */
+	activationEventsGenerator?: IActivationEventsGenerator<toArray<T>>;
 }
 
 export class ExtensionsRegistryImpl {
 
 	private readonly _extensionPoints = new Map<string, ExtensionPoint<any>>();
 
-	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
+	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor<T>): IExtensionPoint<T> {
 		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
 		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
 		this._extensionPoints.set(desc.extensionPoint, result);
+		if (desc.activationEventsGenerator) {
+			ImplicitActivationEvents.register(desc.extensionPoint, desc.activationEventsGenerator);
+		}
 
 		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);

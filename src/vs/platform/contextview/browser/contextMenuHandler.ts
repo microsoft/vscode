@@ -81,7 +81,7 @@ export class ContextMenuHandler {
 				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
-				actionRunner.onBeforeRun(this.onActionRun, this, menuDisposables);
+				actionRunner.onWillRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
 					actionViewItemProvider: delegate.getActionViewItem,
@@ -134,9 +134,7 @@ export class ContextMenuHandler {
 					this.block = null;
 				}
 
-				if (this.focusToReturn) {
-					this.focusToReturn.focus();
-				}
+				this.focusToReturn?.focus();
 			}
 		}, shadowRootElement, !!shadowRootElement);
 	}
@@ -147,9 +145,7 @@ export class ContextMenuHandler {
 		this.contextViewService.hideContextView(false);
 
 		// Restore focus here
-		if (this.focusToReturn) {
-			this.focusToReturn.focus();
-		}
+		this.focusToReturn?.focus();
 	}
 
 	private onDidActionRun(e: IRunEvent): void {

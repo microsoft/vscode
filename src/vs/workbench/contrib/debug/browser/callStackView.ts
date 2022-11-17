@@ -21,7 +21,7 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { posix } from 'vs/base/common/path';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { Icon } from 'vs/platform/action/common/action';
+import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -229,7 +229,7 @@ export class CallStackView extends ViewPane {
 			this.instantiationService.createInstance(ThreadsRenderer),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
-			new LoadAllRenderer(this.themeService),
+			new LoadMoreRenderer(this.themeService),
 			new ShowMoreRenderer(this.themeService)
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
@@ -259,7 +259,7 @@ export class CallStackView extends ViewPane {
 						return e;
 					}
 					if (e instanceof ThreadAndSessionIds) {
-						return LoadAllRenderer.LABEL;
+						return LoadMoreRenderer.LABEL;
 					}
 
 					return localize('showMoreStackFrames2', "Show More Stack Frames");
@@ -459,13 +459,12 @@ export class CallStackView extends ViewPane {
 		const result = { primary, secondary };
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 		const menu = this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		const actionsDisposable = createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
+		createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,
-			getActionsContext: () => getContext(element),
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => getContext(element)
 		});
 	}
 }
@@ -583,16 +582,14 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const contextKeyService = this.contextKeyService.createOverlay(getSessionContextOverlay(session));
 		const menu = data.elementDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
 
-		const menuDisposables = data.elementDisposable.add(new DisposableStore());
 		const setupActionBar = () => {
-			menuDisposables.clear();
 			data.actionBar.clear();
 
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			menuDisposables.add(createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline'));
+			createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline');
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
@@ -622,6 +619,10 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	disposeElement(_element: ITreeNode<IDebugSession, FuzzyScore>, _: number, templateData: ISessionTemplateData): void {
+		templateData.elementDisposable.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
 		templateData.elementDisposable.clear();
 	}
 }
@@ -669,16 +670,14 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const contextKeyService = this.contextKeyService.createOverlay(getThreadContextOverlay(thread));
 		const menu = data.elementDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
 
-		const menuDisposables = data.elementDisposable.add(new DisposableStore());
 		const setupActionBar = () => {
-			menuDisposables.clear();
 			data.actionBar.clear();
 
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			menuDisposables.add(createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline'));
+			createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline');
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
@@ -809,14 +808,14 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 	}
 }
 
-class LoadAllRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds, FuzzyScore, ILabelTemplateData> {
-	static readonly ID = 'loadAll';
-	static readonly LABEL = localize('loadAllStackFrames', "Load All Stack Frames");
+class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds, FuzzyScore, ILabelTemplateData> {
+	static readonly ID = 'loadMore';
+	static readonly LABEL = localize('loadAllStackFrames', "Load More Stack Frames");
 
 	constructor(private readonly themeService: IThemeService) { }
 
 	get templateId(): string {
-		return LoadAllRenderer.ID;
+		return LoadMoreRenderer.ID;
 	}
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
@@ -831,7 +830,7 @@ class LoadAllRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds, 
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
-		data.label.textContent = LoadAllRenderer.LABEL;
+		data.label.textContent = LoadMoreRenderer.LABEL;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ThreadAndSessionIds>, FuzzyScore>, index: number, templateData: ILabelTemplateData, height: number | undefined): void {
@@ -909,7 +908,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 			return ErrorsRenderer.ID;
 		}
 		if (element instanceof ThreadAndSessionIds) {
-			return LoadAllRenderer.ID;
+			return LoadMoreRenderer.ID;
 		}
 
 		// element instanceof Array
@@ -1072,7 +1071,7 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 		}
 
 		// element instanceof ThreadAndSessionIds
-		return LoadAllRenderer.LABEL;
+		return LoadMoreRenderer.LABEL;
 	}
 }
 
@@ -1120,7 +1119,7 @@ registerAction2(class Collapse extends ViewAction<CallStackView> {
 	}
 });
 
-function registerCallStackInlineMenuItem(id: string, title: string, icon: Icon, when: ContextKeyExpression, order: number, precondition?: ContextKeyExpression): void {
+function registerCallStackInlineMenuItem(id: string, title: string | ICommandActionTitle, icon: Icon, when: ContextKeyExpression, order: number, precondition?: ContextKeyExpression): void {
 	MenuRegistry.appendMenuItem(MenuId.DebugCallStackContext, {
 		group: 'inline',
 		order,

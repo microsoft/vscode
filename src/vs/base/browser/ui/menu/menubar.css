@@ -13,6 +13,10 @@
 	overflow: hidden;
 }
 
+.menubar.overflow-menu-only {
+	width: 38px;
+}
+
 .fullscreen .menubar:not(.compact) {
 	margin: 0px;
 	padding: 4px 5px;
@@ -93,6 +97,7 @@
 	justify-content: center;
 }
 
+.menubar:not(.compact) .menubar-menu-button:first-child .toolbar-toggle-more::before,
 .menubar.compact .toolbar-toggle-more::before {
 	content: "\eb94" !important;
 }

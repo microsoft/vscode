@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -146,12 +146,12 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
 						dto.edits.push({
-							_type: WorkspaceEditType.Text,
 							resource: document.uri,
-							edit: {
+							versionId: undefined,
+							textEdit: {
 								range: range && Range.from(range),
 								text: newText,
-								eol: newEol && EndOfLine.from(newEol)
+								eol: newEol && EndOfLine.from(newEol),
 							}
 						});
 					}

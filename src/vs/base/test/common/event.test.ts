@@ -8,7 +8,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
-import { DisposableTracker } from 'vs/base/test/common/utils';
+import { observableValue, transaction } from 'vs/base/common/observable';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -172,8 +174,8 @@ suite('Event', function () {
 		let firstCount = 0;
 		let lastCount = 0;
 		const a = new Emitter({
-			onFirstListenerAdd() { firstCount += 1; },
-			onLastListenerRemove() { lastCount += 1; }
+			onWillAddFirstListener() { firstCount += 1; },
+			onDidRemoveLastListener() { lastCount += 1; }
 		});
 
 		assert.strictEqual(firstCount, 0);
@@ -316,26 +318,29 @@ suite('Event', function () {
 	});
 
 	test('DebounceEmitter', async function () {
-		let callCount = 0;
-		let sum = 0;
-		const emitter = new DebounceEmitter<number>({
-			merge: arr => {
-				callCount += 1;
-				return arr.reduce((p, c) => p + c);
-			}
+		return runWithFakedTimers({}, async function () {
+
+			let callCount = 0;
+			let sum = 0;
+			const emitter = new DebounceEmitter<number>({
+				merge: arr => {
+					callCount += 1;
+					return arr.reduce((p, c) => p + c);
+				}
+			});
+
+			emitter.event(e => { sum = e; });
+
+			const p = Event.toPromise(emitter.event);
+
+			emitter.fire(1);
+			emitter.fire(2);
+
+			await p;
+
+			assert.strictEqual(callCount, 1);
+			assert.strictEqual(sum, 3);
 		});
-
-		emitter.event(e => { sum = e; });
-
-		const p = Event.toPromise(emitter.event);
-
-		emitter.fire(1);
-		emitter.fire(2);
-
-		await p;
-
-		assert.strictEqual(callCount, 1);
-		assert.strictEqual(sum, 3);
 	});
 
 	test('Microtask Emitter', (done) => {
@@ -409,59 +414,64 @@ suite('AsyncEmitter', function () {
 	});
 
 	test('sequential delivery', async function () {
+		return runWithFakedTimers({}, async function () {
 
-		interface E extends IWaitUntil {
-			foo: boolean;
-		}
+			interface E extends IWaitUntil {
+				foo: boolean;
+			}
 
-		let globalState = 0;
-		const emitter = new AsyncEmitter<E>();
+			let globalState = 0;
+			const emitter = new AsyncEmitter<E>();
 
-		emitter.event(e => {
-			e.waitUntil(timeout(10).then(_ => {
-				assert.strictEqual(globalState, 0);
-				globalState += 1;
-			}));
+			emitter.event(e => {
+				e.waitUntil(timeout(10).then(_ => {
+					assert.strictEqual(globalState, 0);
+					globalState += 1;
+				}));
+			});
+
+			emitter.event(e => {
+				e.waitUntil(timeout(1).then(_ => {
+					assert.strictEqual(globalState, 1);
+					globalState += 1;
+				}));
+			});
+
+			await emitter.fireAsync({ foo: true }, CancellationToken.None);
+			assert.strictEqual(globalState, 2);
 		});
-
-		emitter.event(e => {
-			e.waitUntil(timeout(1).then(_ => {
-				assert.strictEqual(globalState, 1);
-				globalState += 1;
-			}));
-		});
-
-		await emitter.fireAsync({ foo: true }, CancellationToken.None);
-		assert.strictEqual(globalState, 2);
 	});
 
 	test('sequential, in-order delivery', async function () {
-		interface E extends IWaitUntil {
-			foo: number;
-		}
-		const events: number[] = [];
-		let done = false;
-		const emitter = new AsyncEmitter<E>();
+		return runWithFakedTimers({}, async function () {
 
-		// e1
-		emitter.event(e => {
-			e.waitUntil(timeout(10).then(async _ => {
-				if (e.foo === 1) {
-					await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
-					assert.deepStrictEqual(events, [1, 2]);
-					done = true;
-				}
-			}));
+			interface E extends IWaitUntil {
+				foo: number;
+			}
+			const events: number[] = [];
+			let done = false;
+			const emitter = new AsyncEmitter<E>();
+
+			// e1
+			emitter.event(e => {
+				e.waitUntil(timeout(10).then(async _ => {
+					if (e.foo === 1) {
+						await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
+						assert.deepStrictEqual(events, [1, 2]);
+						done = true;
+					}
+				}));
+			});
+
+			// e2
+			emitter.event(e => {
+				events.push(e.foo);
+				e.waitUntil(timeout(7));
+			});
+
+			await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
+			assert.ok(done);
 		});
-
-		// e2
-		emitter.event(e => {
-			events.push(e.foo);
-			e.waitUntil(timeout(7));
-		});
-
-		await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
-		assert.ok(done);
 	});
 
 	test('catch errors', async function () {
@@ -621,6 +631,44 @@ suite('PausableEmitter', function () {
 		emitter.fire(3);
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);
 
+	});
+
+	test('empty pause with merge', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>({ merge: a => a[0] });
+		emitter.event(e => data.push(1));
+
+		emitter.pause();
+		emitter.resume();
+		assert.deepStrictEqual(data, []);
+	});
+
+});
+
+suite('Event utils - ensureNoDisposablesAreLeakedInTestSuite', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fromObservable', function () {
+
+		const obs = observableValue('test', 12);
+		const event = Event.fromObservable(obs);
+
+		const values: number[] = [];
+		const d = event(n => { values.push(n); });
+
+		obs.set(3, undefined);
+		obs.set(13, undefined);
+		obs.set(3, undefined);
+		obs.set(33, undefined);
+		obs.set(1, undefined);
+
+		transaction(tx => {
+			obs.set(334, tx);
+			obs.set(99, tx);
+		});
+
+		assert.deepStrictEqual(values, ([3, 13, 3, 33, 1, 99]));
+		d.dispose();
 	});
 });
 
@@ -963,7 +1011,7 @@ suite('Event utils', () => {
 
 	test('dispose is reentrant', () => {
 		const emitter = new Emitter<number>({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				emitter.dispose();
 			}
 		});

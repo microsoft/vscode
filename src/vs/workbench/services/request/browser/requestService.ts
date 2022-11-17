@@ -41,7 +41,7 @@ export class BrowserRequestService extends RequestService {
 	}
 
 	private _makeRemoteRequest(connection: IRemoteAgentConnection, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return connection.withChannel('request', channel => RequestChannelClient.request(channel, options, token));
+		return connection.withChannel('request', channel => new RequestChannelClient(channel).request(options, token));
 	}
 }
 

@@ -5,17 +5,12 @@
 
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
-
-const restart = localize('restart', "&&Restart");
 
 export class ConfigureDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -34,9 +29,6 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 	public async run(accessor: ServicesAccessor): Promise<void> {
 		const languagePackService: ILanguagePackService = accessor.get(ILanguagePackService);
 		const quickInputService: IQuickInputService = accessor.get(IQuickInputService);
-		const hostService: IHostService = accessor.get(IHostService);
-		const dialogService: IDialogService = accessor.get(IDialogService);
-		const productService: IProductService = accessor.get(IProductService);
 		const localeService: ILocaleService = accessor.get(ILocaleService);
 
 		const installedLanguages = await languagePackService.getInstalledLanguages();
@@ -72,19 +64,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		disposables.add(qp.onDidAccept(async () => {
 			const selectedLanguage = qp.activeItems[0];
 			qp.hide();
-
-			if (await localeService.setLocale(selectedLanguage)) {
-				const restartDialog = await dialogService.confirm({
-					type: 'info',
-					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", productService.nameLong),
-					primaryButton: restart
-				});
-
-				if (restartDialog.confirmed) {
-					hostService.restart();
-				}
-			}
+			await localeService.setLocale(selectedLanguage);
 		}));
 
 		qp.show();
@@ -108,21 +88,6 @@ export class ClearDisplayLanguageAction extends Action2 {
 
 	public async run(accessor: ServicesAccessor): Promise<void> {
 		const localeService: ILocaleService = accessor.get(ILocaleService);
-		const dialogService: IDialogService = accessor.get(IDialogService);
-		const productService: IProductService = accessor.get(IProductService);
-		const hostService: IHostService = accessor.get(IHostService);
-
-		if (await localeService.clearLocalePreference()) {
-			const restartDialog = await dialogService.confirm({
-				type: 'info',
-				message: localize('relaunchAfterClearDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-				detail: localize('relaunchAfterClearDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", productService.nameLong),
-				primaryButton: restart
-			});
-
-			if (restartDialog.confirmed) {
-				hostService.restart();
-			}
-		}
+		await localeService.clearLocalePreference();
 	}
 }

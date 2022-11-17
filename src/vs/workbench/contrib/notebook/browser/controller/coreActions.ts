@@ -14,7 +14,7 @@ import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_E
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { TypeConstraint } from 'vs/base/common/types';
@@ -42,7 +42,8 @@ export const enum CellToolbarOrder {
 export const enum CellOverflowToolbarGroups {
 	Copy = '1_copy',
 	Insert = '2_insert',
-	Edit = '3_edit'
+	Edit = '3_edit',
+	Share = '4_share'
 }
 
 export interface INotebookActionContext {
@@ -426,4 +427,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	title: localize('notebookMenu.cellTitle', "Notebook Cell"),
 	group: CellOverflowToolbarGroups.Insert,
 	when: NOTEBOOK_EDITOR_FOCUSED
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellTitle, {
+	title: localize('miShare', "Share"),
+	submenu: MenuId.EditorContextShare,
+	group: CellOverflowToolbarGroups.Share
 });

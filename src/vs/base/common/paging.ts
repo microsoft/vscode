@@ -6,7 +6,6 @@
 import { range } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { isArray } from 'vs/base/common/types';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -65,7 +64,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 	get length(): number { return this.pager.total; }
 
 	constructor(arg: IPager<T> | T[]) {
-		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
+		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 

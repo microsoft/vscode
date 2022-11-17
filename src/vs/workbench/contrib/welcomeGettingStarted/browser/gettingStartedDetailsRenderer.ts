@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { locale } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
-import { asWebviewUri } from 'vs/workbench/common/webview';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -72,9 +72,11 @@ export class GettingStartedDetailsRenderer {
 						margin: 5px;
 						cursor: pointer;
 					}
+					checkbox > img {
+						margin-bottom: 4px;
+					}
 					checkbox.checked > img {
 						box-sizing: border-box;
-						margin-bottom: 4px;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);
@@ -246,7 +248,7 @@ export class GettingStartedDetailsRenderer {
 
 const transformUri = (src: string, base: URI) => {
 	const path = joinPath(base, src);
-	return asWebviewUri(path).toString();
+	return asWebviewUri(path).toString(true);
 };
 
 const transformUris = (content: string, base: URI): string => content

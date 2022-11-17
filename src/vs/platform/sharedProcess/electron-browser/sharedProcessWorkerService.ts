@@ -281,7 +281,7 @@ class SharedProcessWebWorker extends Disposable {
 			id: SharedProcessWorkerMessages.Spawn,
 			configuration,
 			environment: {
-				bootstrapPath: FileAccess.asFileUri('bootstrap-fork', require).fsPath
+				bootstrapPath: FileAccess.asFileUri('bootstrap-fork').fsPath
 			}
 		};
 

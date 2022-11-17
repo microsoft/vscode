@@ -14,11 +14,11 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
@@ -60,6 +60,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IdleValue } from 'vs/base/common/async';
 
 let EDITOR_ID = 0;
 
@@ -241,8 +242,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution };
-	protected _actions: { [key: string]: editorCommon.IEditorAction };
+	protected readonly _contributions = new DisposableMap<string, editorCommon.IEditorContribution | IdleValue<editorCommon.IEditorContribution | null>>();
+	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -318,9 +319,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._modelData = null;
 
-		this._contributions = {};
-		this._actions = {};
-
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._register(this._focusTracker.onChange(() => {
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
@@ -336,22 +334,39 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			contributions = EditorExtensionsRegistry.getEditorContributions();
 		}
 		for (const desc of contributions) {
-			if (this._contributions[desc.id]) {
+			if (this._contributions.has(desc.id)) {
 				onUnexpectedError(new Error(`Cannot have two contributions with the same id ${desc.id}`));
 				continue;
 			}
 			try {
-				const contribution = this._instantiationService.createInstance(desc.ctor, this);
-				this._contributions[desc.id] = contribution;
+				if (desc.instantiation === EditorContributionInstantiation.Idle) {
+					const contribution = new IdleValue(() => {
+						try {
+							// Replace the original entry in _contributions with the resolved contribution
+							const instance = this._instantiationService.createInstance(desc.ctor, this);
+							this._contributions.set(desc.id, instance);
+							return instance;
+						} catch (err) {
+							// In case of an exception, we delete the idle value from _contributions
+							onUnexpectedError(err);
+							this._contributions.deleteAndDispose(desc.id);
+							return null;
+						}
+					});
+					this._contributions.set(desc.id, contribution);
+				} else {
+					const contribution = this._instantiationService.createInstance(desc.ctor, this);
+					this._contributions.set(desc.id, contribution);
+				}
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 		}
 
-		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
-			if (this._actions[action.id]) {
+		for (const action of EditorExtensionsRegistry.getEditorActions()) {
+			if (this._actions.has(action.id)) {
 				onUnexpectedError(new Error(`Cannot have two actions with the same id ${action.id}`));
-				return;
+				continue;
 			}
 			const internalAction = new InternalEditorAction(
 				action.id,
@@ -365,13 +380,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				},
 				this._contextKeyService
 			);
-			this._actions[internalAction.id] = internalAction;
-		});
+			this._actions.set(internalAction.id, internalAction);
+		}
+
+		const isDropIntoEnabled = () => {
+			return !this._configuration.options.get(EditorOption.readOnly)
+				&& this._configuration.options.get(EditorOption.dropIntoEditor).enabled;
+		};
 
 		this._register(new dom.DragAndDropObserver(this._domElement, {
 			onDragEnter: () => undefined,
 			onDragOver: e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!isDropIntoEnabled()) {
 					return;
 				}
 
@@ -381,7 +401,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 			},
 			onDrop: async e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!isDropIntoEnabled()) {
 					return;
 				}
 
@@ -424,14 +444,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.removeCodeEditor(this);
 
 		this._focusTracker.dispose();
-
-		const keys = Object.keys(this._contributions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const contributionId = keys[i];
-			this._contributions[contributionId].dispose();
-		}
-		this._contributions = {};
-		this._actions = {};
+		this._contributions.dispose();
+		this._actions.clear();
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
 
@@ -564,31 +578,47 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getWhitespaces();
 	}
 
-	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number): number {
+	private static _getVerticalOffsetAfterPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean): number {
 		const modelPosition = modelData.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});
 		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+		return modelData.viewModel.viewLayout.getVerticalOffsetAfterLineNumber(viewPosition.lineNumber, includeViewZones);
 	}
 
-	public getTopForLineNumber(lineNumber: number): number {
+	public getTopForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1, includeViewZones);
 	}
 
 	public getTopForPosition(lineNumber: number, column: number): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column, false);
 	}
 
-	public setHiddenAreas(ranges: IRange[]): void {
-		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
+	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean = false): number {
+		const modelPosition = modelData.model.validatePosition({
+			lineNumber: modelLineNumber,
+			column: modelColumn
+		});
+		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber, includeViewZones);
+	}
+
+	public getBottomForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
+	}
+
+	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -980,10 +1010,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const contributionsState: { [key: string]: any } = {};
 
-		const keys = Object.keys(this._contributions);
-		for (const id of keys) {
-			const contribution = this._contributions[id];
-			if (typeof contribution.saveViewState === 'function') {
+		for (const [id, contribution] of this._contributions) {
+			if (!(contribution instanceof IdleValue) && typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
@@ -1014,11 +1042,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 
 			const contributionsState = codeEditorState.contributionsState || {};
-			const keys = Object.keys(this._contributions);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const id = keys[i];
-				const contribution = this._contributions[id];
-				if (typeof contribution.restoreViewState === 'function') {
+			for (const [id, contribution] of this._contributions) {
+				if (!(contribution instanceof IdleValue) && typeof contribution.restoreViewState === 'function') {
 					contribution.restoreViewState(contributionsState[id]);
 				}
 			}
@@ -1038,19 +1063,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null {
-		return <T>(this._contributions[id] || null);
+		const entry = this._contributions.get(id);
+		if (!entry) {
+			return null;
+		}
+
+		return (entry instanceof IdleValue ? entry.value : entry) as T | null;
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
-		const result: editorCommon.IEditorAction[] = [];
-
-		const keys = Object.keys(this._actions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const id = keys[i];
-			result.push(this._actions[id]);
-		}
-
-		return result;
+		return Array.from(this._actions.values());
 	}
 
 	public getSupportedActions(): editorCommon.IEditorAction[] {
@@ -1061,8 +1083,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return result;
 	}
 
-	public getAction(id: string): editorCommon.IEditorAction {
-		return this._actions[id] || null;
+	public getAction(id: string): editorCommon.IEditorAction | null {
+		return this._actions.get(id) || null;
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
@@ -1161,9 +1183,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
-		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		this._modelData.viewModel.paste(text, pasteOnNewLine, multicursorText, source);
-		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
+		const viewModel = this._modelData.viewModel;
+		const startPosition = viewModel.getSelection().getStartPosition();
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
+		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),

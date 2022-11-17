@@ -10,7 +10,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { append, $, addDisposableListener, EventType, EventHelper, prepend } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
@@ -25,6 +25,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface IFeedback {
 	feedback: string;
@@ -280,13 +281,12 @@ export class FeedbackWidget extends Disposable {
 		hideButtonLabel.textContent = localize('showFeedback', "Show Feedback Icon in Status Bar");
 
 		// Button: Send Feedback
-		this.sendButton = new Button(buttonsContainer);
+		this.sendButton = new Button(buttonsContainer, defaultButtonStyles);
 		this.sendButton.enabled = false;
 		this.sendButton.label = localize('tweet', "Tweet");
 		prepend(this.sendButton.element, $(`span${Codicon.twitter.cssSelector}`));
 		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = localize('tweetFeedback', "Tweet Feedback");
-		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 

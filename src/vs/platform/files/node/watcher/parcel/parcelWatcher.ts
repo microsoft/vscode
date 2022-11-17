@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as parcelWatcher from '@parcel/watcher';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { DeferredPromise, RunOnceScheduler, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -13,7 +13,7 @@ import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
 import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -653,7 +653,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	protected normalizeRequests(requests: IRecursiveWatchRequest[]): IRecursiveWatchRequest[] {
+	protected normalizeRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
 		const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
@@ -674,16 +674,35 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				continue; // path is ignored entirely (via `**` glob exclude)
 			}
 
+			// Check for overlapping requests
 			if (requestTrie.findSubstr(request.path)) {
 				try {
 					const realpath = realpathSync(request.path);
 					if (realpath === request.path) {
 						this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
 
-						continue; // path is not a symbolic link or similar
+						continue;
 					}
 				} catch (error) {
-					continue; // invalid path - ignore from watching
+					this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
+
+					continue;
+				}
+			}
+
+			// Check for invalid paths
+			if (validatePaths) {
+				try {
+					const stat = statSync(request.path);
+					if (!stat.isDirectory()) {
+						this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
+
+						continue;
+					}
+				} catch (error) {
+					this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
+
+					continue;
 				}
 			}
 

@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
-import { forEach } from 'vs/base/common/collections';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 
@@ -74,13 +73,13 @@ suite('ExtHostTypeConverter', function () {
 		const data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
 		// assert that both uri get extracted but that the latter is only decoded once...
 		assert.strictEqual(size(data.uris!), 2);
-		forEach(data.uris!, entry => {
-			if (entry.value.scheme === 'file') {
-				assert.ok(URI.revive(entry.value).toString().indexOf('file:///c%3A') === 0);
+		for (const value of Object.values(data.uris!)) {
+			if (value.scheme === 'file') {
+				assert.ok(URI.revive(value).toString().indexOf('file:///c%3A') === 0);
 			} else {
-				assert.strictEqual(entry.value.scheme, 'command');
+				assert.strictEqual(value.scheme, 'command');
 			}
-		});
+		}
 	});
 
 	test('Notebook metadata is ignored when using Notebook Serializer #125716', function () {

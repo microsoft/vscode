@@ -407,9 +407,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		model.setValue('');
 
-		return withOracle((model, editor) => {
+		return withOracle(async (model, editor) => {
 
-			return assertEvent(model.onDidSuggest, () => {
+			await assertEvent(model.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 1 });
 				editor.trigger('keyboard', Handler.Type, { text: 'foo' });
 
@@ -419,16 +419,29 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'foo.bar');
 
-				return assertEvent(model.onDidSuggest, () => {
-					editor.trigger('keyboard', Handler.Type, { text: '.' });
+			});
 
-				}, event => {
-					assert.strictEqual(event.auto, true);
-					assert.strictEqual(event.completionModel.items.length, 2);
-					const [first, second] = event.completionModel.items;
-					assert.strictEqual(first.completion.label, 'foo.bar');
-					assert.strictEqual(second.completion.label, 'boom');
-				});
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+			}, event => {
+				// SYNC
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.strictEqual(first.completion.label, 'foo.bar');
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				// nothing -> triggered by the trigger character typing (see above)
+
+			}, event => {
+				// ASYNC
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				const [first, second] = event.completionModel.items;
+				assert.strictEqual(first.completion.label, 'foo.bar');
+				assert.strictEqual(second.completion.label, 'boom');
 			});
 		});
 	});

@@ -59,7 +59,7 @@ export interface NotebookLayoutConfiguration {
 	globalToolbar: boolean;
 	consolidatedOutputButton: boolean;
 	consolidatedRunButton: boolean;
-	showFoldingControls: 'always' | 'mouseover';
+	showFoldingControls: 'always' | 'never' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
 	outputFontSize: number;
@@ -141,7 +141,7 @@ export class NotebookOptions extends Disposable {
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
-		const outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
+		const outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || fontSize;
 		const outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
@@ -326,7 +326,7 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (outputFontSize) {
-			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) ?? configuration.fontSize;
+			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || configuration.fontSize;
 		}
 
 		if (markupFontSize) {
@@ -385,7 +385,7 @@ export class NotebookOptions extends Disposable {
 	}
 
 	private _computeShowFoldingControlsOption() {
-		return this.configurationService.getValue<'always' | 'mouseover'>(NotebookSetting.showFoldingControls) ?? 'mouseover';
+		return this.configurationService.getValue<'always' | 'never' | 'mouseover'>(NotebookSetting.showFoldingControls) ?? 'mouseover';
 	}
 
 	private _computeFocusIndicatorOption() {

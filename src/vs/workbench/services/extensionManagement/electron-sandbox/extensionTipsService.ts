@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -16,8 +16,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 
 class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
-
-	override _serviceBrand: any;
 
 	private readonly channel: IChannel;
 
@@ -53,4 +51,4 @@ class NativeExtensionTipsService extends ExtensionTipsService implements IExtens
 
 }
 
-registerSingleton(IExtensionTipsService, NativeExtensionTipsService);
+registerSingleton(IExtensionTipsService, NativeExtensionTipsService, InstantiationType.Delayed);

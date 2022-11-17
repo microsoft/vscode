@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { toDisposable, MutableDisposable, DisposableStore, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -27,12 +27,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export interface ICompositeActivity {
-	badge: IBadge;
-	clazz?: string;
-	priority: number;
+	readonly badge: IBadge;
+	readonly clazz?: string;
+	readonly priority: number;
 }
 
 export interface ICompositeBar {
+
 	/**
 	 * Unpins a composite from the composite bar.
 	 */
@@ -114,30 +115,34 @@ export class ActivityAction extends Action {
 }
 
 export interface ICompositeBarColors {
-	activeBackgroundColor?: Color;
-	inactiveBackgroundColor?: Color;
-	activeBorderColor?: Color;
-	activeBackground?: Color;
-	activeBorderBottomColor?: Color;
-	activeForegroundColor?: Color;
-	inactiveForegroundColor?: Color;
-	badgeBackground?: Color;
-	badgeForeground?: Color;
-	dragAndDropBorder?: Color;
+	readonly activeBackgroundColor?: Color;
+	readonly inactiveBackgroundColor?: Color;
+	readonly activeBorderColor?: Color;
+	readonly activeBackground?: Color;
+	readonly activeBorderBottomColor?: Color;
+	readonly activeForegroundColor?: Color;
+	readonly inactiveForegroundColor?: Color;
+	readonly badgeBackground?: Color;
+	readonly badgeForeground?: Color;
+	readonly dragAndDropBorder?: Color;
 }
 
 export interface IActivityHoverOptions {
-	position: () => HoverPosition;
+	readonly position: () => HoverPosition;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
-	icon?: boolean;
-	colors: (theme: IColorTheme) => ICompositeBarColors;
-	hoverOptions: IActivityHoverOptions;
-	hasPopup?: boolean;
+	readonly icon?: boolean;
+	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
+
+	readonly hoverOptions: IActivityHoverOptions;
+	readonly hasPopup?: boolean;
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
+
+	private static hoverLeaveTime = 0;
+
 	protected container!: HTMLElement;
 	protected label!: HTMLElement;
 	protected badge!: HTMLElement;
@@ -151,8 +156,6 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private readonly hoverDisposables = this._register(new DisposableStore());
 	private lastHover: IHoverWidget | undefined;
 	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
-
-	private static _hoverLeaveTime = 0;
 
 	constructor(
 		action: ActivityAction,
@@ -277,7 +280,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	}
 
 	protected updateBadge(): void {
-		const action = this.getAction();
+		const action = this.action;
 		if (!this.badge || !this.badgeContent || !(action instanceof ActivityAction)) {
 			return;
 		}
@@ -346,17 +349,15 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {
-			// Only apply codicon class to activity bar icon items without iconUrl
-			this.label.classList.add('codicon');
+			this.label.classList.add('codicon'); // Only apply codicon class to activity bar icon items without iconUrl
 		}
 
 		if (!this.options.icon) {
-			this.label.textContent = this.getAction().label;
+			this.label.textContent = this.action.label;
 		}
 	}
 
 	private updateTitle(): void {
-		// Title
 		const title = this.computeTitle();
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
@@ -367,18 +368,20 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		});
 	}
 
-	private computeTitle(): string {
+	protected computeTitle(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
-		const badge = (this.getAction() as ActivityAction).getBadge();
+		const badge = (this.action as ActivityAction).getBadge();
 		if (badge?.getDescription()) {
 			title = localize('badgeTitle', "{0} - {1}", title, badge.getDescription());
 		}
+
 		return title;
 	}
 
 	private computeKeybindingLabel(): string | undefined | null {
 		const keybinding = this.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.activity.keybindingId) : null;
+
 		return keybinding?.getLabel();
 	}
 
@@ -386,20 +389,23 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.hoverDisposables.clear();
 
 		this.updateTitle();
+
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 			if (!this.showHoverScheduler.isScheduled()) {
-				if (Date.now() - ActivityActionViewItem._hoverLeaveTime < 200) {
+				if (Date.now() - ActivityActionViewItem.hoverLeaveTime < 200) {
 					this.showHover(true);
 				} else {
 					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
 				}
 			}
 		}, true));
+
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-			ActivityActionViewItem._hoverLeaveTime = Date.now();
+			ActivityActionViewItem.hoverLeaveTime = Date.now();
 			this.hoverService.hideHover();
 			this.showHoverScheduler.cancel();
 		}, true));
+
 		this.hoverDisposables.add(toDisposable(() => {
 			this.hoverService.hideHover();
 			this.showHoverScheduler.cancel();
@@ -410,6 +416,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.lastHover && !this.lastHover.isDisposed) {
 			return;
 		}
+
 		const hoverPosition = this.options.hoverOptions!.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
@@ -451,6 +458,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
+
 	private actions: IAction[] = [];
 
 	constructor(
@@ -472,7 +480,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	showMenu(): void {
 		if (this.actions) {
-			dispose(this.actions);
+			disposeIfDisposable(this.actions);
 		}
 
 		this.actions = this.getActions();
@@ -481,7 +489,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 			getAnchor: () => this.container,
 			getActions: () => this.actions,
 			getCheckedActionsRepresentation: () => 'radio',
-			onHide: () => dispose(this.actions)
+			onHide: () => disposeIfDisposable(this.actions)
 		});
 	}
 
@@ -512,7 +520,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		super.dispose();
 
 		if (this.actions) {
-			this.actions = dispose(this.actions);
+			this.actions = disposeIfDisposable(this.actions);
 		}
 	}
 }
@@ -568,23 +576,20 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.showContextMenu(container);
 		}));
 
-		let insertDropBefore: Before2D | undefined = undefined;
 		// Allow to drag
+		let insertDropBefore: Before2D | undefined = undefined;
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
 			onDragOver: e => {
 				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
 				toggleDropEffect(e.eventData.dataTransfer, 'move', isValidMove);
 				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
-
 			onDragLeave: e => {
 				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
-
 			onDragEnd: e => {
 				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
-
 			onDrop: e => {
 				EventHelper.stop(e.eventData, true);
 				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, insertDropBefore);
@@ -598,15 +603,15 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				if (e.eventData.dataTransfer) {
 					e.eventData.dataTransfer.effectAllowed = 'move';
 				}
-				// Remove focus indicator when dragging
-				this.blur();
+
+				this.blur(); // Remove focus indicator when dragging
 			}
 		}));
 
 		// Activate on drag over to reveal targets
-		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
-			if (!this.getAction().checked) {
-				this.getAction().run();
+		[this.badge, this.label].forEach(element => this._register(new DelayedDragHandler(element, () => {
+			if (!this.action.checked) {
+				this.action.run();
 			}
 		})));
 
@@ -692,7 +697,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	protected override updateChecked(): void {
-		if (this.getAction().checked) {
+		if (this.action.checked) {
 			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', this.container.title);
 			this.container.setAttribute('aria-expanded', 'true');
@@ -703,6 +708,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.container.setAttribute('aria-expanded', 'false');
 			this.container.setAttribute('aria-selected', 'false');
 		}
+
 		this.updateStyles();
 	}
 
@@ -711,7 +717,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			return;
 		}
 
-		if (this.getAction().enabled) {
+		if (this.action.enabled) {
 			this.element.classList.remove('disabled');
 		} else {
 			this.element.classList.add('disabled');
@@ -720,6 +726,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	override dispose(): void {
 		super.dispose();
+
 		this.label.remove();
 	}
 }

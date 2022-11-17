@@ -733,7 +733,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

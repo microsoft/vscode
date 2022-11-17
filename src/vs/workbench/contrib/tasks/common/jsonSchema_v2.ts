@@ -45,6 +45,13 @@ const shellCommand: IJSONSchema = {
 	deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property of the task and the shell property in the options instead. See also the 1.14 release notes.')
 };
 
+
+const hide: IJSONSchema = {
+	type: 'boolean',
+	description: nls.localize('JsonSchema.hide', 'Hide this task from the run task quick pick'),
+	default: true
+};
+
 const taskIdentifier: IJSONSchema = {
 	type: 'object',
 	additionalProperties: true,
@@ -407,6 +414,7 @@ const taskConfiguration: IJSONSchema = {
 		},
 		presentation: Objects.deepClone(presentation),
 		icon: Objects.deepClone(icon),
+		hide: Objects.deepClone(hide),
 		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
@@ -479,6 +487,7 @@ taskDescriptionProperties.command = Objects.deepClone(command);
 taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
+taskDescriptionProperties.hide = Objects.deepClone(hide);
 taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);

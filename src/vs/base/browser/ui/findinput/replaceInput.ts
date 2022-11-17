@@ -42,7 +42,7 @@ export interface IReplaceInputStyles extends IInputBoxStyles {
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseToggle', "Preserve Case");
 
-export class PreserveCaseToggle extends Toggle {
+class PreserveCaseToggle extends Toggle {
 	constructor(opts: IFindInputToggleOpts) {
 		super({
 			// TODO: does this need its own icon?
@@ -353,9 +353,7 @@ export class ReplaceInput extends Widget {
 	}
 
 	public validate(): void {
-		if (this.inputBox) {
-			this.inputBox.validate();
-		}
+		this.inputBox?.validate();
 	}
 
 	public showMessage(message: InputBoxMessage): void {
@@ -363,15 +361,11 @@ export class ReplaceInput extends Widget {
 	}
 
 	public clearMessage(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	private clearValidation(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	public set width(newWidth: number) {
