@@ -46,4 +46,7 @@
 	border-radius: 10px;
 	font-size: 12px;
 	position: absolute;
+
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
 }
