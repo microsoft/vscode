@@ -221,24 +221,25 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
-		white-space: pre-wrap;
-		word-wrap: break-word;
-
 		font-size: var(--notebook-cell-output-font-size);
 		user-select: text;
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
 	}
-
+	output-plaintext,
+	.traceback {
+		white-space: pre-wrap;
+		word-wrap: break-word;
+	}
 	.output > span.scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
 		border: var(--vscode-editorWidget-border);
 		border-style: solid;
 		padding-left: 4px;
-		margin-left: -4px;
-		margin-right: -4px;
+		box-sizing: border-box;
+		border-width: 1px;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
