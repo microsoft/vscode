@@ -141,6 +141,16 @@ function startup(codeCachePath, nlsConfig) {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
+	// VSCODE_GLOBALS: node_modules
+	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), {
+		get(target, mod) {
+			if (!target[mod] && typeof mod === 'string') {
+				target[mod] = require(mod);
+			}
+			return target[mod];
+		}
+	});
+
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
 	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
@@ -318,6 +328,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 

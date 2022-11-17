@@ -37,6 +37,17 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
+// VSCODE_GLOBALS: node_modules
+globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), {
+	get(target, mod) {
+		if (!target[mod] && typeof mod === 'string') {
+			target[mod] = require(mod);
+		}
+		return target[mod];
+	}
+});
+
+
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
