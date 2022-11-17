@@ -143,6 +143,7 @@ export class ExtHostTextEditorOptions {
 	private _logService: ILogService;
 
 	private _tabSize!: number;
+	private _indentSize!: number;
 	private _insertSpaces!: boolean;
 	private _cursorStyle!: TextEditorCursorStyle;
 	private _lineNumbers!: TextEditorLineNumbersStyle;
@@ -163,6 +164,12 @@ export class ExtHostTextEditorOptions {
 			},
 			set tabSize(value: number | string) {
 				that._setTabSize(value);
+			},
+			get indentSize(): number | 'tabSize' {
+				return that._indentSize;
+			},
+			set indentSize(value: number | 'tabSize') {
+				that._setIndentSize(value);
 			},
 			get insertSpaces(): boolean | string {
 				return that._insertSpaces;
@@ -187,6 +194,7 @@ export class ExtHostTextEditorOptions {
 
 	public _accept(source: IResolvedTextEditorConfiguration): void {
 		this._tabSize = source.tabSize;
+		this._indentSize = source.indentSize;
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
 		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
@@ -228,6 +236,45 @@ export class ExtHostTextEditorOptions {
 		}
 		this._warnOnError('setTabSize', this._proxy.$trySetOptions(this._id, {
 			tabSize: tabSize
+		}));
+	}
+
+	// --- internal: indentSize
+
+	private _validateIndentSize(value: number | string): number | 'tabSize' | null {
+		if (value === 'tabSize') {
+			return 'tabSize';
+		}
+		if (typeof value === 'number') {
+			const r = Math.floor(value);
+			return (r > 0 ? r : null);
+		}
+		if (typeof value === 'string') {
+			const r = parseInt(value, 10);
+			if (isNaN(r)) {
+				return null;
+			}
+			return (r > 0 ? r : null);
+		}
+		return null;
+	}
+
+	private _setIndentSize(value: number | string) {
+		const indentSize = this._validateIndentSize(value);
+		if (indentSize === null) {
+			// ignore invalid call
+			return;
+		}
+		if (typeof indentSize === 'number') {
+			if (this._indentSize === indentSize) {
+				// nothing to do
+				return;
+			}
+			// reflect the new indentSize value immediately
+			this._indentSize = indentSize;
+		}
+		this._warnOnError('setIndentSize', this._proxy.$trySetOptions(this._id, {
+			indentSize: indentSize
 		}));
 	}
 
@@ -298,18 +345,18 @@ export class ExtHostTextEditorOptions {
 			}
 		}
 
-		// if (typeof newOptions.indentSize !== 'undefined') {
-		// 	const indentSize = this._validateIndentSize(newOptions.indentSize);
-		// 	if (indentSize === 'tabSize') {
-		// 		hasUpdate = true;
-		// 		bulkConfigurationUpdate.indentSize = indentSize;
-		// 	} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
-		// 		// reflect the new indentSize value immediately
-		// 		this._indentSize = indentSize;
-		// 		hasUpdate = true;
-		// 		bulkConfigurationUpdate.indentSize = indentSize;
-		// 	}
-		// }
+		if (typeof newOptions.indentSize !== 'undefined') {
+			const indentSize = this._validateIndentSize(newOptions.indentSize);
+			if (indentSize === 'tabSize') {
+				hasUpdate = true;
+				bulkConfigurationUpdate.indentSize = indentSize;
+			} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
+				// reflect the new indentSize value immediately
+				this._indentSize = indentSize;
+				hasUpdate = true;
+				bulkConfigurationUpdate.indentSize = indentSize;
+			}
+		}
 
 		if (typeof newOptions.insertSpaces !== 'undefined') {
 			const insertSpaces = this._validateInsertSpaces(newOptions.insertSpaces);

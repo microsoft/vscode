@@ -15,6 +15,14 @@ import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/comm
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
+/**
+ * A special class used to denoate a telemetry value which should not be clean.
+ * This is because that value is "Trusted" not to contain identifiable information such as paths
+ */
+export class TrustedTelemetryValue {
+	constructor(public readonly value: any) { }
+}
+
 export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 	readonly sendErrorTelemetry = false;
@@ -399,6 +407,12 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
  */
 export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]): Record<string, any> {
 	return cloneAndChange(data, value => {
+
+		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
+		if (value instanceof TrustedTelemetryValue) {
+			return value.value;
+		}
+
 		// We only know how to clean strings
 		if (typeof value === 'string') {
 			let updatedProperty = value;

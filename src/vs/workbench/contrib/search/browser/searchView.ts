@@ -62,7 +62,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { appendKeyBindingLabel } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActionsFind';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/contrib/search/browser/searchResultsView';
@@ -750,8 +751,8 @@ export class SearchView extends ViewPane {
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{

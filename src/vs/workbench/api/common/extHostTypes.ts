@@ -515,9 +515,7 @@ export class RemoteAuthorityResolverError extends Error {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
-		}
+		Object.setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 	}
 }
 
@@ -2654,6 +2652,14 @@ export class ThemeIcon {
 		this.id = id;
 		this.color = color;
 	}
+
+	static isThemeIcon(thing: any) {
+		if (typeof thing.id !== 'string') {
+			console.log('INVALID ThemeIcon, invalid id', thing.id);
+			return false;
+		}
+		return true;
+	}
 }
 ThemeIcon.File = new ThemeIcon('file');
 ThemeIcon.Folder = new ThemeIcon('folder');
@@ -2946,9 +2952,7 @@ export class FileSystemError extends Error {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
-		}
+		Object.setPrototypeOf(this, FileSystemError.prototype);
 
 		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
 			// nice stack traces
@@ -3278,13 +3282,17 @@ export enum ExtensionKind {
 export class FileDecoration {
 
 	static validate(d: FileDecoration): boolean {
-		if (d.badge) {
+		if (typeof d.badge === 'string') {
 			let len = nextCharLength(d.badge, 0);
 			if (len < d.badge.length) {
 				len += nextCharLength(d.badge, len);
 			}
 			if (d.badge.length > len) {
 				throw new Error(`The 'badge'-property must be undefined or a short character`);
+			}
+		} else if (d.badge) {
+			if (!ThemeIcon.isThemeIcon(d.badge)) {
+				throw new Error(`The 'badge'-property is not a valid ThemeIcon`);
 			}
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
@@ -3293,12 +3301,12 @@ export class FileDecoration {
 		return true;
 	}
 
-	badge?: string;
+	badge?: string | vscode.ThemeIcon;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
 	propagate?: boolean;
 
-	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+	constructor(badge?: string | ThemeIcon, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
 		this.tooltip = tooltip;
 		this.color = color;
@@ -3603,6 +3611,15 @@ export class NotebookRendererScript {
 	) {
 		this.provides = asArray(provides);
 	}
+}
+
+export class NotebookKernelSourceAction {
+	description?: string;
+	detail?: string;
+	command?: vscode.Command;
+	constructor(
+		public label: string
+	) { }
 }
 
 //#endregion

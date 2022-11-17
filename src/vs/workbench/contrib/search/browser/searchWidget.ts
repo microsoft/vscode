@@ -27,7 +27,7 @@ import { ISearchConfigurationProperties } from 'vs/workbench/services/search/com
 import { attachFindReplaceInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
+import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -292,7 +292,11 @@ export class SearchWidget extends Widget {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
-			buttonHoverBackground: undefined
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');

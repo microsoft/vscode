@@ -440,7 +440,7 @@ export class TextModelResolvedOptions {
 		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
-		this.indentSize = src.tabSize | 0;
+		this.indentSize = Math.max(1, src.indentSize | 0);
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);

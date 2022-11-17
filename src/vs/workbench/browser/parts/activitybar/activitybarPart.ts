@@ -43,8 +43,6 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { IUserDataProfileService, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
@@ -149,14 +147,6 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 		this.registerListeners();
 
-		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
-			.registerKeys([{
-				key: ActivitybarPart.PINNED_VIEW_CONTAINERS,
-				description: localize('pinned view containers', "Activity bar entries visibility customizations")
-			}, {
-				key: AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY,
-				description: localize('accounts visibility key', "Accounts entry visibility customization in the activity bar.")
-			}]);
 	}
 
 	private createCompositeBar() {
