@@ -109,6 +109,7 @@
 	left: 50%;
 	margin: 0.1em 0 0 0.05em;
 	border-radius: 100%;
+	background-color: var(--vscode-activityBarBadge-background);
 }
 
 .monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun.checked::after {
@@ -232,4 +233,10 @@
 	margin-left: 0.5em;
 	font-size: .9em;
 	white-space: pre;
+}
+
+.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	border-color: var(--vscode-inputOption-activeBorder);
 }
