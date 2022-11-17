@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalCommandSelector, ITerminalQuickFixProvider } from 'vs/platform/terminal/common/terminal';
+import { ITerminalQuickFixProvider, ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {

@@ -8,7 +8,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
+import { ITerminalOutputMatch } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
