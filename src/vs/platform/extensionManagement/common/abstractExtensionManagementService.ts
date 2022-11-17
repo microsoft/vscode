@@ -296,15 +296,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: installExtensionTaskOptions.context, profileLocation: installExtensionTaskOptions.profileLocation })));
 			throw error;
 		} finally {
-			for (const [key, { task, waitingTasks }] of this.installingExtensions.entries()) {
-				const index = waitingTasks.indexOf(installExtensionTask);
-				if (index !== -1) {
-					/* Current task was waiting for this task */
-					waitingTasks.splice(index, 1);
-				}
-				if (waitingTasks.length === 0 // No tasks are waiting for this task
-					&& (task === installExtensionTask || index !== -1)) {
-					this.installingExtensions.delete(key);
+			for (const ext of installResults) {
+				if (ext.source && !URI.isUri(ext.source)) {
+					this.installingExtensions.delete(getInstallExtensionTaskKey(ext.source));
 				}
 			}
 		}
