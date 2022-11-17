@@ -28,7 +28,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
-	mimeType: TrustedTelemetryValue;
+	mimeType: TrustedTelemetryValue<string>;
 	ext: string;
 	path: number;
 	reason?: number;
