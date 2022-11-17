@@ -565,14 +565,6 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focus',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, false)
-});
-
 registerAction2(class FocusBreadcrumbs extends Action2 {
 	constructor() {
 		super({
