@@ -9,7 +9,7 @@ import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
+import { EditorGestureEvent, EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -59,7 +59,8 @@ export class PointerEventHandler extends MouseHandler {
 
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const e = new EditorGestureEvent(event, false, this.viewHelper.viewDomNode);
+		const target = this._createMouseTarget(e, true);
 
 		if (target.position) {
 			// this.viewController.moveTo(target.position);
@@ -78,6 +79,27 @@ export class PointerEventHandler extends MouseHandler {
 				leftButton: false,
 				middleButton: false,
 				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
+			});
+		} else {
+			const targetIsWidget = (target.type === MouseTargetType.CONTENT_WIDGET);
+
+			const focus = () => {
+				e.preventDefault();
+				this.viewHelper.focusTextArea();
+			};
+
+			if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>target.detail)) {
+				focus();
+				e.preventDefault();
+			}
+
+			this.viewController.emitMouseDown({
+				event: e,
+				target: target
+			});
+			this.viewController.emitMouseUp({
+				event: e,
+				target: target
 			});
 		}
 	}
@@ -114,7 +136,8 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const e = new EditorGestureEvent(event, false, this.viewHelper.viewDomNode);
+		const target = this._createMouseTarget(e, true);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)
@@ -123,6 +146,27 @@ class TouchHandler extends MouseHandler {
 			this.viewHelper.dispatchTextAreaEvent(event);
 
 			this.viewController.moveTo(target.position, NavigationCommandRevealType.Minimal);
+		} else {
+			const targetIsWidget = (target.type === MouseTargetType.CONTENT_WIDGET);
+
+			const focus = () => {
+				e.preventDefault();
+				this.viewHelper.focusTextArea();
+			};
+
+			if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>target.detail)) {
+				focus();
+				e.preventDefault();
+			}
+
+			this.viewController.emitMouseDown({
+				event: e,
+				target: target
+			});
+			this.viewController.emitMouseUp({
+				event: e,
+				target: target
+			});
 		}
 	}
 

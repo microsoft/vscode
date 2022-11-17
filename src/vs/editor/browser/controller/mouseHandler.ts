@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { IMouseTarget, IMouseTargetOutsideEditor, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorPointerMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor, PageCoordinates } from 'vs/editor/browser/editorDom';
+import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorPointerMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor, PageCoordinates, EditorGestureEvent } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
@@ -198,8 +198,8 @@ export class MouseHandler extends ViewEventHandler {
 		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 	}
 
-	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		let target = e.target;
+	protected _createMouseTarget(e: EditorGestureEvent | EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
+		let target = e instanceof EditorGestureEvent ? (e.initialTarget || e.target) : e.target;
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
 			if (shadowRoot) {

@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { GestureEvent } from 'vs/base/browser/touch';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -133,6 +134,19 @@ export class EditorMouseEvent extends StandardMouseEvent {
 		this.pos = new PageCoordinates(this.posx, this.posy);
 		this.editorPos = createEditorPagePosition(editorViewDomNode);
 		this.relativePos = createCoordinatesRelativeToEditor(editorViewDomNode, this.editorPos, this.pos);
+	}
+}
+
+export class EditorGestureEvent extends EditorMouseEvent {
+
+	/**
+	 * The initial target that the event was created from.
+	 */
+	public readonly initialTarget: HTMLElement | undefined;
+
+	constructor(e: GestureEvent, isFromPointerCapture: boolean, editorViewDomNode: HTMLElement) {
+		super(e, isFromPointerCapture, editorViewDomNode);
+		this.initialTarget = <HTMLElement | undefined>e.initialTarget;
 	}
 }
 
