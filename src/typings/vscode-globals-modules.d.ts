@@ -3,16 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare global {
+// AMD2ESM mirgation relevant
 
-	/**
-	 * @deprecated You MUST use `IProductService` whenever possible.
-	 */
-	var _VSCODE_PRODUCT_JSON: Record<string, any>;
-	/**
-	 * @deprecated You MUST use `IProductService` whenever possible.
-	 */
-	var _VSCODE_PACKAGE_JSON: Record<string, any>;
+declare global {
 
 	/**
 	 * @deprecated node modules that are in used in a context that
