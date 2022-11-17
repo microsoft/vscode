@@ -24,6 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter } from 'vs/base/common/event';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -39,7 +40,7 @@ suite('QuickFixAddon', () => {
 			rows: 30
 		});
 		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
-		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: undefined, onDidUnregisterProvider: undefined } as Partial<ITerminalQuickFixService>);
+		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event } as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
@@ -76,11 +77,11 @@ suite('QuickFixAddon', () => {
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
-				test('output does not match', () => {
-					strictEqual(getQuickFixesForCommand(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap, openerService), undefined);
+				test('output does not match', async () => {
+					strictEqual(await (getQuickFixesForCommand(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap, openerService)), undefined);
 				});
-				test('command does not match', () => {
-					strictEqual(getQuickFixesForCommand(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService), undefined);
+				test('command does not match', async () => {
+					strictEqual(await (getQuickFixesForCommand(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService)), undefined);
 				});
 			});
 			suite('returns undefined when', () => {
