@@ -31,7 +31,7 @@ declare module 'vscode' {
 		commandLineMatch: RegExpMatchArray;
 		outputMatch?: {
 			regexMatch: RegExpMatchArray;
-			outputLines: string[];
+			outputLines?: string[];
 		};
 	}
 

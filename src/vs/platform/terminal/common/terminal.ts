@@ -7,12 +7,15 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalCommand, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+// Importing types is safe in any layer
+// eslint-disable-next-line local/code-import-patterns
+import { Terminal } from 'xterm-headless';
 
 export interface ITerminalCommandSelector {
 	id: string;
@@ -58,7 +61,7 @@ export interface ITerminalCommandSelector {
 
 export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
 export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
-export type TerminalQuickFixCallbackExtension = (matchResult: ITerminalCommandMatchResult, cancellationToken: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
+export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, terminal: Terminal, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
 export interface ITerminalQuickFixProvider {
 	/**
@@ -67,7 +70,7 @@ export interface ITerminalQuickFixProvider {
 	 * @param token A cancellation token indicating the result is no longer needed
 	 * @return Terminal quick fix(es) if any
 	 */
-	provideTerminalQuickFixes(commandMatchResult: ITerminalCommandMatchResult, token?: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
+	provideTerminalQuickFixes(terminalCommand: ITerminalCommand, terminal: Terminal, option: ITerminalQuickFixOptions, token: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 }
 export interface ITerminalCommandMatchResult {
 	commandLine: string;

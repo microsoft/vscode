@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessProperty, IShellLaunchConfig, IShellLaunchConfigDto, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IProcessProperty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalQuickFixOptions, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
@@ -20,9 +20,14 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalCommandMatchResult, TerminalEditorLocationOptions } from 'vscode';
+import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+// Importing types is safe in any layer
+// eslint-disable-next-line local/code-import-patterns
+import { Terminal } from 'xterm-headless';
+import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { getOutputMatchForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -249,8 +254,28 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public async $registerQuickFixProvider(id: string): Promise<void> {
 		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
 			{
-				provideTerminalQuickFixes: (matchResult: TerminalCommandMatchResult, token: CancellationToken) => {
-					return this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, terminal: Terminal, option: ITerminalQuickFixOptions, token: CancellationToken) => {
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
+					if (!commandLineMatch) {
+						return;
+					}
+					const outputMatcher = option.outputMatcher;
+					let outputMatch;
+					if (outputMatcher) {
+						outputMatch = getOutputMatchForCommand(terminalCommand.executedMarker, terminalCommand.endMarker, terminal.buffer.active, terminal.cols, outputMatcher);
+					}
+					if (!outputMatch) {
+						return;
+					}
+					const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
+
+					if (matchResult) {
+						return this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+					}
+					return;
 				}
 			})
 		);
