@@ -16,8 +16,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -25,7 +25,7 @@ import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser
 import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -60,6 +60,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { isEqual } from 'vs/base/common/resources';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import 'vs/css!./interactiveEditor';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -258,7 +259,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#styleElement.textContent = styleSheets.join('\n');
 	}
 
-	override saveState(): void {
+	protected override saveState(): void {
 		this.#saveEditorViewState(this.input);
 		super.saveState();
 	}
@@ -683,25 +684,3 @@ export class InteractiveEditor extends EditorPane {
 		};
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`
-	.interactive-editor .input-cell-container:focus-within .input-editor-container .monaco-editor {
-		outline: solid 1px var(--vscode-notebook-focusedCellBorder);
-	}
-	.interactive-editor .input-cell-container .input-editor-container .monaco-editor {
-		outline: solid 1px var(--vscode-notebook-inactiveFocusedCellBorder);
-	}
-	.interactive-editor .input-cell-container .input-focus-indicator {
-		top: ${INPUT_CELL_VERTICAL_PADDING}px;
-	}
-	`);
-
-	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.interactive-editor .input-cell-container .monaco-editor-background,
-		.interactive-editor .input-cell-container .margin-view-overlays {
-			background: ${editorBackgroundColor};
-		}`);
-	}
-});

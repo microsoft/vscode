@@ -81,7 +81,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 		const markdownInput: IAction = {
 			checked: this.filters.markupInput,
 			class: undefined,
-			enabled: !this.filters.markupPreview,
+			enabled: true,
 			id: 'findInMarkdownInput',
 			label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
 			run: async () => {
@@ -144,7 +144,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }

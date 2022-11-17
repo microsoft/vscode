@@ -99,6 +99,20 @@ if (locale) {
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
+if (product.quality === 'insider' || product.quality === 'exploration') {
+
+	// Pass in the locale to Electron so that the
+	// Windows Control Overlay is rendered correctly on Windows,
+	// and so that the traffic lights are rendered properly
+	// on macOS when using a custom titlebar.
+	// If the locale is `qps-ploc`, the Microsoft
+	// Pseudo Language Language Pack is being used.
+	// In that case, use `en` as the Electron locale.
+
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+	app.commandLine.appendSwitch('lang', electronLocale);
+}
+
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
@@ -551,7 +565,18 @@ async function resolveNlsConfiguration() {
 		// Try to use the app locale. Please note that the app locale is only
 		// valid after we have received the app ready event. This is why the
 		// code is here.
-		let appLocale = app.getLocale();
+
+		// The ternary and ts-ignore can both be removed once Electron
+		// officially adopts the getPreferredSystemLanguages API.
+		// Ref https://github.com/microsoft/vscode/issues/159813
+		// and https://github.com/electron/electron/pull/36035
+		/**
+		 * @type string
+		 */
+		// @ts-ignore API not yet available in the official Electron
+		let appLocale = ((product.quality === 'insider' || product.quality === 'exploration') && app?.getPreferredSystemLanguages()?.length) ?
+			// @ts-ignore API not yet available in the official Electron
+			app.getPreferredSystemLanguages()[0] : app.getLocale();
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {

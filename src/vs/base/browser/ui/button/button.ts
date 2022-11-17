@@ -23,20 +23,19 @@ export interface IButtonOptions extends IButtonStyles {
 	readonly secondary?: boolean;
 }
 
-export type CSSValueString = string;
 
 export interface IButtonStyles {
-	readonly buttonBackground?: CSSValueString;
-	readonly buttonHoverBackground?: CSSValueString;
-	readonly buttonForeground?: CSSValueString;
-	readonly buttonSeparator?: CSSValueString;
-	readonly buttonSecondaryBackground?: CSSValueString;
-	readonly buttonSecondaryHoverBackground?: CSSValueString;
-	readonly buttonSecondaryForeground?: CSSValueString;
-	readonly buttonBorder?: CSSValueString;
+	readonly buttonBackground: string | undefined;
+	readonly buttonHoverBackground: string | undefined;
+	readonly buttonForeground: string | undefined;
+	readonly buttonSeparator: string | undefined;
+	readonly buttonSecondaryBackground: string | undefined;
+	readonly buttonSecondaryHoverBackground: string | undefined;
+	readonly buttonSecondaryForeground: string | undefined;
+	readonly buttonBorder: string | undefined;
 }
 
-export const defaultOptions: IButtonStyles = {
+export const unthemedButtonStyles: IButtonStyles = {
 	buttonBackground: '#0E639C',
 	buttonHoverBackground: '#006BB3',
 	buttonSeparator: Color.white.toString(),
@@ -255,17 +254,13 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		// Separator styles
 		const border = options.buttonBorder;
 		if (border) {
-			this.separatorContainer.style.borderTopWidth = '1px';
-			this.separatorContainer.style.borderTopStyle = 'solid';
-			this.separatorContainer.style.borderTopColor = border;
-
-			this.separatorContainer.style.borderBottomWidth = '1px';
-			this.separatorContainer.style.borderBottomStyle = 'solid';
-			this.separatorContainer.style.borderBottomColor = border;
+			this.separatorContainer.style.borderTop = '1px solid ' + border;
+			this.separatorContainer.style.borderBottom = '1px solid ' + border;
 		}
-		this.separatorContainer.style.backgroundColor = options.buttonBackground?.toString() ?? '';
-		this.separator.style.backgroundColor = options.buttonSeparator?.toString() ?? '';
 
+		const buttonBackground = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
+		this.separatorContainer.style.backgroundColor = buttonBackground ?? '';
+		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');

@@ -62,7 +62,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 		this.element.appendChild(this.toggle.domNode);
 	}
 
-	override updateEnabled(): void {
+	protected override updateEnabled(): void {
 		if (this.toggle) {
 			if (this.isEnabled()) {
 				this.toggle.enable();
@@ -72,7 +72,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.toggle.checked = !!this._action.checked;
 	}
 

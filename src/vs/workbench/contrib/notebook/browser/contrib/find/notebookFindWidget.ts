@@ -331,7 +331,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}
 	}
 
-	override _updateMatchesCount(): void {
+	protected override _updateMatchesCount(): void {
 		if (!this._findModel || !this._findModel.findMatches) {
 			return;
 		}
