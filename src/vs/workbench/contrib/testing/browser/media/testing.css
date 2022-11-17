@@ -233,21 +233,3 @@
 	font-size: .9em;
 	white-space: pre;
 }
-
-.monaco-editor .test-output-peek .test-output-peek-tree {
-	color: var(--vscode-peekViewResult-lineForeground);
-	background-color: var(--vscode-peekViewResult-background);
-}
-
-.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) {
-	color: var(--vscode-peekViewResult-selectionForeground) !important;
-	background-color: var(--vscode-peekViewResult-selectionBackground);
-}
-
-.monaco-editor .test-output-peek .test-output-peek-message-container a {
-	color: var(--vscode-textLink-foreground);
-}
-
-.monaco-editor .test-output-peek .test-output-peek-message-container a :hover {
-	color: var(--vscode-textLink-activeForeground);
-}
