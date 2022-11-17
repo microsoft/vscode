@@ -43,53 +43,31 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			return;
 		}
 
+		type InputLatencyStatisticFragment = {
+			owner: 'tyriar';
+			comment: 'Represents a set of statistics collected about input latencies';
+			average: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took to execute.'; isMeasurement: true };
+			max: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The maximum time it took to execute.'; isMeasurement: true };
+			min: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The minimum time it took to execute.'; isMeasurement: true };
+		};
+
 		type PerformanceInputLatencyClassification = {
 			owner: 'tyriar';
 			comment: 'This is a set of samples of the time (in milliseconds) that various events took when typing in the editor';
-			'keydown.average': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min time it took for the keydown event to execute.' };
-			'keydown.max': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The max time it took for the keydown event to execute.' };
-			'keydown.min': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took for the keydown event to execute.' };
-			'input.average': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min time it took for the input event to execute.' };
-			'input.max': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The max time it took for the input event to execute.' };
-			'input.min': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took for the input event to execute.' };
-			'render.average': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min time it took for the render animation frame to execute.' };
-			'render.max': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The max time it took for the render animation frame to execute.' };
-			'render.min': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average time it took for the render animation frame to execute.' };
-			'total.average': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The min input latency.' };
-			'total.max': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The max input latency.' };
-			'total.min': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The average input latency.' };
+			keydown: InputLatencyStatisticFragment;
+			input: InputLatencyStatisticFragment;
+			render: InputLatencyStatisticFragment;
+			total: InputLatencyStatisticFragment;
 			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of samples measured.' };
 		};
 
-		type PerformanceInputLatencyEvent = {
-			'keydown.average': number;
-			'keydown.max': number;
-			'keydown.min': number;
-			'input.average': number;
-			'input.max': number;
-			'input.min': number;
-			'render.average': number;
-			'render.max': number;
-			'render.min': number;
-			'total.average': number;
-			'total.max': number;
-			'total.min': number;
-			sampleCount: number;
-		};
+		type PerformanceInputLatencyEvent = inputLatency.IInputLatencyMeasurements;
 
 		this._telemetryService.publicLog2<PerformanceInputLatencyEvent, PerformanceInputLatencyClassification>('performance.inputLatency', {
-			'keydown.average': measurements.keydown.average,
-			'keydown.max': measurements.keydown.max,
-			'keydown.min': measurements.keydown.min,
-			'input.average': measurements.input.average,
-			'input.max': measurements.input.max,
-			'input.min': measurements.input.min,
-			'render.average': measurements.render.average,
-			'render.max': measurements.render.max,
-			'render.min': measurements.render.min,
-			'total.average': measurements.total.average,
-			'total.max': measurements.total.max,
-			'total.min': measurements.total.min,
+			keydown: measurements.keydown,
+			input: measurements.input,
+			render: measurements.render,
+			total: measurements.total,
 			sampleCount: measurements.sampleCount
 		});
 	}
