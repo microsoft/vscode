@@ -120,7 +120,9 @@ class ExtHostEditorTabGroup {
 			if (tabDto.isActive) {
 				this._activeTabId = tabDto.id;
 			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId()));
+			// When opening tabs, we want to move them to the front (most recently used)
+			this._tabs.splice(0, 0, new ExtHostEditorTab(tabDto, this, () => this.activeTabId()));
+			//this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId()));
 		}
 	}
 
@@ -165,7 +167,9 @@ class ExtHostEditorTabGroup {
 		if (operation.kind === TabModelOperationKind.TAB_OPEN) {
 			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId());
 			// Insert tab at editor index
-			this._tabs.splice(operation.index, 0, tab);
+			// Insert tab at the front (Most recently used)
+			// this._tabs.splice(operation.index, 0, tab);
+			this._tabs.splice(0, 0, tab);
 			if (operation.tabDto.isActive) {
 				this._activeTabId = tab.tabId;
 			}
