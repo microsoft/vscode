@@ -241,12 +241,12 @@ export interface ITerminalOutputMatcher {
 	 */
 	anchor: 'top' | 'bottom';
 	/**
-	 * How far from either the top or the bottom of the butter to start matching against.
+	 * The number of rows above or below the {@link anchor} to start matching against.
 	 */
 	offset: number;
 	/**
 	 * The number of rows to match against, this should be as small as possible for performance
-	 * reasons.
+	 * reasons. This is capped at 40.
 	 */
 	length: number;
 

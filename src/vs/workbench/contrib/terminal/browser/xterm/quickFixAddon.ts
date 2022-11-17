@@ -261,7 +261,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					height: rect.height
 				};
 				// TODO: What's documentation do? Need a vscode command?
-				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
+				const documentation = fixes.map(f => { return { id: f.id, title: f.id, tooltip: f.tooltip }; });
 				const actions = fixes.map(f => new TerminalQuickFix(f, f.label));
 				const actionSet = {
 					// TODO: Documentation and actions are separate?
