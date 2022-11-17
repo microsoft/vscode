@@ -97,9 +97,12 @@ export class PointerEventHandler extends MouseHandler {
 				event: e,
 				target: target
 			});
+
+			const upEvent = new EditorGestureEvent(event, false, this.viewHelper.viewDomNode);
+			const upTarget = this._createMouseTarget(upEvent, true);
 			this.viewController.emitMouseUp({
-				event: e,
-				target: target
+				event: upEvent,
+				target: upTarget
 			});
 		}
 	}
@@ -163,9 +166,12 @@ class TouchHandler extends MouseHandler {
 				event: e,
 				target: target
 			});
+
+			const upEvent = new EditorGestureEvent(event, false, this.viewHelper.viewDomNode);
+			const upTarget = this._createMouseTarget(upEvent, true);
 			this.viewController.emitMouseUp({
-				event: e,
-				target: target
+				event: upEvent,
+				target: upTarget
 			});
 		}
 	}

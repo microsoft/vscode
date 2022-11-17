@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IContentActionHandler {
@@ -100,7 +101,11 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 		child = document.createElement('code');
 	} else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
-		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
+		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, DOM.EventType.CLICK, (event) => {
+			actionHandler.callback(String(treeNode.index), event);
+		}));
+		actionHandler.disposables.add(Gesture.addTarget(a));
+		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, TouchEventType.Tap, (event) => {
 			actionHandler.callback(String(treeNode.index), event);
 		}));
 

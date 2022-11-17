@@ -30,6 +30,7 @@ interface TouchData {
 
 export interface GestureEvent extends MouseEvent {
 	initialTarget: EventTarget | undefined;
+	button: number;
 	translationX: number;
 	translationY: number;
 	pageX: number;
@@ -242,6 +243,7 @@ export class Gesture extends Disposable {
 		event.initEvent(type, false, true);
 		event.initialTarget = initialTarget;
 		event.tapCount = 0;
+		event.button = 0;
 		return event;
 	}
 
