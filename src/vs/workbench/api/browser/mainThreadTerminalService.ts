@@ -258,6 +258,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 					if (token.isCancellationRequested) {
 						return;
 					}
+					if (option.outputMatcher?.length && option.outputMatcher.length > 40) {
+						option.outputMatcher.length = 40;
+						this._logService.warn('Cannot exceed output matcher length of 40');
+					}
 					const commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
 					if (!commandLineMatch) {
 						return;
