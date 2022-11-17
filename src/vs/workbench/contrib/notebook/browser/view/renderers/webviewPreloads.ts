@@ -983,6 +983,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
+	function extractSelectionLine(selection: Selection) {
+
+		const range = selection.getRangeAt(0);
+		const oldRange = document.createRange();
+		oldRange.setStart(range.startContainer, range.startOffset);
+		oldRange.setEnd(range.endContainer, range.endOffset);
+
+		selection.modify('move', 'backward', 'lineboundary');
+		selection.modify('extend', 'forward', 'lineboundary');
+
+		const line = selection.toString();
+
+		// re-add the old range so that the selection is restored
+		selection.removeAllRanges();
+		selection.addRange(oldRange);
+
+		return line;
+	}
 	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
@@ -1020,6 +1038,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
 						if (shadowSelection && shadowSelection.anchorNode) {
+							console.log(extractSelectionLine(shadowSelection));
 							matches.push({
 								type: 'preview',
 								id: preview.id,
@@ -1039,6 +1058,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
 						if (shadowSelection && shadowSelection.anchorNode) {
+							console.log(extractSelectionLine(shadowSelection));
 							matches.push({
 								type: 'output',
 								id: outputNode.id,
@@ -1056,6 +1076,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
 						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
+							console.log('here1');
+							console.log(lastEl);
 							matches.push({
 								type: lastEl.type,
 								id: lastEl.id,
@@ -1075,6 +1097,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 									// inside output
 									const cellId = node.parentElement?.parentElement?.id;
 									if (cellId) {
+										console.log('here2');
+										console.log(node);
 										matches.push({
 											type: 'output',
 											id: node.id,
