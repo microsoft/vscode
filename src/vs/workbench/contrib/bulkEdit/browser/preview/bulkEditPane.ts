@@ -37,7 +37,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const enum State {
 	Data = 'data',
@@ -137,8 +136,7 @@ export class BulkEditPane extends ViewPane {
 				multipleSelectionSupport: false,
 				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
 				sorter: new BulkEditSorter(),
-				selectionNavigation: true,
-				findWidgetStyles: defaultFindWidgetStyles
+				selectionNavigation: true
 			}
 		);
 

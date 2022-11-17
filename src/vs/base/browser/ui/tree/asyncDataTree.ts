@@ -210,8 +210,8 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 	}
 }
 
-function asObjectTreeOptions<TInput, T, TFilterData>(options: IAsyncDataTreeOptions<T, TFilterData>): IObjectTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData> {
-	return {
+function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOptions<T, TFilterData>): IObjectTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined {
+	return options && {
 		...options,
 		collapseByDefault: true,
 		identityProvider: options.identityProvider && {
@@ -268,9 +268,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options: IAsyncDataTreeOpti
 			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
-		),
-		additionalScrollHeight: options.additionalScrollHeight,
-		findWidgetStyles: options.findWidgetStyles
+		)
 	};
 }
 
@@ -365,7 +363,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IAsyncDataSource<TInput, T>,
-		options: IAsyncDataTreeOptions<T, TFilterData>
+		options: IAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
 		this.identityProvider = options.identityProvider;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
@@ -402,7 +400,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new AsyncDataTreeRenderer(r, this.nodeMapper, this._onDidChangeNodeSlowState.event));
-		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options);
+		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
 
 		return new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 	}
@@ -1126,10 +1124,10 @@ export interface ITreeCompressionDelegate<T> {
 	isIncompressible(element: T): boolean;
 }
 
-function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options: ICompressibleAsyncDataTreeOptions<T, TFilterData>): ICompressibleObjectTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData> {
-	const objectTreeOptions = asObjectTreeOptions(options);
+function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: ICompressibleAsyncDataTreeOptions<T, TFilterData>): ICompressibleObjectTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined {
+	const objectTreeOptions = options && asObjectTreeOptions(options);
 
-	return {
+	return objectTreeOptions && {
 		...objectTreeOptions,
 		keyboardNavigationLabelProvider: objectTreeOptions.keyboardNavigationLabelProvider && {
 			...objectTreeOptions.keyboardNavigationLabelProvider,
@@ -1162,7 +1160,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		private compressionDelegate: ITreeCompressionDelegate<T>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
-		options: ICompressibleAsyncDataTreeOptions<T, TFilterData>
+		options: ICompressibleAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
 		super(user, container, virtualDelegate, renderers, dataSource, options);
 		this.filter = options.filter;
@@ -1177,7 +1175,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new CompressibleAsyncDataTreeRenderer(r, this.nodeMapper, () => this.compressibleNodeMapper, this._onDidChangeNodeSlowState.event));
-		const objectTreeOptions = asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options);
+		const objectTreeOptions = asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options) || {};
 
 		return new CompressibleObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 	}

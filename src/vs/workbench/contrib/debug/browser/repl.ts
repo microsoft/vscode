@@ -53,7 +53,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
@@ -594,8 +593,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				supportDynamicHeights: wordWrap,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				},
-				findWidgetStyles: defaultFindWidgetStyles
+				}
 			});
 
 		this._register(this.tree.onDidChangeContentHeight(() => {

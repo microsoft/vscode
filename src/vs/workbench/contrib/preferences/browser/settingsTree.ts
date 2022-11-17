@@ -64,7 +64,7 @@ import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIn
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultButtonStyles, defaultFindWidgetStyles, getButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -2269,8 +2269,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				findWidgetEnabled: false,
-				findWidgetStyles: defaultFindWidgetStyles
+				findWidgetEnabled: false
 			},
 			instantiationService,
 			contextKeyService,

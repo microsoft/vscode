@@ -48,7 +48,7 @@ import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener'
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -776,8 +776,7 @@ export class SearchView extends ViewPane {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT,
-				findWidgetStyles: defaultFindWidgetStyles
+				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));

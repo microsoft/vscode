@@ -28,7 +28,6 @@ import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { basename } from 'vs/base/common/resources';
 import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -393,8 +392,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 				},
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
-				findWidgetEnabled: false,
-				findWidgetStyles: defaultFindWidgetStyles
+				findWidgetEnabled: false
 			},
 			instantiationService,
 			contextKeyService,

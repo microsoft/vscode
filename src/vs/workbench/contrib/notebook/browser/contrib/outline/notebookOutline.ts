@@ -38,7 +38,6 @@ import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { URI } from 'vs/base/common/uri';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -368,8 +367,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
 			identityProvider: { getId: element => element.cell.id },
-			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider(),
-			findWidgetStyles: defaultFindWidgetStyles
+			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 		};
 
 		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? this._entries : parent.children };

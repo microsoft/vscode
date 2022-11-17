@@ -52,7 +52,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -425,8 +424,7 @@ class HelpPanel extends ViewPane {
 						return item.label;
 					},
 					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
-				},
-				findWidgetStyles: defaultFindWidgetStyles
+				}
 			}
 		);
 

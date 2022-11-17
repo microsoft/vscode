@@ -40,7 +40,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultButtonStyles, defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -508,8 +508,7 @@ export class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-				findWidgetEnabled: false,
-				findWidgetStyles: defaultFindWidgetStyles
+				findWidgetEnabled: false
 			}) as WorkbenchObjectTree<TestExplorerTreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {

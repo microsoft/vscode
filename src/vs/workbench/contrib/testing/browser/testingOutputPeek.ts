@@ -77,7 +77,6 @@ import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/test
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class TestDto {
 	public readonly test: ITestItem;
@@ -1245,8 +1244,7 @@ class OutputPeekTree extends Disposable {
 					getWidgetAriaLabel() {
 						return localize('testingPeekLabel', 'Test Result Messages');
 					}
-				},
-				findWidgetStyles: defaultFindWidgetStyles
+				}
 			},
 		)) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 

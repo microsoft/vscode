@@ -28,7 +28,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IDataSource<TInput, T>,
-		options: IDataTreeOptions<T, TFilterData>
+		options: IDataTreeOptions<T, TFilterData> = {}
 	) {
 		super(user, container, delegate, renderers, options as IDataTreeOptions<T | null, TFilterData>);
 		this.identityProvider = options.identityProvider;

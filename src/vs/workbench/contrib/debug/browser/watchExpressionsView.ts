@@ -35,7 +35,6 @@ import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
@@ -105,8 +104,7 @@ export class WatchExpressionsView extends ViewPane {
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			},
-			findWidgetStyles: defaultFindWidgetStyles
+			}
 		});
 		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);

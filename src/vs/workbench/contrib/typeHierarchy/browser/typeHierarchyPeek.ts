@@ -34,7 +34,6 @@ import { IColorTheme, IThemeService, themeColorFromId } from 'vs/platform/theme/
 import * as typeHTree from 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchyTree';
 import { TypeHierarchyDirection, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 // Todo: copied from call hierarchy, to extract
 const enum State {
@@ -199,8 +198,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			expandOnlyOnTwistieClick: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
-			},
-			findWidgetStyles: defaultFindWidgetStyles
+			}
 		};
 		this._tree = this._instantiationService.createInstance(
 			TypeHierarchyTree,

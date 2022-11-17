@@ -9,7 +9,6 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
-import { unthemedFindWidgetStyles as findWidgetStyles } from 'vs/base/browser/ui/tree/abstractTree';
 
 interface Element {
 	id: string;
@@ -97,7 +96,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 0);
 
@@ -145,7 +144,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -205,7 +204,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -235,7 +234,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -278,8 +277,7 @@ suite('AsyncDataTree', function () {
 		});
 
 		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, {
-			collapseByDefault: el => el.id !== 'a',
-			findWidgetStyles
+			collapseByDefault: el => el.id !== 'a'
 		});
 		tree.layout(200);
 
@@ -310,7 +308,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		const pSetInput = tree.setInput(model.root);
@@ -353,7 +351,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		const pSetInput = tree.setInput(model.root);
@@ -382,7 +380,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -420,7 +418,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -463,7 +461,7 @@ suite('AsyncDataTree', function () {
 		});
 		const a = model.get('a');
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), findWidgetStyles });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);

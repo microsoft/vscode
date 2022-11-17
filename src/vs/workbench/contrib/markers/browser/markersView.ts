@@ -56,7 +56,6 @@ import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -483,7 +482,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				findWidgetStyles: defaultFindWidgetStyles,
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
 			},

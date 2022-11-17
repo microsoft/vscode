@@ -40,7 +40,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -481,8 +480,7 @@ export class LoadedScriptsView extends ViewPane {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				},
-				findWidgetStyles: defaultFindWidgetStyles
+				}
 			}
 		);
 

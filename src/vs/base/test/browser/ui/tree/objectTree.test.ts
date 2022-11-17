@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { unthemedFindWidgetStyles as findWidgetStyles } from 'vs/base/browser/ui/tree/abstractTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -36,7 +35,7 @@ suite('ObjectTree', function () {
 				disposeTemplate(): void { }
 			};
 
-			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) }, findWidgetStyles });
+			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
 			tree.layout(200);
 		});
 
@@ -208,7 +207,7 @@ suite('ObjectTree', function () {
 			}
 		};
 
-		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider, findWidgetStyles });
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
 		tree.layout(200);
 
 		tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
@@ -252,7 +251,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], { findWidgetStyles });
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		assert.strictEqual(getRowsTextContent(container).length, 0);
@@ -263,7 +262,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], { findWidgetStyles });
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -286,7 +285,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], { findWidgetStyles });
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -338,7 +337,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], { findWidgetStyles });
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		tree.setChildren(null, [

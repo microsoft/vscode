@@ -36,7 +36,6 @@ import { CommentsFilters, CommentsFiltersChangeEvent } from 'vs/workbench/contri
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
@@ -296,8 +295,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				getWidgetAriaLabel(): string {
 					return COMMENTS_VIEW_TITLE;
 				}
-			},
-			findWidgetStyles: defaultFindWidgetStyles
+			}
 		}));
 
 		this._register(this.tree.onDidOpen(e => {

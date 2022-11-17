@@ -31,7 +31,6 @@ import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/brow
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface ILayoutInfo {
 	maxHeight: number;
@@ -386,7 +385,6 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 				overrideStyles: {
 					listBackground: breadcrumbsPickerBackground
 				},
-				findWidgetStyles: defaultFindWidgetStyles
 			});
 	}
 
