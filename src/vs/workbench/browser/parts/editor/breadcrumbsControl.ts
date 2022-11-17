@@ -557,7 +557,8 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-			}
+			},
+			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]): void {
