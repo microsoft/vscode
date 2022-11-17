@@ -37,7 +37,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -132,10 +132,10 @@ export class BreakpointsView extends ViewPane {
 		this.list = this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
 			new ExceptionBreakpointsRenderer(this.menu, this.breakpointSupportsCondition, this.breakpointItemType, this.debugService),
-			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.themeService),
+			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
 			this.instantiationService.createInstance(DataBreakpointsRenderer),
-			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.themeService, this.labelService),
+			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.labelService),
 			this.instantiationService.createInstance(InstructionBreakpointsRenderer),
 		], {
 			identityProvider: { getId: (element: IEnablement) => element.getId() },
@@ -808,7 +808,6 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		private view: BreakpointsView,
 		private debugService: IDebugService,
 		private contextViewService: IContextViewService,
-		private themeService: IThemeService,
 		private labelService: ILabelService
 	) { }
 
@@ -832,9 +831,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 
 
-		const inputBox = new InputBox(inputBoxContainer, this.contextViewService);
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
-		toDispose.push(inputBox, styler);
+		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles });
 
 		const wrapUp = (success: boolean) => {
 			template.updating = true;
@@ -926,7 +923,6 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		private view: BreakpointsView,
 		private debugService: IDebugService,
 		private contextViewService: IContextViewService,
-		private themeService: IThemeService
 	) {
 		// noop
 	}
@@ -949,10 +945,9 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			ariaLabel: localize('exceptionBreakpointAriaLabel', "Type exception breakpoint condition")
+			ariaLabel: localize('exceptionBreakpointAriaLabel', "Type exception breakpoint condition"),
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
-		toDispose.push(inputBox, styler);
 
 		const wrapUp = (success: boolean) => {
 			this.view.breakpointInputFocused.set(false);

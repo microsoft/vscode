@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -36,7 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -64,7 +64,7 @@ import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIn
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultButtonStyles, getButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -1493,6 +1493,12 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
+const settingsInputBoxStyles = getInputBoxStyle({
+	inputBackground: settingsTextInputBackground,
+	inputForeground: settingsTextInputForeground,
+	inputBorder: settingsTextInputBorder
+});
+
 abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
 	private readonly MULTILINE_MAX_HEIGHT = 150;
 
@@ -1503,15 +1509,11 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		const inputBoxOptions: IInputOptions = {
 			flexibleHeight: useMultiline,
 			flexibleWidth: false,
-			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT
+			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT,
+			inputBoxStyles: settingsInputBoxStyles
 		};
 		const inputBox = new InputBox(common.controlElement, this._contextViewService, inputBoxOptions);
 		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
 				template.onChange?.(e);
@@ -1708,6 +1710,12 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 }
 
+const settingsNumberInputBoxStyles = getInputBoxStyle({
+	inputBackground: settingsNumberInputBackground,
+	inputForeground: settingsNumberInputForeground,
+	inputBorder: settingsNumberInputBorder
+});
+
 export class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingNumberItemTemplate> {
 	templateId = SETTINGS_NUMBER_TEMPLATE_ID;
 
@@ -1715,13 +1723,8 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		const common = super.renderCommonTemplate(null, _container, 'number');
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number' });
+		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number', inputBoxStyles: settingsNumberInputBoxStyles });
 		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsNumberInputBackground,
-			inputForeground: settingsNumberInputForeground,
-			inputBorder: settingsNumberInputBorder
-		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
 				template.onChange?.(e);
@@ -1790,7 +1793,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', ...unthemedToggleStyles });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
