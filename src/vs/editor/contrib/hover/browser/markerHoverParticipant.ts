@@ -54,7 +54,7 @@ const markerCodeActionTrigger: CodeActionTrigger = {
 
 export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHover> {
 
-	public readonly hoverOrdinal: number = 5;
+	public readonly hoverOrdinal: number = 1;
 
 	private recentMarkerCodeActionsInfo: { marker: IMarker; hasCodeActions: boolean } | undefined = undefined;
 

@@ -407,7 +407,7 @@ export class UnicodeHighlighterHover implements IHoverPart {
 
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
-	public readonly hoverOrdinal: number = 4;
+	public readonly hoverOrdinal: number = 5;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

@@ -46,7 +46,7 @@ export class ColorHover implements IHoverPart {
 
 export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover> {
 
-	public readonly hoverOrdinal: number = 1;
+	public readonly hoverOrdinal: number = 2;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
