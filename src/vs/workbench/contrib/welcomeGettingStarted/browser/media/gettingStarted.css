@@ -626,9 +626,14 @@
 	cursor: pointer;
 }
 
+/* Don't show focus outline on mouse click. Instead only show outline on keyboard focus. */
 .monaco-workbench .part.editor>.content .gettingStartedContainer button:focus {
-	outline-style: solid;
-	outline-width: 1px;
+	outline: none;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button.button-link {
@@ -695,7 +700,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h3 {
 	font-size: 13px;
-	font-weight: 700;
+	font-weight: 600;
 	margin: 0;
 }
 
@@ -852,10 +857,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button {
 	background: var(--vscode-welcomePage-tileBackground);
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
-	filter: drop-shadow(2px 2px 2px var(--vscode-welcomePage-tileShadow));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:hover {
