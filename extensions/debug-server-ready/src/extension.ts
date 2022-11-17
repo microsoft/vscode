@@ -200,7 +200,7 @@ class ServerReadyDetector extends vscode.Disposable {
 
 		const trackerId = randomUUID();
 		const cts = new vscode.CancellationTokenSource();
-		const newSessionPromise = this.catchStartedDebugSession(session => session.configuration.trackerId === trackerId, cts.token);
+		const newSessionPromise = this.catchStartedDebugSession(session => session.configuration._debugServerReadySessionId === trackerId, cts.token);
 
 		if (!await this.startBrowserDebugSession(type, session, uri, trackerId)) {
 			cts.cancel();
@@ -232,7 +232,7 @@ class ServerReadyDetector extends vscode.Disposable {
 			request: 'launch',
 			url: uri,
 			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT,
-			trackerId,
+			_debugServerReadySessionId: trackerId,
 		});
 	}
 
