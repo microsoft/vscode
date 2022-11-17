@@ -3,22 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// empty placeholder for comment thread additional menus
 
-export const enum MarshalledId {
-	Uri = 1,
-	Regexp,
-	ScmResource,
-	ScmResourceGroup,
-	ScmProvider,
-	CommentController,
-	CommentThread,
-	CommentThreadInstance,
-	CommentThreadReply,
-	CommentNode,
-	CommentThreadNode,
-	TimelineActionContext,
-	NotebookCellActionContext,
-	NotebookActionContext,
-	TestItemContext,
-	Date
-}
+// https://github.com/microsoft/vscode/issues/163281
