@@ -249,6 +249,18 @@ export class AudioCue {
 		settingsKey: 'audioCues.terminalBell'
 	});
 
+	public static readonly notebookCellCompleted = AudioCue.register({
+		name: localize('audioCues.notebookCellCompleted', 'Notebook Cell Completed'),
+		sound: Sound.taskCompleted,
+		settingsKey: 'audioCues.notebookCellCompleted'
+	});
+
+	public static readonly notebookCellFailed = AudioCue.register({
+		name: localize('audioCues.notebookCellFailed', 'Notebook Cell Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.notebookCellFailed'
+	});
+
 	public static readonly diffLineInserted = AudioCue.register({
 		name: localize('audioCues.diffLineInserted', 'Diff Line Inserted'),
 		sound: Sound.diffLineInserted,

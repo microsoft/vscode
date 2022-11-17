@@ -95,6 +95,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode"),
 			...audioCueFeatureBase,
 		},
+		'audioCues.notebookCellCompleted': {
+			'description': localize('audioCues.notebookCellCompleted', "Plays a sound when a notebook cell execution is successfully completed."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.notebookCellFailed': {
+			'description': localize('audioCues.notebookCellFailed', "Plays a sound when a notebook cell execution fails."),
+			...audioCueFeatureBase,
+		},
 	}
 });
 
