@@ -142,14 +142,7 @@ function startup(codeCachePath, nlsConfig) {
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// VSCODE_GLOBALS: node_modules
-	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), {
-		get(target, mod) {
-			if (!target[mod] && typeof mod === 'string') {
-				target[mod] = require(mod);
-			}
-			return target[mod];
-		}
-	});
+	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
 
 	// VSCODE_GLOBALS: package/product.json
 	globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
