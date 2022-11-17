@@ -230,18 +230,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
+
 	.output > span.scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
-	}
-	.output > span.output-stream.more-above {
-		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-	}
-	.output > span.output-stream.more-below {
-		box-shadow: var(--vscode-scrollbar-shadow) 0px -6px 6px -6px inset
-	}
-	.output > span.output-stream.more-above.more-below {
-		box-shadow: var(--vscode-scrollbar-shadow) 0px -6px 6px -6px inset, var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
+		border: var(--vscode-editorWidget-border);
+		border-style: solid;
+		padding-left: 4px;
+		margin-left: -4px;
+		margin-right: -4px;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
