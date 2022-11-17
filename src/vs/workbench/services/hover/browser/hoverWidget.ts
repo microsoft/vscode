@@ -45,6 +45,7 @@ export class HoverWidget extends Widget {
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
+	private readonly _lastFocusedElement: HTMLElement | null;
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
@@ -88,6 +89,8 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
+		this._lastFocusedElement = <HTMLElement | null>document.activeElement;
+
 		this._linkHandler = options.linkHandler || (url => {
 			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
 		});
@@ -119,6 +122,7 @@ export class HoverWidget extends Widget {
 		// Hide hover on escape
 		this.onkeydown(this._hover.containerDomNode, e => {
 			if (e.equals(KeyCode.Escape)) {
+				this._lastFocusedElement?.focus();
 				this.dispose();
 			}
 		});
