@@ -9,7 +9,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
@@ -36,11 +36,12 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, errorForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, toolbarHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { asCssValue, contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, errorForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, toolbarHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
+import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -257,9 +258,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop) {
 			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
 		}
-
-		this._applyTheme(themeService.getColorTheme());
-		this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this._register(this._codeEditor.onDidChangeModel(() => {
 			if (!this._isVisible) {
@@ -675,29 +673,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		});
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		const inputStyles: IFindInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
-		};
-		this._findInput.style(inputStyles);
-		this._replaceInput.style(inputStyles);
-		this._toggleSelectionFind.style(inputStyles);
-	}
-
 	private _tryUpdateWidgetWidth() {
 		if (!this._isVisible) {
 			return;
@@ -981,7 +956,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			flexibleWidth,
 			flexibleMaxHeight: 118,
 			showCommonFindToggles: true,
-			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles
 		}, this._contextKeyService));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -1061,7 +1038,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._toggleSelectionFind = this._register(new Toggle({
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
-			isChecked: false
+			isChecked: false,
+			inputActiveOptionBackground: asCssValue(inputActiveOptionBackground),
+			inputActiveOptionBorder: asCssValue(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssValue(inputActiveOptionForeground),
 		}));
 
 		this._register(this._toggleSelectionFind.onChange(() => {
@@ -1121,7 +1101,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight: 118,
-			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));

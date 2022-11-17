@@ -12,6 +12,7 @@ import { AbstractUserDataProfileStorageService, IProfileStorageChanges, IUserDat
 import { isProfileUsingDefaultStorage, IStorageService } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class UserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
 
@@ -50,3 +51,5 @@ export class UserDataProfileStorageService extends AbstractUserDataProfileStorag
 		return isProfileUsingDefaultStorage(profile) ? new ApplicationStorageDatabaseClient(storageChannel) : new ProfileStorageDatabaseClient(storageChannel, profile);
 	}
 }
+
+registerSingleton(IUserDataProfileStorageService, UserDataProfileStorageService, InstantiationType.Delayed);

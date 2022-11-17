@@ -254,7 +254,7 @@ suite('QuickFixAddon', () => {
 			Branch 'test22' set up to track remote branch 'test22' from 'origin'. `;
 			const exitCode = 0;
 			const actions = [{
-				id: `quickFix.opener`,
+				id: 'Git Create Pr',
 				enabled: true,
 				label: 'Open: https://github.com/meganrogge/xterm.js/pull/new/test22',
 				tooltip: 'Open: https://github.com/meganrogge/xterm.js/pull/new/test22',

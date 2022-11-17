@@ -232,9 +232,8 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
 		private readonly linkDetector: LinkDetector,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {

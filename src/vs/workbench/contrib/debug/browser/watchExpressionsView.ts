@@ -272,9 +272,8 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	get templateId() {
