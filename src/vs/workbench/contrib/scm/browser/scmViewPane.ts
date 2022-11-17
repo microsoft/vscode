@@ -88,7 +88,7 @@ import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -2289,7 +2289,8 @@ export class SCMViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
+				findWidgetStyles: defaultFindWidgetStyles
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidOpen(this.open, this));

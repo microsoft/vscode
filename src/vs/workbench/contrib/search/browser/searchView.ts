@@ -48,6 +48,7 @@ import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener'
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -66,7 +67,7 @@ import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/se
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/contrib/search/browser/searchResultsView';
-import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
+import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
@@ -349,6 +350,7 @@ export class SearchView extends ViewPane {
 			placeholder: nls.localize('placeholder.includes', "e.g. *.ts, src/**/include"),
 			showPlaceholderOnFocus: true,
 			history: patternIncludesHistory,
+			inputBoxStyles: defaultInputBoxStyles
 		}));
 
 		this.inputPatternIncludes.setValue(patternIncludes);
@@ -368,6 +370,7 @@ export class SearchView extends ViewPane {
 			placeholder: nls.localize('placeholder.excludes', "e.g. *.ts, src/**/exclude"),
 			showPlaceholderOnFocus: true,
 			history: patternExclusionsHistory,
+			inputBoxStyles: defaultInputBoxStyles
 		}));
 
 		this.inputPatternExcludes.setValue(patternExclusions);
@@ -445,7 +448,7 @@ export class SearchView extends ViewPane {
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
+		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, {
 			value: contentPattern,
 			replaceValue: replaceText,
 			isRegex: isRegex,
@@ -453,7 +456,9 @@ export class SearchView extends ViewPane {
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
 			replaceHistory: replaceHistory,
-			preserveCase: preserveCase
+			preserveCase: preserveCase,
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles
 		}));
 
 		if (showReplace) {
@@ -771,7 +776,8 @@ export class SearchView extends ViewPane {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT
+				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT,
+				findWidgetStyles: defaultFindWidgetStyles
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));

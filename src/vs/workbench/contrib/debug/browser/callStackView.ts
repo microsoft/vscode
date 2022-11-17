@@ -34,6 +34,7 @@ import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/lis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -275,7 +276,8 @@ export class CallStackView extends ViewPane {
 			expandOnlyOnTwistieClick: true,
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		});
 
 		this.tree.setInput(this.debugService.getModel());

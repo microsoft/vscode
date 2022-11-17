@@ -22,7 +22,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private rootElement: T,
-		options: IIndexTreeOptions<T, TFilterData> = {}
+		options: IIndexTreeOptions<T, TFilterData>
 	) {
 		super(user, container, delegate, renderers, options);
 	}

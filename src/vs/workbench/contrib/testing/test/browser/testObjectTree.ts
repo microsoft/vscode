@@ -42,7 +42,8 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 			{
 				sorter: {
 					compare: (a, b) => serializer(a).localeCompare(serializer(b))
-				}
+				},
+				findWidgetStyles: <any>{}
 			}
 		);
 		this.layout(1000, 200);

@@ -57,6 +57,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -449,7 +450,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));

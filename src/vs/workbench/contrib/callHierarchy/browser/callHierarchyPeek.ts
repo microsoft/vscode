@@ -34,6 +34,7 @@ import { URI } from 'vs/base/common/uri';
 import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const enum State {
 	Loading = 'loading',
@@ -197,7 +198,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			expandOnlyOnTwistieClick: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		};
 		this._tree = this._instantiationService.createInstance(
 			CallHierarchyTree,

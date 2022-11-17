@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { unthemedFindWidgetStyles } from 'vs/base/browser/ui/tree/abstractTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 
@@ -64,7 +65,8 @@ suite('DataTree', function () {
 		};
 
 		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, {
-			identityProvider
+			identityProvider,
+			findWidgetStyles: unthemedFindWidgetStyles
 		});
 		tree.layout(200);
 	});

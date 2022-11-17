@@ -32,6 +32,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -124,7 +125,8 @@ export class VariablesView extends ViewPane {
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		});
 
 		this.tree.setInput(withUndefinedAsNull(this.debugService.getViewModel().focusedStackFrame));
@@ -402,9 +404,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	get templateId(): string {

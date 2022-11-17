@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -218,7 +219,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,
-			hideTwistiesOfChildlessElements: true
+			hideTwistiesOfChildlessElements: true,
+			findWidgetStyles: defaultFindWidgetStyles
 		};
 
 		super(

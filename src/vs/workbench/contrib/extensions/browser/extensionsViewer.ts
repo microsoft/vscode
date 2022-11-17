@@ -26,6 +26,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -272,7 +273,8 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 					getWidgetAriaLabel(): string {
 						return localize('extensions', "Extensions");
 					}
-				}
+				},
+				findWidgetStyles: defaultFindWidgetStyles
 			},
 			instantiationService, contextKeyService, listService, themeService, configurationService
 		);

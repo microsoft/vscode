@@ -26,6 +26,44 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -120,7 +158,8 @@ export class DebugHoverWidget implements IContentWidget {
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e.name },
 			overrideStyles: {
 				listBackground: editorHoverBackground
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		});
 
 		this.valueContainer = $('.value');

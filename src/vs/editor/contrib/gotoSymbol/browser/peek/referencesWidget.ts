@@ -37,6 +37,7 @@ import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platf
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class DecorationsManager implements IDisposable {
 
@@ -328,7 +329,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			selectionNavigation: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		};
 		if (this._defaultTreeKeyboardSupport) {
 			// the tree will consume `Escape` and prevent the widget from closing

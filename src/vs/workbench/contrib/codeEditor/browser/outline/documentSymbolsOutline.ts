@@ -33,6 +33,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecor
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { isEqual } from 'vs/base/common/resources';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -169,7 +170,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				? instantiationService.createInstance(DocumentSymbolFilter, 'outline')
 				: target === OutlineTarget.Breadcrumbs
 					? instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs')
-					: undefined
+					: undefined,
+			findWidgetStyles: defaultFindWidgetStyles,
 		};
 
 		this.config = {

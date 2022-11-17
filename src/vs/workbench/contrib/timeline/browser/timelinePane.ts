@@ -53,6 +53,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const ItemHeight = 22;
 
@@ -928,7 +929,8 @@ export class TimelinePane extends ViewPane {
 			multipleSelectionSupport: false,
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		});
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));

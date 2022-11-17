@@ -23,6 +23,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { IFindWidgetStyles } from 'vs/base/browser/ui/tree/abstractTree';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -334,6 +335,7 @@ class ProcessExplorer {
 						return 'header';
 					}
 				},
+				findWidgetStyles: <IFindWidgetStyles>{}
 			});
 
 		this.tree.setInput({ processes: { processRoots } });

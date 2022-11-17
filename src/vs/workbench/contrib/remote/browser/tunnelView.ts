@@ -28,7 +28,6 @@ import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelIt
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -54,7 +53,7 @@ import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDel
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
@@ -347,7 +346,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -512,10 +510,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					};
 				}
 			},
-			placeholder: editableData.placeholder || ''
+			placeholder: editableData.placeholder || '',
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
-
 		inputBox.value = value;
 		inputBox.focus();
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
@@ -551,8 +548,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
 				return done(inputBox.validate() !== MessageType.ERROR, true);
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -840,7 +836,7 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService,
+			this.menuService, this.contextViewService, this.remoteExplorerService, this.commandService,
 			this.configurationService, this.hoverService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canChangePrivacy) {

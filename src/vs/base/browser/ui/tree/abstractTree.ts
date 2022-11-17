@@ -9,12 +9,12 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { IMessage, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
+import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IListOptions, IListStyles, isButton, isInputElement, isMonacoEditor, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
@@ -22,7 +22,6 @@ import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { SetMap } from 'vs/base/common/collections';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -644,27 +643,41 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 
 export interface ICaseSensitiveToggleOpts {
 	readonly isChecked: boolean;
-	readonly inputActiveOptionBorder?: Color;
-	readonly inputActiveOptionForeground?: Color;
-	readonly inputActiveOptionBackground?: Color;
+	readonly inputActiveOptionBorder: string | undefined;
+	readonly inputActiveOptionForeground: string | undefined;
+	readonly inputActiveOptionBackground: string | undefined;
 }
 
 export class ModeToggle extends Toggle {
-	constructor(opts?: ICaseSensitiveToggleOpts) {
+	constructor(opts: ICaseSensitiveToggleOpts) {
 		super({
 			icon: Codicon.listFilter,
 			title: localize('filter', "Filter"),
-			isChecked: opts?.isChecked ?? false,
-			inputActiveOptionBorder: opts?.inputActiveOptionBorder,
-			inputActiveOptionForeground: opts?.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts?.inputActiveOptionBackground
+			isChecked: opts.isChecked ?? false,
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
 
-export interface IFindWidgetStyles extends IFindInputStyles, IListStyles { }
+export interface IFindWidgetStyles {
+	listFilterWidgetBackground: string | undefined;
+	listFilterWidgetOutline: string | undefined;
+	listFilterWidgetNoMatchesOutline: string | undefined;
+	listFilterWidgetShadow: string | undefined;
+	readonly toggleStyles: IToggleStyles;
+	readonly inputBoxStyles: IInputBoxStyles;
+}
 
-export interface IFindWidgetOpts extends IFindWidgetStyles { }
+export const unthemedFindWidgetStyles: IFindWidgetStyles = {
+	inputBoxStyles: unthemedInboxStyles,
+	toggleStyles: unthemedToggleStyles,
+	listFilterWidgetBackground: undefined,
+	listFilterWidgetNoMatchesOutline: undefined,
+	listFilterWidgetOutline: undefined,
+	listFilterWidgetShadow: undefined
+};
 
 export enum TreeFindMode {
 	Highlight,
@@ -709,20 +722,30 @@ class FindWidget<T, TFilterData> extends Disposable {
 		private tree: AbstractTree<T, TFilterData, any>,
 		contextViewProvider: IContextViewProvider,
 		mode: TreeFindMode,
-		options?: IFindWidgetOpts
+		options: IFindWidgetStyles
 	) {
 		super();
 
 		container.appendChild(this.elements.root);
 		this._register(toDisposable(() => container.removeChild(this.elements.root)));
 
-		this.modeToggle = this._register(new ModeToggle({ ...options, isChecked: mode === TreeFindMode.Filter }));
+		if (options.listFilterWidgetBackground) {
+			this.elements.root.style.backgroundColor = options.listFilterWidgetBackground;
+		}
+
+		if (options.listFilterWidgetShadow) {
+			this.elements.root.style.boxShadow = `0 0 8px 2px ${options.listFilterWidgetShadow}`;
+		}
+
+		this.modeToggle = this._register(new ModeToggle({ ...options.toggleStyles, isChecked: mode === TreeFindMode.Filter }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
 
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
 			additionalToggles: [this.modeToggle],
-			showCommonFindToggles: false
+			showCommonFindToggles: false,
+			inputBoxStyles: options.inputBoxStyles,
+			toggleStyles: options.toggleStyles
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
@@ -822,19 +845,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 		}));
 
 		this.onDidChangeValue = this.findInput.onDidChange;
-		this.style(options ?? {});
-	}
-
-	style(styles: IFindWidgetStyles): void {
-		this.findInput.style(styles);
-
-		if (styles.listFilterWidgetBackground) {
-			this.elements.root.style.backgroundColor = styles.listFilterWidgetBackground.toString();
-		}
-
-		if (styles.listFilterWidgetShadow) {
-			this.elements.root.style.boxShadow = `0 0 8px 2px ${styles.listFilterWidgetShadow}`;
-		}
 	}
 
 	focus() {
@@ -894,7 +904,6 @@ class FindController<T, TFilterData> implements IDisposable {
 	}
 
 	private widget: FindWidget<T, TFilterData> | undefined;
-	private styles: IFindWidgetStyles | undefined;
 	private width = 0;
 
 	private readonly _onDidChangeMode = new Emitter<TreeFindMode>();
@@ -914,7 +923,8 @@ class FindController<T, TFilterData> implements IDisposable {
 		model: ITreeModel<T, TFilterData, any>,
 		private view: List<ITreeNode<T, TFilterData>>,
 		private filter: FindFilter<T>,
-		private readonly contextViewProvider: IContextViewProvider
+		private readonly contextViewProvider: IContextViewProvider,
+		private readonly styles: IFindWidgetStyles
 	) {
 		this._mode = tree.options.defaultFindMode ?? TreeFindMode.Highlight;
 		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
@@ -1020,11 +1030,6 @@ class FindController<T, TFilterData> implements IDisposable {
 		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
 	}
 
-	style(styles: IFindWidgetStyles): void {
-		this.styles = styles;
-		this.widget?.style(styles);
-	}
-
 	layout(width: number): void {
 		this.width = width;
 		this.widget?.layout(width);
@@ -1084,6 +1089,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly additionalScrollHeight?: number;
 	readonly findWidgetEnabled?: boolean;
+	readonly findWidgetStyles: IFindWidgetStyles;
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -1430,7 +1436,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
-		private _options: IAbstractTreeOptions<T, TFilterData> = {}
+		private _options: IAbstractTreeOptions<T, TFilterData>,
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
@@ -1500,7 +1506,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if ((_options.findWidgetEnabled ?? true) && _options.keyboardNavigationLabelProvider && _options.contextViewProvider) {
-			this.findController = new FindController(this, this.model, this.view, filter!, _options.contextViewProvider);
+			this.findController = new FindController(this, this.model, this.view, filter!, _options.contextViewProvider, this.options.findWidgetStyles);
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
 			this.disposables.add(this.findController!);
@@ -1630,7 +1636,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.styleElement.textContent = content.join('\n');
 
-		this.findController?.style(styles);
 		this.view.style(styles);
 	}
 

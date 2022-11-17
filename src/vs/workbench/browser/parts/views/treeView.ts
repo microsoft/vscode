@@ -68,6 +68,7 @@ import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { defaultFindWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class TreeViewPane extends ViewPane {
 
@@ -669,7 +670,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dnd: this.treeViewDnd,
 			overrideStyles: {
 				listBackground: this.viewLocation === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
-			}
+			},
+			findWidgetStyles: defaultFindWidgetStyles
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
@@ -1247,7 +1249,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				this.rerender();
 			}
 			if (!templateData.checkbox) {
-				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
+				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler);
 				templateData.checkbox = checkbox;
 			}
 			templateData.checkbox.render(node);

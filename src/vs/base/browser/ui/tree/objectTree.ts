@@ -54,7 +54,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
-		options: IObjectTreeOptions<T, TFilterData> = {}
+		options: IObjectTreeOptions<T, TFilterData>
 	) {
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
@@ -168,8 +168,8 @@ export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends I
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
 }
 
-function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => ICompressedTreeNodeProvider<T, TFilterData>, options?: ICompressibleObjectTreeOptions<T, TFilterData>): IObjectTreeOptions<T, TFilterData> | undefined {
-	return options && {
+function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => ICompressedTreeNodeProvider<T, TFilterData>, options: ICompressibleObjectTreeOptions<T, TFilterData>): IObjectTreeOptions<T, TFilterData> {
+	return {
 		...options,
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
 			getKeyboardNavigationLabel(e: T) {
@@ -204,7 +204,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
-		options: ICompressibleObjectTreeOptions<T, TFilterData> = {}
+		options: ICompressibleObjectTreeOptions<T, TFilterData>
 	) {
 		const compressedTreeNodeProvider = () => this;
 		const compressibleRenderers = renderers.map(r => new CompressibleRenderer<T, TFilterData, any>(compressedTreeNodeProvider, r));

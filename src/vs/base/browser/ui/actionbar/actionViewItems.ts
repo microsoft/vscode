@@ -12,6 +12,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -261,6 +262,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
+	toggleStyles?: IToggleStyles;
 }
 
 export class ActionViewItem extends BaseActionViewItem {
@@ -270,7 +272,7 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	private cssClass?: string;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
 		this.options = options;
