@@ -87,7 +87,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private checkAndInstall(): void {
 		const language = platform.language;
-		const locale = platform.locale;
+		let locale = platform.locale ?? '';
+		if (locale.startsWith('zh-hans')) {
+			locale = 'zh-cn';
+		} else if (locale.startsWith('zh-hant')) {
+			locale = 'zh-tw';
+		}
 		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
@@ -96,118 +101,121 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
-		if (language === locale || languagePackSuggestionIgnoreList.indexOf(locale) > -1) {
+		if (locale.startsWith(language) || languagePackSuggestionIgnoreList.includes(locale)) {
 			return;
 		}
 
-		this.isLanguageInstalled(locale)
-			.then(installed => {
+		this.isLocaleInstalled(locale)
+			.then(async (installed) => {
 				if (installed) {
 					return;
 				}
 
-				this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None).then(tagResult => {
+				let searchLocale = locale;
+				let tagResult = await this.galleryService.query({ text: `tag:lp-${searchLocale}` }, CancellationToken.None);
+				if (tagResult.total === 0) {
+					// Trim the locale and try again.
+					searchLocale = locale.split('-')[0];
+					tagResult = await this.galleryService.query({ text: `tag:lp-${searchLocale}` }, CancellationToken.None);
 					if (tagResult.total === 0) {
 						return;
 					}
+				}
 
-					const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0];
-					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.firstPage[0];
+				const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'));
+				const extensionToFetchTranslationsFrom = extensionToInstall ?? tagResult.firstPage[0];
 
-					if (!extensionToFetchTranslationsFrom.assets.manifest) {
-						return;
-					}
+				if (!extensionToFetchTranslationsFrom.assets.manifest) {
+					return;
+				}
 
-					Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
-						.then(([manifest, translation]) => {
-							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
-							const languageName = loc ? (loc.languageName || locale) : locale;
-							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
-							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
-							const useEnglish = !translationsFromPack[promptMessageKey];
+				Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, searchLocale)])
+					.then(([manifest, translation]) => {
+						const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.find(x => locale.startsWith(x.languageId.toLowerCase()));
+						const languageName = loc ? (loc.languageName || locale) : locale;
+						const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
+						const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
+						const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
+						const useEnglish = !translationsFromPack[promptMessageKey];
 
-							const translations: { [key: string]: string } = {};
-							Object.keys(minimumTranslatedStrings).forEach(key => {
-								if (!translationsFromPack[key] || useEnglish) {
-									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
-								} else {
-									translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
-								}
-							});
-
-							const logUserReaction = (userReaction: string) => {
-								/* __GDPR__
-									"languagePackSuggestion:popup" : {
-										"owner": "TylerLeonhardt",
-										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-									}
-								*/
-								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language: locale });
-							};
-
-							const searchAction = {
-								label: translations['searchMarketplace'],
-								run: () => {
-									logUserReaction('search');
-									this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-										.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-										.then(viewlet => {
-											viewlet.search(`tag:lp-${locale}`);
-											viewlet.focus();
-										});
-								}
-							};
-
-							const installAndRestartAction = {
-								label: translations['installAndRestart'],
-								run: () => {
-									logUserReaction('installAndRestart');
-									this.installExtension(extensionToInstall).then(() => this.hostService.restart());
-								}
-							};
-
-							const promptMessage = translations[promptMessageKey];
-
-							this.notificationService.prompt(
-								Severity.Info,
-								promptMessage,
-								[extensionToInstall ? installAndRestartAction : searchAction,
-								{
-									label: localize('neverAgain', "Don't Show Again"),
-									isSecondary: true,
-									run: () => {
-										languagePackSuggestionIgnoreList.push(locale);
-										this.storageService.store(
-											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
-											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.APPLICATION,
-											StorageTarget.USER
-										);
-										logUserReaction('neverShowAgain');
-									}
-								}],
-								{
-									onCancel: () => {
-										logUserReaction('cancelled');
-									}
-								}
-							);
-
+						const translations: { [key: string]: string } = {};
+						Object.keys(minimumTranslatedStrings).forEach(key => {
+							if (!translationsFromPack[key] || useEnglish) {
+								translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
+							} else {
+								translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
+							}
 						});
-				});
-			});
 
+						const logUserReaction = (userReaction: string) => {
+							/* __GDPR__
+								"languagePackSuggestion:popup" : {
+									"owner": "TylerLeonhardt",
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language: locale });
+						};
+
+						const searchAction = {
+							label: translations['searchMarketplace'],
+							run: () => {
+								logUserReaction('search');
+								this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
+									.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+									.then(viewlet => {
+										viewlet.search(`tag:lp-${searchLocale}`);
+										viewlet.focus();
+									});
+							}
+						};
+
+						const installAndRestartAction = {
+							label: translations['installAndRestart'],
+							run: () => {
+								logUserReaction('installAndRestart');
+								this.installExtension(extensionToInstall!).then(() => this.hostService.restart());
+							}
+						};
+
+						const promptMessage = translations[promptMessageKey];
+
+						this.notificationService.prompt(
+							Severity.Info,
+							promptMessage,
+							[extensionToInstall ? installAndRestartAction : searchAction,
+							{
+								label: localize('neverAgain', "Don't Show Again"),
+								isSecondary: true,
+								run: () => {
+									languagePackSuggestionIgnoreList.push(locale);
+									this.storageService.store(
+										LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
+										JSON.stringify(languagePackSuggestionIgnoreList),
+										StorageScope.APPLICATION,
+										StorageTarget.USER
+									);
+									logUserReaction('neverShowAgain');
+								}
+							}],
+							{
+								onCancel: () => {
+									logUserReaction('cancelled');
+								}
+							}
+						);
+					});
+			});
 	}
 
-	private async isLanguageInstalled(language: string | undefined): Promise<boolean> {
+	private async isLocaleInstalled(locale: string): Promise<boolean> {
 		const installed = await this.extensionManagementService.getInstalled();
 		return installed.some(i => !!(i.manifest
 			&& i.manifest.contributes
 			&& i.manifest.contributes.localizations
 			&& i.manifest.contributes.localizations.length
-			&& i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
+			&& i.manifest.contributes.localizations.some(l => locale.startsWith(l.languageId.toLowerCase()))));
 	}
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {

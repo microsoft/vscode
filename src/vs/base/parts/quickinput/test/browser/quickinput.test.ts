@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { raceTimeout } from 'vs/base/common/async';
@@ -29,7 +30,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	let fixture: HTMLElement, controller: QuickInputController, quickpick: IQuickPick<IQuickPickItem>;
 
 	function getScrollTop(): number {
-		return (quickpick as any).scrollTop;
+		return quickpick.scrollTop;
 	}
 
 	setup(() => {
@@ -52,7 +53,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				options: IListOptions<T>,
 			) => new List<T>(user, container, delegate, renderers, options),
 			styles: {
-				button: {},
+				button: unthemedButtonStyles,
 				countBadge: {},
 				inputBox: {},
 				keybindingLabel: {},

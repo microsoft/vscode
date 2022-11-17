@@ -42,7 +42,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 export class DebugSession implements IDebugSession {
 
 	private _subId: string | undefined;
-	private raw: RawDebugSession | undefined;
+	raw: RawDebugSession | undefined; // used in tests
 	private initialized = false;
 	private _options: IDebugSessionOptions;
 
@@ -306,7 +306,8 @@ export class DebugSession implements IDebugSession {
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
 				supportsMemoryReferences: true, //#129684
-				supportsArgsCanBeInterpretedByShell: true // #149910
+				supportsArgsCanBeInterpretedByShell: true, // #149910
+				supportsMemoryEvent: true
 			});
 
 			this.initialized = true;
@@ -889,7 +890,7 @@ export class DebugSession implements IDebugSession {
 			// whether the thread is stopped or not
 			if (stoppedDetails.allThreadsStopped) {
 				this.threads.forEach(thread => {
-					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: undefined };
+					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: thread.stoppedDetails?.reason };
 					thread.stopped = true;
 					thread.clearCallStack();
 				});

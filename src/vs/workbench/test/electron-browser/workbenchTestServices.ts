@@ -68,7 +68,7 @@ const NULL_PROFILE = {
 	keybindingsResource: joinPath(URI.file(homeDir), 'keybindings.json'),
 	tasksResource: joinPath(URI.file(homeDir), 'tasks.json'),
 	snippetsHome: joinPath(URI.file(homeDir), 'snippets'),
-	extensionsResource: undefined
+	extensionsResource: joinPath(URI.file(homeDir), 'extensions.json')
 };
 
 export const TestNativeWindowConfiguration: INativeWindowConfiguration = {

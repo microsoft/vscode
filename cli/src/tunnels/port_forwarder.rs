@@ -95,6 +95,7 @@ impl PortForwardingProcessor {
 	}
 }
 
+#[derive(Clone)]
 pub struct PortForwarding {
 	tx: mpsc::Sender<PortForwardingRec>,
 }

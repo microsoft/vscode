@@ -851,13 +851,13 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
-	private uriParent(uri: URI): URI {
-		return this.uriIdentityService.extUri.dirname(uri);
+	private normalizedUriParent(uri: URI): URI {
+		return this.uriIdentityService.extUri.normalizePath(this.uriIdentityService.extUri.dirname(uri));
 	}
 
 	private uriEquals(uri1: URI, ur2: URI): boolean {
@@ -879,14 +879,15 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		}
 
 		const fileMatchParentParts: URI[] = [];
-		let uri = this.uriParent(rawFileMatch.resource);
+		const normalizedResource = this.uriIdentityService.extUri.normalizePath(this.resource);
+		let uri = this.normalizedUriParent(rawFileMatch.resource);
 
-		while (!this.uriEquals(this.resource, uri)) {
+		while (!this.uriEquals(normalizedResource, uri)) {
 			fileMatchParentParts.unshift(uri);
 			const prevUri = uri;
-			uri = this.uriParent(uri);
+			uri = this.normalizedUriParent(uri);
 			if (this.uriEquals(prevUri, uri)) {
-				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
+				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${normalizedResource}`);
 			}
 		}
 

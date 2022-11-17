@@ -260,9 +260,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private async getAccountPreference(): Promise<ExistingSessionItem | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
-		quickpick.title = localize('accountPreference.title', 'Enable remote access by signing up to remote tunnels.');
 		quickpick.ok = false;
-		quickpick.placeholder = localize('accountPreference.placeholder', "Select an account to sign in");
+		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems();
 

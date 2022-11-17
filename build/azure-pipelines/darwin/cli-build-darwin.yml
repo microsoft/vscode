@@ -7,9 +7,6 @@ parameters:
   - name: VSCODE_BUILD_MACOS_ARM64
     type: boolean
     default: false
-  - name: channel
-    type: string
-    default: stable
 
 steps:
   - task: Npm@1

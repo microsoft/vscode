@@ -73,7 +73,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-export class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
+class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
@@ -269,7 +269,7 @@ interface CommentFilterData {
 	textMatches: IMatch[];
 }
 
-export type FilterData = ResourceFilterData | CommentFilterData;
+type FilterData = ResourceFilterData | CommentFilterData;
 
 export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentNode, FilterData> {
 

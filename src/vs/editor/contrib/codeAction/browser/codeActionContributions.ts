@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 import { AutoFixAction, CodeActionCommand, CodeActionController, FixAllAction, OrganizeImportsAction, QuickFixAction, RefactorAction, RefactorPreview, SourceAction } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-registerEditorContribution(CodeActionController.ID, CodeActionController);
+registerEditorContribution(CodeActionController.ID, CodeActionController, EditorContributionInstantiation.Idle);
 registerEditorAction(QuickFixAction);
 registerEditorAction(RefactorAction);
 registerEditorAction(RefactorPreview);
@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'editor.codeActionWidget.showHeaders': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('showCodeActionHeaders', "Enable/disable showing group headers in the code action menu."),
+			description: nls.localize('showCodeActionHeaders', "Enable/disable showing group headers in the Code Action menu."),
 			default: true,
 		},
 	}

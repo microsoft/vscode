@@ -237,7 +237,7 @@
 	vertical-align: text-bottom;
 }
 
-.quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
+.quick-input-list .quick-input-list-rows .monaco-highlighted-label > * {
 	opacity: 1;
 }
 

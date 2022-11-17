@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import * as cp from 'child_process';
 
 import { Disposable } from '../utils/dispose';
 import { CommandManager } from '../commands/commandManager';
 
-const localize = nls.loadMessageBundle();
 
 export async function nodeWasResolvable(): Promise<boolean> {
 	let execStr: string;
@@ -52,7 +50,9 @@ export class CreateNewJSFileCommand {
 	public static readonly id = 'javascript-walkthrough.commands.createJsFile';
 	public readonly id = CreateNewJSFileCommand.id;
 
-	constructor(private walkthroughState: JsWalkthroughState) { }
+	constructor(
+		private readonly walkthroughState: JsWalkthroughState
+	) { }
 
 	public execute() {
 		createNewJSFile(this.walkthroughState);
@@ -63,7 +63,9 @@ export class DebugJsFileCommand {
 	public static readonly id = 'javascript-walkthrough.commands.debugJsFile';
 	public readonly id = DebugJsFileCommand.id;
 
-	constructor(private walkthroughState: JsWalkthroughState) { }
+	constructor(
+		private readonly walkthroughState: JsWalkthroughState
+	) { }
 
 	public execute() {
 		debugJsFile(this.walkthroughState);
@@ -88,12 +90,12 @@ async function createNewJSFile(walkthroughState: JsWalkthroughState) {
 async function debugJsFile(walkthroughState: JsWalkthroughState) {
 	const hasNode = await nodeWasResolvable();
 	if (!hasNode) {
-		const reloadResponse = localize('reloadWindowForNode', 'Reload VS Code');
-		const debugAnywayResponse = localize('nodeNotFoundDebugAnyway', 'Try Debugging Anyway');
-		const dismissResponse = localize('nodeNotFoundDismissDialog', 'Dismiss');
+		const reloadResponse = vscode.l10n.t("Reload VS Code");
+		const debugAnywayResponse = vscode.l10n.t("Try Debugging Anyway");
+		const dismissResponse = vscode.l10n.t("Dismiss");
 		const response = await vscode.window.showErrorMessage(
 			// The message
-			localize('noNodeInstallFound', 'We couldn\'t find Node.js on this computer. If you just installed it, you might need to reload VS Code.'),
+			vscode.l10n.t("We couldn\'t find Node.js on this computer. If you just installed it, you might need to reload VS Code."),
 			// The options
 			reloadResponse,
 			debugAnywayResponse,

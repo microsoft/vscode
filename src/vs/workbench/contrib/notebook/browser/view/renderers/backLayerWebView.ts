@@ -8,7 +8,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
@@ -29,9 +28,11 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/common/webview';
+import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
@@ -98,7 +99,7 @@ interface BacklayerWebviewOptions {
 	readonly outputLineHeight: number;
 }
 
-export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
+export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 	private static _originStore?: WebviewOriginStore;
 
@@ -149,8 +150,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super();
+		super(themeService);
 
 		this.element = document.createElement('div');
 
@@ -247,6 +249,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
+		const findHighlight = this.getColor(editorFindMatch);
+		const currentMatchHighlight = this.getColor(editorFindMatchHighlight);
 		return /* html */`
 		<html lang="en">
 			<head>
@@ -264,11 +268,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				">` : ''}
 				<style nonce="${this.nonce}">
 					::highlight(find-highlight) {
-						background-color: var(--vscode-editor-findMatchHighlightBackground);
+						background-color: var(--vscode-editor-findMatchBackground, ${findHighlight});
 					}
 
 					::highlight(current-find-highlight) {
-						background-color: var(--vscode-editor-findMatchBackground);
+						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentMatchHighlight});
 					}
 
 					#container .cell_container {
@@ -479,7 +483,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this._webviewPreloadInitialized = new DeferredPromise();
 
 		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asFileUri('vs/loader.js');
 			const loader = this.asWebviewUri(loaderUri, undefined);
 
 			coreDependencies = `<script src="${loader}"></script><script>
@@ -491,7 +495,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this._initialize(htmlContent);
 			this._initialized.complete();
 		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
 
 			fetch(loaderUri.toString(true)).then(async response => {
 				if (response.status !== 200) {
@@ -553,7 +557,7 @@ var requirejs = (function() {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js', require)),
+			dirname(FileAccess.asFileUri('vs/loader.js')),
 		];
 	}
 
@@ -682,35 +686,36 @@ var requirejs = (function() {
 					break;
 				}
 				case 'clicked-link': {
-					let linkToOpen: URI | string | undefined;
-
 					if (matchesScheme(data.href, Schemas.command)) {
-						// We allow a very limited set of commands
 						const uri = URI.parse(data.href);
-						switch (uri.path) {
-							case 'workbench.action.openLargeOutput': {
-								const outputId = uri.query;
-								const group = this.editorGroupService.activeGroup;
-								if (group) {
-									if (group.activeEditor) {
-										group.pinEditor(group.activeEditor);
-									}
-								}
 
-								this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
-								return;
+						if (uri.path === 'workbench.action.openLargeOutput') {
+							const outputId = uri.query;
+							const group = this.editorGroupService.activeGroup;
+							if (group) {
+								if (group.activeEditor) {
+									group.pinEditor(group.activeEditor);
+								}
 							}
-							case 'github-issues.authNow':
-							case 'workbench.extensions.search':
-							case 'workbench.action.openSettings': {
-								this.openerService.open(data.href, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
-								return;
-							}
+
+							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							return;
 						}
 
+						// We allow a very limited set of commands
+						this.openerService.open(data.href, {
+							fromUserGesture: true,
+							fromWorkspace: true,
+							allowCommands: [
+								'github-issues.authNow',
+								'workbench.extensions.search',
+								'workbench.action.openSettings',
+							],
+						});
 						return;
 					}
 
+					let linkToOpen: URI | string | undefined;
 					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
 						linkToOpen = data.href;
 					} else if (!/^[\w\-]+:/.test(data.href)) {
@@ -742,7 +747,7 @@ var requirejs = (function() {
 					}
 
 					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: false, fromWorkspace: true });
+						this.openerService.open(linkToOpen, { fromUserGesture: true, fromWorkspace: true });
 					}
 					break;
 				}
