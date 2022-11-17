@@ -73,14 +73,8 @@ if (util.inspect && util.inspect['defaultOptions']) {
 }
 
 // VSCODE_GLOBALS: node_modules
-globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), {
-	get(target, mod) {
-		if (!target[mod] && typeof mod === 'string') {
-			target[mod] = (require.__$__nodeRequire ?? require)(mod);
-		}
-		return target[mod];
-	}
-});
+globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => (require.__$__nodeRequire ?? require)(String(mod)) });
+
 // VSCODE_GLOBALS: package/product.json
 globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)('../../../product.json');
 globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)('../../../package.json');
