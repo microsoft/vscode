@@ -157,7 +157,10 @@ async fn check_is_nixos() -> bool {
 async fn check_glibcxx_version() -> Result<(), String> {
 	let mut libstdc_path: Option<String> = None;
 
+	#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 	const DEFAULT_LIB_PATH: &str = "/usr/lib64/libstdc++.so.6";
+	#[cfg(any(target_arch = "x86", target_arch = "arm"))]
+	const DEFAULT_LIB_PATH: &str = "/usr/lib/libstdc++.so.6";
 	const LDCONFIG_PATH: &str = "/sbin/ldconfig";
 
 	if fs::metadata(DEFAULT_LIB_PATH).await.is_ok() {
