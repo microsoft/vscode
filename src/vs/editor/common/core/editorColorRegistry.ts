@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
-import { activeContrastBorder, editorBackground, editorForeground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorBackground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 
@@ -84,29 +84,10 @@ export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHigh
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
 	const background = theme.getColor(editorBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor, .monaco-editor-background { background-color: ${background}; }`);
-	}
-
 	const lineHighlight = theme.getColor(editorLineHighlight);
 	const imeBackground = (lineHighlight && !lineHighlight.isTransparent() ? lineHighlight : background);
 	if (imeBackground) {
 		collector.addRule(`.monaco-editor .inputarea.ime-input { background-color: ${imeBackground}; }`);
-	}
-
-	const foreground = theme.getColor(editorForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
-	}
-
-	const gutter = theme.getColor(editorGutter);
-	if (gutter) {
-		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
-	}
-
-	const rangeHighlight = theme.getColor(editorRangeHighlight);
-	if (rangeHighlight) {
-		collector.addRule(`.monaco-editor .rangeHighlight { background-color: ${rangeHighlight}; }`);
 	}
 
 	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
@@ -114,19 +95,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
 	}
 
-	const symbolHighlight = theme.getColor(editorSymbolHighlight);
-	if (symbolHighlight) {
-		collector.addRule(`.monaco-editor .symbolHighlight { background-color: ${symbolHighlight}; }`);
-	}
-
 	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
 	if (symbolHighlightBorder) {
 		collector.addRule(`.monaco-editor .symbolHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${symbolHighlightBorder}; }`);
-	}
-
-	const invisibles = theme.getColor(editorWhitespaces);
-	if (invisibles) {
-		collector.addRule(`.monaco-editor .mtkw { color: ${invisibles} !important; }`);
-		collector.addRule(`.monaco-editor .mtkz { color: ${invisibles} !important; }`);
 	}
 });
