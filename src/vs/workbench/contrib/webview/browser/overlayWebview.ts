@@ -41,7 +41,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _shouldShowFindWidgetOnRestore = false;
 
 	public readonly providedViewType?: string;
-	public readonly origin: string;
+
+	public origin: string;
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
