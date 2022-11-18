@@ -24,6 +24,7 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
+	override get extensionsPath() { return joinPath(this.userRoamingDataHome, 'extensions.json').path; }
 	override get stateResource() { return joinPath(this.userRoamingDataHome, 'state.json'); }
 }
 

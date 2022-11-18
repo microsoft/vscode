@@ -495,7 +495,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);

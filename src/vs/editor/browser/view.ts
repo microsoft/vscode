@@ -49,6 +49,7 @@ import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/them
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
+import { inputLatency } from 'vs/base/browser/performance';
 
 
 export interface IContentWidgetData {
@@ -222,6 +223,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
+		inputLatency.onRenderStart();
 		this._renderNow();
 	}
 
