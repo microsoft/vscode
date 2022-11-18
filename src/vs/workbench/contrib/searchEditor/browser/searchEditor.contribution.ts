@@ -492,7 +492,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: IncreaseSearchEditorContextLinesCommandId,
-			title: { original: 'Increase Context Lines', value: localize('searchEditor.action.increaseSearchEditorContextLines', "Increase Context Lines") },
+			title: { original: 'Increase number of surrounding lines', value: localize('searchEditor.action.increaseSearchEditorContextLines', "Increase number of surrounding lines") },
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -509,7 +509,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: DecreaseSearchEditorContextLinesCommandId,
-			title: { original: 'Decrease Context Lines', value: localize('searchEditor.action.decreaseSearchEditorContextLines', "Decrease Context Lines") },
+			title: { original: 'Decrease number of surrounding lines', value: localize('searchEditor.action.decreaseSearchEditorContextLines', "Decrease number of surrounding lines") },
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
