@@ -7,11 +7,8 @@
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriComponents } from 'vs/base/common/uri';
-import { ITerminalOutputMatcher, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import { Terminal } from 'xterm-headless';
 
 export interface ITerminalCommandSelector {
 	id: string;
@@ -57,7 +54,7 @@ export interface ITerminalCommandSelector {
 
 export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
 export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
-export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, terminal: Terminal, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
+export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, lines: string[] | undefined, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
 export interface ITerminalQuickFixProvider {
 	/**
@@ -66,7 +63,7 @@ export interface ITerminalQuickFixProvider {
 	 * @param token A cancellation token indicating the result is no longer needed
 	 * @return Terminal quick fix(es) if any
 	 */
-	provideTerminalQuickFixes(terminalCommand: ITerminalCommand, terminal: Terminal, option: ITerminalQuickFixOptions, token: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
+	provideTerminalQuickFixes(terminalCommand: ITerminalCommand, lines: string[] | undefined, option: ITerminalQuickFixOptions, token: CancellationToken): Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 }
 export interface ITerminalCommandMatchResult {
 	commandLine: string;
@@ -101,4 +98,35 @@ export interface ITerminalContributions {
 
 export interface IExtensionTerminalQuickFix extends ITerminalQuickFixOptions {
 	extensionIdentifier: string;
+}
+
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * The number of rows above or below the {@link anchor} to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons. This is capped at 40.
+	 */
+	length: number;
+
+	/**
+	 * If multiple matches are expected - this will result in {@link outputLines} being returned
+	 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+	 */
+	multipleMatches?: boolean;
 }

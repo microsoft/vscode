@@ -23,12 +23,8 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import { Terminal } from 'xterm-headless';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { getOutputMatchForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -255,7 +251,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public async $registerQuickFixProvider(id: string): Promise<void> {
 		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
 			{
-				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, terminal: Terminal, option: ITerminalQuickFixOptions, token: CancellationToken) => {
+				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, lines: string[], option: ITerminalQuickFixOptions, token: CancellationToken) => {
 					if (token.isCancellationRequested) {
 						return;
 					}
@@ -270,7 +266,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 					const outputMatcher = option.outputMatcher;
 					let outputMatch;
 					if (outputMatcher) {
-						outputMatch = getOutputMatchForCommand(terminalCommand.executedMarker, terminalCommand.endMarker, terminal.buffer.active, terminal.cols, outputMatcher);
+						outputMatch = getOutputMatchForLines(lines, outputMatcher);
 					}
 					if (!outputMatch) {
 						return;
@@ -451,4 +447,9 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 			activate: () => proxy.$activateLink(instance.instanceId, dto.id)
 		}));
 	}
+}
+
+export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
+	const match: RegExpMatchArray | null | undefined = lines.join('\n').match(outputMatcher.lineMatcher);
+	return match ? { regexMatch: match, outputLines: outputMatcher.multipleMatches ? lines : undefined } : undefined;
 }
