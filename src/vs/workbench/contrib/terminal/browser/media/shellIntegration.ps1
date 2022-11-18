@@ -92,4 +92,7 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 }
 Set-MappedKeyHandlers
-[Console]::Write("`e]633;P;UserAliases=$(Get-Alias | Select-Object Name, Definition)`a")
+$result = $(Get-Alias | Select-Object Name, Definition)
+$resultStr = Out-String -InputObject $result
+$resultStr = $resultStr.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
+[Console]::Write("`e]633;P;UserAliases=$resultStr`a")

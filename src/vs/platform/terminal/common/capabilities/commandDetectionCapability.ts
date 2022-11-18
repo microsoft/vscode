@@ -565,7 +565,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
 				timestamp: e.timestamp,
-				markProperties: e.markProperties
+				markProperties: e.markProperties,
+				aliases: e.aliases
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -579,7 +580,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: undefined,
 				commandStartLineContent: undefined,
 				timestamp: 0,
-				markProperties: undefined
+				markProperties: undefined,
+				aliases: this._aliases
 			});
 		}
 		return {
@@ -784,11 +786,13 @@ function countNewLines(regex: RegExp): number {
 
 function parseAliases(aliasString: string, isWindows?: boolean): string[][] {
 	const aliases: string[][] = [];
-	const rows = aliasString.split('\n');
 	let shellType;
+	const rows = aliasString.split('\n');
 	if (isWindows || aliasString.includes('Definition')) {
 		shellType = 'pwsh';
 		// Remove the column headers
+		rows.shift();
+		rows.shift();
 		rows.shift();
 	} else if (rows.length > 1 && rows[1].startsWith('alias')) {
 		shellType = 'bash';
@@ -802,7 +806,7 @@ function parseAliases(aliasString: string, isWindows?: boolean): string[][] {
 		} else if (shellType === 'bash') {
 			aliases.push(row.substring(6).split('='));
 		} else {
-			aliases.push(row.split(''));
+			aliases.push(row.split('\s+'));
 		}
 	}
 	console.log(aliases);

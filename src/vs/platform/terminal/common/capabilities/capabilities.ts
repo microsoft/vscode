@@ -252,6 +252,7 @@ export interface ISerializedCommand {
 	commandStartLineContent: string | undefined;
 	timestamp: number;
 	markProperties: IMarkProperties | undefined;
+	aliases: string[][] | undefined;
 }
 export interface IMarkProperties {
 	hoverMessage?: string;

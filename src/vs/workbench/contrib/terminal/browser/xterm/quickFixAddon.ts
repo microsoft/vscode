@@ -328,9 +328,13 @@ export async function getQuickFixesForCommand(
 				}
 				quickFixes = await getResolvedFixes(option, option.outputMatcher ? getLinesForCommand(terminal.buffer.active, terminalCommand, terminal.cols, option.outputMatcher) : undefined);
 			} else if (option.type === 'internal') {
-				const commandLineMatch = newCommand.match(option.commandLineMatcher);
+				let commandLineMatch = newCommand.match(option.commandLineMatcher);
 				if (!commandLineMatch) {
-					continue;
+					const resolvedAliasesCommand = resolveAliases(newCommand, terminalCommand.aliases);
+					commandLineMatch = resolvedAliasesCommand.match(option.commandLineMatcher);
+					if (!commandLineMatch) {
+						continue;
+					}
 				}
 				const outputMatcher = option.outputMatcher;
 				let outputMatch;
@@ -427,7 +431,7 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 	};
 }
 
-function resolveAliases(commandLine: string, aliases?: string[][]): string {
+export function resolveAliases(commandLine: string, aliases?: string[][]): string {
 	if (!aliases) {
 		return commandLine;
 	}
