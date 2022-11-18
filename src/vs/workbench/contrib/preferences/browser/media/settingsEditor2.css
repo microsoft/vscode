@@ -344,6 +344,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: inline-block; /* size to contents for hover to show context button */
+	padding-bottom: 2px; /* so that focus outlines wrap around nicely for indicators, especially ones with codicons */
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-modified-indicator {
@@ -368,7 +369,7 @@
 	bottom: 23px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .setting-indicators-container {
 	font-style: italic;
 }
 
@@ -379,8 +380,8 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .misc-label .setting-indicator:hover {
-	text-decoration: underline;
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .setting-indicators-container .setting-indicator {
+	padding-bottom: 2px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .codicon {
@@ -483,12 +484,18 @@
 	margin: 0px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button {
+	opacity: 0.9;
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code {
 	color: var(--vscode-textLink-foreground);
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
@@ -497,12 +504,15 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:active,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button:hover,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button:active,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover > code,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:active > code {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover,
+.settings-editor > .settings-body .settings-tree-container .edit-in-settings-button:hover {
 	cursor: pointer;
 	text-decoration: underline;
 }
@@ -567,14 +577,6 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 320px;
-}
-
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-value .edit-in-settings-button,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-value .edit-in-settings-button:hover,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-value .edit-in-settings-button:active {
-	text-align: left;
-	text-decoration: underline;
-	padding-left: 0px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .monaco-select-box {

@@ -139,3 +139,10 @@ export interface INotebookKernelService {
 	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]>;
 	//#endregion
 }
+
+export const INotebookKernelHistoryService = createDecorator<INotebookKernelHistoryService>('INotebookKernelHistoryService');
+export interface INotebookKernelHistoryService {
+	_serviceBrand: undefined;
+	getKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; all: INotebookKernel[] };
+	addMostRecentKernel(kernel: INotebookKernel): void;
+}

@@ -68,7 +68,7 @@ import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationVa
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -730,6 +730,7 @@ export class GettingStartedPage extends EditorPane {
 			actionClassName: 'getting-started-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
 			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+			...defaultToggleStyles
 		});
 		showOnStartupCheckbox.domNode.id = 'showOnStartup';
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
@@ -1339,7 +1340,7 @@ export class GettingStartedPage extends EditorPane {
 			$('.done-next-container', {},
 				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
 				...(showNextCategory
-					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-small-right'))]
+					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-right'))]
 					: []),
 			)
 		);

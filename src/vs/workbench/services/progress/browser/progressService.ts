@@ -17,8 +17,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { attachDialogStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
@@ -26,7 +24,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -40,7 +38,6 @@ export class ProgressService extends Disposable implements IProgressService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
@@ -565,12 +562,14 @@ export class ProgressService extends Disposable implements IProgressService {
 							}
 						}
 					},
-					buttonStyles: defaultButtonStyles
+					buttonStyles: defaultButtonStyles,
+					checkboxStyles: defaultCheckboxStyles,
+					inputBoxStyles: defaultInputBoxStyles,
+					dialogStyles: defaultDialogStyles
 				}
 			);
 
 			disposables.add(dialog);
-			disposables.add(attachDialogStyler(dialog, this.themeService));
 
 			dialog.show().then(dialogResult => {
 				onDidCancel?.(dialogResult.button);

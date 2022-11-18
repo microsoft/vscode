@@ -42,7 +42,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptions
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -1242,18 +1242,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return result;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer);
+			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer, group);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1340,7 +1340,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (this._initialUndoRedoSnapshot === null) {
 			this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
 		}
-		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
+		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer, group);
 	}
 
 	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {

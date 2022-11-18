@@ -246,6 +246,42 @@
 	word-wrap: break-word;
 }
 
+
+.review-widget .body .comment-additional-actions {
+	margin: 10px 20px;
+}
+
+.review-widget .body .comment-additional-actions .section-separator {
+	border-top: 1px solid var(--vscode-menu-separatorBackground);
+	margin: 14px 0;
+}
+
+.review-widget .body .comment-additional-actions .button-bar {
+	display: flex;
+	white-space: nowrap;
+}
+
+.review-widget .body .comment-additional-actions .monaco-button,
+.review-widget .body .comment-additional-actions .monaco-text-button,
+.review-widget .body .comment-additional-actions .monaco-button-dropdown {
+	display: flex;
+	width: auto;
+}
+
+.review-widget .body .comment-additional-actions .button-bar>.monaco-text-button,
+.review-widget .body .comment-additional-actions .button-bar>.monaco-button-dropdown {
+	margin: 0 10px 0 0;
+}
+
+.review-widget .body .comment-additional-actions .button-bar .monaco-text-button {
+	padding: 4px 10px;
+}
+
+
+.review-widget .body .comment-additional-actions .codicon-drop-down-button {
+	align-items: center;
+}
+
 .review-widget .body .comment-form.expand .review-thread-reply-button {
 	display: none;
 }
@@ -295,7 +331,7 @@
 .review-widget .body .comment-form .form-actions,
 .review-widget .body .edit-container .form-actions {
 	overflow: auto;
-	padding: 10px 0;
+	margin: 10px 0;
 }
 
 .review-widget .body .edit-textarea {
