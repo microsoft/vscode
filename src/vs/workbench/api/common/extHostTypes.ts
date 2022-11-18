@@ -2745,7 +2745,7 @@ export class Breakpoint {
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -2755,6 +2755,9 @@ export class Breakpoint {
 		}
 		if (typeof logMessage === 'string') {
 			this.logMessage = logMessage;
+		}
+		if (typeof id === 'string') {
+			this._id = id;
 		}
 	}
 
@@ -2770,8 +2773,8 @@ export class Breakpoint {
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
+		super(enabled, condition, hitCondition, logMessage, id);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -2783,8 +2786,8 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
+		super(enabled, condition, hitCondition, logMessage, id);
 		this.functionName = functionName;
 	}
 }
@@ -2795,8 +2798,8 @@ export class DataBreakpoint extends Breakpoint {
 	readonly dataId: string;
 	readonly canPersist: boolean;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
+		super(enabled, condition, hitCondition, logMessage, id);
 		if (!dataId) {
 			throw illegalArgument('dataId');
 		}
