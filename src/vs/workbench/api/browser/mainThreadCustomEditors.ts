@@ -14,6 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
@@ -137,7 +138,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
 			},
 			resolveWebview: async (webviewInput: CustomEditorInput, cancellation: CancellationToken) => {
-				const handle = webviewInput.id;
+				const handle = generateUuid();
 				const resource = webviewInput.resource;
 
 				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
@@ -660,7 +661,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 				location: primaryEditor.extension.location!,
 			} : undefined,
 			webview: {
-				id: primaryEditor.id,
 				origin: primaryEditor.webview.origin,
 				options: primaryEditor.webview.options,
 				state: primaryEditor.webview.state,

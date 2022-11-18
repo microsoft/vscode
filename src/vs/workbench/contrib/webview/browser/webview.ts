@@ -68,7 +68,6 @@ export interface IWebviewService {
 }
 
 export interface WebviewInitInfo {
-	readonly id: string;
 	readonly providedViewType?: string;
 	readonly origin?: string;
 
@@ -169,11 +168,6 @@ export interface WebviewMessageReceivedEvent {
 }
 
 export interface IWebview extends IDisposable {
-
-	/**
-	 * External identifier of this webview.
-	 */
-	readonly id: string;
 
 	/**
 	 * The original view type of the webview.
