@@ -970,7 +970,7 @@ export class GettingStartedPage extends EditorPane {
 			const descriptionContent = $('.description-content', {},);
 
 			if (category.isFeatured) {
-				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-empty')));
+				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-full')));
 				reset(descriptionContent, ...renderLabelWithIcons(category.description));
 			}
 
