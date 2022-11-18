@@ -271,7 +271,7 @@
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin: 8px 8px 12px 0;
+	margin: 8px 8px 8px 0;
 	padding: 3px 6px 6px;
 	left: -3px;
 	text-align: left;
@@ -280,6 +280,7 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
 	position: relative;
 	border-radius: 6px;
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
 	overflow: hidden;
 }
 
@@ -322,7 +323,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
-	border-top: 30px solid red;
+	border-top: 30px solid var(--vscode-activityBarBadge-background);
 	width: 30px;
 	box-sizing: border-box;
 	height: 20px;
@@ -408,7 +409,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
 	cursor: default !important;
-	border: 1px solid var(--vscode-editorWidget-border);
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded h3 {
@@ -964,10 +965,6 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	background-color: var(--vscode-activityBarBadge-background);
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
-	border-top-color: var(--vscode-activityBarBadge-background);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
