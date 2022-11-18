@@ -179,7 +179,7 @@ export function gitCreatePr(): IInternalOptions {
 			return {
 				class: undefined,
 				tooltip: label,
-				id: 'terminal.createPR',
+				id: 'Git Create Pr',
 				label,
 				enabled: true,
 				type: 'opener',
