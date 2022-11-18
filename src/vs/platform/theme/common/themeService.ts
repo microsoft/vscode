@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as platform from 'vs/platform/registry/common/platform';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { asCssValue, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
@@ -233,8 +233,48 @@ class ThemingRegistry implements IThemingRegistry {
 const themingRegistry = new ThemingRegistry();
 platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
+
+
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
 	return themingRegistry.onColorThemeChange(participant);
+}
+
+
+/**
+ * @returns Used as a tool for the migration to CSS variables
+ */
+export function generateCSSRulesWithVariables(environmentService: IEnvironmentService): string[] {
+
+	const redRgb = new RGBA(255, 0, 0, 1);
+	class ColorStandIn extends Color {
+		constructor(private id: string) {
+			super(redRgb);
+		}
+		override toString() {
+			return asCssValue(this.id);
+		}
+	}
+
+	const colorThemeStandin: IColorTheme = {
+		defines: () => true,
+		getColor: (colorId: string) => new ColorStandIn(colorId),
+		getTokenStyleMetadata: () => undefined,
+		label: 'standIn',
+		semanticHighlighting: false,
+		tokenColorMap: [],
+		type: ColorScheme.DARK
+	};
+
+	const rules: string[] = [];
+	themingRegistry.getThemingParticipants().forEach(p => {
+		const collector = {
+			addRule(rule: string): void {
+				rules.push(rule);
+			}
+		};
+		p(colorThemeStandin, collector, environmentService);
+	});
+	return rules;
 }
 
 /**

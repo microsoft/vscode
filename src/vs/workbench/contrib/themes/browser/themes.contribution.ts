@@ -28,14 +28,15 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { generateCSSRulesWithVariables, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -591,6 +592,25 @@ registerAction2(class extends Action2 {
 		return editorService.openEditor({ resource: undefined, contents, languageId: 'jsonc', options: { pinned: true } });
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: '_workbench.action.generateCSSRules',
+			title: { value: localize('generateCSSRules.label', "Generate Stylesheet with Color Variables"), original: 'Generate Stylesheet with Color Variables' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const environmentService = accessor.get(IEnvironmentService);
+		const rules = generateCSSRulesWithVariables(environmentService);
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({ resource: undefined, contents: rules.join('\n'), languageId: 'css', options: { pinned: true } });
+	}
+});
+
 
 const toggleLightDarkThemesCommandId = 'workbench.action.toggleLightDarkThemes';
 
