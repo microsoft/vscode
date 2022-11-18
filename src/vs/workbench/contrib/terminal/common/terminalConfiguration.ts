@@ -121,7 +121,7 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['singleClick', 'doubleClick'],
 			enumDescriptions: [
 				localize('terminal.integrated.tabs.focusMode.singleClick', "Focus the terminal when clicking a terminal tab"),
-				localize('terminal.integrated.tabs.focusMode.doubleClick', "Focus the terminal when double clicking a terminal tab")
+				localize('terminal.integrated.tabs.focusMode.doubleClick', "Focus the terminal when double-clicking a terminal tab")
 			],
 			default: 'doubleClick',
 			description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
