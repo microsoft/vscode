@@ -215,4 +215,11 @@ export class CodeActionItem implements IActionItem {
 export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
+
+	readonly documentation: readonly {
+		id: string;
+		title: string;
+		tooltip?: string;
+		commandArguments?: any[];
+	}[];
 }
