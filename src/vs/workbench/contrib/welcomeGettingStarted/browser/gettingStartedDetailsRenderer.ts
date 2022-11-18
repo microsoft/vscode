@@ -62,7 +62,6 @@ export class GettingStartedDetailsRenderer {
 					}
 					.theme-picker-row {
 						display: flex;
-
 						justify-content: center;
 					}
 					checklist {
