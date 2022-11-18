@@ -472,7 +472,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.ToggleSearchEditorContextLinesCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorContextLines', "Toggle Context Lines"), original: 'Toggle Context Lines"' },
+			title: { value: localize('searchEditor.action.toggleSearchEditorContextLines', "Show/hide surrounding lines"), original: 'Show/hide surrounding lines"' },
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
