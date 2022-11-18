@@ -280,7 +280,7 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
 	position: relative;
 	border-radius: 6px;
-	border: 1px solid var(--vscode-editorWidget-border);
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
 	overflow: hidden;
 }
 
@@ -409,7 +409,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
 	cursor: default !important;
-	border: 1px solid var(--vscode-editorWidget-border);
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded>.codicon {
