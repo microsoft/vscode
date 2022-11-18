@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAncestor, trackFocus } from 'vs/base/browser/dom';
+import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { Codicon } from 'vs/base/common/codicons';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { isAncestor, trackFocus } from 'vs/base/browser/dom';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
-import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { Codicon } from 'vs/base/common/codicons';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CopyNotificationMessageAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { NotificationRenderer, NotificationsListDelegate } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { INotificationViewItem } from 'vs/workbench/common/notifications';
+import { NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND, NOTIFICATIONS_LINKS, NOTIFICATIONS_WARNING_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;
 }
 
-export class NotificationsList extends Themable {
+export class NotificationsList extends Disposable {
 
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
@@ -36,10 +37,9 @@ export class NotificationsList extends Themable {
 		private readonly container: HTMLElement,
 		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
-		super(themeService);
+		super();
 	}
 
 	show(focus?: boolean): void {
@@ -153,8 +153,6 @@ export class NotificationsList extends Themable {
 		}));
 
 		this.container.appendChild(this.listContainer);
-
-		this.updateStyles();
 	}
 
 	updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
@@ -250,19 +248,6 @@ export class NotificationsList extends Themable {
 		}
 
 		return isAncestor(document.activeElement, this.listContainer);
-	}
-
-	protected override updateStyles(): void {
-		if (this.listContainer) {
-			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
-			this.listContainer.style.color = foreground ? foreground : '';
-
-			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
-			this.listContainer.style.background = background ? background : '';
-
-			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor : '';
-		}
 	}
 
 	layout(width: number, maxHeight?: number): void {
