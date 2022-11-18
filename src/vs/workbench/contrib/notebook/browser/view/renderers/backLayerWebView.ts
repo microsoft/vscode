@@ -138,7 +138,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 	constructor(
 		public notebookEditor: INotebookDelegateForWebview,
-		public readonly id: string,
+		private readonly id: string,
 		public readonly notebookViewType: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
@@ -952,7 +952,6 @@ var requirejs = (function() {
 	private _createInset(webviewService: IWebviewService, content: string) {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
-			id: this.id,
 			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,

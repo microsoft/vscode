@@ -40,7 +40,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
 	private _shouldShowFindWidgetOnRestore = false;
 
-	public readonly id: string;
 	public readonly providedViewType?: string;
 	public readonly origin: string;
 
@@ -54,7 +53,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	) {
 		super();
 
-		this.id = initInfo.id;
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? generateUuid();
 
@@ -95,7 +93,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		if (!this._container) {
 			const node = document.createElement('div');
-			node.id = `webview-${this.id}`;
 			node.style.position = 'absolute';
 			node.style.overflow = 'hidden';
 			this._container = new FastDomNode(node);
@@ -187,7 +184,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebviewElement({
-				id: this.id,
 				providedViewType: this.providedViewType,
 				origin: this.origin,
 				options: this._options,
