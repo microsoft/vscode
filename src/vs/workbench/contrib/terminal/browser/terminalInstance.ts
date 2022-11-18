@@ -1483,7 +1483,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._usedShellIntegrationInjection = true;
 					break;
 				case ProcessPropertyType.Aliases:
-					this._parseAliases(value);
+					if (value) {
+						this._parseAliases(value);
+					}
 					break;
 			}
 		});
