@@ -314,7 +314,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchEditor.defaultNumberOfContextLines': {
 			type: ['number', 'null'],
 			default: 1,
-			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding lines to show in new Search Editors. If empty (null), `#search.searchEditor.reusePriorSearchConfiguration#`, set by the prior Search Editor, will be used.")
 		},
 		'search.sortOrder': {
 			'type': 'string',
