@@ -34,6 +34,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -238,7 +239,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		});
 
 		if (pick) {
-			return await this._handleQuickPick(notebook, pick, context);
+			return await this._handleQuickPick(notebook, pick, context, editor.scopedContextKeyService);
 		}
 
 		return false;
@@ -255,7 +256,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		scopedContextKeyService: IContextKeyService
 	): QuickPickInput<KernelQuickPickItem>[];
 
-	protected async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem, context?: KernelQuickPickContext) {
+	protected async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem, context?: KernelQuickPickContext, contextKeyService?: IContextKeyService) {
 		if (isKernelPick(pick)) {
 			const newKernel = pick.kernel;
 			this._selecteKernel(notebook, newKernel);
@@ -658,7 +659,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		};
 	}
 
-	protected override async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem, context?: KernelQuickPickContext): Promise<boolean> {
+	protected override async _handleQuickPick(notebook: NotebookTextModel, pick: KernelQuickPickItem, context?: KernelQuickPickContext, contextKeyService?: IContextKeyService): Promise<boolean> {
 		if (pick.id === 'selectAnother') {
 			return this.displaySelectAnotherQuickPick(notebook, context);
 		}
@@ -666,7 +667,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		return super._handleQuickPick(notebook, pick, context);
 	}
 
-	private async displaySelectAnotherQuickPick(notebook: NotebookTextModel, context?: KernelQuickPickContext) {
+	private async displaySelectAnotherQuickPick(notebook: NotebookTextModel, context?: KernelQuickPickContext, contextKeyService?: IContextKeyService) {
 		const disposables = new DisposableStore();
 		return new Promise<boolean>(resolve => {
 			// select from kernel sources
@@ -698,10 +699,14 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 							}
 							resolve(true);
 						} else {
-							return resolve(this.displaySelectAnotherQuickPick(notebook));
+							return resolve(this.displaySelectAnotherQuickPick(notebook, context, contextKeyService));
 						}
-					} else if ('kernel' in quickPick.selectedItems[0]) {
+					} else if (isKernelPick(quickPick.selectedItems[0])) {
 						await this._selecteKernel(notebook, quickPick.selectedItems[0].kernel);
+						resolve(true);
+					} else if (isSourcePick(quickPick.selectedItems[0])) {
+						// selected explicilty, it should trigger the execution?
+						quickPick.selectedItems[0].action.runAction();
 						resolve(true);
 					}
 				}
@@ -726,6 +731,18 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 						command: action.command
 					};
 				}));
+
+				const sourceActionCommands = this._notebookKernelService.getSourceActions(notebook, contextKeyService);
+				sourceActionCommands.forEach(sourceAction => {
+					const res = <SourcePick>{
+						action: sourceAction,
+						picked: false,
+						label: sourceAction.action.label,
+						detail: (sourceAction.action as MenuItemAction)?.item?.source
+					};
+
+					quickPickItems.push(res);
+				});
 
 				quickPick.items = quickPickItems;
 			});
@@ -759,6 +776,19 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			action.label = localize('kernels.detecting', "Detecting Kernels");
 			action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
 			return;
+		}
+
+		const runningActions = notebookKernelService.getRunningSourceActions(notebook);
+
+		const updateActionFromSourceAction = (sourceAction: ISourceAction, running: boolean) => {
+			const sAction = sourceAction.action;
+			action.class = running ? ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin')) : ThemeIcon.asClassName(selectKernelIcon);
+			action.label = sAction.label;
+			action.enabled = true;
+		};
+
+		if (runningActions.length) {
+			return updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
 		}
 
 		const info = notebookKernelService.getMatchingKernel(notebook);
