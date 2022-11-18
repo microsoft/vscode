@@ -43,7 +43,8 @@ export function gitSimilar(): IInternalOptions {
 						id: 'Git Similar',
 						type: TerminalQuickFixType.Command,
 						terminalCommand: matchResult.commandLine.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
-						addNewLine: true
+						addNewLine: true,
+						source: 'builtin'
 					});
 				}
 			}
@@ -73,7 +74,8 @@ export function gitTwoDashes(): IInternalOptions {
 				type: TerminalQuickFixType.Command,
 				id: 'Git Two Dashes',
 				terminalCommand: matchResult.commandLine.replace(` -${problemArg}`, ` --${problemArg}`),
-				addNewLine: true
+				addNewLine: true,
+				source: 'builtin'
 			};
 		}
 	};
@@ -146,7 +148,8 @@ export function gitPushSetUpstream(): IInternalOptions {
 					type: 'command',
 					id: 'Git Push Set Upstream',
 					terminalCommand: fixedCommand,
-					addNewLine: true
+					addNewLine: true,
+					source: 'builtin'
 				});
 				return actions;
 			}

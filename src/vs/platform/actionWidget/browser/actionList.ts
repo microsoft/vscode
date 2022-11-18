@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -29,6 +30,7 @@ export interface IListMenuItem<T extends IActionItem> {
 	group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
 	disabled?: boolean;
 	label?: string;
+	description?: string;
 }
 
 interface IActionMenuTemplateData {
@@ -130,6 +132,11 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 		} else {
 			data.container.title = '';
+		}
+		if (element.description) {
+			const label = new HighlightedLabel(dom.append(data.container, dom.$('span.label-description')));
+			label.element.classList.add('action-list-description');
+			label.set(element.description);
 		}
 	}
 

@@ -248,9 +248,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._profileProviders.delete(id);
 	}
 
-	public async $registerQuickFixProvider(id: string): Promise<void> {
+	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
 		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
 			{
+				extensionId,
 				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, lines: string[], option: ITerminalQuickFixOptions, token: CancellationToken) => {
 					if (token.isCancellationRequested) {
 						return;
@@ -274,7 +275,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 					const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
 
 					if (matchResult) {
-						return this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+						const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+						if (result && Array.isArray(result)) {
+							return result.map(r => {
+								return {
+									source: extensionId,
+									...r
+								};
+							});
+						} else if (result) {
+							return {
+								source: extensionId,
+								...result
+							};
+						}
 					}
 					return;
 				}

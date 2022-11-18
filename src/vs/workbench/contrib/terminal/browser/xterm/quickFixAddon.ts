@@ -61,7 +61,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, (ITerminalQuickFixOptions | IResolvedExtensionOptions | IUnresolvedExtensionOptions)[]> = new Map();
 
-	private _quickFixes: IAction[] | undefined;
+	private _quickFixes: ITerminalAction[] | undefined;
 
 	private _decoration: IDecoration | undefined;
 
@@ -259,8 +259,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					height: rect.height
 				};
 				// TODO: What's documentation do? Need a vscode command?
-				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
-				const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.label));
+				const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
+				const documentation = fixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
 				const actionSet = {
 					// TODO: Documentation and actions are separate?
 					documentation,
@@ -294,6 +294,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
+export interface ITerminalAction extends IAction {
+	source: string;
+}
+
 export async function getQuickFixesForCommand(
 	terminal: Terminal,
 	terminalCommand: ITerminalCommand,
@@ -301,10 +305,10 @@ export async function getQuickFixesForCommand(
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
 	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
-): Promise<{ fixes: IAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined> {
+): Promise<{ fixes: ITerminalAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined> {
 	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
-	const fixes: IAction[] = [];
+	const fixes: ITerminalAction[] = [];
 	const newCommand = terminalCommand.command;
 	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
@@ -340,13 +344,14 @@ export async function getQuickFixesForCommand(
 
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
-					let action: IAction | undefined;
+					let action: ITerminalAction | undefined;
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
 							case TerminalQuickFixType.Command: {
 								const fix = quickFix as ITerminalQuickFixCommandAction;
 								const label = localize('quickFix.command', 'Run: {0}', fix.terminalCommand);
 								action = {
+									source: quickFix.source,
 									id: quickFix.id,
 									label,
 									class: quickFix.type,
@@ -359,7 +364,7 @@ export async function getQuickFixesForCommand(
 									},
 									tooltip: label,
 									command: fix.terminalCommand
-								} as IAction;
+								} as ITerminalAction;
 								expectedCommands.push(fix.terminalCommand);
 								break;
 							}
@@ -367,6 +372,7 @@ export async function getQuickFixesForCommand(
 								const fix = quickFix as ITerminalQuickFixOpenerAction;
 								const label = localize('quickFix.opener', 'Open: {0}', fix.uri.toString());
 								action = {
+									source: quickFix.source,
 									id: quickFix.id,
 									label,
 									class: quickFix.type,
@@ -379,13 +385,14 @@ export async function getQuickFixesForCommand(
 									},
 									tooltip: label,
 									uri: fix.uri
-								} as IAction;
+								} as ITerminalAction;
 								break;
 							}
 						}
 					} else {
-						const fix = quickFix as IAction;
+						const fix = quickFix as ITerminalAction;
 						action = {
+							source: 'builtin',
 							id: fix.id,
 							label: fix.label,
 							class: fix.class,
@@ -415,5 +422,6 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		outputMatcher: selectorProvider.selector.outputMatcher,
 		exitStatus: selectorProvider.selector.exitStatus,
 		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes,
+		extensionId: selectorProvider.provider.extensionId
 	};
 }

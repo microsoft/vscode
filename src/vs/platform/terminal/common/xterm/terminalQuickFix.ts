@@ -25,11 +25,13 @@ export interface ITerminalQuickFixOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
+	extensionId?: string;
 }
 
 export interface ITerminalQuickFix {
 	type: 'command' | 'opener';
 	id?: string;
+	source: string;
 }
 
 export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
@@ -57,6 +59,7 @@ export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult
 export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, lines: string[] | undefined, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
 export interface ITerminalQuickFixProvider {
+	extensionId: string;
 	/**
 	 * Provides terminal quick fixes
 	 * @param commandMatchResult The command match result for which to provide quick fixes
@@ -85,6 +88,7 @@ export interface IInternalOptions extends ITerminalQuickFixOptions {
 export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
 	type: 'resolved';
 	getQuickFixes: TerminalQuickFixCallbackExtension;
+	extensionId: string;
 }
 
 export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
