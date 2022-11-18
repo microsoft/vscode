@@ -58,7 +58,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getSingletonServiceDescriptors, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
@@ -90,6 +90,8 @@ import { staticObservableValue } from 'vs/base/common/observableValue';
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { constObservable, IObservable } from 'vs/base/common/observable';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -971,42 +973,59 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+class StandaloneAudioService implements IAudioCueService {
+	_serviceBrand: undefined;
+	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+
+	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	}
+
+	isEnabled(cue: AudioCue): IObservable<boolean, void> {
+		return constObservable(false);
+	}
+
+	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
-registerSingleton(IConfigurationService, StandaloneConfigurationService, false);
-registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, false);
-registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService, false);
-registerSingleton(IWorkspaceContextService, StandaloneWorkspaceContextService, false);
-registerSingleton(ILabelService, StandaloneUriLabelService, false);
-registerSingleton(ITelemetryService, StandaloneTelemetryService, false);
-registerSingleton(IDialogService, StandaloneDialogService, false);
-registerSingleton(INotificationService, StandaloneNotificationService, false);
-registerSingleton(IMarkerService, MarkerService, false);
-registerSingleton(ILanguageService, StandaloneLanguageService, false);
-registerSingleton(IStandaloneThemeService, StandaloneThemeService, false);
-registerSingleton(ILogService, StandaloneLogService, false);
-registerSingleton(IModelService, ModelService, false);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, false);
-registerSingleton(IContextKeyService, ContextKeyService, false);
-registerSingleton(IProgressService, StandaloneProgressService, false);
-registerSingleton(IEditorProgressService, StandaloneEditorProgressService, false);
-registerSingleton(IStorageService, InMemoryStorageService, false);
-registerSingleton(IEditorWorkerService, EditorWorkerService, false);
-registerSingleton(IBulkEditService, StandaloneBulkEditService, false);
-registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, false);
-registerSingleton(ITextModelService, StandaloneTextModelService, false);
-registerSingleton(IAccessibilityService, AccessibilityService, false);
-registerSingleton(IListService, ListService, false);
-registerSingleton(ICommandService, StandaloneCommandService, false);
-registerSingleton(IKeybindingService, StandaloneKeybindingService, false);
-registerSingleton(IQuickInputService, StandaloneQuickInputService, false);
-registerSingleton(IContextViewService, StandaloneContextViewService, false);
-registerSingleton(IOpenerService, OpenerService, false);
-registerSingleton(IClipboardService, BrowserClipboardService, false);
-registerSingleton(IContextMenuService, StandaloneContextMenuService, false);
-registerSingleton(IMenuService, MenuService, false);
+registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
+registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
+registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService, InstantiationType.Eager);
+registerSingleton(IWorkspaceContextService, StandaloneWorkspaceContextService, InstantiationType.Eager);
+registerSingleton(ILabelService, StandaloneUriLabelService, InstantiationType.Eager);
+registerSingleton(ITelemetryService, StandaloneTelemetryService, InstantiationType.Eager);
+registerSingleton(IDialogService, StandaloneDialogService, InstantiationType.Eager);
+registerSingleton(INotificationService, StandaloneNotificationService, InstantiationType.Eager);
+registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
+registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
+registerSingleton(IStandaloneThemeService, StandaloneThemeService, InstantiationType.Eager);
+registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
+registerSingleton(IModelService, ModelService, InstantiationType.Eager);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Eager);
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager);
+registerSingleton(IProgressService, StandaloneProgressService, InstantiationType.Eager);
+registerSingleton(IEditorProgressService, StandaloneEditorProgressService, InstantiationType.Eager);
+registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
+registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager);
+registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
+registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
+registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);
+registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Eager);
+registerSingleton(IListService, ListService, InstantiationType.Eager);
+registerSingleton(ICommandService, StandaloneCommandService, InstantiationType.Eager);
+registerSingleton(IKeybindingService, StandaloneKeybindingService, InstantiationType.Eager);
+registerSingleton(IQuickInputService, StandaloneQuickInputService, InstantiationType.Eager);
+registerSingleton(IContextViewService, StandaloneContextViewService, InstantiationType.Eager);
+registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
+registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
+registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
+registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
+registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

@@ -11,7 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Action } from 'vs/base/common/actions';
@@ -20,7 +20,6 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter } from 'vs/base/common/event';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -29,32 +28,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { BannerFocused } from 'vs/workbench/common/contextkeys';
-
-// Theme support
-
-registerThemingParticipant((theme, collector) => {
-	const backgroundColor = theme.getColor(BANNER_BACKGROUND);
-	if (backgroundColor) {
-		collector.addRule(`.monaco-workbench .part.banner { background-color: ${backgroundColor}; }`);
-	}
-
-	const foregroundColor = theme.getColor(BANNER_FOREGROUND);
-	if (foregroundColor) {
-		collector.addRule(`
-			.monaco-workbench .part.banner,
-			.monaco-workbench .part.banner .action-container .codicon,
-			.monaco-workbench .part.banner .message-actions-container .monaco-link,
-			.monaco-workbench .part.banner .message-container a
-			{ color: ${foregroundColor}; }
-		`);
-	}
-
-	const iconForegroundColor = theme.getColor(BANNER_ICON_FOREGROUND);
-	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .part.banner .icon-container .codicon { color: ${iconForegroundColor} }`);
-	}
-});
-
 
 // Banner Part
 

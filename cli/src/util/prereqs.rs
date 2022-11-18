@@ -17,11 +17,14 @@ use super::errors::AnyError;
 lazy_static! {
 	static ref LDCONFIG_STDC_RE: Regex = Regex::new(r"libstdc\+\+.* => (.+)").unwrap();
 	static ref LDD_VERSION_RE: BinRegex = BinRegex::new(r"^ldd.*(.+)\.(.+)\s").unwrap();
+	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
 	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 18);
 	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
 }
+
+const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
 
 pub struct PreReqChecker {}
 
@@ -39,19 +42,20 @@ impl PreReqChecker {
 	#[cfg(not(target_os = "linux"))]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
 		Platform::env_default().ok_or_else(|| {
-			SetupError("VS Code it not supported on this platform".to_owned()).into()
+			SetupError("VS Code is not supported on this platform".to_owned()).into()
 		})
 	}
 
 	#[cfg(target_os = "linux")]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
-		let (gnu_a, gnu_b, or_musl) = tokio::join!(
+		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
+			check_is_nixos(),
 			check_glibc_version(),
 			check_glibcxx_version(),
 			check_musl_interpreter()
 		);
 
-		if gnu_a.is_ok() && gnu_b.is_ok() {
+		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
 				Platform::LinuxX64
 			} else if cfg!(target_arch = "armhf") {
@@ -113,13 +117,23 @@ async fn check_musl_interpreter() -> Result<(), String> {
 
 #[allow(dead_code)]
 async fn check_glibc_version() -> Result<(), String> {
-	let ldd_version = capture_command("ldd", ["--version"])
-		.await
-		.ok()
-		.and_then(|o| extract_ldd_version(&o.stdout));
+	#[cfg(target_env = "gnu")]
+	let version = {
+		let v = unsafe { libc::gnu_get_libc_version() };
+		let v = unsafe { std::ffi::CStr::from_ptr(v) };
+		let v = v.to_str().unwrap();
+		extract_generic_version(v)
+	};
+	#[cfg(not(target_env = "gnu"))]
+	let version = {
+		capture_command("ldd", ["--version"])
+			.await
+			.ok()
+			.and_then(|o| extract_ldd_version(&o.stdout))
+	};
 
-	if let Some(v) = ldd_version {
-		return if v.gte(&MIN_LDD_VERSION) {
+	if let Some(v) = version {
+		return if v >= *MIN_LDD_VERSION {
 			Ok(())
 		} else {
 			Err(format!(
@@ -130,6 +144,13 @@ async fn check_glibc_version() -> Result<(), String> {
 	}
 
 	Ok(())
+}
+
+/// Check for nixos to avoid mandating glibc versions. See:
+/// https://github.com/microsoft/vscode-remote-release/issues/7129
+#[allow(dead_code)]
+async fn check_is_nixos() -> bool {
+	fs::metadata(NIXOS_TEST_PATH).await.is_ok()
 }
 
 #[allow(dead_code)]
@@ -171,7 +192,7 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String
 		})
 		.collect();
 
-	if !all_versions.iter().any(|v| MIN_CXX_VERSION.gte(v)) {
+	if !all_versions.iter().any(|v| &*MIN_CXX_VERSION >= v) {
 		return Err(format!(
 			"find GLIBCXX >= 3.4.18 (but found {} instead) for GNU environments",
 			all_versions
@@ -185,10 +206,20 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String
 	Ok(())
 }
 
+#[allow(dead_code)]
 fn extract_ldd_version(output: &[u8]) -> Option<SimpleSemver> {
 	LDD_VERSION_RE.captures(output).map(|m| SimpleSemver {
 		major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
 		minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
+		patch: 0,
+	})
+}
+
+#[allow(dead_code)]
+fn extract_generic_version(output: &str) -> Option<SimpleSemver> {
+	GENERIC_VERSION_RE.captures(output).map(|m| SimpleSemver {
+		major: m.get(1).map_or(0, |s| s.as_str().parse().unwrap()),
+		minor: m.get(2).map_or(0, |s| s.as_str().parse().unwrap()),
 		patch: 0,
 	})
 }
@@ -205,11 +236,33 @@ fn u32_from_bytes(b: &[u8]) -> u32 {
 	String::from_utf8_lossy(b).parse::<u32>().unwrap_or(0)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 struct SimpleSemver {
 	major: u32,
 	minor: u32,
 	patch: u32,
+}
+
+impl PartialOrd for SimpleSemver {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for SimpleSemver {
+	fn cmp(&self, other: &Self) -> Ordering {
+		let major = self.major.cmp(&other.major);
+		if major != Ordering::Equal {
+			return major;
+		}
+
+		let minor = self.minor.cmp(&other.minor);
+		if minor != Ordering::Equal {
+			return minor;
+		}
+
+		self.patch.cmp(&other.patch)
+	}
 }
 
 impl From<&SimpleSemver> for String {
@@ -231,18 +284,6 @@ impl SimpleSemver {
 			major,
 			minor,
 			patch,
-		}
-	}
-
-	fn gte(&self, other: &SimpleSemver) -> bool {
-		match self.major.cmp(&other.major) {
-			Ordering::Greater => true,
-			Ordering::Less => false,
-			Ordering::Equal => match self.minor.cmp(&other.minor) {
-				Ordering::Greater => true,
-				Ordering::Less => false,
-				Ordering::Equal => self.patch >= other.patch,
-			},
 		}
 	}
 }
@@ -274,13 +315,13 @@ mod tests {
 
 	#[test]
 	fn test_gte() {
-		assert!(SimpleSemver::new(1, 2, 3).gte(&SimpleSemver::new(1, 2, 3)));
-		assert!(SimpleSemver::new(1, 2, 3).gte(&SimpleSemver::new(0, 10, 10)));
-		assert!(SimpleSemver::new(1, 2, 3).gte(&SimpleSemver::new(1, 1, 10)));
+		assert!(SimpleSemver::new(1, 2, 3) >= SimpleSemver::new(1, 2, 3));
+		assert!(SimpleSemver::new(1, 2, 3) >= SimpleSemver::new(0, 10, 10));
+		assert!(SimpleSemver::new(1, 2, 3) >= SimpleSemver::new(1, 1, 10));
 
-		assert!(!SimpleSemver::new(1, 2, 3).gte(&SimpleSemver::new(1, 2, 10)));
-		assert!(!SimpleSemver::new(1, 2, 3).gte(&SimpleSemver::new(1, 3, 1)));
-		assert!(!SimpleSemver::new(1, 2, 3).gte(&SimpleSemver::new(2, 2, 1)));
+		assert!(SimpleSemver::new(1, 2, 3) < SimpleSemver::new(1, 2, 10));
+		assert!(SimpleSemver::new(1, 2, 3) < SimpleSemver::new(1, 3, 1));
+		assert!(SimpleSemver::new(1, 2, 3) < SimpleSemver::new(2, 2, 1));
 	}
 
 	#[test]

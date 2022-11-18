@@ -70,12 +70,6 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	critical(): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, format(arguments));
-		}
-	}
-
 	flush(): void {
 	}
 
@@ -129,7 +123,6 @@ export class FileLogger extends AbstractLogger implements ILogger {
 
 	private stringifyLogLevel(level: LogLevel): string {
 		switch (level) {
-			case LogLevel.Critical: return 'critical';
 			case LogLevel.Debug: return 'debug';
 			case LogLevel.Error: return 'error';
 			case LogLevel.Info: return 'info';

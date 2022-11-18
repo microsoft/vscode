@@ -183,8 +183,12 @@ export class FoldingModel {
 	public getMemento(): CollapseMemento | undefined {
 		const foldedOrManualRanges = this._currentFoldedOrManualRanges();
 		const result: ILineMemento[] = [];
+		const maxLineNumber = this._textModel.getLineCount();
 		for (let i = 0, limit = foldedOrManualRanges.length; i < limit; i++) {
 			const range = foldedOrManualRanges[i];
+			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber > maxLineNumber) {
+				continue;
+			}
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);
 			result.push({
 				startLineNumber: range.startLineNumber,
@@ -207,7 +211,7 @@ export class FoldingModel {
 		const rangesToRestore: FoldRange[] = [];
 		const maxLineNumber = this._textModel.getLineCount();
 		for (const range of state) {
-			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber >= maxLineNumber) {
+			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber > maxLineNumber) {
 				continue;
 			}
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);

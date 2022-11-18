@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::fmt;
+use std::{fmt, path::PathBuf};
 
 use crate::{constants, log, options, tunnels::code_server::CodeServerArgs};
 use clap::{ArgEnum, Args, Parser, Subcommand};
@@ -394,6 +394,10 @@ pub struct GlobalOptions {
 	#[clap(long, global = true)]
 	pub verbose: bool,
 
+	/// Log to a file in addition to stdout. Used when running as a service.
+	#[clap(long, global = true, hide = true)]
+	pub log_to_file: Option<PathBuf>,
+
 	/// Log level to use.
 	#[clap(long, arg_enum, value_name = "level", global = true)]
 	pub log: Option<log::Level>,
@@ -595,6 +599,9 @@ pub enum TunnelServiceSubCommands {
 
 	/// Uninstalls and stops the tunnel service.
 	Uninstall,
+
+	/// Shows logs for the running service.
+	Log,
 
 	/// Internal command for running the service
 	#[clap(hide = true)]

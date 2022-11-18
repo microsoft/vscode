@@ -7,7 +7,6 @@ import { CancellationToken, Connection, InitializeParams, InitializeResult, Note
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
-import * as nls from 'vscode-nls';
 import { URI } from 'vscode-uri';
 import { getLsConfiguration, LsConfiguration } from './config';
 import { ConfigurationManager } from './configuration';
@@ -16,8 +15,7 @@ import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
 import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
-
-const localize = nls.loadMessageBundle();
+import * as l10n from '@vscode/l10n';
 
 interface MdServerInitializationOptions extends LsConfiguration { }
 
@@ -204,7 +202,7 @@ export async function startServer(connection: Connection, serverConfig: {
 
 		if (params.context.only?.some(kind => kind === 'source' || kind.startsWith('source.'))) {
 			const action: lsp.CodeAction = {
-				title: localize('organizeLinkDefAction.title', "Organize link definitions"),
+				title: l10n.t("Organize link definitions"),
 				kind: organizeLinkDefKind,
 				data: <OrganizeLinkActionData>{ uri: document.uri }
 			};

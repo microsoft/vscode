@@ -126,7 +126,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
-			return FileAccess.asBrowserUri(uri).toString(true);
+			return FileAccess.uriToBrowserUri(uri).toString(true);
 		}
 		if (!uri) {
 			return href;
@@ -360,6 +360,7 @@ function sanitizeRenderedMarkdown(
 
 export const allowedMarkdownAttr = [
 	'align',
+	'autoplay',
 	'alt',
 	'class',
 	'controls',

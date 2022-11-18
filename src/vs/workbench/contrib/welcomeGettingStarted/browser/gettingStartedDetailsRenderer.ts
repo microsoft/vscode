@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { locale } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
-import { asWebviewUri } from 'vs/workbench/common/webview';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -60,10 +60,15 @@ export class GettingStartedDetailsRenderer {
 						padding: 0;
 						height: inherit;
 					}
+					.theme-picker-row {
+						display: flex;
+						gap: 32px;
+						justify-content: center;
+					}
 					checklist {
 						display: flex;
-						flex-wrap: wrap;
-						justify-content: space-around;
+						gap: 32px;
+						flex-direction: column;
 					}
 					checkbox {
 						display: flex;
@@ -73,14 +78,19 @@ export class GettingStartedDetailsRenderer {
 						cursor: pointer;
 					}
 					checkbox > img {
-						margin-bottom: 4px;
+						margin-bottom: 8px !important;
 					}
 					checkbox.checked > img {
 						box-sizing: border-box;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);
-						outline-offset: 2px;
+						outline-offset: 4px;
+						border-radius: 4px;
+					}
+					.theme-picker-link {
+						margin-top: 16px;
+						color: var(--vscode-textLink-foreground);
 					}
 					blockquote > p:first-child {
 						margin-top: 0;
@@ -92,6 +102,9 @@ export class GettingStartedDetailsRenderer {
 					vertically-centered {
 						padding-top: 5px;
 						padding-bottom: 5px;
+						display: flex;
+						justify-content: center;
+						flex-direction: column;
 					}
 					html {
 						height: 100%;

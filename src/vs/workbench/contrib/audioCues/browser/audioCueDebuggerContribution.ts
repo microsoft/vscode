@@ -5,8 +5,8 @@
 
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorunWithStore } from 'vs/base/common/observable';
+import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 
 export class AudioCueLineDebuggerContribution
