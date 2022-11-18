@@ -38,8 +38,8 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
-import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
+import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -2263,64 +2263,24 @@ function getDotDotDotSVGData(color: Color) {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const errorBorderColor = theme.getColor(editorErrorBorder);
-	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
-	}
 	const errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
-	}
-	const errorBackground = theme.getColor(editorErrorBackground);
-	if (errorBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${errorBackground}; }`);
-	}
-
-	const warningBorderColor = theme.getColor(editorWarningBorder);
-	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	const warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
-	const warningBackground = theme.getColor(editorWarningBackground);
-	if (warningBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${warningBackground}; }`);
-	}
-
-	const infoBorderColor = theme.getColor(editorInfoBorder);
-	if (infoBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
-	}
 	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
-	}
-	const infoBackground = theme.getColor(editorInfoBackground);
-	if (infoBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${infoBackground}; }`);
-	}
-
-	const hintBorderColor = theme.getColor(editorHintBorder);
-	if (hintBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
 	const hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
-
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
 		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
-
-	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
-	if (unnecessaryBorder) {
-		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
-	}
-
-	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';
-	collector.addRule(`.monaco-editor.showDeprecated .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; text-decoration-color: ${deprecatedForeground}}`);
 });

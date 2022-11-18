@@ -16,11 +16,12 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 /**
- * A special class used to denoate a telemetry value which should not be clean.
- * This is because that value is "Trusted" not to contain identifiable information such as paths
+ * A special class used to denoting a telemetry value which should not be clean.
+ * This is because that value is "Trusted" not to contain identifiable information such as paths.
+ * NOTE: This is used as an API type as well, and should not be changed.
  */
-export class TrustedTelemetryValue {
-	constructor(public readonly value: any) { }
+export class TrustedTelemetryValue<T> {
+	constructor(public readonly value: T) { }
 }
 
 export class NullTelemetryServiceShape implements ITelemetryService {

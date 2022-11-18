@@ -262,11 +262,16 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async getAccountPreference(): Promise<ExistingSessionItem | undefined> {
+		const sessions = await this.getAllSessions();
+		if (sessions.length === 1) {
+			return sessions[0];
+		}
+
 		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
 		quickpick.ignoreFocusOut = true;
-		quickpick.items = await this.createQuickpickItems();
+		quickpick.items = await this.createQuickpickItems(sessions);
 
 		return new Promise((resolve, reject) => {
 			quickpick.onDidHide((e) => {
@@ -300,12 +305,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		};
 	}
 
-	private async createQuickpickItems(): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
+	private async createQuickpickItems(sessions: ExistingSessionItem[]): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
 		const options: (ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
 		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
 
-		const sessions = await this.getAllSessions();
 		options.push(...sessions);
 
 		options.push({ type: 'separator', label: localize('others', "Others") });

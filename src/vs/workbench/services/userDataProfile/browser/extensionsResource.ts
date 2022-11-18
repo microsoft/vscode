@@ -176,7 +176,7 @@ export class ExtensionsResourceExportTreeItem implements IProfileResourceTreeIte
 			command: {
 				id: 'extension.open',
 				title: '',
-				arguments: [e.identifier.id]
+				arguments: [e.identifier.id, undefined, true]
 			}
 		}));
 	}
@@ -214,9 +214,14 @@ export class ExtensionsResourceImportTreeItem implements IProfileResourceTreeIte
 			command: {
 				id: 'extension.open',
 				title: '',
-				arguments: [e.identifier.id]
+				arguments: [e.identifier.id, undefined, true]
 			}
 		}));
+	}
+
+	async hasContent(): Promise<boolean> {
+		const extensions = await this.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(this.content);
+		return extensions.length > 0;
 	}
 
 }
