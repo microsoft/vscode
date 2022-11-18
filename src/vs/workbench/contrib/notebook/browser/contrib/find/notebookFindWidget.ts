@@ -21,7 +21,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
@@ -81,7 +80,6 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		_notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -93,10 +91,6 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
-		this.updateTheme(themeService.getColorTheme());
-		this._register(themeService.onDidColorThemeChange(() => {
-			this.updateTheme(themeService.getColorTheme());
-		}));
 
 		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
@@ -337,7 +331,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}
 	}
 
-	override _updateMatchesCount(): void {
+	protected override _updateMatchesCount(): void {
 		if (!this._findModel || !this._findModel.findMatches) {
 			return;
 		}

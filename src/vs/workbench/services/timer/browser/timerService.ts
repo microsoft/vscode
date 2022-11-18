@@ -17,6 +17,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -583,7 +584,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 
-		type Mark = { source: string; name: string; startTime: number };
+		type Mark = { source: string; name: TrustedTelemetryValue<string>; startTime: number };
 		type MarkClassification = {
 			owner: 'jrieken';
 			comment: 'Information about a performance marker';
@@ -595,7 +596,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		for (const mark of marks) {
 			this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
 				source,
-				name: mark.name,
+				name: new TrustedTelemetryValue(mark.name),
 				startTime: mark.startTime
 			});
 		}

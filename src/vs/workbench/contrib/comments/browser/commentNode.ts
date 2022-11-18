@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -84,7 +83,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
 		private markdownRenderer: MarkdownRenderer,
-		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@IModelService private modelService: IModelService,
@@ -492,8 +490,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			});
 
 			this.removeCommentEditor();
-		}, this.themeService);
+		});
 
+		this._register(this._commentFormActions);
 		this._commentFormActions.setActions(menu);
 	}
 

@@ -43,6 +43,7 @@ import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
@@ -367,11 +368,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return initData.uiKind;
 			},
 			get logLevel() {
-				checkProposedApiEnabled(extension, 'extensionLog');
 				return extHostLogService.getLevel();
 			},
 			get onDidChangeLogLevel() {
-				checkProposedApiEnabled(extension, 'extensionLog');
 				return extHostLogService.onDidChangeLogLevel;
 			}
 		};
@@ -744,7 +743,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
-				return extHostDecorations.registerFileDecorationProvider(provider, extension.identifier);
+				return extHostDecorations.registerFileDecorationProvider(provider, extension);
 			},
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
@@ -1150,6 +1149,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createRendererMessaging(rendererId) {
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
+			createNotebookControllerDetectionTask(notebookType: string) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
+				return extHostNotebookKernels.createNotebookControllerDetectionTask(extension, notebookType);
+			},
+			registerKernelSourceActionProvider(notebookType: string, provider: vscode.NotebookKernelSourceActionProvider) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
+				return extHostNotebookKernels.registerKernelSourceActionProvider(extension, notebookType, provider);
+			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
 				return extHostNotebookKernels.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
@@ -1250,6 +1257,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileDecoration: extHostTypes.FileDecoration,
+			FileDecoration2: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
 			FilePermission: files.FilePermission,
@@ -1342,6 +1350,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
 			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,
 			NotebookEdit: extHostTypes.NotebookEdit,
+			NotebookKernelSourceAction: extHostTypes.NotebookKernelSourceAction,
 			PortAttributes: extHostTypes.PortAttributes,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
@@ -1370,6 +1379,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputWebview: extHostTypes.WebviewEditorTabInput,
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
+			TrustedTelemetryValue: TrustedTelemetryValue,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
 			LogLevel: LogLevel,
 			EditSessionIdentityMatch: EditSessionIdentityMatch

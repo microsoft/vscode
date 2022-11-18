@@ -10,6 +10,10 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
+import { ITreeItem } from 'vs/workbench/common/views';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -42,6 +46,9 @@ export interface IUserDataProfileManagementService {
 
 export interface IUserDataProfileTemplate {
 	readonly settings?: string;
+	readonly keybindings?: string;
+	readonly tasks?: string;
+	readonly snippets?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
 }
@@ -61,23 +68,44 @@ export const IUserDataProfileImportExportService = createDecorator<IUserDataProf
 export interface IUserDataProfileImportExportService {
 	readonly _serviceBrand: undefined;
 
-	exportProfile(options?: ProfileCreationOptions): Promise<IUserDataProfileTemplate>;
-	importProfile(profile: IUserDataProfileTemplate): Promise<void>;
+	registerProfileContentHandler(profileContentHandler: IUserDataProfileContentHandler): void;
+
+	exportProfile(): Promise<void>;
+	importProfile(uri: URI): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
-export interface IResourceProfile {
-	getProfileContent(): Promise<string>;
-	applyProfile(content: string): Promise<void>;
+export interface IProfileResource {
+	getContent(profile: IUserDataProfile): Promise<string>;
+	apply(content: string, profile: IUserDataProfile): Promise<void>;
 }
 
-export const ManageProfilesSubMenu = new MenuId('SettingsProfiles');
+export interface IProfileResourceTreeItem extends ITreeItem {
+	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
+}
+
+export interface IProfileResourceChildTreeItem extends ITreeItem {
+	parent: IProfileResourceTreeItem;
+}
+
+export interface IUserDataProfileContentHandler {
+	readonly id: string;
+	readonly name: string;
+	readonly description?: string;
+	saveProfile(name: string, content: string): Promise<URI | null>;
+	readProfile(uri: URI): Promise<string>;
+}
+
+export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
+
+export const ManageProfilesSubMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
-export const PROFILES_TTILE = { value: localize('settings profiles', "Settings Profiles"), original: 'Settings Profiles' };
+export const PROFILES_TTILE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
 export const PROFILES_CATEGORY = { ...PROFILES_TTILE };
 export const PROFILE_EXTENSION = 'code-profile';
-export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
+export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];
 export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.enabled', true);
-export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentSettingsProfile', '');
-export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentSettingsProfileTransient', false);
-export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasSettingsProfiles', false);
+export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
+export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
+export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
+export const IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportExportInProgress', false);

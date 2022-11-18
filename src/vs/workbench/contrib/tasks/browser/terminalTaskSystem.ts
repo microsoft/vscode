@@ -16,6 +16,7 @@ import * as resources from 'vs/base/common/resources';
 import Severity from 'vs/base/common/severity';
 import * as Types from 'vs/base/common/types';
 import * as nls from 'vs/nls';
+import { asArray } from 'vs/base/common/arrays';
 
 import { IModelService } from 'vs/editor/common/services/model';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -1648,7 +1649,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				matcher = value;
 			}
 			if (matcher && matcher.filePrefix) {
-				this._collectVariables(variables, matcher.filePrefix);
+				if (Types.isString(matcher.filePrefix)) {
+					this._collectVariables(variables, matcher.filePrefix);
+				} else {
+					for (const fp of [...asArray(matcher.filePrefix.include || []), ...asArray(matcher.filePrefix.exclude || [])]) {
+						this._collectVariables(variables, fp);
+					}
+				}
 			}
 		});
 	}
@@ -1710,7 +1717,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
-					copy.filePrefix = await this._resolveVariable(resolver, copy.filePrefix);
+					const filePrefix = copy.filePrefix;
+					if (Types.isString(filePrefix)) {
+						copy.filePrefix = await this._resolveVariable(resolver, filePrefix);
+					} else if (filePrefix !== undefined) {
+						if (filePrefix.include) {
+							filePrefix.include = Array.isArray(filePrefix.include)
+								? await Promise.all(filePrefix.include.map(x => this._resolveVariable(resolver, x)))
+								: await this._resolveVariable(resolver, filePrefix.include);
+						}
+						if (filePrefix.exclude) {
+							filePrefix.exclude = Array.isArray(filePrefix.exclude)
+								? await Promise.all(filePrefix.exclude.map(x => this._resolveVariable(resolver, x)))
+								: await this._resolveVariable(resolver, filePrefix.exclude);
+						}
+					}
 				}
 				result.push(copy);
 			}

@@ -64,6 +64,7 @@ const compilations = [
 	'references-view/tsconfig.json',
 	'simple-browser/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
+	'typescript-language-features/web/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',

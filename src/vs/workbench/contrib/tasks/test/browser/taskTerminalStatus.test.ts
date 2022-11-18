@@ -5,9 +5,9 @@
 
 import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -36,6 +36,11 @@ class TestTerminal implements Partial<ITerminalInstance> {
 }
 
 class TestTask extends CommonTask {
+
+	constructor() {
+		super('test', undefined, undefined, {}, {}, { kind: '', label: '' });
+	}
+
 	protected getFolderId(): string | undefined {
 		throw new Error('Method not implemented.');
 	}
@@ -67,7 +72,7 @@ suite('Task Terminal Status', () => {
 		audioCueService = new TestAudioCueService();
 		taskTerminalStatus = new TaskTerminalStatus(taskService as any, audioCueService as any);
 		testTerminal = instantiationService.createInstance(TestTerminal) as any;
-		testTask = instantiationService.createInstance(TestTask);
+		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
 		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
 	});
 	test('Should add failed status when there is an exit code on task end', async () => {
