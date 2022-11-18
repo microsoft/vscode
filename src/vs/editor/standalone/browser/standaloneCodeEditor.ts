@@ -132,7 +132,7 @@ export interface IGlobalEditorOptions {
 	 */
 	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
 	stablePeek?: boolean;
