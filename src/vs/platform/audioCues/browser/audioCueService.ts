@@ -70,7 +70,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		this.playingSounds.add(sound);
 
 		const url = FileAccess.asBrowserUri(
-			`vs/platform/audioCues/common/media/${sound.fileName}`
+			`vs/platform/audioCues/browser/media/${sound.fileName}`
 		).toString();
 		const audio = new Audio(url);
 		audio.volume = this.getVolumeInPercent() / 100;
@@ -247,6 +247,18 @@ export class AudioCue {
 		name: localize('audioCues.terminalBell', 'Terminal Bell'),
 		sound: Sound.terminalBell,
 		settingsKey: 'audioCues.terminalBell'
+	});
+
+	public static readonly notebookCellCompleted = AudioCue.register({
+		name: localize('audioCues.notebookCellCompleted', 'Notebook Cell Completed'),
+		sound: Sound.taskCompleted,
+		settingsKey: 'audioCues.notebookCellCompleted'
+	});
+
+	public static readonly notebookCellFailed = AudioCue.register({
+		name: localize('audioCues.notebookCellFailed', 'Notebook Cell Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.notebookCellFailed'
 	});
 
 	public static readonly diffLineInserted = AudioCue.register({

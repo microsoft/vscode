@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -26,7 +25,7 @@ import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/service
 
 const $ = DOM.$;
 
-type ScopeString = 'workspace' | 'user' | 'remote';
+type ScopeString = 'workspace' | 'user' | 'remote' | 'default';
 
 export interface ISettingOverrideClickEvent {
 	scope: ScopeString;
@@ -44,14 +43,15 @@ interface SettingIndicator {
  * Renders the indicators next to a setting, such as "Also Modified In".
  */
 export class SettingsTreeIndicatorsLabel implements IDisposable {
-	private indicatorsContainerElement: HTMLElement;
+	private readonly indicatorsContainerElement: HTMLElement;
 
-	private workspaceTrustIndicator: SettingIndicator;
-	private scopeOverridesIndicator: SettingIndicator;
-	private syncIgnoredIndicator: SettingIndicator;
-	private defaultOverrideIndicator: SettingIndicator;
+	private readonly workspaceTrustIndicator: SettingIndicator;
+	private readonly scopeOverridesIndicator: SettingIndicator;
+	private readonly syncIgnoredIndicator: SettingIndicator;
+	private readonly defaultOverrideIndicator: SettingIndicator;
+	private readonly allIndicators: SettingIndicator[];
 
-	private profilesEnabled: boolean;
+	private readonly profilesEnabled: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -70,6 +70,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
 		this.syncIgnoredIndicator = this.createSyncIgnoredIndicator();
 		this.defaultOverrideIndicator = this.createDefaultOverrideIndicator();
+		this.allIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
@@ -186,7 +187,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private render() {
-		const indicatorsToShow = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator].filter(indicator => {
+		const indicatorsToShow = this.allIndicators.filter(indicator => {
 			return indicator.element.style.display !== 'none';
 		});
 
@@ -234,7 +235,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		}
 	}
 
-	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
+	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
 		if (element.hasPolicyValue) {
@@ -279,34 +280,32 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
 		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			if (element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length) {
+				// We can inline the override and show all the text in the label
+				// so that users don't have to wait for the hover to load
+				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
+				this.scopeOverridesIndicator.element.removeAttribute('tabIndex');
 				this.scopeOverridesIndicator.disposables.clear();
 
-				// Just show all the text in the label.
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
 					localize('configuredIn', "Modified in");
 				this.scopeOverridesIndicator.label.text = `${prefaceText} `;
 
-				for (let i = 0; i < element.overriddenScopeList.length; i++) {
-					const overriddenScope = element.overriddenScopeList[i];
-					const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
-					if (i !== element.overriddenScopeList.length - 1) {
-						DOM.append(this.scopeOverridesIndicator.element, $('span.comma', undefined, ', '));
-					}
-					elementDisposables.add(
-						DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-							const [scope, language] = overriddenScope.split(':');
-							onDidClickOverrideElement.fire({
-								settingKey: element.setting.key,
-								scope: scope as ScopeString,
-								language
-							});
-							e.preventDefault();
-							e.stopPropagation();
-						}));
-				}
+				const overriddenScope = element.overriddenScopeList[0];
+				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+				this.scopeOverridesIndicator.disposables.add(
+					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e) => {
+						const [scope, language] = overriddenScope.split(':');
+						onDidClickOverrideElement.fire({
+							settingKey: element.setting.key,
+							scope: scope as ScopeString,
+							language
+						});
+						e.preventDefault();
+						e.stopPropagation();
+					}));
 			} else {
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.add('setting-indicator');

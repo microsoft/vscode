@@ -197,6 +197,7 @@ async function parsePort(host, strPort) {
 			if (port !== undefined) {
 				return port;
 			}
+			// Remote-SSH extension relies on this exact port error message, treat as an API
 			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end} (inclusive).`);
 			process.exit(1);
 
@@ -257,13 +258,6 @@ async function findFreePort(host, start, end) {
 function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
-
-		// VSCODE_GLOBALS: node_modules
-		globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
-
-		// VSCODE_GLOBALS: package/product.json
-		globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
-		globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
 		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
 
