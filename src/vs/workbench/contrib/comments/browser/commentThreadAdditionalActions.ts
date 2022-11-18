@@ -15,7 +15,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class CommentThreadAdditionalActions<T extends IRange | ICellRange> extends Disposable {
 	private _container: HTMLElement | null;
@@ -28,7 +27,6 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 		private _contextKeyService: IContextKeyService,
 		private _commentMenus: CommentMenus,
 		private _actionRunDelegate: (() => void) | null,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -76,7 +74,7 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 		const menu = this._commentMenus.getCommentThreadAdditionalActions(this._contextKeyService);
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			this._commentFormActions.setActions(menu);
+			this._commentFormActions.setActions(menu, /*hasOnlySecondaryActions*/ true);
 			this._enableDisableMenu(menu);
 		}));
 
@@ -87,8 +85,7 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 				thread: this._commentThread,
 				$mid: MarshalledId.CommentThreadInstance
 			});
-
-		}, this.contextMenuService);
+		}, 4);
 
 		this._register(this._commentFormActions);
 		this._commentFormActions.setActions(menu, /*hasOnlySecondaryActions*/ true);

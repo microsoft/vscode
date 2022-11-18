@@ -11,10 +11,12 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IExtension, IExtensionIdentifier, isIExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -76,6 +78,8 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -167,9 +171,20 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 			let extensions: IScannedProfileExtension[] = [];
 
 			// Read
+			let storedWebExtensions: IStoredProfileExtension[] | undefined;
 			try {
 				const content = await this.fileService.readFile(file);
-				const storedWebExtensions: IStoredProfileExtension[] = JSON.parse(content.value.toString());
+				storedWebExtensions = <IStoredProfileExtension[]>JSON.parse(content.value.toString());
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+				// migrate from old location, remove this after couple of releases
+				if (this.uriIdentityService.extUri.isEqual(file, this.userDataProfilesService.defaultProfile.extensionsResource)) {
+					storedWebExtensions = await this.migrateFromOldDefaultProfileExtensionsLocation();
+				}
+			}
+			if (storedWebExtensions) {
 				for (const e of storedWebExtensions) {
 					if (!e.identifier) {
 						this.logService.info('Ignoring invalid extension while scanning. Identifier does not exist.', e);
@@ -190,11 +205,6 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 						metadata: e.metadata,
 					});
 				}
-			} catch (error) {
-				/* Ignore */
-				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-					this.logService.error(error);
-				}
 			}
 
 			// Update
@@ -213,6 +223,66 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		});
 	}
 
+	private _migrationPromise: Promise<IStoredProfileExtension[] | undefined> | undefined;
+	private async migrateFromOldDefaultProfileExtensionsLocation(): Promise<IStoredProfileExtension[] | undefined> {
+		if (!this._migrationPromise) {
+			this._migrationPromise = (async () => {
+				const oldDefaultProfileExtensionsLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json');
+				let content: string;
+				try {
+					content = (await this.fileService.readFile(oldDefaultProfileExtensionsLocation)).value.toString();
+				} catch (error) {
+					if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+						return undefined;
+					}
+					throw error;
+				}
+
+				this.logService.info('Migrating extensions from old default profile location', oldDefaultProfileExtensionsLocation.toString());
+				let storedProfileExtensions: IStoredProfileExtension[] | undefined;
+				try {
+					const parsedData = JSON.parse(content);
+					if (Array.isArray(parsedData) && parsedData.every(candidate =>
+						!!(candidate && typeof candidate === 'object'
+							&& isIExtensionIdentifier(candidate.identifier)
+							&& isUriComponents(candidate.location)
+							&& candidate.version && typeof candidate.version === 'string'))) {
+						storedProfileExtensions = parsedData;
+					} else {
+						this.logService.warn('Skipping migrating from old default profile locaiton: Found invalid data', parsedData);
+					}
+				} catch (error) {
+					/* Ignore */
+					this.logService.error(error);
+				}
+
+				if (storedProfileExtensions) {
+					try {
+						await this.fileService.createFile(this.userDataProfilesService.defaultProfile.extensionsResource, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)), { overwrite: false });
+						this.logService.info('Migrated extensions from old default profile location to new location', oldDefaultProfileExtensionsLocation.toString(), this.userDataProfilesService.defaultProfile.extensionsResource.toString());
+					} catch (error) {
+						if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {
+							this.logService.info('Migration from old default profile location to new location is done by another window', oldDefaultProfileExtensionsLocation.toString(), this.userDataProfilesService.defaultProfile.extensionsResource.toString());
+						} else {
+							throw error;
+						}
+					}
+				}
+
+				try {
+					await this.fileService.del(oldDefaultProfileExtensionsLocation);
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						this.logService.error(error);
+					}
+				}
+
+				return storedProfileExtensions;
+			})();
+		}
+		return this._migrationPromise;
+	}
+
 	private getResourceAccessQueue(file: URI): Queue<IScannedProfileExtension[]> {
 		let resourceQueue = this.resourcesAccessQueueMap.get(file);
 		if (!resourceQueue) {
@@ -221,4 +291,12 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		}
 		return resourceQueue;
 	}
+}
+
+function isUriComponents(thing: unknown): thing is UriComponents {
+	if (!thing) {
+		return false;
+	}
+	return typeof (<any>thing).path === 'string' &&
+		typeof (<any>thing).scheme === 'string';
 }

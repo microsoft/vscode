@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -18,8 +18,6 @@ import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -36,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -64,7 +62,7 @@ import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIn
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultButtonStyles, getButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -97,7 +95,7 @@ function areAllPropertiesDefined(properties: string[], itemsToDisplay: IObjectDa
 
 function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 	if (schema.anyOf) {
-		return arrays.flatten(schema.anyOf.map(getEnumOptionsFromSchema));
+		return schema.anyOf.map(getEnumOptionsFromSchema).flat();
 	}
 
 	const enumDescriptions = schema.enumDescriptions ?? [];
@@ -425,8 +423,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 		extGroupTree.get(extensionId)!.children!.push(childEntry);
 	};
 	const processGroupEntry = async (group: ISettingsGroup) => {
-		const flatSettings = arrays.flatten(
-			group.sections.map(section => section.settings));
+		const flatSettings = group.sections.map(section => section.settings).flat();
 
 		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
@@ -509,7 +506,7 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 
 	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
-		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern, logService)));
+		settings = tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern, logService)).flat();
 	}
 
 	if (!children && !settings) {
@@ -619,7 +616,7 @@ interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 }
 
 interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
-	button: Button;
+	button: HTMLElement;
 	validationErrorMessageElement: HTMLElement;
 }
 
@@ -888,7 +885,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.descriptionElement.innerText = element.description;
 		}
 
-		template.indicatorsLabel.updateScopeOverrides(element, template.elementDisposables, this._onDidClickOverrideElement, this._onApplyFilter);
+		template.indicatorsLabel.updateScopeOverrides(element, this._onDidClickOverrideElement, this._onApplyFilter);
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({
 			key: element.setting.key,
@@ -1051,17 +1048,9 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	renderTemplate(container: HTMLElement): ISettingComplexItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'complex');
 
-		const openSettingsButton = new Button(common.controlElement, {
-			title: true, ...getButtonStyles({
-				buttonBackground: Color.transparent.toString(),
-				buttonHoverBackground: Color.transparent.toString(),
-				buttonForeground: 'foreground'
-			})
-		});
-		common.toDispose.add(openSettingsButton);
-
-		openSettingsButton.element.classList.add('edit-in-settings-button');
-		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		const openSettingsButton = DOM.append(common.controlElement, $('a.edit-in-settings-button'));
+		openSettingsButton.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		openSettingsButton.role = 'button';
 
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		common.containerElement.appendChild(validationErrorMessageElement);
@@ -1085,11 +1074,11 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		const plainKey = getLanguageTagSettingPlainKey(dataElement.setting.key);
 		const editLanguageSettingLabel = localize('editLanguageSettingLabel', "Edit settings for {0}", plainKey);
 		const isLanguageTagSetting = dataElement.setting.isLanguageTagSetting;
-		template.button.label = isLanguageTagSetting
+		template.button.textContent = isLanguageTagSetting
 			? editLanguageSettingLabel
 			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
 
-		template.elementDisposables.add(template.button.onDidClick(() => {
+		template.elementDisposables.add(DOM.addDisposableListener(template.button, DOM.EventType.CLICK, () => {
 			if (isLanguageTagSetting) {
 				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
 			} else {
@@ -1100,9 +1089,9 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		this.renderValidations(dataElement, template);
 
 		if (isLanguageTagSetting) {
-			template.button.element.setAttribute('aria-label', editLanguageSettingLabel);
+			template.button.setAttribute('aria-label', editLanguageSettingLabel);
 		} else {
-			template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+			template.button.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
 		}
 	}
 
@@ -1493,6 +1482,12 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
+const settingsInputBoxStyles = getInputBoxStyle({
+	inputBackground: settingsTextInputBackground,
+	inputForeground: settingsTextInputForeground,
+	inputBorder: settingsTextInputBorder
+});
+
 abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
 	private readonly MULTILINE_MAX_HEIGHT = 150;
 
@@ -1503,15 +1498,11 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		const inputBoxOptions: IInputOptions = {
 			flexibleHeight: useMultiline,
 			flexibleWidth: false,
-			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT
+			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT,
+			inputBoxStyles: settingsInputBoxStyles
 		};
 		const inputBox = new InputBox(common.controlElement, this._contextViewService, inputBoxOptions);
 		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
 				template.onChange?.(e);
@@ -1708,6 +1699,12 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 }
 
+const settingsNumberInputBoxStyles = getInputBoxStyle({
+	inputBackground: settingsNumberInputBackground,
+	inputForeground: settingsNumberInputForeground,
+	inputBorder: settingsNumberInputBorder
+});
+
 export class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingNumberItemTemplate> {
 	templateId = SETTINGS_NUMBER_TEMPLATE_ID;
 
@@ -1715,13 +1712,8 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		const common = super.renderCommonTemplate(null, _container, 'number');
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number' });
+		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number', inputBoxStyles: settingsNumberInputBoxStyles });
 		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsNumberInputBackground,
-			inputForeground: settingsNumberInputForeground,
-			inputBorder: settingsNumberInputBorder
-		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
 				template.onChange?.(e);
@@ -1790,7 +1782,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', ...unthemedToggleStyles });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {

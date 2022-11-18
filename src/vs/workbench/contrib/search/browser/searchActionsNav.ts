@@ -403,8 +403,8 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 				primary: KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
-			category: category.value,
-
+			category: category,
+			f1: true,
 			precondition: ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor),
 		});
 	}
@@ -419,15 +419,15 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 		super({
 			id: Constants.FocusPreviousSearchResultActionId,
 			title: {
-				value: nls.localize('FocusPreviousSearchResult.label', 'Search: Focus Previous Search Result'),
-				original: 'Search: Focus Previous Search Result'
+				value: nls.localize('FocusPreviousSearchResult.label', 'Focus Previous Search Result'),
+				original: 'Focus Previous Search Result'
 			},
 			keybinding: [{
 				primary: KeyMod.Shift | KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
-			category: category.value,
-
+			category: category,
+			f1: true,
 			precondition: ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor),
 		});
 	}
@@ -442,14 +442,15 @@ registerAction2(class ReplaceInFilesAction extends Action2 {
 		super({
 			id: Constants.ReplaceInFilesActionId,
 			title: {
-				value: nls.localize('replaceInFiles', 'Search: Replace in Files'),
-				original: 'Search: Replace in Files'
+				value: nls.localize('replaceInFiles', 'Replace in Files'),
+				original: 'Replace in Files'
 			},
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
-			category: category.value,
+			category: category,
+			f1: true,
 			menu: [{
 				id: MenuId.MenubarEditMenu,
 				group: '4_find_global',

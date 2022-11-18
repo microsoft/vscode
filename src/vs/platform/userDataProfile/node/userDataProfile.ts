@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { revive } from 'vs/base/common/marshalling';
-import { UriDto } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI, UriDto } from 'vs/base/common/uri';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
@@ -17,11 +17,11 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 	constructor(
 		@IStateService private readonly stateService: IStateService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
-		super(environmentService, fileService, uriIdentityService, logService);
+		super(nativeEnvironmentService, fileService, uriIdentityService, logService);
 	}
 
 	protected override getStoredProfiles(): StoredUserDataProfile[] {
@@ -30,6 +30,10 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
 		return revive(this.stateService.getItem<UriDto<StoredProfileAssociations>>(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, {}));
+	}
+
+	protected override getDefaultProfileExtensionsLocation(): URI {
+		return this.uriIdentityService.extUri.joinPath(URI.file(this.nativeEnvironmentService.extensionsPath).with({ scheme: this.profilesHome.scheme }), 'extensions.json');
 	}
 
 }
