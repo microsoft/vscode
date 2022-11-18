@@ -48,6 +48,7 @@ import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/c
 import { URI } from 'vs/base/common/uri';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUnifiedExtensionScannerService, ScanLocation } from 'vs/workbench/services/extensions/common/abstractExtensionScannerService';
 
 export abstract class ElectronExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -76,6 +77,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
+		@IUnifiedExtensionScannerService private readonly _unifiedExtensionScannerService: IUnifiedExtensionScannerService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -539,7 +541,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			// fetch the remote environment
 			[remoteEnv, remoteExtensions] = await Promise.all([
 				this._remoteAgentService.getEnvironment(),
-				this._remoteAgentService.scanExtensions()
+				this._unifiedExtensionScannerService.scanExtensions(ScanLocation.Remote),
 			]);
 
 			if (!remoteEnv) {

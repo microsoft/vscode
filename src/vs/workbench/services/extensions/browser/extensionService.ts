@@ -31,7 +31,7 @@ import { IUserDataInitializationService } from 'vs/workbench/services/userData/b
 import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IUnifiedExtensionScannerService, ScanLocation } from 'vs/workbench/services/extensions/common/abstractExtensionScannerService';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -50,6 +50,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IUnifiedExtensionScannerService private readonly _extensionScannerService: IUnifiedExtensionScannerService,
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -192,26 +193,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	private async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
-		try {
-			await Promise.all([
-				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanUserExtensions(this._userDataProfileService.currentProfile.extensionsResource, { skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
-			]);
-		} catch (error) {
-			this._logService.error(error);
-		}
-		return dedupExtensions(system, user, development, this._logService);
-	}
-
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
 		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
-			this._scanWebExtensions(),
+			this._extensionScannerService.scanExtensions(ScanLocation.Web),
 			this._remoteAgentService.getEnvironment(),
-			this._remoteAgentService.scanExtensions()
+			this._extensionScannerService.scanExtensions(ScanLocation.Remote),
 		]);
 		localExtensions = this._checkEnabledAndProposedAPI(localExtensions, false);
 		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
