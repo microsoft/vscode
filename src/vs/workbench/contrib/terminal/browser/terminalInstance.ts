@@ -826,8 +826,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const aliases: string[][] = [];
 		const rows = aliasString.split('\n');
 		for (const row of rows) {
-			aliases.push(row.split('='));
+			if (this.shellType === 'zsh') {
+				aliases.push(row.split('='));
+			} else if (this.shellType === 'bash') {
+				// trim off 'alias '
+				aliases.push(row.substring(6).split('='));
+			}
 		}
+		if (aliases.length) {
+			this._aliases = aliases;
+		}
+		console.log(this._aliases);
 		return aliases;
 	}
 
@@ -1418,9 +1427,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const processManager = this._scopedInstantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper, this.shellLaunchConfig?.cwd, deserializedCollections);
 		this.capabilities.add(processManager.capabilities);
 		processManager.onProcessReady(async (e) => {
-			if (e.aliases) {
-				this._aliases = this._parseAliases(e.aliases);
-			}
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
 			// Set the initial name based on the _resolved_ shell launch config, this will also
@@ -1475,6 +1481,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
+					break;
+				case ProcessPropertyType.Aliases:
+					this._parseAliases(value);
 					break;
 			}
 		});

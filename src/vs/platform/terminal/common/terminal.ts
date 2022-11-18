@@ -217,6 +217,7 @@ export const IPtyService = createDecorator<IPtyService>('ptyService');
 
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
+	Aliases = 'aliases',
 	InitialCwd = 'initialCwd',
 	FixedDimensions = 'fixedDimensions',
 	Title = 'title',
@@ -244,6 +245,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
 	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
+	[ProcessPropertyType.Aliases]: string | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -612,7 +614,6 @@ export interface IProcessReadyEvent {
 	pid: number;
 	cwd: string;
 	requiresWindowsMode?: boolean;
-	aliases?: string;
 }
 
 /**

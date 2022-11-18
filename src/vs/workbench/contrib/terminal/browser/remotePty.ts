@@ -30,6 +30,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
 
 	private _properties: IProcessPropertyMap = {
+		aliases: '',
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },

@@ -89,6 +89,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly shouldPersist = false;
 
 	private _properties: IProcessPropertyMap = {
+		aliases: '',
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
@@ -231,6 +232,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		try {
 			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
+			this._aliases = this._ptyOptions?.env?.['USER_ALIASES'] || undefined;
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Aliases, value: this._aliases });
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -294,7 +297,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
-		this._aliases = options.env ? options.env['USER_ALIASES'] : undefined;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value }));
 		this._processStartupComplete = new Promise<void>(c => {
@@ -396,7 +398,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376, aliases: this._aliases });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
