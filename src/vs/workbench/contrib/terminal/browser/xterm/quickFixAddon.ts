@@ -421,7 +421,6 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		commandLineMatcher: selectorProvider.selector.commandLineMatcher,
 		outputMatcher: selectorProvider.selector.outputMatcher,
 		exitStatus: selectorProvider.selector.exitStatus,
-		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes,
-		extensionId: selectorProvider.provider.extensionId
+		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes
 	};
 }

@@ -12,7 +12,6 @@ import { ITerminalProfileContribution } from 'vs/platform/terminal/common/termin
 
 export interface ITerminalCommandSelector {
 	id: string;
-	extensionId: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
@@ -25,28 +24,24 @@ export interface ITerminalQuickFixOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
-	extensionId?: string;
 }
 
 export interface ITerminalQuickFix {
 	type: 'command' | 'opener';
-	id?: string;
+	id: string;
 	source: string;
 }
 
 export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
 	type: 'command';
 	terminalCommand: string;
-	id: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine?: boolean;
 }
 export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
 	type: 'opener';
-	id: string;
 	uri: UriComponents;
 }
-
 
 export interface ITerminalCommandSelector {
 	commandLineMatcher: string | RegExp;
@@ -59,7 +54,6 @@ export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult
 export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, lines: string[] | undefined, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
 export interface ITerminalQuickFixProvider {
-	extensionId: string;
 	/**
 	 * Provides terminal quick fixes
 	 * @param commandMatchResult The command match result for which to provide quick fixes
@@ -84,11 +78,9 @@ export interface IInternalOptions extends ITerminalQuickFixOptions {
 	getQuickFixes: TerminalQuickFixCallback;
 }
 
-
 export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
 	type: 'resolved';
 	getQuickFixes: TerminalQuickFixCallbackExtension;
-	extensionId: string;
 }
 
 export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
@@ -98,10 +90,6 @@ export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
 	quickFixes?: ITerminalCommandSelector[];
-}
-
-export interface IExtensionTerminalQuickFix extends ITerminalQuickFixOptions {
-	extensionIdentifier: string;
 }
 
 

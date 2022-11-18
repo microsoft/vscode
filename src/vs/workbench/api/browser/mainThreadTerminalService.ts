@@ -251,7 +251,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
 		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
 			{
-				extensionId,
 				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, lines: string[], option: ITerminalQuickFixOptions, token: CancellationToken) => {
 					if (token.isCancellationRequested) {
 						return;
@@ -279,12 +278,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 						if (result && Array.isArray(result)) {
 							return result.map(r => {
 								return {
+									id,
 									source: extensionId,
 									...r
 								};
 							});
 						} else if (result) {
 							return {
+								id,
 								source: extensionId,
 								...result
 							};
