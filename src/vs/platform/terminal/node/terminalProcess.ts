@@ -89,7 +89,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly shouldPersist = false;
 
 	private _properties: IProcessPropertyMap = {
-		aliases: '',
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
@@ -103,7 +102,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
-	private _aliases: string | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
 	private _ptyProcess: pty.IPty | undefined;
@@ -232,8 +230,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		try {
 			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
-			this._aliases = this._ptyOptions?.env?.['USER_ALIASES'] || undefined;
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Aliases, value: this._aliases });
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);

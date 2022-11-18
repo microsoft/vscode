@@ -206,4 +206,4 @@ if [[ -z "${bash_preexec_imported:-}" ]]; then
 		PROMPT_COMMAND=__vsc_prompt_cmd
 	fi
 fi
-export USER_ALIASES=$(alias)
+echo -ne "\x1b]633;UserAliases;$(alias)"

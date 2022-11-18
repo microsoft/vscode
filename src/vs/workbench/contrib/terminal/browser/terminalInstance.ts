@@ -822,24 +822,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
-	private _parseAliases(aliasString: string): string[][] {
-		const aliases: string[][] = [];
-		const rows = aliasString.split('\n');
-		for (const row of rows) {
-			if (this.shellType === 'zsh') {
-				aliases.push(row.split('='));
-			} else if (this.shellType === 'bash') {
-				// trim off 'alias '
-				aliases.push(row.substring(6).split('='));
-			}
-		}
-		if (aliases.length) {
-			this._aliases = aliases;
-		}
-		console.log(this._aliases);
-		return aliases;
-	}
-
 	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
@@ -1481,11 +1463,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
-					break;
-				case ProcessPropertyType.Aliases:
-					if (value) {
-						this._parseAliases(value);
-					}
 					break;
 			}
 		});
