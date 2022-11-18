@@ -827,7 +827,7 @@
 	height: 26px;
 	width: fit-content;
 	display: flex;
-	padding: 11px 0;
+	padding: 0 11px;
 	margin-bottom: 8px;
 	align-items: center;
 }
