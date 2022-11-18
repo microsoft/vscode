@@ -638,6 +638,11 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	}
 
 	protected override _selecteKernel(notebook: NotebookTextModel, kernel: INotebookKernel): void {
+		const currentInfo = this._notebookKernelService.getMatchingKernel(notebook);
+		if (currentInfo.selected) {
+			// there is already a selected kernel
+			this._notebookKernelHistoryService.addMostRecentKernel(currentInfo.selected);
+		}
 		super._selecteKernel(notebook, kernel);
 		this._notebookKernelHistoryService.addMostRecentKernel(kernel);
 	}
@@ -757,11 +762,15 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		}
 
 		const info = notebookKernelService.getMatchingKernel(notebook);
+		const suggested = (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+			?? (info.all.length === 1) ? info.all[0] : undefined;
 
-		if (info.selected) {
-			action.label = info.selected.label;
+		const selectedOrSuggested = info.selected ?? suggested;
+
+		if (selectedOrSuggested) {
+			action.label = selectedOrSuggested.label;
 			action.class = ThemeIcon.asClassName(selectKernelIcon);
-			action.tooltip = info.selected.description ?? info.selected.detail ?? '';
+			action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
 		} else {
 			action.label = localize('select', "Select Kernel");
 			action.class = ThemeIcon.asClassName(selectKernelIcon);

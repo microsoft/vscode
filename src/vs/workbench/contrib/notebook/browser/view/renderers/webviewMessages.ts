@@ -446,6 +446,12 @@ export interface IReturnOutputItemMessage {
 	readonly output: OutputItemEntry | undefined;
 }
 
+export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
+	readonly type: 'logRendererDebugMessage';
+	readonly message: string;
+	readonly data?: Record<string, string>;
+}
+
 
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
@@ -476,7 +482,8 @@ export type FromWebviewMessage = WebviewInitialized |
 	IDidFindMessage |
 	IDidFindHighlightMessage |
 	IOutputResizedMessage |
-	IGetOutputItemMessage;
+	IGetOutputItemMessage |
+	ILogRendererDebugMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
