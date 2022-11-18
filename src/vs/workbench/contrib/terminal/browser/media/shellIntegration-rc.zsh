@@ -130,3 +130,4 @@ add-zsh-hook preexec __vsc_preexec
 if [[ $options[login] = off && $USER_ZDOTDIR != $VSCODE_ZDOTDIR ]]; then
 	ZDOTDIR=$USER_ZDOTDIR
 fi
+export USER_ALIASES=$(alias)

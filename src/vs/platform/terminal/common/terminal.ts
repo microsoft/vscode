@@ -612,6 +612,7 @@ export interface IProcessReadyEvent {
 	pid: number;
 	cwd: string;
 	requiresWindowsMode?: boolean;
+	aliases?: string;
 }
 
 /**

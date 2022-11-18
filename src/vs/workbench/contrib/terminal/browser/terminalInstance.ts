@@ -161,6 +161,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
+	private _aliases: string[][] | undefined;
 	private _shellType: TerminalShellType;
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
@@ -729,7 +730,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
-		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this.capabilities);
+		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
 		this.registerQuickFixProvider(gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr());
 		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
@@ -819,6 +820,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		return xterm;
+	}
+
+	private _parseAliases(aliasString: string): string[][] {
+		const aliases: string[][] = [];
+		const rows = aliasString.split('\n');
+		for (const row of rows) {
+			aliases.push(row.split('='));
+		}
+		return aliases;
 	}
 
 	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
@@ -1408,6 +1418,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const processManager = this._scopedInstantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper, this.shellLaunchConfig?.cwd, deserializedCollections);
 		this.capabilities.add(processManager.capabilities);
 		processManager.onProcessReady(async (e) => {
+			if (e.aliases) {
+				this._aliases = this._parseAliases(e.aliases);
+			}
 			this._onProcessIdReady.fire(this);
 			this._initialCwd = await this.getInitialCwd();
 			// Set the initial name based on the _resolved_ shell launch config, this will also

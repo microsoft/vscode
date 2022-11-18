@@ -70,6 +70,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _fixId: string | undefined;
 
 	constructor(
+		private readonly _aliases: string[][] | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -154,7 +155,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._expectedCommands = undefined;
 				this._fixId = undefined;
 			}
-			await this._resolveQuickFixes(command);
+			await this._resolveQuickFixes(command, this._aliases);
 			this._fixesShown = false;
 		}));
 
@@ -170,7 +171,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	 * Resolves quick fixes, if any, based on the
 	 * @param command & its output
 	 */
-	private async _resolveQuickFixes(command: ITerminalCommand): Promise<void> {
+	private async _resolveQuickFixes(command: ITerminalCommand, aliases?: string[][]): Promise<void> {
 		const terminal = this._terminal;
 		if (!terminal) {
 			return;
@@ -188,7 +189,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}
 			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, exitStatus: selector.exitStatus, id: selector.id }, new CancellationTokenSource().token);
 		};
-		const result = await getQuickFixesForCommand(terminal, command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand, resolver);
+		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
 			return;
 		}
@@ -299,6 +300,7 @@ export interface ITerminalAction extends IAction {
 }
 
 export async function getQuickFixesForCommand(
+	aliases: string[][] | undefined,
 	terminal: Terminal,
 	terminalCommand: ITerminalCommand,
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
@@ -309,7 +311,7 @@ export async function getQuickFixesForCommand(
 	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: ITerminalAction[] = [];
-	const newCommand = terminalCommand.command;
+	const newCommand = resolveAliases(terminalCommand.command, aliases);
 	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
@@ -423,4 +425,17 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		exitStatus: selectorProvider.selector.exitStatus,
 		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes
 	};
+}
+
+function resolveAliases(commandLine: string, aliases?: string[][]): string {
+	if (!aliases) {
+		return commandLine;
+	}
+	for (const alias of aliases) {
+		if (alias.length !== 2) {
+			throw new Error('Not an alias');
+		}
+		commandLine.replaceAll(alias[0], alias[1]);
+	}
+	return commandLine;
 }

@@ -373,7 +373,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._onRestoreCommands.fire(e);
 			}));
 		}
-
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
 				this._setProcessState(ProcessState.Running);
