@@ -926,8 +926,7 @@ export const NotebookSetting = {
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
 	outputFontFamily: 'notebook.outputFontFamily',
-	kernelPickerType: 'notebook.kernelPickerType',
-	kernelPickerMRU: 'notebook.experimental.kernelPicker.mru',
+	kernelPickerType: 'notebook.kernelPicker.type',
 	outputScrolling: 'notebook.experimental.outputScrolling',
 } as const;
 
