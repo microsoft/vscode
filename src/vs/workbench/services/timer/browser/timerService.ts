@@ -584,7 +584,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 
-		type Mark = { source: string; name: TrustedTelemetryValue; startTime: number };
+		type Mark = { source: string; name: TrustedTelemetryValue<string>; startTime: number };
 		type MarkClassification = {
 			owner: 'jrieken';
 			comment: 'Information about a performance marker';
