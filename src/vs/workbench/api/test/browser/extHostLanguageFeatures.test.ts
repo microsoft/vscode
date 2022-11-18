@@ -53,7 +53,9 @@ import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransfo
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -88,6 +90,11 @@ suite('ExtHostLanguageFeatures', function () {
 			const instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
+			instantiationService.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override asCanonicalUri(uri: URI): URI {
+					return uri;
+				}
+			});
 			inst = instantiationService;
 		}
 
@@ -112,10 +119,14 @@ suite('ExtHostLanguageFeatures', function () {
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { }, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService, new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -411,11 +422,10 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-			const [entry] = value;
-			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
+		const [entry] = hovers;
+		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
 	});
 
 
@@ -428,11 +438,10 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-			const [entry] = value;
-			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
+		const [entry] = hovers;
+		assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
 	});
 
 
@@ -473,9 +482,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
 	});
 
 	// --- occurrences

@@ -70,7 +70,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async _updateConfigValues(): Promise<void> {
-		let extensions = await this._extensionService.getExtensions();
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		let extensions = [...this._extensionService.extensions];
 
 		extensions = extensions.sort((a, b) => {
 			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
@@ -272,7 +273,7 @@ function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(
 		comment: 'Information about resolving formatter conflicts';
 		mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Formatting mode: whole document or a range/selection' };
 		extensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that got picked' };
-		pick: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comments: 'The possible extensions to pick' };
+		pick: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The possible extensions to pick' };
 	};
 	function extKey(obj: T): string {
 		return obj.extensionId ? ExtensionIdentifier.toKey(obj.extensionId) : 'unknown';

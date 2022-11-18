@@ -3,21 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as randomBytes from 'randombytes';
-import * as querystring from 'querystring';
-import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { v4 as uuid } from 'uuid';
-import fetch, { Response } from 'node-fetch';
-import Logger from './logger';
-import { toBase64UrlEncoding } from './utils';
-import { sha256 } from './env/node/sha256';
-import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
-import { LoopbackAuthServer } from './authServer';
+import * as querystring from 'querystring';
 import path = require('path');
-
-const localize = nls.loadMessageBundle();
+import Logger from './logger';
+import { isSupportedEnvironment } from './utils';
+import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
+import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
+import { LoopbackAuthServer } from './node/authServer';
+import { base64Decode } from './node/buffer';
+import { fetching } from './node/fetch';
 
 const redirectUrl = 'https://vscode.dev/redirect';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -139,7 +134,7 @@ export class AzureActiveDirectoryService {
 						sessionId: session.id
 					});
 				} else {
-					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+					vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 					Logger.error(e);
 					await this.removeSessionByIToken({
 						accessToken: undefined,
@@ -183,6 +178,9 @@ export class AzureActiveDirectoryService {
 		}
 		if (!modifiedScopes.includes('profile')) {
 			modifiedScopes.push('profile');
+		}
+		if (!modifiedScopes.includes('offline_access')) {
+			modifiedScopes.push('offline_access');
 		}
 		modifiedScopes = modifiedScopes.sort();
 
@@ -256,6 +254,9 @@ export class AzureActiveDirectoryService {
 		if (!scopes.includes('profile')) {
 			scopes.push('profile');
 		}
+		if (!scopes.includes('offline_access')) {
+			scopes.push('offline_access');
+		}
 		scopes = scopes.sort();
 		const scopeData: IScopeData = {
 			scopes,
@@ -292,8 +293,8 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async createSessionWithLocalServer(scopeData: IScopeData) {
-		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
+		const codeVerifier = generateCodeVerifier();
+		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const qs = new URLSearchParams({
 			response_type: 'code',
 			response_mode: 'query',
@@ -319,27 +320,21 @@ export class AzureActiveDirectoryService {
 			}, 5000);
 		}
 
-		const token = await this.exchangeCodeForToken(codeToExchange, codeVerifier, scopeData);
-		if (token.expiresIn) {
-			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
-		}
-		await this.setToken(token, scopeData);
-		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
-		const session = await this.convertToSession(token);
+		const session = await this.exchangeCodeForSession(codeToExchange, codeVerifier, scopeData);
 		return session;
 	}
 
 	private async createSessionWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
-		const nonce = randomBytes(16).toString('base64');
+		const nonce = generateCodeVerifier();
 		const callbackQuery = new URLSearchParams(callbackUri.query);
 		callbackQuery.set('nonce', encodeURIComponent(nonce));
 		callbackUri = callbackUri.with({
 			query: callbackQuery.toString()
 		});
 		const state = encodeURIComponent(callbackUri.toString(true));
-		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
+		const codeVerifier = generateCodeVerifier();
+		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
 		const oauthStartQuery = new URLSearchParams({
 			response_type: 'code',
@@ -355,9 +350,11 @@ export class AzureActiveDirectoryService {
 		const uri = vscode.Uri.parse(`${signInUrl}?${oauthStartQuery.toString()}`);
 		vscode.env.openExternal(uri);
 
+		let inputBox: vscode.InputBox | undefined;
 		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {
 			const wait = setTimeout(() => {
 				clearTimeout(wait);
+				inputBox?.dispose();
 				reject('Login timed out.');
 			}, 1000 * 60 * 5);
 		});
@@ -369,7 +366,12 @@ export class AzureActiveDirectoryService {
 		// before completing it.
 		let existingPromise = this._codeExchangePromises.get(scopeData.scopeStr);
 		if (!existingPromise) {
-			existingPromise = this.handleCodeResponse(scopeData);
+			if (isSupportedEnvironment(callbackUri)) {
+				existingPromise = this.handleCodeResponse(scopeData);
+			} else {
+				inputBox = vscode.window.createInputBox();
+				existingPromise = this.handleCodeInputBox(inputBox, codeVerifier, scopeData);
+			}
 			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}
 
@@ -439,7 +441,7 @@ export class AzureActiveDirectoryService {
 				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
-					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+					vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 					await this.removeSessionById(sessionId);
 				}
 			}
@@ -463,10 +465,10 @@ export class AzureActiveDirectoryService {
 
 		try {
 			if (json.id_token) {
-				claims = JSON.parse(Buffer.from(json.id_token.split('.')[1], 'base64').toString());
+				claims = JSON.parse(base64Decode(json.id_token.split('.')[1]));
 			} else {
 				Logger.info('Attempting to parse access_token instead since no id_token was included in the response.');
-				claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
+				claims = JSON.parse(base64Decode(json.access_token.split('.')[1]));
 			}
 		} catch (e) {
 			throw e;
@@ -487,7 +489,7 @@ export class AzureActiveDirectoryService {
 			idToken: json.id_token,
 			refreshToken: json.refresh_token,
 			scope: scopeData.scopeStr,
-			sessionId: existingId || `${id}/${uuid()}`,
+			sessionId: existingId || `${id}/${randomUUID()}`,
 			account: {
 				label,
 				id
@@ -659,13 +661,7 @@ export class AzureActiveDirectoryService {
 						throw new Error('No available code verifier');
 					}
 
-					const token = await this.exchangeCodeForToken(code, verifier, scopeData);
-					if (token.expiresIn) {
-						this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
-					}
-					await this.setToken(token, scopeData);
-
-					const session = await this.convertToSession(token);
+					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
 					resolve(session);
 				} catch (err) {
 					reject(err);
@@ -680,8 +676,33 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	private async exchangeCodeForToken(code: string, codeVerifier: string, scopeData: IScopeData): Promise<IToken> {
+	private async handleCodeInputBox(inputBox: vscode.InputBox, verifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
+		inputBox.ignoreFocusOut = true;
+		inputBox.title = vscode.l10n.t('Microsoft Authentication');
+		inputBox.prompt = vscode.l10n.t('Provide the authorization code to complete the sign in flow.');
+		inputBox.placeholder = vscode.l10n.t('Paste authorization code here...');
+		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
+			inputBox.show();
+			inputBox.onDidAccept(async () => {
+				const code = inputBox.value;
+				if (code) {
+					inputBox.dispose();
+					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					resolve(session);
+				}
+			});
+			inputBox.onDidHide(() => {
+				if (!inputBox.value) {
+					inputBox.dispose();
+					reject('Cancelled');
+				}
+			});
+		});
+	}
+
+	private async exchangeCodeForSession(code: string, codeVerifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		Logger.info(`Exchanging login code for token for scopes: ${scopeData.scopeStr}`);
+		let token: IToken | undefined;
 		try {
 			const postData = querystring.stringify({
 				grant_type: 'authorization_code',
@@ -698,21 +719,28 @@ export class AzureActiveDirectoryService {
 
 			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
 			Logger.info(`Exchanging login code for token (for scopes: ${scopeData.scopeStr}) succeeded!`);
-			return this.convertToTokenSync(json, scopeData);
+			token = this.convertToTokenSync(json, scopeData);
 		} catch (e) {
 			Logger.error(`Error exchanging code for token (for scopes ${scopeData.scopeStr}): ${e}`);
 			throw e;
 		}
+
+		if (token.expiresIn) {
+			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
+		}
+		await this.setToken(token, scopeData);
+		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
+		return await this.convertToSession(token);
 	}
 
 	private async fetchTokenResponse(endpoint: string, postData: string, scopeData: IScopeData): Promise<ITokenResponse> {
 		let attempts = 0;
 		while (attempts <= 3) {
 			attempts++;
-			let result: Response | undefined;
+			let result;
 			let errorMessage: string | undefined;
 			try {
-				result = await fetch(endpoint, {
+				result = await fetching(endpoint, {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/x-www-form-urlencoded',
@@ -796,7 +824,7 @@ export class AzureActiveDirectoryService {
 				} catch (e) {
 					// Network failures will automatically retry on next poll.
 					if (e.message !== REFRESH_NETWORK_FAILURE) {
-						vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+						vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 						await this.removeSessionById(session.id);
 					}
 					return;

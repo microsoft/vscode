@@ -8,21 +8,19 @@ if (Test-Path variable:global:__VSCodeOriginalPrompt) {
 	return;
 }
 
+# Disable shell integration when the language mode is restricted
+if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
+	return;
+}
+
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
 
-function Global:__VSCode-Get-LastExitCode {
-	if ($? -eq $True) {
-		return 0
-	}
-	# TODO: Should we just return a string instead?
-	return -1
-}
 
 function Global:Prompt() {
-	$LastExitCode = $(__VSCode-Get-LastExitCode);
-	$LastHistoryEntry = $(Get-History -Count 1)
+	$FakeCode = [int]!$global:?
+	$LastHistoryEntry = Get-History -Count 1
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {
 		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
@@ -36,12 +34,16 @@ function Global:Prompt() {
 			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 			# to only be composed of _printable_ characters as per the spec.
-			$CommandLine = $LastHistoryEntry.CommandLine ?? ""
-			$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+			if ($LastHistoryEntry.CommandLine) {
+				$CommandLine = $LastHistoryEntry.CommandLine
+			} else {
+				$CommandLine = ""
+			}
+			$Result += $CommandLine.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
-			$Result += "`e]633;D;$LastExitCode`a"
+			$Result += "`e]633;D;$FakeCode`a"
 		}
 	}
 	# Prompt started
@@ -50,7 +52,9 @@ function Global:Prompt() {
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
 	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]633;P;Cwd=$($pwd.ProviderPath)`a"}
-	# Write original prompt
+	# Before running the original prompt, put $? back to what it was:
+	if ($FakeCode -ne 0) { Write-Error "failure" -ea ignore }
+	# Run the original prompt
 	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
 	$Result += "`e]633;B`a"
@@ -76,7 +80,7 @@ if (Get-Module -Name PSReadLine) {
 # Set always on key handlers which map to default VS Code keybindings
 function Set-MappedKeyHandler {
 	param ([string[]] $Chord, [string[]]$Sequence)
-	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord)
+	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1)
 	if ($Handler) {
 		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
 	}

@@ -107,7 +107,7 @@ export namespace TerminalContextKeys {
 	/** Whether the active terminal's find widget text input is focused. */
 	export const findInputFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.FindInputFocused, false, true);
 
-	/** Whether an element iwhtin the active terminal's find widget is focused. */
+	/** Whether an element within the active terminal's find widget is focused. */
 	export const findFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.FindFocused, false, true);
 
 	/** Whether NO elements within the active terminal's find widget is focused. */

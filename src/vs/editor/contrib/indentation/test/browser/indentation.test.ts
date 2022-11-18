@@ -3,9 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
+import { Range } from 'vs/editor/common/core/range';
+import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { javascriptIndentationRules } from 'vs/editor/test/common/modes/supports/javascriptIndentationRules';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
@@ -182,5 +194,74 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 			],
 			new Selection(1, 6, 1, 6)
 		);
+	});
+});
+
+suite('Editor Contrib - Auto Indent On Paste', () => {
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
+		const languageId = 'leadingSpacePaste';
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			disposables.add(languageService.registerLanguage({ id: languageId }));
+			disposables.add(TokenizationRegistry.register(languageId, {
+				getInitialState: (): IState => NullState,
+				tokenize: () => {
+					throw new Error('not implemented');
+				},
+				tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+					const tokensArr: number[] = [];
+					if (line.indexOf('*') !== -1) {
+						tokensArr.push(0);
+						tokensArr.push(StandardTokenType.Comment << MetadataConsts.TOKEN_TYPE_OFFSET);
+					} else {
+						tokensArr.push(0);
+						tokensArr.push(StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET);
+					}
+					const tokens = new Uint32Array(tokensArr.length);
+					for (let i = 0; i < tokens.length; i++) {
+						tokens[i] = tokensArr[i];
+					}
+					return new EncodedTokenizationResult(tokens, state);
+				}
+			}));
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				comments: {
+					lineComment: '//',
+					blockComment: ['/*', '*/']
+				},
+				indentationRules: javascriptIndentationRules,
+				onEnterRules: javascriptOnEnterRules
+			}));
+
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const pasteText = [
+				'/**',
+				' * JSDoc',
+				' */',
+				'function a() {}'
+			].join('\n');
+
+			viewModel.paste(pasteText, true, undefined, 'keyboard');
+			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 16));
+			assert.strictEqual(model.getValue(), pasteText);
+		});
 	});
 });

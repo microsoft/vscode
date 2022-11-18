@@ -8,7 +8,7 @@ import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, pars
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { relativePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class ResourceGlobMatcher {

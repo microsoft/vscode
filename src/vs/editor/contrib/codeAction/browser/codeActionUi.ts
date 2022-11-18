@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { IActionShowOptions, IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
+import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
-import { CodeActionAutoApply, CodeActionTrigger } from './types';
+import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenuItems';
 
 export class CodeActionUi extends Disposable {
-
-	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
@@ -33,51 +34,25 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
 
-		this._codeActionWidget = new Lazy(() => {
-			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
-				onSelectCodeAction: async (action, trigger) => {
-					this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
-				}
-			}));
-		});
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: this.shouldShowHeaders() })));
 			return widget;
 		});
+
+		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
 	}
 
 	override dispose() {
 		this.#disposed = true;
 		super.dispose();
-
-	}
-
-	public hideCodeActionWidget() {
-		if (this._codeActionWidget.hasValue()) {
-			this._codeActionWidget.getValue().hideCodeActionWidget();
-		}
-	}
-
-	public onEnter() {
-		if (this._codeActionWidget.hasValue()) {
-			this._codeActionWidget.getValue().onEnterSet();
-		}
-	}
-
-	public navigateList(navUp: Boolean) {
-		if (this._codeActionWidget.hasValue()) {
-			if (navUp) {
-				this._codeActionWidget.getValue().navigateListWithKeysUp();
-			} else {
-				this._codeActionWidget.getValue().navigateListWithKeysDown();
-			}
-		}
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
@@ -137,10 +112,10 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions, fromLightbulb: false });
+			this.showCodeActionList(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false, showHeaders: this.shouldShowHeaders() });
 		} else {
 			// auto magically triggered
-			if (this._codeActionWidget.getValue().isVisible) {
+			if (this._actionWidgetService.isVisible) {
 				// TODO: Figure out if we should update the showing menu?
 				actions.dispose();
 			} else {
@@ -177,7 +152,52 @@ export class CodeActionUi extends Disposable {
 		return undefined;
 	}
 
-	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
-		this._codeActionWidget.getValue().show(trigger, actions, at, options);
+	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+		const editorDom = this._editor.getDomNode();
+		if (!editorDom) {
+			return;
+		}
+
+		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
+
+		const delegate: IRenderDelegate<CodeActionItem> = {
+			onSelect: async (action: CodeActionItem, preview?: boolean) => {
+				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
+				this._actionWidgetService.hide();
+			},
+			onHide: () => {
+				this._editor?.focus();
+			}
+		};
+		this._actionWidgetService.show(
+			'codeActionWidget',
+			toMenuItems,
+			delegate,
+			actions,
+			anchor,
+			editorDom,
+			{ ...options, showHeaders: this.shouldShowHeaders() });
+	}
+
+	private toCoords(position: IPosition): IAnchor {
+		if (!this._editor.hasModel()) {
+			return { x: 0, y: 0 };
+		}
+
+		this._editor.revealPosition(position, ScrollType.Immediate);
+		this._editor.render();
+
+		// Translate to absolute editor position
+		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
+		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
+		const x = editorCoords.left + cursorCoords.left;
+		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+		return { x, y };
+	}
+
+	private shouldShowHeaders(): boolean {
+		const model = this._editor?.getModel();
+		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', { resource: model?.uri });
 	}
 }

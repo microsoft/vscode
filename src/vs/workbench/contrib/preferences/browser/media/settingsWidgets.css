@@ -23,6 +23,11 @@
 	text-overflow: ellipsis;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {
+	background-color: var(--vscode-settings-checkboxBackground) !important;
+	color: var(--vscode-settings-checkboxForeground) !important;
+	border-color: var(--vscode-settings-checkboxBorder) !important;
+}
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox {
 	margin-left: 4px;
 	height: 24px;
@@ -92,9 +97,24 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	display: flex;
 }
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.draggable {
 	cursor: pointer;
 	user-select: none;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover {
+	background-color: var(--vscode-list-dropBackground);
 }
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover * {
 	pointer-events: none;

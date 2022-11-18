@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Memento } from 'vs/workbench/common/memento';
 import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
@@ -87,7 +87,7 @@ registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 			},
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 		});
 	}
 	run(accessor: ServicesAccessor): void {

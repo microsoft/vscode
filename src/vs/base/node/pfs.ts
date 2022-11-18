@@ -66,7 +66,11 @@ async function rimrafMove(path: string): Promise<void> {
 			// https://github.com/microsoft/vscode/issues/139908
 			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
-			return rimrafUnlink(path); // if rename fails, delete without tmp dir
+			if (error.code === 'ENOENT') {
+				return; // ignore - path to delete did not exist
+			}
+
+			return rimrafUnlink(path); // otherwise fallback to unlink
 		}
 
 		// Delete but do not return as promise
