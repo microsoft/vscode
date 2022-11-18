@@ -147,6 +147,11 @@ prebuild-install/**/*
 **/*.ts
 !typescript/**/*.d.ts
 
+# Exclude TS files that aren't needed by TS extension
+typescript/lib/tsc.js
+typescript/lib/typescriptServices.js
+typescript/lib/tsserverlibrary.js
+
 jschardet/index.js
 jschardet/src/**
 jschardet/dist/jschardet.js
@@ -167,5 +172,3 @@ xterm-addon-*/src/**
 xterm-addon-*/fixtures/**
 xterm-addon-*/out/**
 xterm-addon-*/out-test/**
-
-

@@ -233,7 +233,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			let emptyWindow: IUserDataProfile | undefined;
 			const workspaces = new ResourceMap<IUserDataProfile>();
 			const defaultProfile = toUserDataProfile(hash(this.environmentService.userRoamingDataHome.path).toString(16), localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
-			profiles.unshift({ ...defaultProfile, isDefault: true });
+			profiles.unshift({ ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true });
 			if (profiles.length) {
 				const profileAssicaitions = this.getStoredProfileAssociations();
 				if (profileAssicaitions.workspaces) {
@@ -558,6 +558,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	protected getStoredProfileAssociations(): StoredProfileAssociations { return {}; }
 	protected saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void { throw new Error('not implemented'); }
+	protected getDefaultProfileExtensionsLocation(): URI | undefined { return undefined; }
 }
 
 export class InMemoryUserDataProfilesService extends UserDataProfilesService {

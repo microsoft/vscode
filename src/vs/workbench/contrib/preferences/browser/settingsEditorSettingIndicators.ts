@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -236,7 +235,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		}
 	}
 
-	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
+	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
 		if (element.hasPolicyValue) {
@@ -286,6 +285,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
+				this.scopeOverridesIndicator.element.removeAttribute('tabIndex');
 				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
@@ -295,8 +295,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
-				elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+				this.scopeOverridesIndicator.disposables.add(
+					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e) => {
 						const [scope, language] = overriddenScope.split(':');
 						onDidClickOverrideElement.fire({
 							settingKey: element.setting.key,
