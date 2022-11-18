@@ -703,9 +703,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		const isBadgeEnabled = this.compositeBar.areBadgesEnabled(this.activity.id);
 		if (isBadgeEnabled) {
-			this.toggleCompositeBadgeAction.label = localize('hideBadge', "Hide Activity Badge");
+			this.toggleCompositeBadgeAction.label = localize('hideBadge', "Hide Badge");
 		} else {
-			this.toggleCompositeBadgeAction.label = localize('showBadge', "Show Activity Badge");
+			this.toggleCompositeBadgeAction.label = localize('showBadge', "Show Badge");
 		}
 
 		const otherActions = this.contextMenuActionsProvider();
