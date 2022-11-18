@@ -510,7 +510,7 @@
 	height: 100%;
 	max-width: 1600px;
 	margin: 0 auto;
-	padding: 0 0 0 32px;
+	padding: 0 32px;
 	display: grid;
 	grid-template-columns: 1fr 5fr 1fr 8fr;
 	grid-template-rows: calc(25% - 100px) auto auto 1fr auto;
