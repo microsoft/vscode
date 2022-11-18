@@ -92,7 +92,7 @@ export interface IUserDataProfileContentHandler {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
-	saveProfile(content: string): Promise<URI | null>;
+	saveProfile(name: string, content: string): Promise<URI | null>;
 	readProfile(uri: URI): Promise<string>;
 }
 

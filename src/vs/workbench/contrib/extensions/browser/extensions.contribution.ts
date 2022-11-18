@@ -261,24 +261,24 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registr
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
 
 // Register Commands
-CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
+CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0], { tab });
+		extensionService.open(extension[0], { tab, preserveFocus });
 	}
 });
 
-CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
+CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const commandService = accessor.get(ICommandService);
 
 	const [extension] = await extensionService.getExtensions([{ id: extensionId }], CancellationToken.None);
 	if (extension) {
-		return extensionService.open(extension, { tab });
+		return extensionService.open(extension, { tab, preserveFocus });
 	}
 
-	return commandService.executeCommand('_extensions.manage', extensionId, tab);
+	return commandService.executeCommand('_extensions.manage', extensionId, tab, preserveFocus);
 });
 
 CommandsRegistry.registerCommand({
