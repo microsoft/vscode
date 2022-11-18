@@ -152,6 +152,11 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		description: nls.localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
 		type: 'array',
 		items: authenticationDefinitionSchema
+	},
+	activationEventsGenerator: (authenticationProviders, result) => {
+		for (const authenticationProvider of authenticationProviders) {
+			result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+		}
 	}
 });
 
