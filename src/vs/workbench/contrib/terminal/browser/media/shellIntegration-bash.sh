@@ -206,8 +206,3 @@ if [[ -z "${bash_preexec_imported:-}" ]]; then
 		PROMPT_COMMAND=__vsc_prompt_cmd
 	fi
 fi
-result=$(alias)
-result=$(echo $result | sed 's/\"/\\/g')
-result=$(echo $result | sed 's/`n/\x0a/g')
-result=$(echo $result | sed 's/;/\x3b/g')
-echo -ne "\x1b]633;P;UserAliases=$result"

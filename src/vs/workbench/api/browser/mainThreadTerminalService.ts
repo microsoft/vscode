@@ -25,7 +25,6 @@ import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
-import { resolveAliases } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -260,15 +259,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 						option.outputMatcher.length = 40;
 						this._logService.warn('Cannot exceed output matcher length of 40');
 					}
-					let commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
+					const commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
 					if (!commandLineMatch) {
-						if (terminalCommand.aliases) {
-							const resolvedCommand = resolveAliases(terminalCommand.command, terminalCommand.aliases);
-							commandLineMatch = resolvedCommand.match(option.commandLineMatcher);
-							if (!commandLineMatch) {
-								return;
-							}
-						}
 						return;
 					}
 					const outputMatcher = option.outputMatcher;

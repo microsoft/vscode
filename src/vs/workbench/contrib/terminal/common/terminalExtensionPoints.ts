@@ -6,10 +6,10 @@
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTerminalProfile, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ITerminalCommandSelector, ITerminalContributions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 // terminal extension point
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);

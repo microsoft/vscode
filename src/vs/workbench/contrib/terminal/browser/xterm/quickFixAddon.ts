@@ -311,7 +311,7 @@ export async function getQuickFixesForCommand(
 	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: ITerminalAction[] = [];
-	const newCommand = resolveAliases(terminalCommand.command, aliases);
+	const newCommand = terminalCommand.command;
 	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
@@ -328,13 +328,9 @@ export async function getQuickFixesForCommand(
 				}
 				quickFixes = await getResolvedFixes(option, option.outputMatcher ? getLinesForCommand(terminal.buffer.active, terminalCommand, terminal.cols, option.outputMatcher) : undefined);
 			} else if (option.type === 'internal') {
-				let commandLineMatch = newCommand.match(option.commandLineMatcher);
+				const commandLineMatch = newCommand.match(option.commandLineMatcher);
 				if (!commandLineMatch) {
-					const resolvedAliasesCommand = resolveAliases(newCommand, terminalCommand.aliases);
-					commandLineMatch = resolvedAliasesCommand.match(option.commandLineMatcher);
-					if (!commandLineMatch) {
-						continue;
-					}
+					continue;
 				}
 				const outputMatcher = option.outputMatcher;
 				let outputMatch;
@@ -429,17 +425,4 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		exitStatus: selectorProvider.selector.exitStatus,
 		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes
 	};
-}
-
-export function resolveAliases(commandLine: string, aliases?: string[][]): string {
-	if (!aliases) {
-		return commandLine;
-	}
-	for (const alias of aliases) {
-		if (alias.length !== 2) {
-			throw new Error('Not an alias');
-		}
-		commandLine.replaceAll(alias[0], alias[1]);
-	}
-	return commandLine;
 }

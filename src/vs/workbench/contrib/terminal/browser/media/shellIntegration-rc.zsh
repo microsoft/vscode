@@ -130,8 +130,3 @@ add-zsh-hook preexec __vsc_preexec
 if [[ $options[login] = off && $USER_ZDOTDIR != $VSCODE_ZDOTDIR ]]; then
 	ZDOTDIR=$USER_ZDOTDIR
 fi
-result=$(alias)
-result=$(echo $result | sed 's/\"/\\/g')
-result=$(echo $result | sed 's/`n/\x0a/g')
-result=$(echo $result | sed 's/;/\x3b/g')
-echo -ne "\x1b]633;P;UserAliases=$result"

@@ -371,10 +371,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 						return true;
 					}
-					case 'UserAliases': {
-						this._createOrGetCommandDetection(this._terminal).setAliases(value);
-						return true;
-					}
 				}
 			}
 			case VSCodeOscPt.SetMark: {

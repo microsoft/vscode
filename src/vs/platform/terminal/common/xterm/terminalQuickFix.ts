@@ -8,7 +8,6 @@ import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriComponents } from 'vs/base/common/uri';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 
 export interface ITerminalCommandSelector {
 	id: string;
@@ -85,11 +84,6 @@ export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
 
 export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
 	type: 'unresolved';
-}
-
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-	quickFixes?: ITerminalCommandSelector[];
 }
 
 

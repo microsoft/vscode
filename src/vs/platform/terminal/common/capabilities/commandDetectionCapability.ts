@@ -58,7 +58,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
 	private _isWindowsPty: boolean = false;
-	private _aliases: string[][] = [];
 	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
@@ -269,10 +268,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	setIsWindowsPty(value: boolean) {
 		this._isWindowsPty = value;
-	}
-
-	setAliases(value: string): void {
-		this._aliases = parseAliases(value, this._isWindowsPty);
 	}
 
 	setIsCommandStorageDisabled(): void {
@@ -580,8 +575,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: undefined,
 				commandStartLineContent: undefined,
 				timestamp: 0,
-				markProperties: undefined,
-				aliases: this._aliases
+				markProperties: undefined
 			});
 		}
 		return {
@@ -782,34 +776,4 @@ function countNewLines(regex: RegExp): number {
 		i = source.indexOf('\\n', i + 1);
 	}
 	return count;
-}
-
-function parseAliases(aliasString: string, isWindows?: boolean): string[][] {
-	const aliases: string[][] = [];
-	let shellType;
-	const rows = aliasString.split('\n');
-	if (isWindows || aliasString.includes('Definition')) {
-		shellType = 'pwsh';
-		// Remove the column headers
-		rows.shift();
-		rows.shift();
-		rows.shift();
-	} else if (rows.length > 1 && rows[1].startsWith('alias')) {
-		shellType = 'bash';
-	} else {
-		shellType = 'zsh';
-	}
-
-	for (const row of rows) {
-		if (shellType === 'zsh') {
-			aliases.push(row.split('='));
-		} else if (shellType === 'bash') {
-			aliases.push(row.substring(6).split('='));
-		} else {
-			// to do - way to avoid this filtering?
-			aliases.push(row.split(' ').filter(s => !!s.trim()));
-		}
-	}
-	console.log(aliases);
-	return aliases;
 }

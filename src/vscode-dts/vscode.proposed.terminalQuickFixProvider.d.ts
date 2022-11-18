@@ -19,13 +19,6 @@ declare module 'vscode' {
 		type: TerminalQuickFixType;
 	}
 
-
-	export interface TerminalCommandSelector {
-		commandLineMatcher: string | RegExp;
-		outputMatcher?: TerminalOutputMatcher;
-		exitStatus: boolean;
-	}
-
 	export interface TerminalCommandMatchResult {
 		commandLine: string;
 		commandLineMatch: RegExpMatchArray;

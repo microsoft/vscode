@@ -11,6 +11,7 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 
 export const enum TerminalSettingPrefix {
@@ -815,6 +816,11 @@ export interface IShellIntegration {
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+	quickFixes?: ITerminalCommandSelector[];
 }
 
 export const enum ShellIntegrationStatus {

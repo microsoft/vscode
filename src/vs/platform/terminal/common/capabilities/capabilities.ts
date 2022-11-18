@@ -159,7 +159,6 @@ export interface ICommandDetectionCapability {
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
-	setAliases(value: string): void;
 	setIsCommandStorageDisabled(): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
@@ -252,7 +251,6 @@ export interface ISerializedCommand {
 	commandStartLineContent: string | undefined;
 	timestamp: number;
 	markProperties: IMarkProperties | undefined;
-	aliases: string[][] | undefined;
 }
 export interface IMarkProperties {
 	hoverMessage?: string;
