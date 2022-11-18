@@ -16,7 +16,7 @@ const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
 const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));
 const extensionEnabledApiProposals: Record<string, string[]> = product.extensionEnabledApiProposals ?? {};
-const implicitActivationEventPrefixes = ['onNotebookSerializer:', 'onCommand:'];
+const reservedImplicitActivationEventPrefixes = ['onNotebookSerializer:'];
 
 function isTrustedSVGSource(uri: Uri): boolean {
 	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
@@ -30,7 +30,7 @@ const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a
 const relativeIconUrlRequiresHttpsRepository = l10n.t("An icon requires a repository with HTTPS protocol to be specified in this package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
-const implicitActivationEvent = l10n.t("This activation event can be removed because it is implicitly applied based on your extension's declared contributions.");
+const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
 
 enum Context {
 	ICON,
@@ -151,11 +151,11 @@ export class ExtensionLinter {
 					if (Array.isArray(activationEventsNode) && activationEventsNode.children) {
 						for (const activationEventNode of activationEventsNode.children) {
 							const activationEvent = getNodeValue(activationEventNode);
-							for (const implicitActivationEventPrefix of implicitActivationEventPrefixes) {
+							for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {
 								if (activationEvent.startsWith(implicitActivationEventPrefix)) {
 									const start = document.positionAt(activationEventNode.offset);
 									const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
-									diagnostics.push(new Diagnostic(new Range(start, end), implicitActivationEvent, DiagnosticSeverity.Warning));
+									diagnostics.push(new Diagnostic(new Range(start, end), implicitActivationEvent, DiagnosticSeverity.Error));
 								}
 							}
 						}
