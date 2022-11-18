@@ -42,7 +42,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	public readonly id: string;
 	public readonly providedViewType?: string;
-	public readonly origin: string;
+
+	public origin: string;
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
