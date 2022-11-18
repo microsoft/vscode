@@ -411,6 +411,10 @@
 	border: 1px solid var(--vscode-editorWidget-border);
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded h3 {
+	color: var(--vscode-walkthrough-stepTitle-foreground);
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded>.codicon {
 	cursor: pointer !important;
 }
@@ -828,7 +832,7 @@
 	width: fit-content;
 	display: flex;
 	padding: 0 11px;
-	margin-bottom: 8px;
+	margin-bottom: 12px;
 	align-items: center;
 }
 

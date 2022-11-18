@@ -14,11 +14,13 @@ import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
@@ -28,7 +30,7 @@ import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/cus
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
-import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionKeyedWebviewOriginStore, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -55,11 +57,14 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
 
+	private readonly _webviewOriginStore: ExtensionKeyedWebviewOriginStore;
+
 	constructor(
 		context: IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
 		@IExtensionService extensionService: IExtensionService,
+		@IStorageService storageService: IStorageService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
@@ -68,6 +73,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._webviewOriginStore = new ExtensionKeyedWebviewOriginStore('mainThreadCustomEditors.origins', storageService);
 
 		this._proxyCustomEditors = context.getProxy(extHostProtocol.ExtHostContext.ExtHostCustomEditors);
 
@@ -131,8 +138,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
 			},
 			resolveWebview: async (webviewInput: CustomEditorInput, cancellation: CancellationToken) => {
-				const handle = webviewInput.id;
+				const handle = generateUuid();
 				const resource = webviewInput.resource;
+
+				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
 
 				this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
 				webviewInput.webview.options = options;
@@ -652,7 +661,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 				location: primaryEditor.extension.location!,
 			} : undefined,
 			webview: {
-				id: primaryEditor.id,
 				origin: primaryEditor.webview.origin,
 				options: primaryEditor.webview.options,
 				state: primaryEditor.webview.state,
