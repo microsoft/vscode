@@ -217,7 +217,7 @@ suite('AbstractKeybindingService', () => {
 		// send Ctrl/Cmd + K
 		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
-		assert.deepStrictEqual(executeCommandCalls, [{ commandId: 'keybindingChordMode', args: [0] }]);
+		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, [
 			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}) was pressed. Waiting for second key of chord...`
@@ -231,7 +231,7 @@ suite('AbstractKeybindingService', () => {
 		// send backspace
 		shouldPreventDefault = kbService.testDispatch(KeyCode.Backspace);
 		assert.strictEqual(shouldPreventDefault, true);
-		assert.deepStrictEqual(executeCommandCalls, [{ commandId: 'keybindingChordMode', args: [1] }]);
+		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, [
 			`The key combination (${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}, ${toUsLabel(KeyCode.Backspace)}) is not a command.`
@@ -332,7 +332,7 @@ suite('AbstractKeybindingService', () => {
 		currentContextValue = createContext({});
 		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
-		assert.deepStrictEqual(executeCommandCalls, [{ commandId: 'keybindingChordMode', args: [0] }]);
+		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, [
 			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}) was pressed. Waiting for second key of chord...`
@@ -347,15 +347,10 @@ suite('AbstractKeybindingService', () => {
 		currentContextValue = createContext({});
 		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyX);
 		assert.strictEqual(shouldPreventDefault, true);
-		assert.deepStrictEqual(executeCommandCalls, [
-			{
-				commandId: 'keybindingChordMode',
-				args: [1]
-			},
-			{
-				commandId: 'chordCommand',
-				args: [null]
-			}]);
+		assert.deepStrictEqual(executeCommandCalls, [{
+			commandId: 'chordCommand',
+			args: [null]
+		}]);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCallsDisposed, [

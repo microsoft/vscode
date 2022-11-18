@@ -35,6 +35,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
 import { TimeoutTimer } from 'vs/base/common/async';
+import { IME } from 'vs/base/common/ime';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -186,9 +187,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-			this.textArea.setAttribute('readonly', 'true');
-		}
+		this._ensureReadOnlyAttribute();
 
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
@@ -464,6 +463,10 @@ export class TextAreaHandler extends ViewPart {
 		this._register(this._textAreaInput.onBlur(() => {
 			this._context.viewModel.setHasFocus(false);
 		}));
+
+		this._register(IME.onDidChange(() => {
+			this._ensureReadOnlyAttribute();
+		}));
 	}
 
 	public override dispose(): void {
@@ -595,11 +598,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
-			if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-				this.textArea.setAttribute('readonly', 'true');
-			} else {
-				this.textArea.removeAttribute('readonly');
-			}
+			this._ensureReadOnlyAttribute();
 		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -679,6 +678,18 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	// --- end view API
+
+	private _ensureReadOnlyAttribute(): void {
+		const options = this._context.configuration.options;
+		// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
+		// This will prevent composition.
+		const useReadOnly = !IME.enabled || (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly));
+		if (useReadOnly) {
+			this.textArea.setAttribute('readonly', 'true');
+		} else {
+			this.textArea.removeAttribute('readonly');
+		}
+	}
 
 	private _primaryCursorPosition: Position = new Position(1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
