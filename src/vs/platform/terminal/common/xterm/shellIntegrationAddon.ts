@@ -371,6 +371,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 						return true;
 					}
+					case 'UserAliases': {
+						this._createOrGetCommandDetection(this._terminal).setAliases(value);
+						return true;
+					}
 				}
 			}
 			case VSCodeOscPt.SetMark: {
@@ -547,18 +551,4 @@ export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: b
 		}
 	}
 	return { id, hidden };
-}
-
-function parseAliases(aliasString: string, shellType: string): string[][] {
-	const aliases: string[][] = [];
-	const rows = aliasString.split('\n');
-	for (const row of rows) {
-		if (shellType === 'zsh') {
-			aliases.push(row.split('='));
-		} else if (shellType === 'bash') {
-			// trim off 'alias '
-			aliases.push(row.substring(6).split('='));
-		}
-	}
-	return aliases;
 }

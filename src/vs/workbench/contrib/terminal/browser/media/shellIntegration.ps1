@@ -92,4 +92,4 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 }
 Set-MappedKeyHandlers
-[Console]::Write("`e]633;P;Aliases=$(Get-Alias | Select-Object Name, Definition)`a")
+[Console]::Write("`e]633;P;UserAliases=$(Get-Alias | Select-Object Name, Definition)`a")

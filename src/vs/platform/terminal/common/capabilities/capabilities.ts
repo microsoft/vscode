@@ -159,6 +159,7 @@ export interface ICommandDetectionCapability {
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
+	setAliases(value: string): void;
 	setIsCommandStorageDisabled(): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
@@ -221,6 +222,7 @@ export interface ITerminalCommand {
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
+	aliases?: string[][];
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
