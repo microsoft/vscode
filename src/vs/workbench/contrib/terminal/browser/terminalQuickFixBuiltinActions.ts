@@ -8,6 +8,7 @@ import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstanc
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { TerminalQuickFixType } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
