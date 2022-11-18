@@ -739,19 +739,15 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 			return;
 		}
 
-		const seedSearchStringFromSelection = 'single';
-		const seedSearchStringFromNonEmptySelection = false;
-
-		const selectionSearchString = getSelectionSearchString(editor, seedSearchStringFromSelection, seedSearchStringFromNonEmptySelection);
+		const selectionSearchString = getSelectionSearchString(editor, 'single', false);
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
 		}
-
 		if (!this._run(controller)) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: seedSearchStringFromSelection,
-				seedSearchStringFromNonEmptySelection: seedSearchStringFromNonEmptySelection,
+				seedSearchStringFromSelection: 'none',
+				seedSearchStringFromNonEmptySelection: false,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
