@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalContributions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -725,7 +725,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.toggleMaximizedPanel'
 ];
 
-export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
+export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
 	jsonSchema: {
