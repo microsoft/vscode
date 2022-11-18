@@ -47,7 +47,7 @@ import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
 import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -209,11 +209,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private async autoStoreEditSession() {
 		if (this.configurationService.getValue('workbench.experimental.editSessions.autoStore') === 'onShutdown') {
+			const cancellationTokenSource = new CancellationTokenSource();
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				type: 'syncing',
 				title: localize('store working changes', 'Storing working changes...')
-			}, async () => this.storeEditSession(false));
+			}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
+				cancellationTokenSource.cancel();
+				cancellationTokenSource.dispose();
+			});
 		}
 	}
 
@@ -308,11 +312,16 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
+					const cancellationTokenSource = new CancellationTokenSource();
 					ref = await that.progressService.withProgress({
 						location: ProgressLocation.Notification,
+						cancellable: true,
 						type: 'syncing',
 						title: localize('store your working changes', 'Storing your working changes...')
-					}, async () => that.storeEditSession(false));
+					}, async () => that.storeEditSession(false, cancellationTokenSource.token), () => {
+						cancellationTokenSource.cancel();
+						cancellationTokenSource.dispose();
+					});
 				}
 
 				// Append the ref to the URI
@@ -380,6 +389,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
+				const cancellationTokenSource = new CancellationTokenSource();
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('storing working changes', 'Storing working changes...')
@@ -390,7 +400,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					};
 					that.telemetryService.publicLog2<StoreEvent, StoreClassification>('editSessions.store');
 
-					await that.storeEditSession(true);
+					await that.storeEditSession(true, cancellationTokenSource.token);
+				}, () => {
+					cancellationTokenSource.cancel();
+					cancellationTokenSource.dispose();
 				});
 			}
 		}));
@@ -484,7 +497,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			if (folder.canonicalIdentity) {
 				// Look for an edit session identifier that we can use
 				for (const f of workspaceFolders) {
-					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
+					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource.token);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
 
 					if (equals(identity, folder.canonicalIdentity)) {
@@ -493,7 +506,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					}
 
 					if (identity !== undefined) {
-						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource);
+						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource.token);
 						if (match === EditSessionIdentityMatch.Complete) {
 							folderRoot = f;
 							break;
@@ -566,7 +579,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
+	async storeEditSession(fromStoreCommand: boolean, cancellationToken: CancellationToken): Promise<string | undefined> {
 		const folders: Folder[] = [];
 		let hasEdits = false;
 
@@ -612,7 +625,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			const canonicalIdentity = workspaceFolder ? await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, new CancellationTokenSource()) : undefined;
+			let canonicalIdentity = undefined;
+			if (workspaceFolder !== null && workspaceFolder !== undefined) {
+				canonicalIdentity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationToken);
+			}
 
 			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
 		}
