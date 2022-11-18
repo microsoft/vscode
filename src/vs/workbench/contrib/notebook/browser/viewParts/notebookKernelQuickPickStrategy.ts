@@ -638,6 +638,11 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	}
 
 	protected override _selecteKernel(notebook: NotebookTextModel, kernel: INotebookKernel): void {
+		const currentInfo = this._notebookKernelService.getMatchingKernel(notebook);
+		if (currentInfo.selected) {
+			// there is already a selected kernel
+			this._notebookKernelHistoryService.addMostRecentKernel(currentInfo.selected);
+		}
 		super._selecteKernel(notebook, kernel);
 		this._notebookKernelHistoryService.addMostRecentKernel(kernel);
 	}
