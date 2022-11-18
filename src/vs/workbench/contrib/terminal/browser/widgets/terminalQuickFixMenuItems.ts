@@ -52,8 +52,7 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 					title: quickFix.action.label
 				},
 				disabled: false,
-				label: quickFix.title,
-				description: quickFix.source
+				label: quickFix.title
 			});
 		}
 	}
