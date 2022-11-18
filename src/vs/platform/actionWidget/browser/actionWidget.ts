@@ -89,7 +89,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		this._currentShowingContext = { user, toMenuItems, delegate, actions, anchor, container, options, resolver };
 
-		const list = this._instantiationService.createInstance(ActionList, user, actionsToShow, true, delegate, resolver, toMenuItems);
+		const list = this._instantiationService.createInstance(ActionList, user, toMenuItems(actionsToShow, true), delegate, resolver);
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
