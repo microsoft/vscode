@@ -806,7 +806,8 @@ function parseAliases(aliasString: string, isWindows?: boolean): string[][] {
 		} else if (shellType === 'bash') {
 			aliases.push(row.substring(6).split('='));
 		} else {
-			aliases.push(row.split('\s+'));
+			// to do - way to avoid this filtering?
+			aliases.push(row.split(' ').filter(s => !!s.trim()));
 		}
 	}
 	console.log(aliases);
