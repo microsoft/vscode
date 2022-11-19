@@ -4775,6 +4775,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	wordBreak,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -4782,7 +4783,6 @@ export const enum EditorOption {
 	wordWrapColumn,
 	wordWrapOverride1,
 	wordWrapOverride2,
-	wordBreak,
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
@@ -5388,6 +5388,18 @@ export const EditorOptions = {
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
 	)),
+	wordBreak: register(new EditorStringEnumOption(
+		EditorOption.wordBreak, 'wordBreak',
+		'normal' as 'normal' | 'keepAll',
+		['normal', 'keepAll'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('wordBreak.normal', "Use the default line break rule."),
+				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
+			],
+			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
+		}
+	)),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,
 		{ description: nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.") }
@@ -5432,23 +5444,6 @@ export const EditorOptions = {
 		EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters',
 		// allow-any-unicode-next-line
 		'([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'
-	)),
-	wordBreak: register(new EditorStringEnumOption(
-		EditorOption.wordBreak, 'wordBreak',
-		'normal' as 'normal' | 'keepAll',
-		['normal', 'keepAll'] as const,
-		{
-			markdownEnumDescriptions: [
-				nls.localize('wordBreak.normal', "Use the default line break rule."),
-				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
-			],
-			description: nls.localize({
-				key: 'wordBreak',
-				comment: [
-					''
-				]
-			}, "Sets whether line breaks appear wherever the text would otherwise overflow its content box.")
-		}
 	)),
 	wordWrapColumn: register(new EditorIntOption(
 		EditorOption.wordWrapColumn, 'wordWrapColumn',

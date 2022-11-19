@@ -4668,14 +4668,14 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 116,
 		useShadowDOM = 117,
 		useTabStops = 118,
-		wordSeparators = 119,
-		wordWrap = 120,
-		wordWrapBreakAfterCharacters = 121,
-		wordWrapBreakBeforeCharacters = 122,
-		wordWrapColumn = 123,
-		wordWrapOverride1 = 124,
-		wordWrapOverride2 = 125,
-		wordBreak = 126,
+		wordBreak = 119,
+		wordSeparators = 120,
+		wordWrap = 121,
+		wordWrapBreakAfterCharacters = 122,
+		wordWrapBreakBeforeCharacters = 123,
+		wordWrapColumn = 124,
+		wordWrapOverride1 = 125,
+		wordWrapOverride2 = 126,
 		wrappingIndent = 127,
 		wrappingStrategy = 128,
 		showDeprecated = 129,
@@ -4809,11 +4809,11 @@ declare namespace monaco.editor {
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
+		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
-		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
