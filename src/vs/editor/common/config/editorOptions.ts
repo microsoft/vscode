@@ -1651,9 +1651,9 @@ export class EditorFontFamily extends BaseEditorOption<EditorOption.fontFamily, 
  */
 export class EditorFontVariations extends BaseEditorOption<EditorOption.fontVariations, boolean | string, string> {
 	// Text is laid out using default settings.
-	public static OFF = '"normal"';
+	public static OFF = 'normal';
 
-	// Translate `fontWeight` config to `font-variation-settings` CSS property.
+	// Translate `fontWeight` config to the `font-variation-settings` CSS property.
 	public static TRANSLATE = 'translate';
 
 	constructor() {
@@ -1693,6 +1693,12 @@ export class EditorFontVariations extends BaseEditorOption<EditorOption.fontVari
 			return EditorFontVariations.TRANSLATE;
 		}
 		return EditorFontVariations.OFF;
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
+		// The value is computed from the fontWeight if it is true.
+		// So take the result from env.fontInfo
+		return env.fontInfo.fontVariationSettings;
 	}
 }
 
