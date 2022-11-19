@@ -1466,7 +1466,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 		override getId(): string { return id; }
 		layout(): void { }
-		createEditor(): void { }
+		protected createEditor(): void { }
 
 		override get scopedContextKeyService() {
 			return this._scopedContextKeyService;
