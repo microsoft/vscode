@@ -1,0 +1,55 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { localize } from 'vs/nls';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { raceCancellationError } from 'vs/base/common/async';
+import { IEditSessionIdentityCreateParticipant, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { ExtHostContext, ExtHostWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+
+class ExtHostSaveParticipant implements IEditSessionIdentityCreateParticipant {
+
+	private readonly _proxy: ExtHostWorkspaceShape;
+
+	constructor(extHostContext: IExtHostContext) {
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
+	}
+
+	async participate(workspaceFolder: WorkspaceFolder, token: CancellationToken): Promise<void> {
+		const p = new Promise<any>((resolve, reject) => {
+
+			setTimeout(
+				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
+				10000
+			);
+			this._proxy.$onWillCreateEditSessionIdentity(workspaceFolder.uri).then(resolve, reject);
+		});
+
+		return raceCancellationError(p, token);
+	}
+}
+
+// The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
+@extHostCustomer
+export class SaveParticipant {
+
+	private _saveParticipantDisposable: IDisposable;
+
+	constructor(
+		extHostContext: IExtHostContext,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService
+	) {
+		this._saveParticipantDisposable = this._editSessionIdentityService.addEditSessionIdentityCreateParticipant(instantiationService.createInstance(ExtHostSaveParticipant, extHostContext));
+	}
+
+	dispose(): void {
+		this._saveParticipantDisposable.dispose();
+	}
+}
