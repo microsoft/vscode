@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 use std::fmt::Display;
 
-use crate::constants::CONTROL_PORT;
+use crate::constants::{APPLICATION_NAME, CONTROL_PORT, QUALITYLESS_PRODUCT_NAME};
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -282,8 +282,11 @@ impl std::fmt::Display for NoInstallInUserProvidedPath {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
             f,
-            "No VS Code installation could be found in {}. You can run `code --use-quality=stable` to switch to the latest stable version of VS Code.",
-            self.0
+            "No {} installation could be found in {}. You can run `{} --use-quality=stable` to switch to the latest stable version of {}.",
+						QUALITYLESS_PRODUCT_NAME,
+            self.0,
+						APPLICATION_NAME,
+						QUALITYLESS_PRODUCT_NAME
         )
 	}
 }
@@ -378,7 +381,11 @@ pub struct CorruptDownload(pub String);
 
 impl std::fmt::Display for CorruptDownload {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error updating the VS Code CLI: {}", self.0)
+		write!(
+			f,
+			"Error updating the {} CLI: {}",
+			QUALITYLESS_PRODUCT_NAME, self.0
+		)
 	}
 }
 

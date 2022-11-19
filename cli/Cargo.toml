@@ -46,6 +46,7 @@ clap_lex = "0.2"
 url = "2.3"
 async-trait = "0.1"
 log = "0.4"
+const_format = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.5"
