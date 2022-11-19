@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -52,7 +52,7 @@ export class WebviewThemeDataProvider extends Disposable {
 	public getWebviewThemeData(): WebviewThemeData {
 		if (!this._cachedWebViewThemeData) {
 			const configuration = this._configurationService.getValue<IEditorOptions>('editor');
-			const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+			const editorFontFamily = EditorOptions.fontFamily.validate(configuration.fontFamily);
 			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 

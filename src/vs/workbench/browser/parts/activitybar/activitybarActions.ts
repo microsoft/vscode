@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_PROFILE_BACKGROUND, ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
@@ -126,7 +126,7 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, options, themeService, hoverService, configurationService, keybindingService);
+		super(action, options, () => true, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -409,6 +409,17 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 export class PlaceHolderViewContainerActivityAction extends ViewContainerActivityAction { }
 
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+
+	constructor(id: string, compositeBar: ICompositeBar) {
+		super({ id, name: id, cssClass: undefined }, compositeBar);
+	}
+
+	setActivity(activity: IActivity): void {
+		this.label = activity.name;
+	}
+}
+
+export class PlaceHolderToggleCompositeBadgeAction extends ToggleCompositeBadgeAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
 		super({ id, name: id, cssClass: undefined }, compositeBar);

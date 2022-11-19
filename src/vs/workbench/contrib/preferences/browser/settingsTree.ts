@@ -885,7 +885,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.descriptionElement.innerText = element.description;
 		}
 
-		template.indicatorsLabel.updateScopeOverrides(element, template.elementDisposables, this._onDidClickOverrideElement, this._onApplyFilter);
+		template.indicatorsLabel.updateScopeOverrides(element, this._onDidClickOverrideElement, this._onApplyFilter);
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({
 			key: element.setting.key,

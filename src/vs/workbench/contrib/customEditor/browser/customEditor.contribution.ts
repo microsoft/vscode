@@ -29,9 +29,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	]);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
-	.registerEditorSerializer(
-		CustomEditorInputSerializer.ID,
-		CustomEditorInputSerializer);
+	.registerEditorSerializer(CustomEditorInputSerializer.ID, CustomEditorInputSerializer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ComplexCustomWorkingCopyEditorHandler, LifecyclePhase.Starting);

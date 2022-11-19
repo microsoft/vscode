@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises, Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -57,7 +56,6 @@ interface InstallableExtension {
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
-	migrateDefaultProfileExtensions(): Promise<void>;
 	markAsUninstalled(...extensions: IExtension[]): Promise<void>;
 	removeUninstalledExtensions(): Promise<void>;
 	getAllUserInstalled(): Promise<ILocalExtension[]>;
@@ -91,7 +89,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 
-		const extensionsWatcher = this._register(new ExtensionsWatcher(this, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
+		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
 		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(e => this.onDidChangeExtensionsFromAnotherSource(e)));
 		this.watchForExtensionsNotInstalledBySystem();
 	}
@@ -152,6 +150,17 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
+	async installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		this.logService.trace('ExtensionManagementService#installFromLocation', location.toString());
+		const local = await this.extensionsScanner.scanUserExtensionAtLocation(location);
+		if (!local) {
+			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
+		}
+		await this.addExtensionsToProfile([local], profileLocation);
+		this.logService.info('Successfully installed extension', local.identifier.id, profileLocation.toString());
+		return local;
+	}
+
 	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
 		return this.extensionsScannerService.scanMetadata(extension.location);
 	}
@@ -201,10 +210,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	removeUninstalledExtensions(): Promise<void> {
 		return this.extensionsScanner.cleanUp();
-	}
-
-	migrateDefaultProfileExtensions(): Promise<void> {
-		return this.extensionsScanner.migrateDefaultProfileExtensions();
 	}
 
 	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
@@ -346,9 +351,14 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 
 		if (added.length) {
-			await this.extensionsProfileScannerService.addExtensionsToProfile(added.map(local => ([local, undefined])), this.userDataProfilesService.defaultProfile.extensionsResource);
-			this._onDidInstallExtensions.fire(added.map(local => ({ local, version: local.manifest.version, identifier: local.identifier, operation: InstallOperation.None, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource })));
+			await this.addExtensionsToProfile(added, this.userDataProfilesService.defaultProfile.extensionsResource);
+			this.logService.info('Added extensions to default profile from external source', added.map(e => e.identifier.id));
 		}
+	}
+
+	private async addExtensionsToProfile(extensions: ILocalExtension[], profileLocation: URI): Promise<void> {
+		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions.map(local => ([local, undefined])), profileLocation);
+		this._onDidInstallExtensions.fire(extensions.map(local => ({ local, identifier: local.identifier, operation: InstallOperation.None, profileLocation })));
 	}
 
 }
@@ -365,8 +375,6 @@ export class ExtensionsScanner extends Disposable {
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -379,7 +387,7 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI | undefined): Promise<ILocalExtension[]> {
-		await this.migrateDefaultProfileExtensions();
+		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation };
 		let scannedExtensions: IScannedExtension[] = [];
 		if (type === null || type === ExtensionType.System) {
@@ -409,7 +417,7 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
-		await this.migrateDefaultProfileExtensions();
+		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
@@ -607,35 +615,6 @@ export class ExtensionsScanner extends Disposable {
 		}));
 		const toRemove = extensions.filter(e => uninstalled[ExtensionKey.create(e).toString()]);
 		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
-	}
-
-	private _migrateDefaultProfileExtensionsPromise: Promise<void> | undefined = undefined;
-	migrateDefaultProfileExtensions(): Promise<void> {
-		if (!this._migrateDefaultProfileExtensionsPromise) {
-			this._migrateDefaultProfileExtensionsPromise = (async () => {
-				try {
-					const migrationMarkerFile = joinPath(this.userDataProfilesService.defaultProfile.location, '.migrated-default-profile');
-					if (await this.fileService.exists(migrationMarkerFile)) {
-						return;
-					}
-					if (!(await this.fileService.exists(this.userDataProfilesService.defaultProfile.extensionsResource))) {
-						this.logService.info('Started migrating default profile extensions from extensions installation folder to extensions manifest.');
-						const userExtensions = await this.extensionsScannerService.scanUserExtensions({ includeInvalid: true });
-						await this.extensionsProfileScannerService.addExtensionsToProfile(userExtensions.map(e => [e, e.metadata]), this.userDataProfilesService.defaultProfile.extensionsResource);
-						this.logService.info('Completed migrating default profile extensions from extensions installation folder to extensions manifest.');
-					}
-					try {
-						await this.fileService.createFile(migrationMarkerFile, VSBuffer.fromString(''));
-					} catch (error) {
-						this.logService.warn('Failed to create migration marker file for default profile extensions migration.', getErrorMessage(error));
-					}
-				} catch (error) {
-					this.logService.error(error);
-					throw error;
-				}
-			})();
-		}
-		return this._migrateDefaultProfileExtensionsPromise;
 	}
 
 	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {

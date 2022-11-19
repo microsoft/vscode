@@ -253,8 +253,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(this.editor), ThemeIcon.asClassName(gotoNextLocation));
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
@@ -363,7 +363,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 export class ShowPreviousChangeAction extends EditorAction {
 
-	constructor() {
+	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.previous',
 			label: nls.localize('show previous change', "Show Previous Change"),
@@ -373,8 +373,8 @@ export class ShowPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	run(accessor: ServicesAccessor): void {
+		const outerEditor = this.outerEditor ?? getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor) {
 			return;
@@ -397,7 +397,7 @@ registerEditorAction(ShowPreviousChangeAction);
 
 export class ShowNextChangeAction extends EditorAction {
 
-	constructor() {
+	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.next',
 			label: nls.localize('show next change', "Show Next Change"),
@@ -407,8 +407,8 @@ export class ShowNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	run(accessor: ServicesAccessor): void {
+		const outerEditor = this.outerEditor ?? getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor) {
 			return;
@@ -460,7 +460,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(accessor: ServicesAccessor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
@@ -502,7 +502,7 @@ export class GotoNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(accessor: ServicesAccessor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor || !outerEditor.hasModel()) {

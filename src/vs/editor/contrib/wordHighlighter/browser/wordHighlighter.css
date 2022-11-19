@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .view-ruler {
-	position: absolute;
-	top: 0;
-	box-shadow: 1px 0 0 0 var(--vscode-editorRuler-foreground) inset;
+.monaco-editor .focused .selectionHighlight {
+	background-color: var(--vscode-editor-selectionHighlightBackground);
+}
+.monaco-editor .wordHighlight {
+	background-color: var(--vscode-editor-wordHighlightBackground);
+}
+.monaco-editor .wordHighlightStrong {
+	background-color: var(--vscode-editor-wordHighlightStrongBackground);
 }

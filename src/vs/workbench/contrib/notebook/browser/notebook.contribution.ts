@@ -46,7 +46,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
 import { getFormattedMetadataJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -105,6 +105,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -703,6 +704,7 @@ registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServ
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, InstantiationType.Delayed);
 registerSingleton(INotebookKernelService, NotebookKernelService, InstantiationType.Delayed);
+registerSingleton(INotebookKernelHistoryService, NotebookKernelHistoryService, InstantiationType.Delayed);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, InstantiationType.Delayed);
 registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, InstantiationType.Delayed);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);

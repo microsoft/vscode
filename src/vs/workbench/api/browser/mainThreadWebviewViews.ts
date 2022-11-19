@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IViewBadge } from 'vs/workbench/common/views';
@@ -63,7 +64,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 
 		const registration = this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
-				const handle = webviewView.webview.id;
+				const handle = generateUuid();
 
 				this._webviewViews.set(handle, webviewView);
 				this.mainThreadWebviews.addWebview(handle, webviewView.webview, { serializeBuffersForPostMessage: options.serializeBuffersForPostMessage });

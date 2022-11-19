@@ -271,7 +271,7 @@
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin: 8px 8px 12px 0;
+	margin: 8px 8px 8px 0;
 	padding: 3px 6px 6px;
 	left: -3px;
 	text-align: left;
@@ -280,6 +280,7 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
 	position: relative;
 	border-radius: 6px;
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
 	overflow: hidden;
 }
 
@@ -322,7 +323,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
-	border-top: 30px solid red;
+	border-top: 30px solid var(--vscode-activityBarBadge-background);
 	width: 30px;
 	box-sizing: border-box;
 	height: 20px;
@@ -397,8 +398,9 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step {
 	display: flex;
 	width: 100%;
-	margin: 4px 0;
+	margin: 8px 0;
 	overflow: hidden;
+	border-radius: 6px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .button-container:not(:last-of-type) {
@@ -407,6 +409,11 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
 	cursor: default !important;
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded h3 {
+	color: var(--vscode-walkthrough-stepTitle-foreground);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded>.codicon {
@@ -414,9 +421,13 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) {
-	height: 54px;
+	height: 48px;
 	background: none;
-	opacity: 0.8;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded):hover {
+	background: var(--vscode-welcomePage-tileHoverBackground);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
@@ -455,12 +466,12 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message {
-	opacity: 0.8;
-	font-size: 8pt;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-next {
@@ -504,7 +515,7 @@
 	height: 100%;
 	max-width: 1600px;
 	margin: 0 auto;
-	padding: 0 0 0 32px;
+	padding: 0 32px;
 	display: grid;
 	grid-template-columns: 1fr 5fr 1fr 8fr;
 	grid-template-rows: calc(25% - 100px) auto auto 1fr auto;
@@ -626,9 +637,14 @@
 	cursor: pointer;
 }
 
+/* Don't show focus outline on mouse click. Instead only show outline on keyboard focus. */
 .monaco-workbench .part.editor>.content .gettingStartedContainer button:focus {
-	outline-style: solid;
-	outline-width: 1px;
+	outline: none;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button.button-link {
@@ -668,12 +684,12 @@
 	left: -4px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link .codicon-arrow-small-right {
-	padding-left: 8px;
+.monaco-workbench .part.editor>.content .gettingStartedContainer .button-link .codicon-arrow-right {
+	padding-left: 4px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .button-link .codicon-check-all {
-	padding-right: 8px;
+	padding-right: 4px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .skip {
@@ -684,9 +700,9 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h2 {
+	font-size: 26px;
 	font-weight: normal;
-	line-height: 26px;
-	margin: 0 0 4px 0;
+	margin: 0 0 8px 0;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h2 .codicon {
@@ -695,7 +711,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h3 {
 	font-size: 13px;
-	font-weight: 700;
+	font-weight: 600;
 	margin: 0;
 }
 
@@ -800,12 +816,23 @@
 	visibility: visible;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container span {
+	line-height: 1.3em;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button, .monaco-workbench .part.editor>.content .gettingStartedContainer .max-lines-3 {
 	/* Supported everywhere: https://developer.mozilla.org/en-US/docs/Web/CSS/-webkit-line-clamp#browser_compatibility */
 	-webkit-line-clamp: 3;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button {
+	height: 26px;
+	display: flex;
+	margin-bottom: 12px;
+	align-items: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
@@ -828,6 +855,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .description {
 	color: var(--vscode-descriptionForeground);
+	line-height: 1.4em;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .category-progress .message {
@@ -852,10 +880,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button {
 	background: var(--vscode-welcomePage-tileBackground);
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
-	filter: drop-shadow(2px 2px 2px var(--vscode-welcomePage-tileShadow));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:hover {
@@ -941,10 +965,6 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	background-color: var(--vscode-activityBarBadge-background);
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
-	border-top-color: var(--vscode-activityBarBadge-background);
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
