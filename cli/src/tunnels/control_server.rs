@@ -17,6 +17,7 @@ use crate::util::http::{
 	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
 };
 use crate::util::io::SilentCopyProgress;
+use crate::util::is_integrated_cli;
 use crate::util::sync::{new_barrier, Barrier};
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
@@ -773,6 +774,13 @@ async fn handle_update(
 	log: &log::Logger,
 	params: &UpdateParams,
 ) -> Result<UpdateResult, AnyError> {
+	if let Ok(true) = is_integrated_cli() {
+		return Ok(UpdateResult {
+			up_to_date: true,
+			did_update: false,
+		});
+	}
+
 	let update_service = UpdateService::new(log.clone(), http.clone());
 	let updater = SelfUpdate::new(&update_service)?;
 	let latest_release = updater.get_current_release().await?;
