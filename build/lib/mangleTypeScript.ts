@@ -241,7 +241,7 @@ class ClassData {
 		if (this.replacements) {
 			for (const shortName of this.replacements.values()) {
 				if (shortName === name) {
-					// replaced already (happens wih super types)
+					// replaced already (happens with super types)
 					return true;
 				}
 			}
