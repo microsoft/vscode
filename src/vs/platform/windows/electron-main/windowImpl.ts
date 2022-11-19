@@ -85,6 +85,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
+	private static sandboxState: boolean | undefined = undefined;
+
 	//#region Events
 
 	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
@@ -194,12 +196,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
+			if (typeof CodeWindow.sandboxState === 'undefined') {
+				// we should only check this once so that we do not end up
+				// with some windows in sandbox mode and some not!
+				CodeWindow.sandboxState = this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false);
+			}
+
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 			let useSandbox = false;
 			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
 				useSandbox = windowSettings.experimental.useSandbox;
-			} else if (this.productService.quality === 'stable' && this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false)) {
+			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
 				useSandbox = true;
 			} else {
 				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
