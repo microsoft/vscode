@@ -5158,7 +5158,7 @@ export const EditorOptions = {
 	multiCursorLimit: register(new EditorIntOption(
 		EditorOption.multiCursorLimit, 'multiCursorLimit', 10000, 1, 100000,
 		{
-			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of text cursors that can be in an active editor at once.")
+			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
 		}
 	)),
 	occurrencesHighlight: register(new EditorBooleanOption(

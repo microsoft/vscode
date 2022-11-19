@@ -85,6 +85,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.emptySelectionClipboard)
 			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
 			|| e.hasChanged(EditorOption.multiCursorPaste)
+			|| e.hasChanged(EditorOption.multiCursorLimit)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
 			|| e.hasChanged(EditorOption.autoClosingDelete)
