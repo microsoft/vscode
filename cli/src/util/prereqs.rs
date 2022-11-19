@@ -5,7 +5,7 @@
 use std::cmp::Ordering;
 
 use super::command::capture_command;
-use crate::constants::{QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME};
+use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
 use crate::util::errors::SetupError;
 use lazy_static::lazy_static;
@@ -42,6 +42,7 @@ impl PreReqChecker {
 
 	#[cfg(not(target_os = "linux"))]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
+		use crate::constants::QUALITYLESS_PRODUCT_NAME;
 		Platform::env_default().ok_or_else(|| {
 			SetupError(format!(
 				"{} is not supported on this platform",

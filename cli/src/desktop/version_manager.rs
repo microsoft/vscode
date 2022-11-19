@@ -406,7 +406,7 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 		}
 	};
 
-	let name = quality.get_commandline_name();
+	let name = quality.get_application_name();
 	let current_exe = std::env::current_exe().expect("expected to read current exe");
 	let mut output = vec![];
 	for dir in path.split(':') {
