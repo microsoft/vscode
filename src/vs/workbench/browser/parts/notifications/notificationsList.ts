@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isAncestor, trackFocus } from 'vs/base/browser/dom';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CopyNotificationMessageAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { NotificationRenderer, NotificationsListDelegate } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
-import { NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND, NOTIFICATIONS_LINKS, NOTIFICATIONS_WARNING_ICON_FOREGROUND } from 'vs/workbench/common/theme';
+import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
+import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { Codicon } from 'vs/base/common/codicons';
+import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;
