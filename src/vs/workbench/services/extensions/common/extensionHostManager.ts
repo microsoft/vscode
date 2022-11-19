@@ -20,7 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Barrier } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -63,18 +63,18 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 	return instantiationService.createInstance(ExtensionHostManager, extensionHostId, extensionHost, initialActivationEvents, internalExtensionService);
 }
 
-export type ExtensionHostStartupClassification = {
+type ExtensionHostStartupClassification = {
 	owner: 'alexdima';
 	comment: 'The startup state of the extension host';
-	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time reported by Date.now().' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The action: starting, success or error.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension host kind: LocalProcess, LocalWebWorker or Remote.' };
+	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name.' };
+	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error stack.' };
 };
 
-export type ExtensionHostStartupEvent = {
+type ExtensionHostStartupEvent = {
 	time: number;
 	action: 'starting' | 'success' | 'error';
 	kind: string;
@@ -165,7 +165,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				if (err && err.stack) {
 					failureTelemetryEvent.errorStack = err.stack;
 				}
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent, true);
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent);
 
 				return null;
 			}
@@ -298,8 +298,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				this._customers.push(instance);
 				this._rpcProtocol.set(id, instance);
 			} catch (err) {
-				this._logService.critical(`Cannot instantiate named customer: '${id.sid}'`);
-				this._logService.critical(err);
+				this._logService.error(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.error(err);
 				errors.onUnexpectedError(err);
 			}
 		}
@@ -311,7 +311,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				const instance = this._instantiationService.createInstance(ctor, extHostContext);
 				this._customers.push(instance);
 			} catch (err) {
-				this._logService.critical(err);
+				this._logService.error(err);
 				errors.onUnexpectedError(err);
 			}
 		}
@@ -708,7 +708,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
 				original: 'Measure Extension Host Latency'
 			},
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

@@ -13,7 +13,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ILanguageDetectionService, LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { localize } from 'vs/nls';
@@ -78,15 +78,15 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	private _hasLanguageSetExplicitly: boolean = false;
 	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
-	setLanguageId(languageId: string): void {
+	setLanguageId(languageId: string, source?: string): void {
 
 		// Remember that an explicit language was set
 		this._hasLanguageSetExplicitly = true;
 
-		this.setLanguageIdInternal(languageId);
+		this.setLanguageIdInternal(languageId, source);
 	}
 
-	private setLanguageIdInternal(languageId: string): void {
+	private setLanguageIdInternal(languageId: string, source?: string): void {
 		if (!this.isResolved()) {
 			return;
 		}
@@ -95,7 +95,20 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId));
+		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId), source);
+	}
+
+	protected installModelListeners(model: ITextModel): void {
+
+		// Setup listener for lower level language changes
+		const disposable = this._register(model.onDidChangeLanguage((e) => {
+			if (e.source === LanguageDetectionLanguageEventSource) {
+				return;
+			}
+
+			this._hasLanguageSetExplicitly = true;
+			disposable.dispose();
+		}));
 	}
 
 	getLanguageId(): string | undefined {
@@ -117,7 +130,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
 		if (lang && !this.isDisposed()) {
-			this.setLanguageIdInternal(lang);
+			this.setLanguageIdInternal(lang, LanguageDetectionLanguageEventSource);
 
 			const languageName = this.languageService.getLanguageName(lang);
 			if (languageName) {

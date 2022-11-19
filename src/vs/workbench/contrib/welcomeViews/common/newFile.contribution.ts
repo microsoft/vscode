@@ -7,6 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +20,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const builtInSource = localize('Built-In', "Built-In");
-const category = localize('Create', "Create");
+const category: ILocalizedString = { value: localize('Create', "Create"), original: 'Create' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -45,7 +46,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-type NewFileItem = { commandID: string; title: string; from: string; group: string };
+type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: any };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 
@@ -101,7 +102,9 @@ class NewFileTemplatesManager extends Disposable {
 
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick();
-		qp.title = localize('createNew', "Create New...");
+		qp.title = localize('newFileTitle', "New File...");
+		qp.placeholder = localize('newFilePlaceholder', "Select File Type or Enter File Name...");
+		qp.sortByLabel = false;
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
@@ -162,12 +165,27 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(this.menu.onDidChange(() => refreshQp(this.allEntries())));
 
+		disposables.add(qp.onDidChangeValue((val: string) => {
+			if (val === '') {
+				refreshQp(entries);
+				return;
+			}
+			const currentTextEntry: NewFileItem = {
+				commandID: 'workbench.action.files.newFile',
+				commandArgs: { languageId: undefined, viewType: undefined, fileName: val },
+				title: localize('miNewFileWithName', "Create New File ({0})", val),
+				group: 'file',
+				from: builtInSource,
+			};
+			refreshQp([currentTextEntry, ...entries]);
+		}));
+
 		disposables.add(qp.onDidAccept(async e => {
 			const selected = qp.selectedItems[0] as (IQuickPickItem & NewFileItem);
 			resolveResult(!!selected);
 
 			qp.hide();
-			if (selected) { await this.commandService.executeCommand(selected.commandID); }
+			if (selected) { await this.commandService.executeCommand(selected.commandID, selected.commandArgs); }
 		}));
 
 		disposables.add(qp.onDidHide(() => {

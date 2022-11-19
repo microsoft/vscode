@@ -20,8 +20,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.2.1",
-    "vscode-nls": "^5.0.0"
+    "jsonc-parser": "^2.2.1"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -72,6 +71,10 @@
         "url": "vscode://schemas/keybindings"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/keybindings.json",
+        "url": "vscode://schemas/keybindings"
+      },
+      {
         "fileMatch": "vscode://defaultsettings/*.json",
         "url": "vscode://schemas/settings/default"
       },
@@ -117,6 +120,10 @@
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/snippets/.json",
         "url": "vscode://schemas/snippets"
       },
       {

@@ -50,7 +50,6 @@
 
 .explorer-viewlet .pane-header .count {
 	min-width: fit-content;
-	min-width: -moz-fit-content;
 	display: flex;
 	align-items: center;
 }
@@ -82,6 +81,10 @@
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
 .explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
 	text-decoration: underline;
+}
+
+.explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon {
+	margin-left: var(--vscode-explorer-align-offset-margin-left);
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,

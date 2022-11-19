@@ -16,11 +16,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { editorBracketMatchBorder } from 'vs/editor/common/core/editorColorRegistry';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
+import 'vs/css!./inPlaceReplace';
 
 class InPlaceReplaceController implements IEditorContribution {
 
@@ -56,9 +55,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	public run(source: string, up: boolean): Promise<void> | undefined {
 
 		// cancel any pending request
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-		}
+		this.currentRequest?.cancel();
 
 		const editorSelection = this.editor.getSelection();
 		const model = this.editor.getModel();
@@ -121,9 +118,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			}]);
 
 			// remove decoration after delay
-			if (this.decorationRemover) {
-				this.decorationRemover.cancel();
-			}
+			this.decorationRemover?.cancel();
 			this.decorationRemover = timeout(350);
 			this.decorationRemover.then(() => this.decorations.clear()).catch(onUnexpectedError);
 
@@ -185,9 +180,3 @@ registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
 
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorBracketMatchBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
-	}
-});

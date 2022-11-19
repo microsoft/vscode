@@ -10,7 +10,7 @@
 	height: 22px;
 	font-size: 12px;
 	display: flex;
-	overflow: visible;
+	overflow: hidden;
 	transition: background-color 0.35s ease-out;
 }
 
@@ -32,8 +32,8 @@
 }
 
 .monaco-workbench .part.statusbar > .right-items {
-	flex-direction: row-reverse;
-	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
+	flex-wrap: wrap ; /* overflow elements by wrapping */
+	flex-direction: row-reverse; /* let the elements to the left wrap first */
 }
 
 .monaco-workbench .part.statusbar > .left-items {
@@ -47,16 +47,21 @@
 	vertical-align: top;
 	max-width: 40vw;
 }
-
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
 	position: relative;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
-	content: '';
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container {
 	position: absolute;
-	left: 10px;
+	left: calc(50% - 5px); /* centering relative to parent */
 	top: -5px;
+	width: 10px;
+	height: 5px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container:before {
+	content: '';
+	position: fixed;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
 	border-left: 5px solid transparent;
@@ -83,7 +88,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	padding-right: 7px; /* Add padding to the most right status bar item */
+	margin-right: 7px; /* Add margin to the most right status bar item */
 }
 
 /* Tweak appearance for items with background to improve hover feedback */

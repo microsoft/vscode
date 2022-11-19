@@ -32,7 +32,6 @@ export class MessageController implements IEditorContribution {
 	private readonly _visible: IContextKey<boolean>;
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
-	private readonly _editorListener: IDisposable;
 
 	constructor(
 		editor: ICodeEditor,
@@ -41,11 +40,9 @@ export class MessageController implements IEditorContribution {
 
 		this._editor = editor;
 		this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
-		this._editorListener = this._editor.onDidAttemptReadOnlyEdit(() => this._onDidAttemptReadOnlyEdit());
 	}
 
 	dispose(): void {
-		this._editorListener.dispose();
 		this._messageListeners.dispose();
 		this._messageWidget.dispose();
 		this._visible.reset();
@@ -96,16 +93,6 @@ export class MessageController implements IEditorContribution {
 		this._messageListeners.clear();
 		if (this._messageWidget.value) {
 			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
-		}
-	}
-
-	private _onDidAttemptReadOnlyEdit(): void {
-		if (this._editor.hasModel()) {
-			if (this._editor.isSimpleWidget) {
-				this.showMessage(nls.localize('editor.simple.readonly', "Cannot edit in read-only input"), this._editor.getPosition());
-			} else {
-				this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
-			}
 		}
 	}
 }

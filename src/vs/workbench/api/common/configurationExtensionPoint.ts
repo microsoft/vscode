@@ -78,6 +78,13 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
+							enumItemLabels: {
+								type: 'array',
+								items: {
+									type: 'string'
+								},
+								markdownDescription: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
+							},
 							markdownDescription: {
 								type: 'string',
 								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')

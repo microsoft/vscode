@@ -67,7 +67,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
 		// this long.
-		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
+		this._profilesReadyBarrier = new AutoOpenBarrier(20000);
 		this.refreshAvailableProfiles();
 		this._setupConfigListener();
 	}
@@ -136,7 +136,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		const primaryBackend = this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
+		const primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
 		if (!primaryBackend) {
 			return this._availableProfiles || [];
 		}

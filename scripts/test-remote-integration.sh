@@ -34,40 +34,19 @@ export REMOTE_VSCODE=$AUTHORITY$EXT_PATH
 # Figure out which Electron to use for running tests
 if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]
 then
-	# Run out of sources: no need to compile as code.sh takes care of it
 	INTEGRATION_TEST_ELECTRON_PATH="./scripts/code.sh"
 
 	# No extra arguments when running out of sources
 	EXTRA_INTEGRATION_TEST_ARGUMENTS=""
 
-	echo "Storing crash reports into '$VSCODECRASHDIR'."
-	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running remote integration tests out of sources."
 else
-	# Run from a built: need to compile all test extensions
-	# because we run extension tests from their source folders
-	# and the build bundles extensions into .build webpacked
-	# yarn gulp 	compile-extension:vscode-api-tests \
-	#			compile-extension:vscode-test-resolver \
-	#			compile-extension:markdown-language-features \
-	#			compile-extension:typescript-language-features \
-	#			compile-extension:emmet \
-	#			compile-extension:git \
-	#			compile-extension:ipynb \
-	#			compile-extension:configuration-editing \
-	#			compile-extension:microsoft-authentication \
-	#			compile-extension:github-authentication \
-	#			compile-extension-media
-
-	# Configuration for more verbose output
 	export VSCODE_CLI=1
 	export ELECTRON_ENABLE_LOGGING=1
 
 	# Running from a build, we need to enable the vscode-test-resolver extension
 	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH  --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests"
 
-	echo "Storing crash reports into '$VSCODECRASHDIR'."
-	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running remote integration tests with $INTEGRATION_TEST_ELECTRON_PATH as build."
 fi
 
@@ -90,6 +69,12 @@ else
 fi
 
 API_TESTS_EXTRA_ARGS="--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --disable-keytar --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
+
+echo "Storing crash reports into '$VSCODECRASHDIR'."
+echo "Storing log files into '$VSCODELOGSDIR'."
+
+
+# Tests in the extension host
 
 echo
 echo "### API tests (folder)"

@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IReader, transaction } from 'vs/base/common/observable';
+import { isDefined } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
+import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IMergeDiffComputer, IMergeDiffComputerResult, normalizeRangeMapping, toLineRange, toRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 
 suite('merge editor model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,9 +33,10 @@ suite('merge editor model', () => {
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
-					base: '⟦⟧₀line1\nline2',
-					input1: '⟦0\n⟧₀line1\nline2',
-					input2: '⟦0\n⟧₀line1\nline2',
+					base: ['⟦⟧₀line1', 'line2'],
+					input1: ['⟦0', '⟧₀line1', 'line2'],
+					input2: ['⟦0', '⟧₀line1', 'line2'],
+					result: ['⟦⟧{unrecognized}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -59,7 +64,12 @@ suite('merge editor model', () => {
 				"result": ""
 			},
 			model => {
-				assert.deepStrictEqual(model.getProjections(), ({ base: "⟦⟧₀", input1: "⟦input1⟧₀", input2: "⟦input2⟧₀" }));
+				assert.deepStrictEqual(model.getProjections(), {
+					base: ['⟦⟧₀'],
+					input1: ['⟦input1⟧₀'],
+					input2: ['⟦input2⟧₀'],
+					result: ['⟦⟧{base}₀'],
+				});
 
 				model.toggleConflict(0, 1);
 				assert.deepStrictEqual(
@@ -87,9 +97,10 @@ suite('merge editor model', () => {
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
-					base: '⟦hello⟧₀',
-					input1: '⟦hallo⟧₀',
-					input2: '⟦helloworld⟧₀',
+					base: ['⟦hello⟧₀'],
+					input1: ['⟦hallo⟧₀'],
+					input2: ['⟦helloworld⟧₀'],
+					result: ['⟦⟧{unrecognized}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -115,11 +126,34 @@ suite('merge editor model', () => {
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
-					base: 'Zürich\nBern\n⟦Basel\n⟧₀Chur\n⟦⟧₁Genf\nThun⟦⟧₂',
-					input1:
-						'Zürich\nBern\n⟦⟧₀Chur\n⟦Davos\n⟧₁Genf\nThun\n⟦function f(b:boolean) {}⟧₂',
-					input2:
-						'Zürich\nBern\n⟦Basel (FCB)\n⟧₀Chur\n⟦⟧₁Genf\nThun\n⟦function f(a:number) {}⟧₂',
+					base: ['Zürich', 'Bern', '⟦Basel', '⟧₀Chur', '⟦⟧₁Genf', 'Thun⟦⟧₂'],
+					input1: [
+						'Zürich',
+						'Bern',
+						'⟦⟧₀Chur',
+						'⟦Davos',
+						'⟧₁Genf',
+						'Thun',
+						'⟦function f(b:boolean) {}⟧₂',
+					],
+					input2: [
+						'Zürich',
+						'Bern',
+						'⟦Basel (FCB)',
+						'⟧₀Chur',
+						'⟦⟧₁Genf',
+						'Thun',
+						'⟦function f(a:number) {}⟧₂',
+					],
+					result: [
+						'Zürich',
+						'Bern',
+						'⟦Basel',
+						'⟧{base}₀Chur',
+						'⟦Davos',
+						'⟧{1✓}₁Genf',
+						'Thun⟦⟧{base}₂',
+					],
 				});
 
 				model.toggleConflict(2, 1);
@@ -132,6 +166,61 @@ suite('merge editor model', () => {
 							'Zürich\nBern\nBasel\nChur\nDavos\nGenf\nThun\nfunction f(b:boolean) {}\nfunction f(a:number) {}',
 					}
 				);
+			}
+		);
+	});
+
+	test('conflicts are reset', async () => {
+		await testMergeModel(
+			{
+				"languageId": "typescript",
+				"base": "import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { EditorOption } from 'vs/editor/common/config/editorOptions';\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n",
+				"input1": "import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { observableSignalFromEvent } from 'vs/base/common/observable';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n",
+				"input2": "import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n",
+				"result": "import { h } from 'vs/base/browser/dom';\r\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\r\nimport { observableSignalFromEvent } from 'vs/base/common/observable';\r\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\r\n<<<<<<< Updated upstream\r\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\r\n=======\r\nimport { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';\r\n>>>>>>> Stashed changes\r\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\r\n"
+			},
+			model => {
+				assert.deepStrictEqual(model.getProjections(), {
+					base: [
+						"import { h } from 'vs/base/browser/dom';",
+						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
+						"⟦⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
+						"⟦import { EditorOption } from 'vs/editor/common/config/editorOptions';",
+						"import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						"⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						'',
+					],
+					input1: [
+						"import { h } from 'vs/base/browser/dom';",
+						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
+						"⟦import { observableSignalFromEvent } from 'vs/base/common/observable';",
+						"⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
+						"⟦import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						"⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						'',
+					],
+					input2: [
+						"import { h } from 'vs/base/browser/dom';",
+						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
+						"⟦⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
+						"⟦import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						"⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						'',
+					],
+					result: [
+						"import { h } from 'vs/base/browser/dom';",
+						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
+						"⟦import { observableSignalFromEvent } from 'vs/base/common/observable';",
+						"⟧{1✓}₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
+						'⟦<<<<<<< Updated upstream',
+						"import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						'=======',
+						"import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						'>>>>>>> Stashed changes',
+						"⟧{unrecognized}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						'',
+					],
+				});
 			}
 		);
 	});
@@ -172,32 +261,49 @@ class MergeModelInterface extends Disposable {
 		const input2TextModel = this._register(createTextModel(options.input2, options.languageId));
 		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
+
+		const diffComputer: IMergeDiffComputer = {
+			async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
+				const result = await linesDiffComputers.smart.computeDiff(
+					textModel1.getLinesContent(),
+					textModel2.getLinesContent(),
+					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000 }
+				);
+				const changes = result.changes.map(c =>
+					new DetailedLineRangeMapping(
+						toLineRange(c.originalRange),
+						textModel1,
+						toLineRange(c.modifiedRange),
+						textModel2,
+						c.innerChanges?.map(ic => normalizeRangeMapping(toRangeMapping(ic), textModel1, textModel2)).filter(isDefined)
+					)
+				);
+				return {
+					diffs: changes
+				};
+			}
+		};
+
 		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
 			baseTextModel,
-			input1TextModel,
-			'',
-			'',
-			'',
-			input2TextModel,
-			'',
-			'',
-			'',
-			resultTextModel,
 			{
-				async computeDiff(textModel1, textModel2) {
-					const result = EditorSimpleWorker.computeDiff(textModel1, textModel2, false, 10000);
-					if (!result) {
-						return { diffs: null };
-					}
-					return {
-						diffs: EditorWorkerServiceDiffComputer.fromDiffComputationResult(
-							result,
-							textModel1,
-							textModel2
-						),
-					};
-				},
-			}
+				textModel: input1TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			{
+				textModel: input2TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			resultTextModel,
+			diffComputer,
+			{
+				resetResult: false
+			},
+			new MergeEditorTelemetry(NullTelemetryService),
 		));
 	}
 
@@ -223,7 +329,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input1TextModel = createTextModel(this.mergeModel.input1.getValue());
+		const input1TextModel = createTextModel(this.mergeModel.input1.textModel.getValue());
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -232,7 +338,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input2TextModel = createTextModel(this.mergeModel.input2.getValue());
+		const input2TextModel = createTextModel(this.mergeModel.input2.textModel.getValue());
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -241,14 +347,25 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
+		const resultTextModel = createTextModel(this.mergeModel.resultTextModel.getValue());
+		applyRanges(
+			resultTextModel,
+			baseRanges.map<LabeledRange>((r, idx) => ({
+				range: this.mergeModel.getLineRangeInResult(r.baseRange).toRange(),
+				label: `{${this.mergeModel.getState(r).get()}}${toSmallNumbersDec(idx)}`,
+			}))
+		);
+
 		const result = {
-			base: baseTextModel.getValue(),
-			input1: input1TextModel.getValue(),
-			input2: input2TextModel.getValue(),
+			base: baseTextModel.getValue(EndOfLinePreference.LF).split('\n'),
+			input1: input1TextModel.getValue(EndOfLinePreference.LF).split('\n'),
+			input2: input2TextModel.getValue(EndOfLinePreference.LF).split('\n'),
+			result: resultTextModel.getValue(EndOfLinePreference.LF).split('\n'),
 		};
 		baseTextModel.dispose();
 		input1TextModel.dispose();
 		input2TextModel.dispose();
+		resultTextModel.dispose();
 		return result;
 	}
 
@@ -264,6 +381,6 @@ class MergeModelInterface extends Disposable {
 	}
 
 	getResult(): string {
-		return this.mergeModel.result.getValue();
+		return this.mergeModel.resultTextModel.getValue();
 	}
 }
