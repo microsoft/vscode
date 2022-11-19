@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { DEFAULT_PROFILE_EXTENSIONS_MIGRATION_KEY, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { migrateUnsupportedExtensions } from 'vs/platform/extensionManagement/common/unsupportedExtensionsMigration';
 import { INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class ExtensionsContributions extends Disposable {
 	constructor(
@@ -21,9 +21,6 @@ export class ExtensionsContributions extends Disposable {
 		@ILogService logService: ILogService,
 	) {
 		super();
-
-		extensionManagementService.migrateDefaultProfileExtensions()
-			.then(() => storageService.store(DEFAULT_PROFILE_EXTENSIONS_MIGRATION_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE), error => null);
 
 		extensionManagementService.removeUninstalledExtensions();
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);

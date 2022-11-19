@@ -926,7 +926,8 @@ export const NotebookSetting = {
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
 	outputFontFamily: 'notebook.outputFontFamily',
-	kernelPickerMRU: 'notebook.experimental.kernelPicker.mru'
+	kernelPickerType: 'notebook.kernelPicker.type',
+	outputScrolling: 'notebook.experimental.outputScrolling',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1050,4 +1051,11 @@ function formatStreamText(buffer: VSBuffer): VSBuffer {
 	}
 	// Do the same thing jupyter is doing
 	return VSBuffer.fromString(fixCarriageReturn(fixBackspace(textDecoder.decode(buffer.buffer))));
+}
+
+export interface INotebookKernelSourceAction {
+	readonly label: string;
+	readonly description?: string;
+	readonly detail?: string;
+	readonly command?: string | Command;
 }

@@ -9,7 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
@@ -37,9 +37,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
-		this.updateTheme(this._themeService.getColorTheme());
-		this._register(this._themeService.onDidColorThemeChange((theme?: IColorTheme) => {
-			this.updateTheme(theme ?? this._themeService.getColorTheme());
+		this._register(this._themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
 				this.find(true, true);
 			}

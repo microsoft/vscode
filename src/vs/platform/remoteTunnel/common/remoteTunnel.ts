@@ -6,7 +6,6 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 
-
 export interface IRemoteTunnelAccount {
 	readonly authenticationProviderId: string;
 	readonly token: string;
@@ -61,3 +60,7 @@ export interface ConnectionInfo {
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';
 export const CONFIGURATION_KEY_HOST_NAME = CONFIGURATION_KEY_PREFIX + '.hostNameOverride';
+
+export const LOG_FILE_NAME = 'remoteTunnelService.log';
+export const LOGGER_NAME = 'remoteTunnelService';
+export const LOG_CHANNEL_ID = 'remoteTunnelServiceLog';

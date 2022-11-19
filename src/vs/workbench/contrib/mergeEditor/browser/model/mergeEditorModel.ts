@@ -6,10 +6,13 @@
 import { CompareResult, equals } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepAlive, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
+import { localize } from 'vs/nls';
+import { IResourceUndoRedoElement, IUndoRedoService, UndoRedoElementType, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IMergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
@@ -58,6 +61,7 @@ export class MergeEditorModel extends EditorModel {
 		public readonly telemetry: MergeEditorTelemetry,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super();
 
@@ -405,9 +409,9 @@ export class MergeEditorModel extends EditorModel {
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
-		markInputAsHandled: boolean | InputNumber,
-		transaction: ITransaction,
-		pushStackElement: boolean = false
+		_markInputAsHandled: boolean | InputNumber,
+		tx: ITransaction,
+		_pushStackElement: boolean = false
 	): void {
 		if (!this.isUpToDate.get()) {
 			throw new BugIndicatingError('Cannot set state while updating');
@@ -421,29 +425,36 @@ export class MergeEditorModel extends EditorModel {
 		const conflictingDiffs = this.resultTextModelDiffs.findTouchingDiffs(
 			baseRange.baseRange
 		);
+		const group = new UndoRedoGroup();
 		if (conflictingDiffs) {
-			this.resultTextModelDiffs.removeDiffs(conflictingDiffs, transaction);
+			this.resultTextModelDiffs.removeDiffs(conflictingDiffs, tx, group);
 		}
 
 		const { edit, effectiveState } = baseRange.getEditForBase(state);
 
-		existingState.accepted.set(effectiveState, transaction);
+		existingState.accepted.set(effectiveState, tx);
 		existingState.previousNonDiffingState = undefined;
 		existingState.computedFromDiffing = false;
 
+		const input1Handled = existingState.handledInput1.get();
+		const input2Handled = existingState.handledInput2.get();
+
+		if (!input1Handled || !input2Handled) {
+			this.undoRedoService.pushElement(
+				new MarkAsHandledUndoRedoElement(this.resultTextModel.uri, new WeakRef(this), new WeakRef(existingState), input1Handled, input2Handled),
+				group
+			);
+		}
+
 		if (edit) {
-			if (pushStackElement) {
-				this.resultTextModel.pushStackElement();
-			}
-			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, transaction);
-			if (pushStackElement) {
-				this.resultTextModel.pushStackElement();
-			}
+			this.resultTextModel.pushStackElement();
+			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, tx, group);
+			this.resultTextModel.pushStackElement();
 		}
 
 		// always set conflict as handled
-		existingState.handledInput1.set(true, transaction);
-		existingState.handledInput2.set(true, transaction);
+		existingState.handledInput1.set(true, tx);
+		existingState.handledInput2.set(true, tx);
 	}
 
 	public resetDirtyConflictsToBase(): void {
@@ -473,6 +484,42 @@ export class MergeEditorModel extends EditorModel {
 		if (state.handled.get() === handled) {
 			return;
 		}
+
+		const dataRef = new WeakRef(ModifiedBaseRangeData);
+		const modelRef = new WeakRef(this);
+
+		this.undoRedoService.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: this.resultTextModel.uri,
+			code: 'setInputHandled',
+			label: localize('setInputHandled', "Set Input Handled"),
+			redo() {
+				const model = modelRef.deref();
+				const data = dataRef.deref();
+				if (model && !model.isDisposed() && data) {
+					transaction(tx => {
+						if (inputNumber === 1) {
+							state.handledInput1.set(handled, tx);
+						} else {
+							state.handledInput2.set(handled, tx);
+						}
+					});
+				}
+			},
+			undo() {
+				const model = modelRef.deref();
+				const data = dataRef.deref();
+				if (model && !model.isDisposed() && data) {
+					transaction(tx => {
+						if (inputNumber === 1) {
+							state.handledInput1.set(!handled, tx);
+						} else {
+							state.handledInput2.set(!handled, tx);
+						}
+					});
+				}
+			},
+		});
 
 		if (inputNumber === 1) {
 			state.handledInput1.set(handled, tx);
@@ -722,4 +769,44 @@ export const enum MergeEditorModelState {
 	initializing = 1,
 	upToDate = 2,
 	updating = 3,
+}
+
+class MarkAsHandledUndoRedoElement implements IResourceUndoRedoElement {
+	public readonly code = 'undoMarkAsHandled';
+	public readonly label = localize('undoMarkAsHandled', 'Undo Mark As Handled');
+
+	public readonly type = UndoRedoElementType.Resource;
+
+	constructor(
+		public readonly resource: URI,
+		private readonly mergeEditorModelRef: WeakRef<MergeEditorModel>,
+		private readonly stateRef: WeakRef<ModifiedBaseRangeData>,
+		private readonly input1Handled: boolean,
+		private readonly input2Handled: boolean,
+	) { }
+
+	public redo() {
+		const mergeEditorModel = this.mergeEditorModelRef.deref();
+		if (!mergeEditorModel || mergeEditorModel.isDisposed()) {
+			return;
+		}
+		const state = this.stateRef.deref();
+		if (!state) { return; }
+		transaction(tx => {
+			state.handledInput1.set(true, tx);
+			state.handledInput2.set(true, tx);
+		});
+	}
+	public undo() {
+		const mergeEditorModel = this.mergeEditorModelRef.deref();
+		if (!mergeEditorModel || mergeEditorModel.isDisposed()) {
+			return;
+		}
+		const state = this.stateRef.deref();
+		if (!state) { return; }
+		transaction(tx => {
+			state.handledInput1.set(this.input1Handled, tx);
+			state.handledInput2.set(this.input2Handled, tx);
+		});
+	}
 }

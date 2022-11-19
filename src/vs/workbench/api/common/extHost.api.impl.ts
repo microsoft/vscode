@@ -43,6 +43,7 @@ import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
@@ -1152,6 +1153,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'notebookKernelSource');
 				return extHostNotebookKernels.createNotebookControllerDetectionTask(extension, notebookType);
 			},
+			registerKernelSourceActionProvider(notebookType: string, provider: vscode.NotebookKernelSourceActionProvider) {
+				checkProposedApiEnabled(extension, 'notebookKernelSource');
+				return extHostNotebookKernels.registerKernelSourceActionProvider(extension, notebookType, provider);
+			},
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
 				return extHostNotebookKernels.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
@@ -1345,6 +1350,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
 			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,
 			NotebookEdit: extHostTypes.NotebookEdit,
+			NotebookKernelSourceAction: extHostTypes.NotebookKernelSourceAction,
 			PortAttributes: extHostTypes.PortAttributes,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
@@ -1373,6 +1379,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputWebview: extHostTypes.WebviewEditorTabInput,
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
+			TrustedTelemetryValue: TrustedTelemetryValue,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
 			LogLevel: LogLevel,
 			EditSessionIdentityMatch: EditSessionIdentityMatch

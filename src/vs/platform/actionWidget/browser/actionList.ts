@@ -127,7 +127,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 		} else {
 			data.container.title = '';
 		}
@@ -140,7 +140,8 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 export class ActionList<T extends IActionItem> extends Disposable {
 
-	readonly domNode: HTMLElement;
+	public readonly domNode: HTMLElement;
+
 	private readonly _list: List<IListMenuItem<IActionItem>>;
 
 	private readonly _actionLineHeight = 24;
@@ -148,17 +149,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 	private readonly _allMenuItems: IListMenuItem<IActionItem>[];
 
-	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
-		return !element.disabled && element.kind === ActionListItemKind.Action;
-	}
-
 	constructor(
 		user: string,
-		items: readonly T[],
-		showHeaders: boolean,
+		items: IListMenuItem<T>[],
 		private readonly _delegate: IRenderDelegate,
 		resolver: IActionKeybindingResolver | undefined,
-		toMenuItems: (inputActions: readonly T[], showHeaders: boolean) => IListMenuItem<T>[],
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -194,9 +189,13 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this._allMenuItems = toMenuItems(items, showHeaders);
+		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
 		this.focusNext();
+	}
+
+	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
+		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
 	hide(didCancel?: boolean): void {

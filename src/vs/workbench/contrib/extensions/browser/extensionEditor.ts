@@ -69,7 +69,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'vs/base/common/semver/semver';
-import { getKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class NavBar extends Disposable {
 
@@ -681,7 +681,6 @@ export class ExtensionEditor extends EditorPane {
 			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
-				id: generateUuid(),
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
@@ -1556,7 +1555,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			const kbl = new KeybindingLabel(element, OS, getKeybindingLabelStyles());
+			const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
 			kbl.set(keybinding);
 			return element;
 		};

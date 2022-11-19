@@ -2,9 +2,33 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use super::errors::{wrap, WrappedError};
-use std::{ffi::OsStr, process::Stdio};
+use super::errors::{wrap, AnyError, CommandFailed, WrappedError};
+use std::{borrow::Cow, ffi::OsStr, process::Stdio};
 use tokio::process::Command;
+
+pub async fn capture_command_and_check_status(
+	command_str: impl AsRef<OsStr>,
+	args: &[impl AsRef<OsStr>],
+) -> Result<std::process::Output, AnyError> {
+	let output = capture_command(&command_str, args).await?;
+
+	if !output.status.success() {
+		return Err(CommandFailed {
+			command: format!(
+				"{} {}",
+				command_str.as_ref().to_string_lossy(),
+				args.iter()
+					.map(|a| a.as_ref().to_string_lossy())
+					.collect::<Vec<Cow<'_, str>>>()
+					.join(" ")
+			),
+			output,
+		}
+		.into());
+	}
+
+	Ok(output)
+}
 
 pub async fn capture_command<A, I, S>(
 	command_str: A,

@@ -16,7 +16,6 @@ import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { localize } from 'vs/nls';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -128,11 +127,6 @@ class ViewDescriptorsState extends Disposable {
 
 		this.state = this.initialize();
 
-		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
-			.registerKeys([{
-				key: this.globalViewsStateStorageId,
-				description: localize('globalViewsStateStorageId', "Views visibility customizations in {0} view container", viewContainerName),
-			}]);
 	}
 
 	set(id: string, state: IViewDescriptorState): void {

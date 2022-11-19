@@ -11825,7 +11825,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be deleted.
 	 *
 	 * To make modifications to the workspace before the files are deleted,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillDeleteEvent {
@@ -11885,7 +11885,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be renamed.
 	 *
 	 * To make modifications to the workspace before the files are renamed,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
