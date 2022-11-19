@@ -42,7 +42,6 @@ import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export interface IWindowCreationOptions {
@@ -200,8 +199,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			let useSandbox = false;
 			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
 				useSandbox = windowSettings.experimental.useSandbox;
+			} else if (this.productService.quality === 'stable' && this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false)) {
+				useSandbox = true;
 			} else {
-				useSandbox = typeof product.quality === 'string' && product.quality !== 'stable';
+				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
 
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
