@@ -23,7 +23,7 @@ use crate::{
 	},
 };
 
-use super::{ServiceManager, service::tail_log_file};
+use super::{service::tail_log_file, ServiceManager};
 
 pub struct LaunchdService {
 	log: log::Logger,
@@ -115,7 +115,7 @@ impl ServiceManager for LaunchdService {
 }
 
 fn get_service_label() -> String {
-	format!("com.visualstudio.{}.tunnel", &*APPLICATION_NAME)
+	format!("com.visualstudio.{}.tunnel", APPLICATION_NAME)
 }
 
 fn get_service_file_path() -> Result<PathBuf, MissingHomeDirectory> {

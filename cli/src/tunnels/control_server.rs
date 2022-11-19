@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::commands::tunnels::ShutdownSignal;
-use crate::constants::{CONTROL_PORT, PROTOCOL_VERSION, VSCODE_CLI_VERSION};
+use crate::constants::{
+	CONTROL_PORT, EDITOR_WEB_URL, PROTOCOL_VERSION, QUALITYLESS_SERVER_NAME, VSCODE_CLI_VERSION,
+};
 use crate::log;
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
@@ -131,7 +133,10 @@ pub struct ServerTermination {
 }
 
 fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	debug!(log, "VS Code Server is listening for incoming connections");
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
 
 	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
 	let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
@@ -142,7 +147,12 @@ fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		current_dir
 	};
 
-	let mut addr = url::Url::parse("https://insiders.vscode.dev").unwrap();
+	let base_web_url = match EDITOR_WEB_URL {
+		Some(u) => u,
+		None => return,
+	};
+
+	let mut addr = url::Url::parse(base_web_url).unwrap();
 	{
 		let mut ps = addr.path_segments_mut().unwrap();
 		ps.push("tunnel");
