@@ -15,10 +15,10 @@ interface ExpectedIndentRange {
 }
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside: boolean, markers?: FoldingMarkers): void {
-	let model = createTextModel(lines.join('\n'));
-	let actual = computeRanges(model, offside, markers);
+	const model = createTextModel(lines.join('\n'));
+	const actual = computeRanges(model, offside, markers);
 
-	let actualRanges: ExpectedIndentRange[] = [];
+	const actualRanges: ExpectedIndentRange[] = [];
 	for (let i = 0; i < actual.length; i++) {
 		actualRanges[i] = r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.getParentIndex(i));
 	}
@@ -32,7 +32,7 @@ function r(startLineNumber: number, endLineNumber: number, parentIndex: number, 
 
 suite('Indentation Folding', () => {
 	test('Fold one level', () => {
-		let range = [
+		const range = [
 			'A',
 			'  A',
 			'  A',
@@ -43,7 +43,7 @@ suite('Indentation Folding', () => {
 	});
 
 	test('Fold two levels', () => {
-		let range = [
+		const range = [
 			'A',
 			'  A',
 			'  A',
@@ -55,7 +55,7 @@ suite('Indentation Folding', () => {
 	});
 
 	test('Fold three levels', () => {
-		let range = [
+		const range = [
 			'A',
 			'  A',
 			'    A',
@@ -67,7 +67,7 @@ suite('Indentation Folding', () => {
 	});
 
 	test('Fold decreasing indent', () => {
-		let range = [
+		const range = [
 			'    A',
 			'  A',
 			'A'
@@ -145,7 +145,7 @@ suite('Indentation Folding', () => {
 	});
 });
 
-let markers: FoldingMarkers = {
+const markers: FoldingMarkers = {
 	start: /^\s*#region\b/,
 	end: /^\s*#endregion\b/
 };

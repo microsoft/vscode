@@ -8,7 +8,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { AbstractLogger, AbstractLoggerService, format, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
@@ -21,7 +20,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 	private backupIndex: number = 1;
 
 	constructor(
-		private readonly name: string,
+		name: string,
 		private readonly resource: URI,
 		level: LogLevel,
 		private readonly donotUseFormatters: boolean,
@@ -71,12 +70,6 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	critical(): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, format(arguments));
-		}
-	}
-
 	flush(): void {
 	}
 
@@ -101,7 +94,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 			if (this.donotUseFormatters) {
 				content += message;
 			} else {
-				content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+				content += `${this.getCurrentTimestamp()} [${this.stringifyLogLevel(level)}] ${message}\n`;
 			}
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
 		});
@@ -130,7 +123,6 @@ export class FileLogger extends AbstractLogger implements ILogger {
 
 	private stringifyLogLevel(level: LogLevel): string {
 		switch (level) {
-			case LogLevel.Critical: return 'critical';
 			case LogLevel.Debug: return 'debug';
 			case LogLevel.Error: return 'error';
 			case LogLevel.Info: return 'info';
@@ -146,7 +138,6 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	constructor(
 		@ILogService logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super(logService.getLevel(), logService.onDidChangeLogLevel);
@@ -154,7 +145,7 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters));
+		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = new FileLogger(options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
 		return logger;
 	}
 }

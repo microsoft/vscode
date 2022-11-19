@@ -501,9 +501,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// dispose any previously stored dispose listener for this resource
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			disposeListener.dispose();
-		}
+		disposeListener?.dispose();
 
 		// store in cache but remove when model gets disposed
 		this.mapResourceToModel.set(resource, model);

@@ -28,6 +28,8 @@ import { CompletionModel } from './completionModel';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { FuzzyScoreOptions } from 'vs/base/common/filters';
+import { assertType } from 'vs/base/common/types';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -61,7 +63,7 @@ export class LineContext {
 		}
 		const model = editor.getModel();
 		const pos = editor.getPosition();
-		model.tokenizeIfCheap(pos.lineNumber);
+		model.tokenization.tokenizeIfCheap(pos.lineNumber);
 
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
@@ -140,7 +142,6 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
-	private _quickSuggestDelay: number = 10;
 	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
@@ -182,7 +183,6 @@ export class SuggestModel implements IDisposable {
 		}));
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
-			this._updateQuickSuggest();
 		}));
 		this._toDispose.add(this._languageFeaturesService.completionProvider.onDidChange(() => {
 			this._updateTriggerCharacters();
@@ -213,7 +213,6 @@ export class SuggestModel implements IDisposable {
 		}));
 
 		this._updateTriggerCharacters();
-		this._updateQuickSuggest();
 	}
 
 	dispose(): void {
@@ -222,16 +221,6 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
-	}
-
-	// --- handle configuration & precondition changes
-
-	private _updateQuickSuggest(): void {
-		this._quickSuggestDelay = this._editor.getOption(EditorOption.quickSuggestionsDelay);
-
-		if (isNaN(this._quickSuggestDelay) || (!this._quickSuggestDelay && this._quickSuggestDelay !== 0) || this._quickSuggestDelay < 0) {
-			this._quickSuggestDelay = 10;
-		}
 	}
 
 	private _updateTriggerCharacters(): void {
@@ -395,7 +384,7 @@ export class SuggestModel implements IDisposable {
 			if (!LineContext.shouldAutoTrigger(this._editor)) {
 				return;
 			}
-			if (!this._editor.hasModel()) {
+			if (!this._editor.hasModel() || !this._editor.hasWidgetFocus()) {
 				return;
 			}
 			const model = this._editor.getModel();
@@ -408,8 +397,8 @@ export class SuggestModel implements IDisposable {
 
 			if (!QuickSuggestionsOptions.isAllOn(config)) {
 				// Check the type of the token that triggered this
-				model.tokenizeIfCheap(pos.lineNumber);
-				const lineTokens = model.getLineTokens(pos.lineNumber);
+				model.tokenization.tokenizeIfCheap(pos.lineNumber);
+				const lineTokens = model.tokenization.getLineTokens(pos.lineNumber);
 				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
 				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
 					return;
@@ -428,30 +417,19 @@ export class SuggestModel implements IDisposable {
 			// we made it till here -> trigger now
 			this.trigger({ auto: true, shy: false });
 
-		}, this._quickSuggestDelay);
+		}, this._editor.getOption(EditorOption.quickSuggestionsDelay));
 	}
 
 	private _refilterCompletionItems(): void {
-		// Re-filter suggestions. This MUST run async because filtering/scoring
-		// uses the model content AND the cursor position. The latter is NOT
-		// updated when the document has changed (the event which drives this method)
-		// and therefore a little pause (next mirco task) is needed. See:
-		// https://stackoverflow.com/questions/25915634/difference-between-microtask-and-macrotask-within-an-event-loop-context#25933985
-		Promise.resolve().then(() => {
-			if (this._state === State.Idle) {
-				return;
-			}
-			if (!this._editor.hasModel()) {
-				return;
-			}
-			const model = this._editor.getModel();
-			const position = this._editor.getPosition();
-			const ctx = new LineContext(model, position, this._state === State.Auto, false);
-			this._onNewContext(ctx);
-		});
+		assertType(this._editor.hasModel());
+
+		const model = this._editor.getModel();
+		const position = this._editor.getPosition();
+		const ctx = new LineContext(model, position, this._state === State.Auto, false);
+		this._onNewContext(ctx);
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }, noFilter?: boolean): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -496,13 +474,14 @@ export class SuggestModel implements IDisposable {
 		}
 
 		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
+		const completionOptions = new CompletionOptions(snippetSortOrder, !noFilter ? itemKindFilter : new Set(), onlyFrom, showDeprecated);
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
 		const completions = provideSuggestionItems(
 			this._languageFeaturesService.completionProvider,
 			model,
 			this._editor.getPosition(),
-			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom, showDeprecated),
+			completionOptions,
 			suggestCtx,
 			this._requestToken.token
 		);
@@ -533,6 +512,10 @@ export class SuggestModel implements IDisposable {
 			}
 
 			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
+			const fuzzySearchOptions = {
+				...FuzzyScoreOptions.default,
+				firstMatchCanBeWeak: !this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
+			};
 			this._completionModel = new CompletionModel(items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context!.column
@@ -540,6 +523,7 @@ export class SuggestModel implements IDisposable {
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
 				this._editor.getOption(EditorOption.snippetSuggestions),
+				fuzzySearchOptions,
 				clipboardText
 			);
 
@@ -564,7 +548,11 @@ export class SuggestModel implements IDisposable {
 
 		setTimeout(() => {
 			type Durations = { data: string };
-			type DurationsClassification = { data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' } };
+			type DurationsClassification = {
+				owner: 'jrieken';
+				comment: 'Completions performance numbers';
+				data: { comment: 'Durations per source and overall'; classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
 			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
 			this._logService.debug('suggest.durations.json', durations);
 		});
@@ -655,7 +643,7 @@ export class SuggestModel implements IDisposable {
 			// Select those providers have not contributed to this completion model and re-trigger completions for
 			// them. Also adopt the existing items and merge them into the new completion model
 			const inactiveProvider = new Set(this._languageFeaturesService.completionProvider.all(this._editor.getModel()!));
-			for (let provider of this._completionModel.allProvider) {
+			for (const provider of this._completionModel.allProvider) {
 				inactiveProvider.delete(provider);
 			}
 			const items = this._completionModel.adopt(new Set());
@@ -671,7 +659,7 @@ export class SuggestModel implements IDisposable {
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
-			let oldLineContext = this._completionModel.lineContext;
+			const oldLineContext = this._completionModel.lineContext;
 			let isFrozen = false;
 
 			this._completionModel.lineContext = {

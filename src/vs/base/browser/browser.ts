@@ -71,9 +71,7 @@ class DevicePixelRatioMonitor extends Disposable {
 	}
 
 	private _handleChange(fireEvent: boolean): void {
-		if (this._mediaQueryList) {
-			this._mediaQueryList.removeEventListener('change', this._listener);
-		}
+		this._mediaQueryList?.removeEventListener('change', this._listener);
 
 		this._mediaQueryList = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
 		this._mediaQueryList.addEventListener('change', this._listener);
@@ -196,12 +194,23 @@ export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
 let standalone = false;
 if (window.matchMedia) {
-	const matchMedia = window.matchMedia('(display-mode: standalone)');
-	standalone = matchMedia.matches;
-	addMatchMediaChangeListener(matchMedia, ({ matches }) => {
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
+	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
+	standalone = standaloneMatchMedia.matches;
+	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
+		// entering fullscreen would change standaloneMatchMedia.matches to false
+		// if standalone is true (running as PWA) and entering fullscreen, skip this change
+		if (standalone && fullScreenMatchMedia.matches) {
+			return;
+		}
+		// otherwise update standalone (browser to PWA or PWA to browser)
 		standalone = matches;
 	});
 }
 export function isStandalone(): boolean {
 	return standalone;
+}
+
+export function isWCOVisible(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
 }

@@ -14,7 +14,7 @@ import { IDecorationOptions, IDecorationRenderOptions } from 'vs/editor/common/e
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -23,17 +23,11 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
-import { Mimes } from 'vs/base/common/mime';
-import { distinct } from 'vs/base/common/arrays';
-import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -51,7 +45,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[] };
 	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean };
-	private readonly _dropIntoEditorListeners = new Map<ICodeEditor, IDisposable>();
 
 	constructor(
 		private readonly _editorLocator: IMainThreadEditorLocator,
@@ -59,7 +52,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -71,22 +64,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._toDispose.add(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.add(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
 
-		const registerDropListenerOnEditor = (editor: ICodeEditor) => {
-			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
-		};
-
-		this._toDispose.add(_codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
-
-		this._toDispose.add(_codeEditorService.onCodeEditorRemove(editor => {
-			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.delete(editor);
-		}));
-
-		for (const editor of this._codeEditorService.listCodeEditors()) {
-			registerDropListenerOnEditor(editor);
-		}
-
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
@@ -96,11 +73,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 		this._textEditorsListenersMap = Object.create(null);
 		this._toDispose.dispose();
-		for (let decorationType in this._registeredDecorationTypes) {
+		for (const decorationType in this._registeredDecorationTypes) {
 			this._codeEditorService.removeDecorationType(decorationType);
 		}
-		dispose(this._dropIntoEditorListeners.values());
-		this._dropIntoEditorListeners.clear();
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
@@ -131,66 +106,13 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
 		const result: ITextEditorPositionData = Object.create(null);
-		for (let editorPane of this._editorService.visibleEditorPanes) {
+		for (const editorPane of this._editorService.visibleEditorPanes) {
 			const id = this._editorLocator.findTextEditorIdFor(editorPane);
 			if (id) {
 				result[id] = editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return result;
-	}
-
-	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
-		if (!dragEvent.dataTransfer || !editor.hasModel()) {
-			return;
-		}
-		const id = this._editorLocator.getIdOfCodeEditor(editor);
-		if (typeof id !== 'string') {
-			return;
-		}
-
-		const modelVersionNow = editor.getModel().getVersionId();
-
-		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
-		for (const item of dragEvent.dataTransfer.items) {
-			if (item.kind === 'string') {
-				const type = item.type;
-				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
-				textEditorDataTransfer.set(type, {
-					asString: () => asStringValue,
-					value: undefined
-				});
-			}
-		}
-
-		if (!textEditorDataTransfer.has(Mimes.uriList.toLowerCase())) {
-			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-				.filter(input => input.resource)
-				.map(input => input.resource!.toString());
-
-			if (editorData.length) {
-				const str = distinct(editorData).join('\n');
-				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
-					asString: () => Promise.resolve(str),
-					value: undefined
-				});
-			}
-		}
-
-		if (textEditorDataTransfer.size === 0) {
-			return;
-		}
-
-		const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
-		const edits = await this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
-		if (edits.length === 0) {
-			return;
-		}
-
-		if (editor.getModel().getVersionId() === modelVersionNow) {
-			const [first] = edits; // TODO@jrieken define how to pick the "one snippet edit";
-			performSnippetEdit(editor, first);
-		}
 	}
 
 	// --- from extension host process
@@ -205,7 +127,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorResolution.DISABLED
+			override: EditorResolution.EXCLUSIVE_ONLY
 		};
 
 		const input: IResourceEditorInput = {
@@ -213,11 +135,14 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, options.position));
+		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, this._configurationService, options.position));
 		if (!editor) {
 			return undefined;
 		}
-		return this._editorLocator.findTextEditorIdFor(editor);
+		// Composite editors are made up of many editors so we return the active one at the time of opening
+		const editorControl = editor.getControl();
+		const codeEditor = getCodeEditor(editorControl);
+		return codeEditor ? this._editorLocator.getIdOfCodeEditor(codeEditor) : undefined;
 	}
 
 	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
@@ -227,7 +152,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			await this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, columnToEditorGroup(this._editorGroupService, position));
+			}, columnToEditorGroup(this._editorGroupService, this._configurationService, position));
 			return;
 		}
 	}
@@ -236,7 +161,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const mainThreadEditor = this._editorLocator.getEditor(id);
 		if (mainThreadEditor) {
 			const editorPanes = this._editorService.visibleEditorPanes;
-			for (let editorPane of editorPanes) {
+			for (const editorPane of editorPanes) {
 				if (mainThreadEditor.matches(editorPane)) {
 					await editorPane.group.closeEditor(editorPane.input);
 					return;

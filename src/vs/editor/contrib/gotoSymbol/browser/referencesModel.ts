@@ -129,7 +129,7 @@ export class FileReferences implements IDisposable {
 		if (this._previews.size !== 0) {
 			return this;
 		}
-		for (let child of this.children) {
+		for (const child of this.children) {
 			if (this._previews.has(child.uri)) {
 				continue;
 			}
@@ -164,7 +164,7 @@ export class ReferencesModel implements IDisposable {
 		links.sort(ReferencesModel._compareReferences);
 
 		let current: FileReferences | undefined;
-		for (let link of links) {
+		for (const link of links) {
 			if (!current || !extUri.isEqual(current.uri, link.uri, true)) {
 				// new group
 				current = new FileReferences(this, link.uri);
@@ -218,11 +218,11 @@ export class ReferencesModel implements IDisposable {
 
 	nextOrPreviousReference(reference: OneReference, next: boolean): OneReference {
 
-		let { parent } = reference;
+		const { parent } = reference;
 
 		let idx = parent.children.indexOf(reference);
-		let childCount = parent.children.length;
-		let groupCount = parent.parent.groups.length;
+		const childCount = parent.children.length;
+		const groupCount = parent.parent.groups.length;
 
 		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 0) {
 			// cycling within one file

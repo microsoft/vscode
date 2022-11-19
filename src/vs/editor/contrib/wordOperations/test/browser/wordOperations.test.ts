@@ -16,8 +16,8 @@ import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorW
 import { createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('WordOperations', () => {
 
@@ -48,11 +48,13 @@ suite('WordOperations', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageConfigurationService: ILanguageConfigurationService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createCodeEditorServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	teardown(() => {
@@ -750,7 +752,7 @@ suite('WordOperations', () => {
 	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
 		const languageId = 'myTestMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '\"', close: '\"' }

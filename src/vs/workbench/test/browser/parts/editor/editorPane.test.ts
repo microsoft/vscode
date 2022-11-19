@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -505,7 +505,7 @@ suite('EditorPane', () => {
 		const testInput = new TrustRequiredTestInput();
 
 		await group.openEditor(testInput);
-		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredEditor.ID);
+		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredPlaceholderEditor.ID);
 
 		const getEditorPaneIdAsync = () => new Promise(resolve => {
 			disposables.add(editorService.onDidActiveEditorChange(() => {
@@ -518,7 +518,7 @@ suite('EditorPane', () => {
 		assert.strictEqual(await getEditorPaneIdAsync(), 'trustRequiredTestEditor');
 
 		workspaceTrustService.setWorkspaceTrust(false);
-		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredEditor.ID);
+		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredPlaceholderEditor.ID);
 
 		dispose(disposables);
 	});

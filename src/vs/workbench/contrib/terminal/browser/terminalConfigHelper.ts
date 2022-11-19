@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
@@ -71,7 +71,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	configFontIsMonospace(): boolean {
 		const fontSize = 15;
-		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		const fontFamily = this.config.fontFamily || EditorOptions.fontFamily.validate(this._configurationService.getValue<IEditorOptions>('editor').fontFamily);
 		const iRect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		const wRect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -138,10 +138,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
-				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
-				const scaledCellWidth = scaledCharWidth + Math.round(letterSpacing);
-				const actualCellWidth = scaledCellWidth / window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+				const deviceCharWidth = Math.floor(rect.width * window.devicePixelRatio);
+				const deviceCellWidth = deviceCharWidth + Math.round(letterSpacing);
+				const cssCellWidth = deviceCellWidth / window.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
 			}
 		}
 
@@ -155,7 +155,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	getFont(xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		let fontFamily = this.config.fontFamily || EditorOptions.fontFamily.validate(editorConfig.fontFamily);
 		let fontSize = this._clampInt(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
@@ -185,14 +185,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xtermCore) {
-			if (xtermCore._renderService && xtermCore._renderService.dimensions?.actualCellWidth && xtermCore._renderService.dimensions?.actualCellHeight) {
+			if (xtermCore._renderService && xtermCore._renderService.dimensions?.css.cell.width && xtermCore._renderService.dimensions?.css.cell.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._renderService.dimensions.actualCellHeight / lineHeight,
-					charWidth: xtermCore._renderService.dimensions.actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio
+					charHeight: xtermCore._renderService.dimensions.css.cell.height / lineHeight,
+					charWidth: xtermCore._renderService.dimensions.css.cell.width - Math.round(letterSpacing) / window.devicePixelRatio
 				};
 			}
 		}
@@ -244,7 +244,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					],
 					{
 						sticky: true,
-						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.GLOBAL },
+						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.APPLICATION },
 						onCancel: () => { }
 					}
 				);

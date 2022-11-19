@@ -11,7 +11,7 @@
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
-    "@vscode/test-electron": "2.1.0-beta.0",
+    "@vscode/test-electron": "2.1.4",
     "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",
     "node-fetch": "^2.6.7",
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@types/mkdirp": "^1.0.1",
-    "@types/mocha": "^8.2.0",
+    "@types/mocha": "^9.1.1",
     "@types/ncp": "2.0.1",
     "@types/node": "16.x",
     "@types/node-fetch": "^2.5.10",

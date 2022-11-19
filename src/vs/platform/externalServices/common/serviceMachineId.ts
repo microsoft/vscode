@@ -10,7 +10,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export async function getServiceMachineId(environmentService: IEnvironmentService, fileService: IFileService, storageService: IStorageService | undefined): Promise<string> {
-	let uuid: string | null = storageService ? storageService.get('storage.serviceMachineId', StorageScope.GLOBAL) || null : null;
+	let uuid: string | null = storageService ? storageService.get('storage.serviceMachineId', StorageScope.APPLICATION) || null : null;
 	if (uuid) {
 		return uuid;
 	}
@@ -30,8 +30,8 @@ export async function getServiceMachineId(environmentService: IEnvironmentServic
 			//noop
 		}
 	}
-	if (storageService) {
-		storageService.store('storage.serviceMachineId', uuid, StorageScope.GLOBAL, StorageTarget.MACHINE);
-	}
+
+	storageService?.store('storage.serviceMachineId', uuid, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
 	return uuid;
 }

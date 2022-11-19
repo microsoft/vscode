@@ -10,13 +10,12 @@ import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
-export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
+export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	/* ----- server setup ----- */
 
 	'host': { type: 'string', cat: 'o', args: 'ip-address', description: nls.localize('host', "The host name or IP address the server should listen to. If not set, defaults to 'localhost'.") },
 	'port': { type: 'string', cat: 'o', args: 'port | port range', description: nls.localize('port', "The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range (end inclusive) is selected.") },
-	'pick-port': { type: 'string', deprecationMessage: 'Use the range notation in \'port\' instead.' },
 	'socket-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('socket-path', "The path to a socket file for the server to listen to.") },
 	'connection-token': { type: 'string', cat: 'o', args: 'token', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
 	'connection-token-file': { type: 'string', cat: 'o', args: 'path', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token.") },
@@ -26,12 +25,12 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'print-ip-address': { type: 'boolean' },
 	'accept-server-license-terms': { type: 'boolean', cat: 'o', description: nls.localize('acceptLicenseTerms', "If set, the user accepts the server license terms and the server will be started without a user prompt.") },
 	'server-data-dir': { type: 'string', cat: 'o', description: nls.localize('serverDataDir', "Specifies the directory that server data is kept in.") },
-	'telemetry-level': { type: 'string', cat: 'o', args: 'level', description: nls.localize('telemetry-level', "Sets the initial telemetry level. Valid levels are: 'off', 'crash', 'error' and 'all'. If not specified, the server will await a connection before sending any telemetry. Setting this to 'off' is equivalent to --disable-telemetry") },
+	'telemetry-level': { type: 'string', cat: 'o', args: 'level', description: nls.localize('telemetry-level', "Sets the initial telemetry level. Valid levels are: 'off', 'crash', 'error' and 'all'. If not specified, the server will send telemetry until a client connects, it will then use the clients telemetry setting. Setting this to 'off' is equivalent to --disable-telemetry") },
 
 	/* ----- vs code options ---	-- */
 
 	'user-data-dir': OPTIONS['user-data-dir'],
-	'driver': OPTIONS['driver'],
+	'enable-smoke-test-driver': OPTIONS['enable-smoke-test-driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
 	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
 	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
@@ -81,6 +80,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	'help': OPTIONS['help'],
 	'version': OPTIONS['version'],
+	'locate-shell-integration-path': OPTIONS['locate-shell-integration-path'],
 
 	'compatibility': { type: 'string' },
 
@@ -92,8 +92,10 @@ export interface ServerParsedArgs {
 	/* ----- server setup ----- */
 
 	host?: string;
+	/**
+	 * A port or a port range
+	 */
 	port?: string;
-	'pick-port'?: string;
 	'socket-path'?: string;
 
 	/**
@@ -140,12 +142,12 @@ export interface ServerParsedArgs {
 
 	'user-data-dir'?: string;
 
-	driver?: string;
+	'enable-smoke-test-driver'?: boolean;
 
 	'disable-telemetry'?: boolean;
 	'file-watcher-polling'?: string;
 
-	'log'?: string;
+	'log'?: string[];
 	'logsPath'?: string;
 
 	'force-disable-user-env'?: boolean;
@@ -193,6 +195,7 @@ export interface ServerParsedArgs {
 	/* ----- server cli ----- */
 	help: boolean;
 	version: boolean;
+	'locate-shell-integration-path'?: string;
 
 	compatibility: string;
 

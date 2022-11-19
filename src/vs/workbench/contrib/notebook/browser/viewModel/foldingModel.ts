@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FoldingLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
 import { INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -15,6 +16,10 @@ import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/c
 type RegionFilter = (r: FoldingRegion) => boolean;
 type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
 
+const foldingRangeLimit: FoldingLimitReporter = {
+	limit: 5000,
+	report: () => { }
+};
 
 export class FoldingModel implements IDisposable {
 	private _viewModel: INotebookViewModel | null = null;
@@ -200,7 +205,7 @@ export class FoldingModel implements IDisposable {
 			};
 		}).filter(range => range.start !== range.end);
 
-		const newRegions = sanitizeRanges(rawFoldingRanges, 5000);
+		const newRegions = sanitizeRanges(rawFoldingRanges, foldingRangeLimit);
 
 		// restore collased state
 		let i = 0;

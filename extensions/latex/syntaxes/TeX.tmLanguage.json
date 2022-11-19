@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/b98c2d4911652824fc990f4b26c9c30be59b78a2",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/8776a0856846b63d9e5765e8ec42a8a2f4f52219",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -167,7 +167,7 @@
 					"name": "punctuation.math.bracket.pair.tex"
 				},
 				{
-					"match": "\\\\(left|right|((big|bigg|Big|Bigg)[lr]?))([\\(\\[\\<\\>\\]\\)\\.\\|]|\\\\[{}|]|\\\\[lr]?[Vv]ert|\\\\[lr]angle|\\\\\\|)",
+					"match": "\\\\(left|right|((big|bigg|Big|Bigg)[lr]?))([\\(\\[\\<\\>\\]\\)\\.\\|]|\\\\[{}|]|\\\\[lr]?[Vv]ert|\\\\[lr]angle)",
 					"name": "punctuation.math.bracket.pair.big.tex"
 				},
 				{

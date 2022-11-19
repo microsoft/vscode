@@ -30,8 +30,6 @@ import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLi
 import * as nls from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class LinkDetector extends Disposable implements IEditorContribution {
 
@@ -163,14 +161,16 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			}
 		}
 
-		const decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+		this.editor.changeDecorations((changeAccessor) => {
+			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const occurence = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurence.decorationId] = occurence;
-		}
+			this.currentOccurrences = {};
+			this.activeLinkDecorationId = null;
+			for (let i = 0, len = decorations.length; i < len; i++) {
+				const occurence = new LinkOccurrence(links[i], decorations[i]);
+				this.currentOccurrences[occurence.decorationId] = occurence;
+			}
+		});
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
@@ -246,7 +246,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
 
 		}, err => {
 			const messageOrError =
@@ -423,10 +423,3 @@ class OpenLinkAction extends EditorAction {
 
 registerEditorContribution(LinkDetector.ID, LinkDetector);
 registerEditorAction(OpenLinkAction);
-
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
-	}
-});

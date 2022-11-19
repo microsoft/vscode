@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as codesign from 'electron-osx-sign';
 import * as path from 'path';
 import * as util from '../lib/util';
@@ -31,6 +29,7 @@ async function main(): Promise<void> {
 	const helperAppBaseName = product.nameShort;
 	const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
 	const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
+	const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
 
 	const defaultOpts: codesign.SignOptions = {
@@ -52,7 +51,8 @@ async function main(): Promise<void> {
 		// TODO(deepak1556): Incorrectly declared type in electron-osx-sign
 		ignore: (filePath: string) => {
 			return filePath.includes(gpuHelperAppName) ||
-				filePath.includes(rendererHelperAppName);
+				filePath.includes(rendererHelperAppName) ||
+				filePath.includes(pluginHelperAppName);
 		}
 	};
 
@@ -68,6 +68,13 @@ async function main(): Promise<void> {
 		app: path.join(appFrameworkPath, rendererHelperAppName),
 		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
 		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+	};
+
+	const pluginHelperOpts: codesign.SignOptions = {
+		...defaultOpts,
+		app: path.join(appFrameworkPath, pluginHelperAppName),
+		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
+		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
 	};
 
 	// Only overwrite plist entries for x64 and arm64 builds,
@@ -98,6 +105,7 @@ async function main(): Promise<void> {
 
 	await codesign.signAsync(gpuHelperOpts);
 	await codesign.signAsync(rendererHelperOpts);
+	await codesign.signAsync(pluginHelperOpts);
 	await codesign.signAsync(appOpts as any);
 }
 

@@ -26,13 +26,13 @@ export namespace TestingContextKeys {
 		[TestRunProfileBitset.HasConfigurable]: hasConfigurableProfile,
 	};
 
-	export const hasAnyResults = new RawContextKey('testing.hasAnyResults', false);
-	export const viewMode = new RawContextKey('testing.explorerViewMode', TestExplorerViewMode.List);
-	export const viewSorting = new RawContextKey('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
-	export const isRunning = new RawContextKey('testing.isRunning', false);
-	export const isInPeek = new RawContextKey('testing.isInPeek', true);
-	export const isPeekVisible = new RawContextKey('testing.isPeekVisible', false);
-	export const autoRun = new RawContextKey('testing.autoRun', false);
+	export const hasAnyResults = new RawContextKey<boolean>('testing.hasAnyResults', false);
+	export const viewMode = new RawContextKey<TestExplorerViewMode>('testing.explorerViewMode', TestExplorerViewMode.List);
+	export const viewSorting = new RawContextKey<TestExplorerViewSorting>('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
+	export const isRunning = new RawContextKey<boolean>('testing.isRunning', false);
+	export const isInPeek = new RawContextKey<boolean>('testing.isInPeek', true);
+	export const isPeekVisible = new RawContextKey<boolean>('testing.isPeekVisible', false);
+	export const autoRun = new RawContextKey<boolean>('testing.autoRun', false);
 
 	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {
 		type: 'string',

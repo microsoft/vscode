@@ -43,17 +43,20 @@ class SelectionAnchorController implements IEditorContribution {
 	setSelectionAnchor(): void {
 		if (this.editor.hasModel()) {
 			const position = this.editor.getPosition();
-			const previousDecorations = this.decorationId ? [this.decorationId] : [];
-			const newDecorationId = this.editor.deltaDecorations(previousDecorations, [{
-				range: Selection.fromPositions(position, position),
-				options: {
-					description: 'selection-anchor',
-					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					hoverMessage: new MarkdownString().appendText(localize('selectionAnchor', "Selection Anchor")),
-					className: 'selection-anchor'
+			this.editor.changeDecorations((accessor) => {
+				if (this.decorationId) {
+					accessor.removeDecoration(this.decorationId);
 				}
-			}]);
-			this.decorationId = newDecorationId[0];
+				this.decorationId = accessor.addDecoration(
+					Selection.fromPositions(position, position),
+					{
+						description: 'selection-anchor',
+						stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+						hoverMessage: new MarkdownString().appendText(localize('selectionAnchor', "Selection Anchor")),
+						className: 'selection-anchor'
+					}
+				);
+			});
 			this.selectionAnchorSetContextKey.set(!!this.decorationId);
 			alert(localize('anchorSet', "Anchor set at {0}:{1}", position.lineNumber, position.column));
 		}
@@ -81,8 +84,11 @@ class SelectionAnchorController implements IEditorContribution {
 
 	cancelSelectionAnchor(): void {
 		if (this.decorationId) {
-			this.editor.deltaDecorations([this.decorationId], []);
-			this.decorationId = undefined;
+			const decorationId = this.decorationId;
+			this.editor.changeDecorations((accessor) => {
+				accessor.removeDecoration(decorationId);
+				this.decorationId = undefined;
+			});
 			this.selectionAnchorSetContextKey.set(false);
 		}
 	}

@@ -8,7 +8,7 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -44,7 +44,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -56,7 +56,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -68,7 +68,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -80,7 +80,7 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -116,7 +116,7 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -152,7 +152,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -164,7 +164,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -176,7 +176,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -188,7 +188,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -200,7 +200,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -212,7 +212,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.quoted.single.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.quoted.single.yaml: #0000FF"
+			"hc_light": "string.quoted.single.yaml: #0F4A85"
 		}
 	},
 	{
@@ -236,7 +236,7 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -272,7 +272,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.unquoted.plain.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85"
 		}
 	},
 	{
@@ -296,7 +296,7 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -332,7 +332,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.unquoted.plain.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85"
 		}
 	}
 ]

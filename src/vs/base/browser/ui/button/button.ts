@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
+import { localize } from 'vs/nls';
 import 'vs/css!./button';
 
 export interface IButtonOptions extends IButtonStyles {
@@ -23,20 +23,27 @@ export interface IButtonOptions extends IButtonStyles {
 	readonly secondary?: boolean;
 }
 
+
 export interface IButtonStyles {
-	buttonBackground?: Color;
-	buttonHoverBackground?: Color;
-	buttonForeground?: Color;
-	buttonSecondaryBackground?: Color;
-	buttonSecondaryHoverBackground?: Color;
-	buttonSecondaryForeground?: Color;
-	buttonBorder?: Color;
+	readonly buttonBackground: string | undefined;
+	readonly buttonHoverBackground: string | undefined;
+	readonly buttonForeground: string | undefined;
+	readonly buttonSeparator: string | undefined;
+	readonly buttonSecondaryBackground: string | undefined;
+	readonly buttonSecondaryHoverBackground: string | undefined;
+	readonly buttonSecondaryForeground: string | undefined;
+	readonly buttonBorder: string | undefined;
 }
 
-const defaultOptions: IButtonStyles = {
-	buttonBackground: Color.fromHex('#0E639C'),
-	buttonHoverBackground: Color.fromHex('#006BB3'),
-	buttonForeground: Color.white
+export const unthemedButtonStyles: IButtonStyles = {
+	buttonBackground: '#0E639C',
+	buttonHoverBackground: '#006BB3',
+	buttonSeparator: Color.white.toString(),
+	buttonForeground: Color.white.toString(),
+	buttonBorder: undefined,
+	buttonSecondaryBackground: undefined,
+	buttonSecondaryForeground: undefined,
+	buttonSecondaryHoverBackground: undefined
 };
 
 export interface IButton extends IDisposable {
@@ -45,7 +52,6 @@ export interface IButton extends IDisposable {
 	label: string;
 	icon: CSSIcon;
 	enabled: boolean;
-	style(styles: IButtonStyles): void;
 	focus(): void;
 	hasFocus(): boolean;
 }
@@ -59,39 +65,30 @@ export class Button extends Disposable implements IButton {
 	protected _element: HTMLElement;
 	protected options: IButtonOptions;
 
-	private buttonBackground: Color | undefined;
-	private buttonHoverBackground: Color | undefined;
-	private buttonForeground: Color | undefined;
-	private buttonSecondaryBackground: Color | undefined;
-	private buttonSecondaryHoverBackground: Color | undefined;
-	private buttonSecondaryForeground: Color | undefined;
-	private buttonBorder: Color | undefined;
-
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
 
 	private focusTracker: IFocusTracker;
 
-	constructor(container: HTMLElement, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options: IButtonOptions) {
 		super();
 
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOptions, false);
-
-		this.buttonForeground = this.options.buttonForeground;
-		this.buttonBackground = this.options.buttonBackground;
-		this.buttonHoverBackground = this.options.buttonHoverBackground;
-
-		this.buttonSecondaryForeground = this.options.buttonSecondaryForeground;
-		this.buttonSecondaryBackground = this.options.buttonSecondaryBackground;
-		this.buttonSecondaryHoverBackground = this.options.buttonSecondaryHoverBackground;
-
-		this.buttonBorder = this.options.buttonBorder;
+		this.options = options;
 
 		this._element = document.createElement('a');
 		this._element.classList.add('monaco-button');
 		this._element.tabIndex = 0;
 		this._element.setAttribute('role', 'button');
+
+		const background = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
+		const foreground = options.secondary ? options.buttonSecondaryForeground : options.buttonForeground;
+		const border = options.buttonBorder;
+
+		this._element.style.color = foreground || '';
+		this._element.style.backgroundColor = background || '';
+		if (border) {
+			this._element.style.border = `1px solid ${border}`;
+		}
 
 		container.appendChild(this._element);
 
@@ -126,65 +123,29 @@ export class Button extends Disposable implements IButton {
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
 			if (!this._element.classList.contains('disabled')) {
-				this.setHoverBackground();
+				this.updateBackground(true);
 			}
 		}));
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OUT, e => {
-			this.applyStyles(); // restore standard styles
+			this.updateBackground(false); // restore standard styles
 		}));
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
-
-		this.applyStyles();
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateBackground(true); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateBackground(false); } }));
 	}
 
-	private setHoverBackground(): void {
-		let hoverBackground;
+	private updateBackground(hover: boolean): void {
+		let background;
 		if (this.options.secondary) {
-			hoverBackground = this.buttonSecondaryHoverBackground ? this.buttonSecondaryHoverBackground.toString() : null;
+			background = hover ? this.options.buttonSecondaryHoverBackground : this.options.buttonSecondaryBackground;
 		} else {
-			hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+			background = hover ? this.options.buttonHoverBackground : this.options.buttonBackground;
 		}
-		if (hoverBackground) {
-			this._element.style.backgroundColor = hoverBackground;
-		}
-	}
-
-	style(styles: IButtonStyles): void {
-		this.buttonForeground = styles.buttonForeground;
-		this.buttonBackground = styles.buttonBackground;
-		this.buttonHoverBackground = styles.buttonHoverBackground;
-		this.buttonSecondaryForeground = styles.buttonSecondaryForeground;
-		this.buttonSecondaryBackground = styles.buttonSecondaryBackground;
-		this.buttonSecondaryHoverBackground = styles.buttonSecondaryHoverBackground;
-		this.buttonBorder = styles.buttonBorder;
-
-		this.applyStyles();
-	}
-
-	private applyStyles(): void {
-		if (this._element) {
-			let background, foreground;
-			if (this.options.secondary) {
-				foreground = this.buttonSecondaryForeground ? this.buttonSecondaryForeground.toString() : '';
-				background = this.buttonSecondaryBackground ? this.buttonSecondaryBackground.toString() : '';
-			} else {
-				foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
-				background = this.buttonBackground ? this.buttonBackground.toString() : '';
-			}
-
-			const border = this.buttonBorder ? this.buttonBorder.toString() : '';
-
-			this._element.style.color = foreground;
+		if (background) {
 			this._element.style.backgroundColor = background;
-
-			this._element.style.borderWidth = border ? '1px' : '';
-			this._element.style.borderStyle = border ? 'solid' : '';
-			this._element.style.borderColor = border;
 		}
 	}
 
@@ -195,7 +156,26 @@ export class Button extends Disposable implements IButton {
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
+			const content: HTMLSpanElement[] = [];
+			for (let segment of renderLabelWithIcons(value)) {
+				if (typeof (segment) === 'string') {
+					segment = segment.trim();
+
+					// Ignore empty segment
+					if (segment === '') {
+						continue;
+					}
+
+					// Convert string segments to <span> nodes
+					const node = document.createElement('span');
+					node.textContent = segment;
+					content.push(node);
+				} else {
+					content.push(segment);
+				}
+			}
+
+			reset(this._element, ...content);
 		} else {
 			this._element.textContent = value;
 		}
@@ -238,6 +218,7 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly contextMenuProvider: IContextMenuProvider;
 	readonly actions: IAction[];
 	readonly actionRunner?: IActionRunner;
+	readonly addPrimaryActionToDropdown?: boolean;
 }
 
 export class ButtonWithDropdown extends Disposable implements IButton {
@@ -245,6 +226,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	private readonly button: Button;
 	private readonly action: Action;
 	private readonly dropdownButton: Button;
+	private readonly separatorContainer: HTMLDivElement;
+	private readonly separator: HTMLDivElement;
 
 	readonly element: HTMLElement;
 	private readonly _onDidClick = this._register(new Emitter<Event | undefined>());
@@ -261,13 +244,34 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
 
+		this.separatorContainer = document.createElement('div');
+		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
+
+		this.separator = document.createElement('div');
+		this.separatorContainer.appendChild(this.separator);
+		this.element.appendChild(this.separatorContainer);
+
+		// Separator styles
+		const border = options.buttonBorder;
+		if (border) {
+			this.separatorContainer.style.borderTop = '1px solid ' + border;
+			this.separatorContainer.style.borderBottom = '1px solid ' + border;
+		}
+
+		const buttonBackground = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
+		this.separatorContainer.style.backgroundColor = buttonBackground ?? '';
+		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
+
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
+		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
+		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
+		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
-				getActions: () => [this.action, ...options.actions],
+				getActions: () => options.addPrimaryActionToDropdown === false ? [...options.actions] : [this.action, ...options.actions],
 				actionRunner: options.actionRunner,
 				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
 			});
@@ -287,15 +291,12 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	set enabled(enabled: boolean) {
 		this.button.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
+
+		this.element.classList.toggle('disabled', !enabled);
 	}
 
 	get enabled(): boolean {
 		return this.button.enabled;
-	}
-
-	style(styles: IButtonStyles): void {
-		this.button.style(styles);
-		this.dropdownButton.style(styles);
 	}
 
 	focus(): void {
@@ -312,19 +313,17 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 	private _labelElement: HTMLElement;
 	private _descriptionElement: HTMLElement;
 
-	constructor(container: HTMLElement, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options: IButtonOptions) {
 		super(container, options);
 
 		this._element.classList.add('monaco-description-button');
 
 		this._labelElement = document.createElement('div');
 		this._labelElement.classList.add('monaco-button-label');
-		this._labelElement.tabIndex = -1;
 		this._element.appendChild(this._labelElement);
 
 		this._descriptionElement = document.createElement('div');
 		this._descriptionElement.classList.add('monaco-button-description');
-		this._descriptionElement.tabIndex = -1;
 		this._element.appendChild(this._descriptionElement);
 	}
 
@@ -363,13 +362,13 @@ export class ButtonBar extends Disposable {
 		return this._buttons;
 	}
 
-	addButton(options?: IButtonOptions): IButton {
+	addButton(options: IButtonOptions): IButton {
 		const button = this._register(new Button(this.container, options));
 		this.pushButton(button);
 		return button;
 	}
 
-	addButtonWithDescription(options?: IButtonOptions): IButtonWithDescription {
+	addButtonWithDescription(options: IButtonOptions): IButtonWithDescription {
 		const button = this._register(new ButtonWithDescription(this.container, options));
 		this.pushButton(button);
 		return button;

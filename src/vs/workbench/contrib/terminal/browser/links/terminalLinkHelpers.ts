@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBufferCellPosition, IBuffer } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
@@ -122,6 +122,10 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 }
 
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
 		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
@@ -133,6 +137,7 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 	}
 	return content;
 }
+
 
 export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
 	if (position.y < range.start.y || position.y > range.end.y) {

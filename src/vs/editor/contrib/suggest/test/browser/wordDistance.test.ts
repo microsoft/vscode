@@ -25,12 +25,12 @@ import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('suggest, word distance', function () {
 
 	let distance: WordDistance;
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(async function () {
 		const languageId = 'bracketMode';
@@ -38,7 +38,8 @@ suite('suggest, word distance', function () {
 		disposables.clear();
 		const instantiationService = createCodeEditorServices(disposables);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -52,14 +53,14 @@ suite('suggest, word distance', function () {
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
 
-		let modelService = new class extends mock<IModelService>() {
+		const modelService = new class extends mock<IModelService>() {
 			override onModelRemoved = Event.None;
 			override getModel(uri: URI) {
 				return uri.toString() === model.uri.toString() ? model : null;
 			}
 		};
 
-		let service = new class extends EditorWorkerService {
+		const service = new class extends EditorWorkerService {
 
 			private _worker = new EditorSimpleWorker(new class extends mock<IEditorWorkerHost>() { }, null);
 

@@ -87,7 +87,7 @@ class CodeLensContentWidget implements IContentWidget {
 	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
-		let children: HTMLElement[] = [];
+		const children: HTMLElement[] = [];
 		let hasSymbol = false;
 		for (let i = 0; i < lenses.length; i++) {
 			const lens = lenses[i];
@@ -176,7 +176,7 @@ export class CodeLensHelper {
 	}
 
 	commit(changeAccessor: IModelDecorationsChangeAccessor): void {
-		let resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
+		const resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
 		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
 			this._addDecorationsCallbacks[i](resultingDecorations[i]);
 		}
@@ -212,7 +212,7 @@ export class CodeLensWidget {
 		// check if there is already something to render
 		this._decorationIds = [];
 		let range: Range | undefined;
-		let lenses: CodeLens[] = [];
+		const lenses: CodeLens[] = [];
 
 		this._data.forEach((codeLensData, i) => {
 
@@ -254,9 +254,7 @@ export class CodeLensWidget {
 	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: IViewZoneChangeAccessor): void {
 		this._decorationIds.forEach(helper.removeDecoration, helper);
 		this._decorationIds = [];
-		if (viewZoneChangeAccessor) {
-			viewZoneChangeAccessor.removeZone(this._viewZoneId);
-		}
+		viewZoneChangeAccessor?.removeZone(this._viewZoneId);
 		if (this._contentWidget) {
 			this._editor.removeContentWidget(this._contentWidget);
 			this._contentWidget = undefined;

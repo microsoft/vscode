@@ -9,7 +9,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -30,14 +30,14 @@ interface CellDragEvent {
 	dragPosRatio: number;
 }
 
-export class CellDragAndDropPart extends CellPart {
+export class CellDragAndDropPart extends CellContentPart {
 	constructor(
 		private readonly container: HTMLElement
 	) {
 		super();
 	}
 
-	override didRenderCell(element: ICellViewModel): void {
+	protected override didRenderCell(element: ICellViewModel): void {
 		this.update(element);
 	}
 
@@ -78,7 +78,7 @@ export class CellDragAndDropController extends Disposable {
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
-		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
+		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void, useCapture = false) => {
 			this._register(DOM.addDisposableListener(
 				notebookEditor.getDomNode(),
 				eventType,
@@ -87,14 +87,20 @@ export class CellDragAndDropController extends Disposable {
 					if (cellDragEvent) {
 						handler(cellDragEvent);
 					}
-				}));
+				}, useCapture));
 		};
 
 		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
 			this.onCellDragover(event);
-		});
+		}, true);
 		addCellDragListener(DOM.EventType.DROP, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
 			this.onCellDrop(event);
 		});

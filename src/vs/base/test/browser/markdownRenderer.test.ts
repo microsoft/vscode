@@ -68,7 +68,7 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('Code block renderer', () => {
-		const simpleCodeBlockRenderer = (code: string): Promise<HTMLElement> => {
+		const simpleCodeBlockRenderer = (lang: string, code: string): Promise<HTMLElement> => {
 			const element = document.createElement('code');
 			element.textContent = code;
 			return Promise.resolve(element);
@@ -92,7 +92,7 @@ suite('MarkdownRenderer', () => {
 					codeBlockRenderer: simpleCodeBlockRenderer
 				});
 				result.dispose();
-				setTimeout(resolve, 250);
+				setTimeout(resolve, 50);
 			});
 		});
 
@@ -111,9 +111,22 @@ suite('MarkdownRenderer', () => {
 				setTimeout(() => {
 					result.dispose();
 					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 250);
-				}, 250);
+					setTimeout(resolve, 50);
+				}, 50);
 			});
+		});
+
+		test('Code blocks should use leading language id (#157793)', async () => {
+			const markdown = { value: '```js some other stuff\n1 + 1;\n```' };
+			const lang = await new Promise<string>(resolve => {
+				renderMarkdown(markdown, {
+					codeBlockRenderer: async (lang, value) => {
+						resolve(lang);
+						return simpleCodeBlockRenderer(lang, value);
+					}
+				});
+			});
+			assert.strictEqual(lang, 'js');
 		});
 	});
 
@@ -123,7 +136,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -131,7 +144,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -139,7 +152,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -147,8 +160,8 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
-			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			const result: HTMLElement = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -158,7 +171,7 @@ suite('MarkdownRenderer', () => {
 |--------|----------------------|
 | $(zap) | [$(zap)-link](#link) |`);
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<table>
 <thead>
 <tr>
@@ -168,10 +181,18 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
+		});
+
+		test('render icon in <a> without href (#152170)', () => {
+			const mds = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
+			mds.appendMarkdown(`<a>$(sync)</a>`);
+
+			const result: HTMLElement = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-sync"></span></p>`);
 		});
 	});
 
@@ -181,7 +202,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -189,7 +210,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 	});
@@ -209,6 +230,25 @@ suite('MarkdownRenderer', () => {
 		assert.ok(data);
 		assert.strictEqual(data.script, 'echo');
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
+	});
+
+	test('Should not render command links by default', () => {
+		const md = new MarkdownString(`[command1](command:doFoo) <a href="command:doFoo">command2</a>`, {
+			supportHtml: true
+		});
+
+		const result: HTMLElement = renderMarkdown(md).element;
+		assert.strictEqual(result.innerHTML, `<p>command1 command2</p>`);
+	});
+
+	test('Should render command links in trusted strings', () => {
+		const md = new MarkdownString(`[command1](command:doFoo) <a href="command:doFoo">command2</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+
+		const result: HTMLElement = renderMarkdown(md).element;
+		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {

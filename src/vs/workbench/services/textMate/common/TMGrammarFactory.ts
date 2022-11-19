@@ -73,7 +73,7 @@ export class TMGrammarFactory extends Disposable {
 			this._scopeRegistry.register(validGrammar);
 
 			if (validGrammar.injectTo) {
-				for (let injectScope of validGrammar.injectTo) {
+				for (const injectScope of validGrammar.injectTo) {
 					let injections = this._injections[injectScope];
 					if (!injections) {
 						this._injections[injectScope] = injections = [];
@@ -82,7 +82,7 @@ export class TMGrammarFactory extends Disposable {
 				}
 
 				if (validGrammar.embeddedLanguages) {
-					for (let injectScope of validGrammar.injectTo) {
+					for (const injectScope of validGrammar.injectTo) {
 						let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[injectScope];
 						if (!injectedEmbeddedLanguages) {
 							this._injectedEmbeddedLanguages[injectScope] = injectedEmbeddedLanguages = [];
@@ -123,7 +123,7 @@ export class TMGrammarFactory extends Disposable {
 			throw new Error(missingTMGrammarErrorMessage);
 		}
 
-		let embeddedLanguages = grammarDefinition.embeddedLanguages;
+		const embeddedLanguages = grammarDefinition.embeddedLanguages;
 		if (this._injectedEmbeddedLanguages[scopeName]) {
 			const injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
 			for (const injected of injectedEmbeddedLanguages) {
@@ -138,7 +138,16 @@ export class TMGrammarFactory extends Disposable {
 		let grammar: IGrammar | null;
 
 		try {
-			grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, encodedLanguageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
+			grammar = await this._grammarRegistry.loadGrammarWithConfiguration(
+				scopeName,
+				encodedLanguageId,
+				{
+					embeddedLanguages,
+					tokenTypes: <any>grammarDefinition.tokenTypes,
+					balancedBracketSelectors: grammarDefinition.balancedBracketSelectors,
+					unbalancedBracketSelectors: grammarDefinition.unbalancedBracketSelectors,
+				}
+			);
 		} catch (err) {
 			if (err.message && err.message.startsWith('No grammar provided for')) {
 				// No TM grammar defined

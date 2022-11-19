@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 #
@@ -12,7 +12,7 @@ realdir() {
 	echo "$( cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"
 }
 
-ROOT"$(dirname "$(dirname "$(realdir "$0")")")"
+ROOT="$(dirname "$(dirname "$(realdir "$0")")")"
 
 APP_NAME="@@APPNAME@@"
 VERSION="@@VERSION@@"

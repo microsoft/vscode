@@ -13,25 +13,26 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IME } from 'vs/base/common/ime';
 
 interface CurrentChord {
 	keypress: string;
 	label: string | null;
 }
 
-const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
+const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: undefined;
 
-	protected readonly _onDidUpdateKeybindings: Emitter<IKeybindingEvent> = this._register(new Emitter<IKeybindingEvent>());
-	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
+	protected readonly _onDidUpdateKeybindings: Emitter<void> = this._register(new Emitter<void>());
+	get onDidUpdateKeybindings(): Event<void> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
@@ -125,6 +126,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
+		this._log(`/ Soft dispatching keyboard event`);
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
@@ -133,6 +135,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const [firstPart,] = keybinding.getDispatchParts();
 		if (firstPart === null) {
 			// cannot be dispatched, probably only modifier keys
+			this._log(`\\ Keyboard event cannot be dispatched`);
 			return null;
 		}
 
@@ -162,6 +165,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 
 		}, 500);
+		IME.disable();
 	}
 
 	private _leaveChordMode(): void {
@@ -171,6 +175,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 		this._currentChordChecker.cancel();
 		this._currentChord = null;
+		IME.enable();
 	}
 
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
@@ -276,11 +281,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
 			this._enterChordMode(firstPart, keypressLabel);
+			this._log(`+ Entering chord mode...`);
 			return shouldPreventDefault;
 		}
 
 		if (this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
+				this._log(`+ Leaving chord mode: Nothing bound to "${this._currentChord.label} ${keypressLabel}".`);
 				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 				shouldPreventDefault = true;
 			}
@@ -292,6 +299,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
+			this._log(`+ Invoking command ${resolveResult.commandId}.`);
 			if (typeof resolveResult.commandArgs === 'undefined') {
 				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
 			} else {

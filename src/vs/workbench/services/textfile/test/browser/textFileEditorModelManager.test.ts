@@ -10,7 +10,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorM
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { timeout } from 'vs/base/common/async';
@@ -136,7 +136,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		await manager.resolve(resource);
 
 		let didResolve = false;
-		let onDidResolve = new Promise<void>(resolve => {
+		const onDidResolve = new Promise<void>(resolve => {
 			manager.onDidResolve(({ model }) => {
 				if (model.resource.toString() === resource.toString()) {
 					didResolve = true;
@@ -386,7 +386,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.updateTextEditorModel(createTextBufferFactory('make dirty'));
 
-		let canDisposePromise = manager.canDispose(model as TextFileEditorModel);
+		const canDisposePromise = manager.canDispose(model as TextFileEditorModel);
 		assert.ok(canDisposePromise instanceof Promise);
 
 		let canDispose = false;
@@ -401,15 +401,16 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		assert.strictEqual(canDispose, true);
 
-		let canDispose2 = manager.canDispose(model as TextFileEditorModel);
+		const canDispose2 = manager.canDispose(model as TextFileEditorModel);
 		assert.strictEqual(canDispose2, true);
 
 		manager.dispose();
 	});
 
 	test('language', async function () {
+
 		const languageId = 'text-file-model-manager-test';
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -425,6 +426,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		model.dispose();
 		manager.dispose();
+		registration.dispose();
 	});
 
 	test('file change events trigger reload (on a resolved model)', async () => {
@@ -434,7 +436,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		await manager.resolve(resource);
 
 		let didResolve = false;
-		let onDidResolve = new Promise<void>(resolve => {
+		const onDidResolve = new Promise<void>(resolve => {
 			manager.onDidResolve(({ model }) => {
 				if (model.resource.toString() === resource.toString()) {
 					didResolve = true;
@@ -457,7 +459,7 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		let didResolve = false;
 		let resolvedCounter = 0;
-		let onDidResolve = new Promise<void>(resolve => {
+		const onDidResolve = new Promise<void>(resolve => {
 			manager.onDidResolve(({ model }) => {
 				if (model.resource.toString() === resource.toString()) {
 					resolvedCounter++;

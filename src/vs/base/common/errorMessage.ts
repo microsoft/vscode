@@ -84,12 +84,8 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 }
 
 
-export interface IErrorOptions {
-	actions?: readonly IAction[];
-}
-
-export interface IErrorWithActions {
-	actions?: readonly IAction[];
+export interface IErrorWithActions extends Error {
+	actions: IAction[];
 }
 
 export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
@@ -98,12 +94,15 @@ export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
 	return candidate instanceof Error && Array.isArray(candidate.actions);
 }
 
-export function createErrorWithActions(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
-	const result = new Error(message);
-
-	if (options.actions) {
-		(result as IErrorWithActions).actions = options.actions;
+export function createErrorWithActions(messageOrError: string | Error, actions: IAction[]): IErrorWithActions {
+	let error: IErrorWithActions;
+	if (typeof messageOrError === 'string') {
+		error = new Error(messageOrError) as IErrorWithActions;
+	} else {
+		error = messageOrError as IErrorWithActions;
 	}
 
-	return result;
+	error.actions = actions;
+
+	return error;
 }

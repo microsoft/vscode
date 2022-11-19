@@ -49,10 +49,11 @@ export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathC
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 export const lineAndColumnClause = [
+	'(([^:\\s\\(\\)<>\'\"\\[\\]]*) ((\\d+))(:(\\d+)))', // (file path) 336:9 [see #140780]
 	'((\\S*)[\'"], line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*)[\'"],((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
-	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
+	'((\\S*):\\s?line ((\\d+)(, col(?:umn)? (\\d+))?))', // (file path):line 8, column 13, (file path): line 8, col 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
@@ -66,6 +67,12 @@ export const lineAndColumnClauseGroupCount = 6;
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
+
+	// This was chosen as a reasonable maximum line length given the tradeoff between performance
+	// and how likely it is to encounter such a large line length. Some useful reference points:
+	// - Window old max length: 260 ($MAX_PATH)
+	// - Linux max length: 4096 ($PATH_MAX)
+	readonly maxLinkLength = 500;
 
 	constructor(
 		readonly xterm: Terminal,

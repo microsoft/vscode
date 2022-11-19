@@ -6,8 +6,8 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/browser/blockCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,8 @@ function _testCommentCommand(lines: string[], selection: Selection, commandFacto
 	const languageId = 'commentMode';
 	const prepare = (accessor: ServicesAccessor, disposables: DisposableStore) => {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		const languageService = accessor.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			comments: { lineComment: '!@#', blockComment: ['<0', '0>'] }
 		}));

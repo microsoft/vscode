@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
-import * as nls from 'vscode-nls';
 import { Branch, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-
-const localize = nls.loadMessageBundle();
 
 class CheckoutStatusBar {
 
@@ -24,12 +21,13 @@ class CheckoutStatusBar {
 
 	get command(): Command | undefined {
 		const rebasing = !!this.repository.rebaseCommit;
-		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
+		const isBranchProtected = this.repository.isBranchProtected();
+		const label = `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
 
 		return {
 			command: 'git.checkout',
-			tooltip: localize('checkout', "Checkout branch/tag..."),
-			title,
+			tooltip: l10n.t('{0}, Checkout branch/tag...', label),
+			title: `${isBranchProtected ? '$(lock)' : '$(git-branch)'} ${label}`,
 			arguments: [this.repository.sourceControl]
 		};
 	}
@@ -121,8 +119,8 @@ class SyncStatusBar {
 			}
 
 			const tooltip = this.state.remoteSourcePublishers.length === 1
-				? localize('publish to', "Publish to {0}", this.state.remoteSourcePublishers[0].name)
-				: localize('publish to...', "Publish to...");
+				? l10n.t('Publish to {0}', this.state.remoteSourcePublishers[0].name)
+				: l10n.t('Publish to...');
 
 			return {
 				command: 'git.publish',
@@ -144,15 +142,12 @@ class SyncStatusBar {
 					text += this.repository.syncLabel;
 				}
 
-				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
-				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
+				command = 'git.sync';
 				tooltip = this.repository.syncTooltip;
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
-				tooltip = localize('publish branch', "Publish Branch");
+				tooltip = l10n.t('Publish Branch');
 			}
 		} else {
 			command = '';
@@ -162,7 +157,7 @@ class SyncStatusBar {
 		if (this.state.isSyncRunning) {
 			icon = '$(sync~spin)';
 			command = '';
-			tooltip = localize('syncing changes', "Synchronizing Changes...");
+			tooltip = l10n.t('Synchronizing Changes...');
 		}
 
 		return {

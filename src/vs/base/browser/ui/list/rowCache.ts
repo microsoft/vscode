@@ -15,9 +15,7 @@ export interface IRow {
 
 function removeFromParent(element: HTMLElement): void {
 	try {
-		if (element.parentElement) {
-			element.parentElement.removeChild(element);
-		}
+		element.parentElement?.removeChild(element);
 	} catch (e) {
 		// this will throw if this happens due to a blur event, nasty business
 	}

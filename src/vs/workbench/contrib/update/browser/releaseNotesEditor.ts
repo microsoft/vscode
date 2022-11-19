@@ -17,11 +17,10 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/support
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -63,10 +62,7 @@ export class ReleaseNotesManager {
 		});
 	}
 
-	public async show(
-		accessor: ServicesAccessor,
-		version: string
-	): Promise<boolean> {
+	public async show(version: string): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version);
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
@@ -78,19 +74,20 @@ export class ReleaseNotesManager {
 			this._currentReleaseNotes.webview.html = html;
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
-			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
-				generateUuid(),
+			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
+				{
+					options: {
+						tryRestoreScrollPosition: true,
+						enableFindWidget: true,
+					},
+					contentOptions: {
+						localResourceRoots: []
+					},
+					extension: undefined
+				},
 				'releaseNotes',
 				title,
-				{ group: ACTIVE_GROUP, preserveFocus: false },
-				{
-					tryRestoreScrollPosition: true,
-					enableFindWidget: true,
-				},
-				{
-					localResourceRoots: []
-				},
-				undefined);
+				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
 			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });
@@ -163,7 +160,7 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = await asText(await this._requestService.request({ url }, CancellationToken.None));
+				text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}

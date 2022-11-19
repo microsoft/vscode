@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { EditorOptions, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, EditorOption, FindComputedEditorOptionValueById, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
@@ -44,7 +44,7 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public static createFromRawSettings(opts: { fontFamily?: string; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
+	public static createFromRawSettings(opts: { fontFamily?: string | string[]; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
 		const fontFamily = EditorOptions.fontFamily.validate(opts.fontFamily);
 		const fontWeight = EditorOptions.fontWeight.validate(opts.fontWeight);
 		const fontSize = EditorOptions.fontSize.validate(opts.fontSize);
@@ -125,7 +125,8 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public getMassagedFontFamily(fallbackFontFamily: string | null): string {
+	public getMassagedFontFamily(): string {
+		const fallbackFontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
 		const fontFamily = BareFontInfo._wrapInQuotes(this.fontFamily);
 		if (fallbackFontFamily && this.fontFamily !== fallbackFontFamily) {
 			return `${fontFamily}, ${fallbackFontFamily}`;
