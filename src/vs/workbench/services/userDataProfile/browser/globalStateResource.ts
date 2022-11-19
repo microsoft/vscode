@@ -77,9 +77,15 @@ export class GlobalStateResourceExportTreeItem implements IProfileResourceTreeIt
 	readonly label = { label: localize('globalState', "UI State") };
 	readonly collapsibleState = TreeItemCollapsibleState.None;
 	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	readonly command = {
+		id: API_OPEN_EDITOR_COMMAND_ID,
+		title: '',
+		arguments: [this.resource, undefined, undefined]
+	};
 
 	constructor(
 		private readonly profile: IUserDataProfile,
+		private readonly resource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 

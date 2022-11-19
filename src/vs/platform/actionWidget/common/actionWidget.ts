@@ -10,13 +10,6 @@ export interface ActionSet<T> extends IDisposable {
 	readonly validActions: readonly T[];
 	readonly allActions: readonly T[];
 	readonly hasAutoFix: boolean;
-
-	readonly documentation: readonly {
-		id: string;
-		title: string;
-		tooltip?: string;
-		commandArguments?: any[];
-	}[];
 }
 
 export interface IActionItem {

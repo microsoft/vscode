@@ -494,7 +494,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}));
 	}
 
-	private trigger(range: Range): void {
+	public trigger(range: Range): void {
 		const selections = this.editor.getSelections();
 		if (selections === null || selections.length > 1) {
 			return;

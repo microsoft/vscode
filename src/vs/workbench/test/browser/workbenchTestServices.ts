@@ -1963,7 +1963,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
-	installWebExtension(location: URI): Promise<ILocalExtension> {
+	installFromLocation(location: URI): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions | undefined): Promise<ILocalExtension[]> {

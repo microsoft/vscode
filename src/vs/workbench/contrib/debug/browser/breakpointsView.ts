@@ -63,8 +63,8 @@ function createCheckbox(disposables: IDisposable[]): HTMLInputElement {
 }
 
 const MAX_VISIBLE_BREAKPOINTS = 9;
-export function getExpandedBodySize(model: IDebugModel, countLimit: number): number {
-	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length + model.getInstructionBreakpoints().length;
+export function getExpandedBodySize(model: IDebugModel, sessionId: string | undefined, countLimit: number): number {
+	const length = model.getBreakpoints().length + model.getExceptionBreakpointsForSession(sessionId).length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length + model.getInstructionBreakpoints().length;
 	return Math.min(countLimit, length) * 22;
 }
 type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint | IInstructionBreakpoint;
@@ -117,7 +117,7 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition = CONTEXT_BREAKPOINT_SUPPORTS_CONDITION.bindTo(contextKeyService);
 		this.breakpointInputFocused = CONTEXT_BREAKPOINT_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
-		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateBreakpointsHint()));
+		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.onBreakpointsChange()));
 		this._register(this.debugService.onDidChangeState(() => this.onStateChange()));
 		this.hintDelayer = this._register(new RunOnceScheduler(() => this.updateBreakpointsHint(true), 4000));
 	}
@@ -273,8 +273,9 @@ export class BreakpointsView extends ViewPane {
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
 
 		// Adjust expanded body size
-		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), MAX_VISIBLE_BREAKPOINTS) : 170;
-		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), sessionId, MAX_VISIBLE_BREAKPOINTS) : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? getExpandedBodySize(this.debugService.getModel(), sessionId, Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
 	}
 
 	private updateBreakpointsHint(delayed = false): void {
@@ -363,7 +364,8 @@ export class BreakpointsView extends ViewPane {
 
 	private get elements(): BreakpointItem[] {
 		const model = this.debugService.getModel();
-		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints()).concat(model.getInstructionBreakpoints());
+		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
+		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpointsForSession(sessionId)).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints()).concat(model.getInstructionBreakpoints());
 
 		return elements as BreakpointItem[];
 	}

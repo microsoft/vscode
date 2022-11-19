@@ -90,6 +90,8 @@ import { staticObservableValue } from 'vs/base/common/observableValue';
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { constObservable, IObservable } from 'vs/base/common/observable';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -971,6 +973,22 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+class StandaloneAudioService implements IAudioCueService {
+	_serviceBrand: undefined;
+	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+
+	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	}
+
+	isEnabled(cue: AudioCue): IObservable<boolean, void> {
+		return constObservable(false);
+	}
+
+	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
@@ -1007,6 +1025,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
+registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

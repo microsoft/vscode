@@ -9,18 +9,37 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { KernelPickerFlatStrategy, KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { KernelPickerFlatStrategy, KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+function getEditorFromContext(editorService: IEditorService, context?: KernelQuickPickContext): INotebookEditor | undefined {
+	let editor: INotebookEditor | undefined;
+	if (context !== undefined && 'notebookEditorId' in context) {
+		const editorId = context.notebookEditorId;
+		const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
+			const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+			return notebookEditor?.getId() === editorId;
+		});
+		editor = getNotebookEditorFromEditorPane(matchingEditor);
+	} else if (context !== undefined && 'notebookEditor' in context) {
+		editor = context?.notebookEditor;
+	} else {
+		editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	}
+
+	return editor;
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -79,15 +98,42 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context?: KernelQuickPickContext): Promise<boolean> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
+		const editorService = accessor.get(IEditorService);
 
+		const editor = getEditorFromContext(editorService, context);
+
+		if (!editor || !editor.hasModel()) {
+			return false;
+		}
+
+		let controllerId = context && 'id' in context ? context.id : undefined;
+		let extensionId = context && 'extension' in context ? context.extension : undefined;
+
+		if (controllerId && (typeof controllerId !== 'string' || typeof extensionId !== 'string')) {
+			// validate context: id & extension MUST be strings
+			controllerId = undefined;
+			extensionId = undefined;
+		}
+
+		const notebook = editor.textModel;
+		const notebookKernelService = accessor.get(INotebookKernelService);
+		const matchResult = notebookKernelService.getMatchingKernel(notebook);
+		const { selected } = matchResult;
+
+		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
+			// current kernel is wanted kernel -> done
+			return true;
+		}
+
+		const wantedKernelId = controllerId ? `${extensionId}/${controllerId}` : undefined;
 		const kernelPickerType = configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
 
 		if (kernelPickerType === 'mru') {
 			const strategy = instantiationService.createInstance(KernelPickerMRUStrategy);
-			return await strategy.showQuickPick(context);
+			return await strategy.showQuickPick(editor, wantedKernelId);
 		} else {
 			const strategy = instantiationService.createInstance(KernelPickerFlatStrategy);
-			return await strategy.showQuickPick(context);
+			return await strategy.showQuickPick(editor, wantedKernelId);
 		}
 	}
 });
