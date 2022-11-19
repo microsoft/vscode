@@ -421,7 +421,7 @@
 		"escapes": {
 			"comment": "escapes: ASCII, byte, Unicode, quote, regex",
 			"name": "constant.character.escape.rust",
-			"match": "(\\\\)(?:(?:(x[0-7][0-7a-fA-F])|(u(\\{)[\\da-fA-F]{4,6}(\\}))|.))",
+			"match": "(\\\\)(?:(?:(x[0-7][0-9a-fA-F])|(u(\\{)[\\da-fA-F]{4,6}(\\}))|.))",
 			"captures": {
 				"1": {
 					"name": "constant.character.escape.backslash.rust"
