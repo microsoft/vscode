@@ -748,7 +748,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		this.registerListeners();
-		this.render();
+		await this.render();
 	}
 
 	private registerListeners(): void {
