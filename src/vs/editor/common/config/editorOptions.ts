@@ -375,6 +375,11 @@ export interface IEditorOptions {
 	 */
 	multiCursorPaste?: 'spread' | 'full';
 	/**
+	 * Enable word selection with the mouse and a key modifier. This replaces the click link to gesture feature.
+	 * Defaults to false
+	 */
+	wordSelection?: boolean;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -4769,6 +4774,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	wordSelection,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -5142,6 +5148,10 @@ export const EditorOptions = {
 			],
 			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
 		}
+	)),
+	wordSelection: register(new EditorBooleanOption(
+		EditorOption.wordSelection, 'wordSelection', false,
+		{ description: nls.localize('wordSelection', "Enable word selection with the mouse and a key modifier. This replaces the click link to gesture feature.") }
 	)),
 	occurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,

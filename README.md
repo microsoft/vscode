@@ -1,3 +1,55 @@
+This repository contains a commit to enable word selection with the Control key in Visual Studio Code.
+
+This feature has been requested in many different places and unfortunately my commit has not been merged.
+
+## Release
+You can download a compiled Release for Windows in the [Release](https://github.com/manuelxmarquez/vscode/releases) tab.
+
+The release should also contain the changes as described [here](https://stackoverflow.com/questions/37143536/no-extensions-found-when-running-visual-studio-code-from-source) in order to get the Extension Gallery working.
+
+## Instructions
+Once in Visual Studio Code you can enable the feature or add the JSON property:
+```
+"editor.wordSelection": true
+```
+![image](https://user-images.githubusercontent.com/30425852/128424656-017e60b2-5d4b-4b93-a563-e95156ec4b5f.png)
+
+## Extensions
+In order to get an experience similar to Visual Studio download [Visual Studio Keymap](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vs-keybindings) for key bindings.
+
+I submitted a pull request for a few extra key bindings but they were not merged. You can add these additional key bindings.
+```
+{
+		"key": "ctrl+shift+u",
+		"command": "editor.action.transformToUppercase",
+		"when": "editorTextFocus && !editorReadonly"
+},  
+{   
+		"key": "ctrl+u",
+		"command": "editor.action.transformToLowercase",
+		"when": "editorTextFocus && !editorReadonly"
+},  
+{   
+		"key": "ctrl+m ctrl+o",
+		"command": "editor.foldAll",
+		"when": "editorTextFocus && foldingEnabled"
+},  
+{   
+		"key": "ctrl+m ctrl+m",
+		"command": "editor.toggleFold",
+		"when": "editorTextFocus && foldingEnabled"
+}
+```
+
+## Links
+My post on [GitHub Issue](https://github.com/microsoft/vscode/issues/23957#issuecomment-893863456)
+
+[StackOverflow Question](https://stackoverflow.com/questions/37143536/no-extensions-found-when-running-visual-studio-code-from-source)
+
+
+
+
+
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
