@@ -1426,7 +1426,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		return this._options;
 	}
 
-	splice(start: number, deleteCount: number, elements: T[] = []): void {
+	splice(start: number, deleteCount: number, elements: readonly T[] = []): void {
 		if (start < 0 || start > this.view.length) {
 			throw new ListError(this.user, `Invalid start index: ${start}`);
 		}
