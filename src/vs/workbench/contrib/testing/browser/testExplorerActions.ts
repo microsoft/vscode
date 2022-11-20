@@ -669,10 +669,13 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: hasAnyTestProvider,
-			},
+			}, {
+				id: MenuId.EditorContext,
+				when: ContextKeyExpr.and(hasAnyTestProvider, EditorContextKeys.editorTextFocus, TestingContextKeys.hasDebuggableTests.isEqualTo(true), ContextKeyExpr.not('isInDiffEditor'))
+			}]
 		});
 	}
 
@@ -787,10 +790,13 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-			},
+			}, {
+				id: MenuId.EditorContext,
+				when: ContextKeyExpr.and(TestingContextKeys.capabilityToContextKey[group].isEqualTo(true), hasAnyTestProvider, TestingContextKeys.hasDebuggableTests.isEqualTo(true), ContextKeyExpr.not('isInDiffEditor'))
+			}]
 		});
 	}
 
