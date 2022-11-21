@@ -23,6 +23,8 @@ export class HoverService implements IHoverService {
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 
+	private _lastFocusedElement: HTMLElement | null = null;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -37,6 +39,7 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
+		this._lastFocusedElement = <HTMLElement | null>document.activeElement;
 
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
@@ -123,6 +126,7 @@ export class HoverService implements IHoverService {
 		if (e.key === 'Tab') {
 			const focusedElement = <HTMLElement | null>document.activeElement;
 			if (!focusedElement || !this._currentHover || !this._currentHover.domNode.contains(focusedElement)) {
+				this._lastFocusedElement?.focus();
 				this.hideHover();
 			}
 		}
