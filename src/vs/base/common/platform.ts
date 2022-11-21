@@ -53,6 +53,9 @@ declare const process: INodeProcess;
 declare const global: unknown;
 declare const self: unknown;
 
+/**
+ * @deprecated use `globalThis` instead
+ */
 export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 let nodeProcess: INodeProcess | undefined = undefined;
