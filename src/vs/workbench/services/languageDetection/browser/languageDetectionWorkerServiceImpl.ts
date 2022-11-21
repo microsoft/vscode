@@ -261,7 +261,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		return undefined;
 	}
 
-	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
+	protected override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
 		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
 	}
 

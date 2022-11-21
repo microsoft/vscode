@@ -64,6 +64,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));
 			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
 			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer), revive(args[1]));
+			case 'installFromLocation': return this.service.installFromLocation(transformIncomingURI(args[0], uriTransformer), URI.revive(args[1]));
 			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
 			case 'getTargetPlatform': return this.service.getTargetPlatform();
 			case 'canInstall': return this.service.canInstall(args[0]);
@@ -137,6 +138,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix, options])).then(local => transformIncomingExtension(local, null));
+	}
+
+	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('installFromLocation', [location, profileLocation])).then(local => transformIncomingExtension(local, null));
 	}
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {

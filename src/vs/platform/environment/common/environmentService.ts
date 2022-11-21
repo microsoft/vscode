@@ -86,9 +86,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
 
 	@memoize
-	get remoteTunnelLogResource(): URI { return URI.file(join(this.logsPath, 'remoteTunnel.log')); }
-
-	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize

@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 
+use const_format::concatcp;
 use lazy_static::lazy_static;
 
 use crate::options::Quality;
@@ -28,11 +29,30 @@ pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
-// JSON map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
-const VSCODE_CLI_WIN32_APP_IDS: Option<&'static str> = option_env!("VSCODE_CLI_WIN32_APP_IDS");
-// JSON map of quality names to download URIs
-const VSCODE_CLI_QUALITY_DOWNLOAD_URIS: Option<&'static str> =
-	option_env!("VSCODE_CLI_QUALITY_DOWNLOAD_URIS");
+/// Application name as it appears on the CLI.
+pub const APPLICATION_NAME: &str = match option_env!("VSCODE_CLI_APPLICATION_NAME") {
+	Some(n) => n,
+	None => "code",
+};
+
+/// Full name of the product with its version.
+pub const PRODUCT_NAME_LONG: &str = match option_env!("VSCODE_CLI_NAME_LONG") {
+	Some(n) => n,
+	None => "Code - OSS",
+};
+
+/// Name of the application without quality information.
+pub const QUALITYLESS_PRODUCT_NAME: &str =
+	match option_env!("VSCODE_CLI_QUALITYLESS_PRODUCT_NAME") {
+		Some(n) => n,
+		None => "Code",
+	};
+
+/// Name of the application without quality information.
+pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " Server");
+
+/// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
+pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
 
 pub fn get_default_user_agent() -> String {
 	format!(
@@ -47,8 +67,24 @@ lazy_static! {
 			Ok(ua) if !ua.is_empty() => format!("{} {}", ua, get_default_user_agent()),
 			_ => get_default_user_agent(),
 		};
+
+	/// Map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
 	pub static ref WIN32_APP_IDS: Option<HashMap<Quality, Vec<String>>> =
-		VSCODE_CLI_WIN32_APP_IDS.and_then(|s| serde_json::from_str(s).unwrap());
+		option_env!("VSCODE_CLI_WIN32_APP_IDS").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Map of quality names to desktop download URIs
 	pub static ref QUALITY_DOWNLOAD_URIS: Option<HashMap<Quality, String>> =
-		VSCODE_CLI_QUALITY_DOWNLOAD_URIS.and_then(|s| serde_json::from_str(s).unwrap());
+		option_env!("VSCODE_CLI_QUALITY_DOWNLOAD_URIS").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Map of qualities to the long name of the app in that quality
+	pub static ref PRODUCT_NAME_LONG_MAP: Option<HashMap<Quality, String>> =
+		option_env!("VSCODE_CLI_NAME_LONG_MAP").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Map of qualities to the application name
+	pub static ref APPLICATION_NAME_MAP: Option<HashMap<Quality, String>> =
+		option_env!("VSCODE_CLI_APPLICATION_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Map of qualities to the server name
+	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, String>> =
+		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
 }

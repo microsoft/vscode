@@ -5,13 +5,14 @@
 
 import { asArray } from 'vs/base/common/arrays';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Cache } from 'vs/workbench/api/common/cache';
 import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -19,8 +20,8 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostCell } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/common/webview';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
+import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -46,6 +47,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private _kernelDetectionTask = new Map<number, vscode.NotebookControllerDetectionTask>();
 	private _kernelDetectionTaskHandlePool: number = 0;
+
+	private _kernelSourceActionProviders = new Map<number, vscode.NotebookKernelSourceActionProvider>();
+	private _kernelSourceActionProviderHandlePool: number = 0;
+	private _kernelSourceActionProviderCache = new Cache<IDisposable>('NotebookKernelSourceActionProviderCache');
 
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
@@ -290,6 +295,33 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		this._kernelDetectionTask.set(handle, detectionTask);
 		return detectionTask;
+	}
+
+	registerKernelSourceActionProvider(extension: IExtensionDescription, viewType: string, provider: vscode.NotebookKernelSourceActionProvider) {
+		const handle = this._kernelSourceActionProviderHandlePool++;
+		const that = this;
+
+		this._kernelSourceActionProviders.set(handle, provider);
+		this._logService.trace(`NotebookKernelSourceActionProvider[${handle}], CREATED by ${extension.identifier.value}`);
+		this._proxy.$addKernelSourceActionProvider(handle, viewType);
+
+		return {
+			dispose: () => {
+				this._kernelSourceActionProviders.delete(handle);
+				that._proxy.$removeKernelSourceActionProvider(handle);
+			}
+		};
+	}
+
+	async $provideKernelSourceActions(handle: number, token: CancellationToken): Promise<INotebookKernelSourceAction[]> {
+		const provider = this._kernelSourceActionProviders.get(handle);
+		if (provider) {
+			const disposables = new DisposableStore();
+			this._kernelSourceActionProviderCache.add([disposables]);
+			const ret = await provider.provideNotebookKernelSourceActions(token);
+			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, disposables));
+		}
+		return [];
 	}
 
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {

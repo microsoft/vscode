@@ -819,7 +819,7 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler {
+export class RunOnceScheduler implements IDisposable {
 
 	protected runner: ((...args: unknown[]) => void) | null;
 

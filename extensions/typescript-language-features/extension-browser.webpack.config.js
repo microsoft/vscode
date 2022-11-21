@@ -63,7 +63,10 @@ module.exports = [withBrowserDefaults({
 	entry: {
 		'typescript/tsserver.web': './web/webServer.ts'
 	},
-	ignoreWarnings:  [/Critical dependency: the request of a dependency is an expression/],
+	module: {
+		exprContextCritical: false,
+	},
+	ignoreWarnings: [/Critical dependency: the request of a dependency is an expression/],
 	output: {
 		// all output goes into `dist`.
 		// packaging depends on that and this must always be like it

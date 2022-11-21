@@ -58,9 +58,5 @@ pub async fn show(ctx: CommandContext) -> Result<i32, AnyError> {
 }
 
 fn print_now_using(log: &log::Logger, version: &RequestedVersion, path: &Path) {
-	log.result(&format!(
-		"Now using VS Code {} from {}",
-		version,
-		path.display()
-	));
+	log.result(&format!("Now using {} from {}", version, path.display()));
 }

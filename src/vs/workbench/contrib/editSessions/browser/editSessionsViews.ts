@@ -140,7 +140,7 @@ export class EditSessionsDataViews extends Disposable {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.deleteAll',
-					title: localize('workbench.editSessions.actions.deleteAll', "Delete All Edit Sessions"),
+					title: localize('workbench.editSessions.actions.deleteAll', "Delete All Working Changes from Cloud"),
 					icon: Codicon.trash,
 					menu: {
 						id: MenuId.ViewTitle,
@@ -153,7 +153,7 @@ export class EditSessionsDataViews extends Disposable {
 				const dialogService = accessor.get(IDialogService);
 				const editSessionStorageService = accessor.get(IEditSessionsStorageService);
 				const result = await dialogService.confirm({
-					message: localize('confirm delete all', 'Are you sure you want to permanently delete all edit sessions? You cannot undo this action.'),
+					message: localize('confirm delete all', 'Are you sure you want to permanently delete all stored changes from the cloud? You cannot undo this action.'),
 					type: 'warning',
 					title: EDIT_SESSIONS_TITLE
 				});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -11,7 +11,8 @@ use tokio::sync::mpsc;
 use crate::commands::tunnels::ShutdownSignal;
 use crate::log;
 use crate::state::LauncherPaths;
-use crate::util::errors::AnyError;
+use crate::util::errors::{wrap, AnyError};
+use crate::util::io::{tailf, TailEvent};
 
 pub const SERVICE_LOG_FILE_NAME: &str = "tunnel-service.log";
 
@@ -21,62 +22,74 @@ pub trait ServiceContainer: Send {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::Receiver<ShutdownSignal>,
+		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError>;
 }
 
+#[async_trait]
 pub trait ServiceManager {
 	/// Registers the current executable as a service to run with the given set
 	/// of arguments.
-	fn register(&self, exe: PathBuf, args: &[&str]) -> Result<(), AnyError>;
+	async fn register(&self, exe: PathBuf, args: &[&str]) -> Result<(), AnyError>;
 
 	/// Runs the service using the given handle. The executable *must not* take
 	/// any action which may fail prior to calling this to ensure service
 	/// states may update.
-	fn run(
-		&self,
+	async fn run(
+		self,
 		launcher_paths: LauncherPaths,
 		handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError>;
 
+	/// Show logs from the running service to standard out.
+	async fn show_logs(&self) -> Result<(), AnyError>;
+
 	/// Unregisters the current executable as a service.
-	fn unregister(&self) -> Result<(), AnyError>;
+	async fn unregister(&self) -> Result<(), AnyError>;
 }
 
 #[cfg(target_os = "windows")]
 pub type ServiceManagerImpl = super::service_windows::WindowsService;
 
-#[cfg(not(target_os = "windows"))]
-pub type ServiceManagerImpl = UnimplementedServiceManager;
+#[cfg(target_os = "linux")]
+pub type ServiceManagerImpl = super::service_linux::SystemdService;
+
+#[cfg(target_os = "macos")]
+pub type ServiceManagerImpl = super::service_macos::LaunchdService;
 
 #[allow(unreachable_code)]
-pub fn create_service_manager(log: log::Logger) -> ServiceManagerImpl {
-	ServiceManagerImpl::new(log)
-}
-
-pub struct UnimplementedServiceManager();
-
-#[allow(dead_code)]
-impl UnimplementedServiceManager {
-	fn new(_log: log::Logger) -> Self {
-		Self()
+#[allow(unused_variables)]
+pub fn create_service_manager(log: log::Logger, paths: &LauncherPaths) -> ServiceManagerImpl {
+	#[cfg(target_os = "macos")]
+	{
+		super::service_macos::LaunchdService::new(log, paths)
+	}
+	#[cfg(target_os = "windows")]
+	{
+		super::service_windows::WindowsService::new(log, paths)
+	}
+	#[cfg(target_os = "linux")]
+	{
+		super::service_linux::SystemdService::new(log, paths.clone())
 	}
 }
 
-impl ServiceManager for UnimplementedServiceManager {
-	fn register(&self, _exe: PathBuf, _args: &[&str]) -> Result<(), AnyError> {
-		unimplemented!("Service management is not supported on this platform");
+#[allow(dead_code)] // unused on Linux
+pub(crate) async fn tail_log_file(log_file: &Path) -> Result<(), AnyError> {
+	if !log_file.exists() {
+		println!("The tunnel service has not started yet.");
+		return Ok(());
 	}
 
-	fn run(
-		&self,
-		_launcher_paths: LauncherPaths,
-		_handle: impl 'static + ServiceContainer,
-	) -> Result<(), AnyError> {
-		unimplemented!("Service management is not supported on this platform");
+	let file = std::fs::File::open(log_file).map_err(|e| wrap(e, "error opening log file"))?;
+	let mut rx = tailf(file, 20);
+	while let Some(line) = rx.recv().await {
+		match line {
+			TailEvent::Line(l) => print!("{}", l),
+			TailEvent::Reset => println!("== Tunnel service restarted =="),
+			TailEvent::Err(e) => return Err(wrap(e, "error reading log file").into()),
+		}
 	}
 
-	fn unregister(&self) -> Result<(), AnyError> {
-		unimplemented!("Service management is not supported on this platform");
-	}
+	Ok(())
 }
