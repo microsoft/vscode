@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -13,8 +13,7 @@ suite('QueryBuilderCommon', () => {
 	let context: IWorkspaceContextService;
 
 	setup(() => {
-		const workspace = testWorkspace(URI.file("C:\\testWorkspace"));
-		context = new TestContextService(workspace);
+		context = new TestContextService(TestWorkspace);
 	});
 
 	test('resolveResourcesForSearchIncludes passes through paths without special glob characters', () => {
