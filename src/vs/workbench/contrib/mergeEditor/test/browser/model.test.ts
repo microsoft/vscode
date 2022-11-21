@@ -14,7 +14,7 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IMergeDiffComputer, IMergeDiffComputerResult, normalizeRangeMapping, toLineRange, toRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { IMergeDiffComputer, IMergeDiffComputerResult, toLineRange, toRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
@@ -275,7 +275,7 @@ class MergeModelInterface extends Disposable {
 						textModel1,
 						toLineRange(c.modifiedRange),
 						textModel2,
-						c.innerChanges?.map(ic => normalizeRangeMapping(toRangeMapping(ic), textModel1, textModel2)).filter(isDefined)
+						c.innerChanges?.map(ic => toRangeMapping(ic)).filter(isDefined)
 					)
 				);
 				return {
