@@ -472,7 +472,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: RemoteTunnelCommandIds.manage,
-					title: localize('remoteTunnel.actions.manage.on', 'Remote Tunnel Access in On'),
+					title: localize('remoteTunnel.actions.manage.on.v2', 'Remote Tunnel Access is On'),
 					category: REMOTE_TUNNEL_CATEGORY,
 					menu: [{
 						id: MenuId.AccountsContext,
