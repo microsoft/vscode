@@ -1079,11 +1079,6 @@ export interface ExtHostUriOpenersShape {
 	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
-export interface MainThreadUriOpenersShape extends IDisposable {
-	$registerUriOpener(id: string, schemes: readonly string[], extensionId: ExtensionIdentifier, label: string): Promise<void>;
-	$unregisterUriOpener(id: string): Promise<void>;
-}
-
 export interface MainThreadProfileContentHandlersShape {
 	$registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void>;
 	$unregisterProfileContentHandler(id: string): Promise<void>;
