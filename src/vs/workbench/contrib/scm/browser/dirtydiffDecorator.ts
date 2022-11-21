@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter, EventMultiplexer } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -51,8 +51,10 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { Iterable } from 'vs/base/common/iterator';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ResourceMap } from 'vs/base/common/map';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1344,32 +1346,6 @@ interface IViewState {
 	readonly visibility: 'always' | 'hover';
 }
 
-class EditorsWatcher {
-
-	private _onDidChange = new EventMultiplexer<void>();
-	readonly onDidChange = this._onDidChange.event;
-	private disposables = new DisposableStore();
-
-	constructor(@IEditorGroupsService editorGroupsService: IEditorGroupsService) {
-		editorGroupsService.onDidAddGroup(this.onDidAddGroup, this, this.disposables);
-
-		for (const group of editorGroupsService.groups) {
-			this.onDidAddGroup(group);
-		}
-	}
-
-	private onDidAddGroup(group: IEditorGroup): void {
-		const onDidChangeGroup = Event.signal(Event.any(group.onWillOpenEditor, group.onDidCloseEditor, group.onDidActiveEditorChange, group.onWillDispose));
-		const disposable = this._onDidChange.add(onDidChangeGroup);
-		Event.once(group.onWillDispose)(() => disposable.dispose());
-	}
-
-	dispose() {
-		this._onDidChange.dispose();
-		this.disposables.dispose();
-	}
-}
-
 export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
 
 	private enabled = false;
@@ -1379,7 +1355,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	private stylesheet: HTMLStyleElement;
 
 	constructor(
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextFileService private readonly textFileService: ITextFileService
@@ -1454,8 +1430,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			this.disable();
 		}
 
-		const watcher = this.transientDisposables.add(new EditorsWatcher(this.editorGroupsService));
-		this.transientDisposables.add(watcher.onDidChange(() => this.onEditorsChanged()));
+		this.transientDisposables.add(Event.any(this.editorService.onDidCloseEditor, this.editorService.onDidVisibleEditorsChange)(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
 		this.enabled = true;
 	}
@@ -1476,19 +1451,14 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	}
 
 	private onEditorsChanged(): void {
-		const resources = new ResourceSet();
-
-		for (const group of this.editorGroupsService.groups) {
-			const editor = group.activeEditorPane?.getControl();
-
+		for (const editor of this.editorService.visibleTextEditorControls) {
 			if (isCodeEditor(editor)) {
+				const textModel = editor.getModel();
 				const controller = DirtyDiffController.get(editor);
 
 				if (controller) {
 					controller.modelRegistry = this;
 				}
-
-				const textModel = editor.getModel();
 
 				if (textModel && !this.items.has(textModel.uri)) {
 					const textFileModel = this.textFileService.files.get(textModel.uri);
@@ -1500,16 +1470,10 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 					}
 				}
 			}
-
-			for (const editor of group.editors) {
-				if (editor.resource) {
-					resources.add(editor.resource);
-				}
-			}
 		}
 
 		for (const [uri, item] of this.items) {
-			if (!resources.has(uri)) {
+			if (!this.editorService.isOpened({ resource: uri, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
 				item.dispose();
 				this.items.delete(uri);
 			}
