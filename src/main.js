@@ -150,42 +150,11 @@ function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
+	const onLoadMainBundle = () => { perf.mark('code/didLoadMainBundle'); };
 	if (isESM) {
-		globalThis._VSCODE_FILE_ROOT = __dirname;
-		globalThis.vscode = {};
-		globalThis.vscode.context = {
-			configuration: () => {
-				/** @type {any} */
-				const product = require('../product.json');
-				// Running out of sources
-				if (process.env['VSCODE_DEV']) {
-					Object.assign(product, {
-						nameShort: `${product.nameShort} Dev`,
-						nameLong: `${product.nameLong} Dev`,
-						dataFolderName: `${product.dataFolderName}-dev`,
-						serverDataFolderName: product.serverDataFolderName ? `${product.serverDataFolderName}-dev` : undefined
-					});
-				}
-				// Version is added during built time, but we still
-				// want to have it running out of sources so we
-				// read it from package.json only when we need it.
-				if (!product.version) {
-					const pkg = require('../package.json');
-					Object.assign(product, {
-						version: pkg.version
-					});
-				}
-				return { product };
-			}
-		};
-		(async () => {
-			await import('./vs/code/electron-main/main.js');
-			perf.mark('code/didLoadMainBundle');
-		})();
+		require('./bootstrap-esm').load('./vs/code/electron-main/main.js', onLoadMainBundle);
 	} else {
-		require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-			perf.mark('code/didLoadMainBundle');
-		});
+		require('./bootstrap-amd').load('vs/code/electron-main/main', onLoadMainBundle);
 	}
 }
 
