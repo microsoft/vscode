@@ -24,7 +24,6 @@ import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { CursorsController } from 'vs/editor/common/cursor/cursor';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -46,7 +45,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -1663,7 +1662,25 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.CursorStateChanged: {
 					if (e.reachedMaxCursorCount) {
-						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", CursorsController.MAX_CURSOR_COUNT));
+
+						const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
+						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes.", multiCursorLimit);
+						this._notificationService.prompt(Severity.Warning, message, [
+							{
+								label: 'Find and Replace',
+								run: () => {
+									this._commandService.executeCommand('editor.action.startFindReplaceAction');
+								}
+							},
+							{
+								label: nls.localize('goToSetting', 'Open Settings'),
+								run: () => {
+									this._commandService.executeCommand('workbench.action.openSettings2', {
+										query: 'editor.multiCursorLimit'
+									});
+								}
+							}
+						]);
 					}
 
 					const positions: Position[] = [];

@@ -235,7 +235,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')} `, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
+					const env = { ...process.env, VSCODE_CLI_EDITOR_WEB_URL: this.productService.tunnelApplicationConfig?.editorWebUrl };
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), env });
 				} else {
 					onOutput('Running tunnel CLI', false);
 					const tunnelCommand = this.getTunnelCommandLocation();

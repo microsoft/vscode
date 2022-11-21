@@ -382,7 +382,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}
 	}
 
-	override updateLabel(e?: ITerminalInstance): void {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	protected override updateLabel(e?: ITerminalInstance): void {
 		// Only update if it's the active instance
 		if (e && e !== this._terminalGroupService.activeInstance) {
 			return;
