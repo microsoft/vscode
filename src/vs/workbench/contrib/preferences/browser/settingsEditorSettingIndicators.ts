@@ -140,7 +140,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private createScopeOverridesIndicator(): SettingIndicator {
 		// Don't add .setting-indicator class here, because it gets conditionally added later.
 		const otherOverridesElement = $('span.setting-item-overrides');
-		otherOverridesElement.tabIndex = 0;
 		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
 		return {
 			element: otherOverridesElement,
@@ -238,6 +237,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
+		this.scopeOverridesIndicator.element.tabIndex = 0;
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
