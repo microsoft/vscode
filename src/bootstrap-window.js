@@ -130,7 +130,7 @@ const isESM = false;
 
 
 		if (isESM) {
-			globalThis.MonacoFileRoot = `${configuration.appRoot}/out`;
+			globalThis._VSCODE_FILE_ROOT = `${configuration.appRoot}/out`;
 			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
 			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
 			result.then((res) => invokeResult(res[0]), onUnexpectedError);

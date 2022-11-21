@@ -151,7 +151,7 @@ function startup(codeCachePath, nlsConfig) {
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
 	if (isESM) {
-		globalThis.MonacoFileRoot = __dirname;
+		globalThis._VSCODE_FILE_ROOT = __dirname;
 		globalThis.vscode = {};
 		globalThis.vscode.context = {
 			configuration: () => {

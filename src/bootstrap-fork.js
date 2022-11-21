@@ -46,7 +46,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 
 // Load AMD entry point
 if (isESM) {
-	globalThis.MonacoFileRoot = __dirname;
+	globalThis._VSCODE_FILE_ROOT = __dirname;
 	globalThis.vscode = {};
 	globalThis.vscode.context = {
 		configuration: () => {
