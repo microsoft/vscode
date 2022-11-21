@@ -82,7 +82,6 @@ suite('ExtHostTelemetry', function () {
 			logException: (exception, data) => {
 				functionSpy.exceptionArr.push({ exception, data });
 			},
-			ignoreBuiltInCommonProperties: false,
 			flush: () => {
 				functionSpy.flushCalled = true;
 			}
