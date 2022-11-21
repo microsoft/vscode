@@ -317,6 +317,12 @@ export interface IEditorOptions {
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
+	 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+	 * When wordBreak = 'normal', Use the default line break rule.
+	 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+	 */
+	wordBreak?: 'normal' | 'keepAll';
+	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
 	 * Use -1 to never stop rendering
@@ -379,6 +385,10 @@ export interface IEditorOptions {
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
+	/**
+	 * Controls the max number of text cursors that can be in an active editor at once.
+	 */
+	multiCursorLimit?: number;
 	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
@@ -4789,6 +4799,7 @@ export const enum EditorOption {
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
 	multiCursorPaste,
+	multiCursorLimit,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -4835,6 +4846,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	wordBreak,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -5210,6 +5222,12 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
 		}
 	)),
+	multiCursorLimit: register(new EditorIntOption(
+		EditorOption.multiCursorLimit, 'multiCursorLimit', 10000, 1, 100000,
+		{
+			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
+		}
+	)),
 	occurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
 		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
@@ -5447,6 +5465,18 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+	)),
+	wordBreak: register(new EditorStringEnumOption(
+		EditorOption.wordBreak, 'wordBreak',
+		'normal' as 'normal' | 'keepAll',
+		['normal', 'keepAll'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('wordBreak.normal', "Use the default line break rule."),
+				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
+			],
+			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
+		}
 	)),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,

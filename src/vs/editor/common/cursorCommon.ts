@@ -64,6 +64,7 @@ export class CursorConfiguration {
 	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly multiCursorPaste: 'spread' | 'full';
+	public readonly multiCursorLimit: number;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
@@ -84,6 +85,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.emptySelectionClipboard)
 			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
 			|| e.hasChanged(EditorOption.multiCursorPaste)
+			|| e.hasChanged(EditorOption.multiCursorLimit)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
 			|| e.hasChanged(EditorOption.autoClosingDelete)
@@ -121,6 +123,7 @@ export class CursorConfiguration {
 		this.copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.multiCursorMergeOverlapping = options.get(EditorOption.multiCursorMergeOverlapping);
 		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
+		this.multiCursorLimit = options.get(EditorOption.multiCursorLimit);
 		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
 		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);

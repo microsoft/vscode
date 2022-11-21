@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { readdirSync, readFileSync, existsSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { FileAccess } from 'vs/base/common/network';
