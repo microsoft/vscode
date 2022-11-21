@@ -381,6 +381,10 @@ export interface IEditorOptions {
 	 */
 	multiCursorPaste?: 'spread' | 'full';
 	/**
+	 * Controls the max number of text cursors that can be in an active editor at once.
+	 */
+	multiCursorLimit?: number;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -4729,6 +4733,7 @@ export const enum EditorOption {
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
 	multiCursorPaste,
+	multiCursorLimit,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -5148,6 +5153,12 @@ export const EditorOptions = {
 				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
 			],
 			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
+		}
+	)),
+	multiCursorLimit: register(new EditorIntOption(
+		EditorOption.multiCursorLimit, 'multiCursorLimit', 10000, 1, 100000,
+		{
+			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
 		}
 	)),
 	occurrencesHighlight: register(new EditorBooleanOption(
