@@ -312,6 +312,12 @@ export interface IEditorOptions {
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
+	 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+	 * When wordBreak = 'normal', Use the default line break rule.
+	 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+	 */
+	wordBreak?: 'normal' | 'keepAll';
+	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
 	 * Use -1 to never stop rendering
@@ -4769,6 +4775,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	wordBreak,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -5380,6 +5387,18 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+	)),
+	wordBreak: register(new EditorStringEnumOption(
+		EditorOption.wordBreak, 'wordBreak',
+		'normal' as 'normal' | 'keepAll',
+		['normal', 'keepAll'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('wordBreak.normal', "Use the default line break rule."),
+				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
+			],
+			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
+		}
 	)),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,

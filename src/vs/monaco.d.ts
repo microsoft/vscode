@@ -3273,6 +3273,12 @@ declare namespace monaco.editor {
 		 */
 		wordWrapBreakAfterCharacters?: string;
 		/**
+		 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+		 * When wordBreak = 'normal', Use the default line break rule.
+		 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+		 */
+		wordBreak?: 'normal' | 'keepAll';
+		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
 		 * Use -1 to never stop rendering
@@ -4662,22 +4668,23 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 116,
 		useShadowDOM = 117,
 		useTabStops = 118,
-		wordSeparators = 119,
-		wordWrap = 120,
-		wordWrapBreakAfterCharacters = 121,
-		wordWrapBreakBeforeCharacters = 122,
-		wordWrapColumn = 123,
-		wordWrapOverride1 = 124,
-		wordWrapOverride2 = 125,
-		wrappingIndent = 126,
-		wrappingStrategy = 127,
-		showDeprecated = 128,
-		inlayHints = 129,
-		editorClassName = 130,
-		pixelRatio = 131,
-		tabFocusMode = 132,
-		layoutInfo = 133,
-		wrappingInfo = 134
+		wordBreak = 119,
+		wordSeparators = 120,
+		wordWrap = 121,
+		wordWrapBreakAfterCharacters = 122,
+		wordWrapBreakBeforeCharacters = 123,
+		wordWrapColumn = 124,
+		wordWrapOverride1 = 125,
+		wordWrapOverride2 = 126,
+		wrappingIndent = 127,
+		wrappingStrategy = 128,
+		showDeprecated = 129,
+		inlayHints = 130,
+		editorClassName = 131,
+		pixelRatio = 132,
+		tabFocusMode = 133,
+		layoutInfo = 134,
+		wrappingInfo = 135
 	}
 
 	export const EditorOptions: {
@@ -4802,6 +4809,7 @@ declare namespace monaco.editor {
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
+		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
