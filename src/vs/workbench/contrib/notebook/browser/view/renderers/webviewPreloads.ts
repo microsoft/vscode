@@ -1059,7 +1059,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						}
 					}
 
-					const anchorNode = selection?.anchorNode?.parentElement;
+					const anchorNode = selection.anchorNode?.parentElement;
 
 					if (anchorNode) {
 						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
@@ -1072,7 +1072,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: window.getSelection()!.getRangeAt(0)
+								originalRange: selection.getRangeAt(0)
 							});
 
 						} else {
@@ -1092,7 +1092,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: window.getSelection()!.getRangeAt(0)
+											originalRange: selection.getRangeAt(0)
 										});
 									}
 									break;
