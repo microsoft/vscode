@@ -64,10 +64,7 @@ export class HoverService implements IHoverService {
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover)));
 			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => this._keyUp(e, hover)));
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_UP, e => this._keyUp(e, hover)));
-		}
-		if (options.hideOnKeyDown) {
-			const focusedElement = document.activeElement;
-			if (focusedElement) {
+			if (options.hideOnKeyDown) {
 				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => this.hideHover()));
 			}
 		}
