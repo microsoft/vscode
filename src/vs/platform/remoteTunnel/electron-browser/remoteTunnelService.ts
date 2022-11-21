@@ -280,7 +280,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	private getHostName() {
 		let name = this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname();
-		name = hostname().replace(/[^\w-]/g, '').substring(0, 20);
+		name = name.replace(/[^\w-]/g, '').substring(0, 20);
 		return name || undefined;
 	}
 
