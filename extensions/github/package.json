@@ -13,7 +13,9 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onProfile",
+    "onProfile:github"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -27,7 +29,8 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions"
+    "contribEditSessions",
+    "profileContentHandlers"
   ],
   "contributes": {
     "commands": [
