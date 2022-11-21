@@ -8,6 +8,11 @@
 declare global {
 
 	/**
+	 * Holds the file root for resources.
+	 */
+	var MonacoFileRoot: string;
+
+	/**
 	 * @deprecated node modules that are in used in a context that
 	 * shouldn't have access to node_modules (node-free renderer or
 	 * shared process)
@@ -21,8 +26,23 @@ declare global {
 		['native-watchdog']: typeof import('native-watchdog')
 		perf_hooks: typeof import('perf_hooks');
 
-		['vsda']: any
-		['vscode-encrypt']: any
+		['vsda']: any,
+		['vscode-encrypt']: any,
+
+		// ESM-required (because of the shared process)
+		['node:module']: typeof import('node:module');
+		fs: typeof import('fs'),
+		util: typeof import('util'),
+		child_process: typeof import('child_process'),
+		path: typeof import('path'),
+		yauzl: typeof import('yauzl'),
+		yazl: typeof import('yazl'),
+		['graceful-fs']: typeof import('graceful-fs'),
+		minimist: typeof import('minimist'),
+		https: typeof import('https'),
+		['xterm-headless']: typeof import('xterm-headless'),
+		console: typeof import('console'),
+		xterm: typeof import('xterm'),
 	}
 }
 

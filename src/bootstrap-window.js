@@ -131,14 +131,6 @@ const isESM = false;
 
 		if (isESM) {
 			globalThis.MonacoFileRoot = `${configuration.appRoot}/out`;
-			globalThis.MonacoNodeModules = new Proxy({}, {
-				get(target, mod) {
-					if (!target[mod] && typeof mod === 'string') {
-						target[mod] = require(mod);
-					}
-					return target[mod];
-				}
-			});
 			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
 			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
 			result.then((res) => invokeResult(res[0]), onUnexpectedError);

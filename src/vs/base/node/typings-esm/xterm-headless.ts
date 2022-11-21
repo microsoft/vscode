@@ -7,7 +7,7 @@
 import * as xterm_headless from 'xterm-headless';
 // ESM-comment-end
 // ESM-uncomment-begin
-// const xterm_headless = globalThis.MonacoNodeModules['xterm-headless'];
+// const xterm_headless = globalThis._VSCODE_NODE_MODULES['xterm-headless'];
 // ESM-uncomment-end
 
 export type ITerminalAddon = import('xterm-headless').ITerminalAddon;

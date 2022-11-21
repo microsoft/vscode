@@ -8,7 +8,7 @@ import * as _minimist from 'minimist';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _minimist = globalThis.MonacoNodeModules.minimist;
+// const _minimist = globalThis._VSCODE_NODE_MODULES.minimist;
 // ESM-uncomment-end
 
 // console.log('HEHEHE', typeof _minimist, Object.keys(_minimist), _minimist.minimist);

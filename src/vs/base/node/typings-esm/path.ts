@@ -8,7 +8,7 @@ import * as _path from 'path';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _path = globalThis.MonacoNodeModules.path;
+// const _path = globalThis._VSCODE_NODE_MODULES.path;
 // ESM-uncomment-end
 
 export const basename = _path.basename;

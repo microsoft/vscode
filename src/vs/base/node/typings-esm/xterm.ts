@@ -8,7 +8,7 @@ import * as xterm from 'xterm';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const xterm = globalThis.MonacoNodeModules.xterm;
+// const xterm = globalThis._VSCODE_NODE_MODULES.xterm;
 // ESM-uncomment-end
 
 

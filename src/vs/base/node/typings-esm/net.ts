@@ -8,7 +8,7 @@ import * as net from 'net';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const net = globalThis.MonacoNodeModules.net;
+// const net = globalThis._VSCODE_NODE_MODULES.net;
 // ESM-uncomment-end
 
 export type AddressInfo = import('net').AddressInfo;

@@ -47,14 +47,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 // Load AMD entry point
 if (isESM) {
 	globalThis.MonacoFileRoot = __dirname;
-	globalThis.MonacoNodeModules = new Proxy({}, {
-		get(target, mod) {
-			if (!target[mod] && typeof mod === 'string') {
-				target[mod] = require(mod);
-			}
-			return target[mod];
-		}
-	});
 	globalThis.vscode = {};
 	globalThis.vscode.context = {
 		configuration: () => {

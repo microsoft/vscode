@@ -8,7 +8,7 @@ import * as _yauzl from 'yauzl';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _yauzl = globalThis.MonacoNodeModules.yauzl;
+// const _yauzl = globalThis._VSCODE_NODE_MODULES.yauzl;
 // ESM-uncomment-end
 
 export type Entry = import('yauzl').Entry;

@@ -30,10 +30,6 @@ import type { EventEmitter } from 'events';
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
 
-// ESM-uncomment-begin
-// import { createRequire } from 'node:module';
-// const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 interface ParsedExtHostArgs {
 	transformURIs?: boolean;

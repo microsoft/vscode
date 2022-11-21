@@ -8,7 +8,7 @@ import * as _crypto from 'crypto';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _crypto = globalThis.MonacoNodeModules.crypto;
+// const _crypto = globalThis._VSCODE_NODE_MODULES.crypto;
 // ESM-uncomment-end
 
 

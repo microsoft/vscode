@@ -152,14 +152,6 @@ function startup(codeCachePath, nlsConfig) {
 	perf.mark('code/willLoadMainBundle');
 	if (isESM) {
 		globalThis.MonacoFileRoot = __dirname;
-		globalThis.MonacoNodeModules = new Proxy({}, {
-			get(target, mod) {
-				if (!target[mod] && typeof mod === 'string') {
-					target[mod] = require(mod);
-				}
-				return target[mod];
-			}
-		});
 		globalThis.vscode = {};
 		globalThis.vscode.context = {
 			configuration: () => {

@@ -7,7 +7,7 @@
 import * as electron from 'electron';
 // ESM-comment-end
 // ESM-uncomment-begin
-// const { createRequire } = globalThis.MonacoNodeModules['node:module'];
+// const { createRequire } = globalThis._VSCODE_NODE_MODULES['node:module'];
 // import type * as Electron from 'electron';
 // const require = createRequire(new URL(import.meta.url).pathname);
 // const electron = require('electron/main') as typeof Electron;

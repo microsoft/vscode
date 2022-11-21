@@ -8,7 +8,7 @@ import * as https from 'https';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const https = globalThis.MonacoNodeModules.https;
+// const https = globalThis._VSCODE_NODE_MODULES.https;
 // ESM-uncomment-end
 
 

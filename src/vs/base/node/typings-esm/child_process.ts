@@ -8,7 +8,7 @@ import * as _child_process from 'child_process';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _child_process = globalThis.MonacoNodeModules.child_process;
+// const _child_process = globalThis._VSCODE_NODE_MODULES.child_process;
 // ESM-uncomment-end
 
 

@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // ESM-uncomment-begin
-// const _graceful_fs = globalThis.MonacoNodeModules['graceful-fs'];
+// const _graceful_fs = globalThis._VSCODE_NODE_MODULES['graceful-fs'];
 // export const { gracefulify } = _graceful_fs;
 // ESM-uncomment-end

@@ -8,7 +8,7 @@ import * as _yazl from 'yazl';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _yazl = globalThis.MonacoNodeModules.yazl;
+// const _yazl = globalThis._VSCODE_NODE_MODULES.yazl;
 // ESM-uncomment-end
 
 export const ZipFile = _yazl.ZipFile;

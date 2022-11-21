@@ -8,7 +8,7 @@ import * as _os from 'os';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _os = globalThis.MonacoNodeModules.os;
+// const _os = globalThis._VSCODE_NODE_MODULES.os;
 // ESM-uncomment-end
 
 export const EOL = _os.EOL;

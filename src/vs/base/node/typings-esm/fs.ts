@@ -8,7 +8,7 @@ import * as fs from 'fs';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const fs = globalThis.MonacoNodeModules.fs;
+// const fs = globalThis._VSCODE_NODE_MODULES.fs;
 // ESM-uncomment-end
 
 export type Dir = import('fs').Dir;

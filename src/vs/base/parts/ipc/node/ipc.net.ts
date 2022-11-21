@@ -16,25 +16,15 @@ import { Platform, platform } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { isESM } from 'vs/base/common/amd';
 
 // TODO@bpasero remove me once electron utility process has landed
 function getNodeDependencies() {
-	if (isESM) {
-		return {
-			crypto: globalThis.MonacoNodeModules.crypto,
-			zlib: globalThis.MonacoNodeModules.zlib,
-			net: globalThis.MonacoNodeModules.net,
-			os: globalThis.MonacoNodeModules.os,
-		};
-	} else {
-		return {
-			crypto: globalThis._VSCODE_NODE_MODULES.crypto,
-			zlib: globalThis._VSCODE_NODE_MODULES.zlib,
-			net: globalThis._VSCODE_NODE_MODULES.net,
-			os: globalThis._VSCODE_NODE_MODULES.os,
-		};
-	}
+	return {
+		crypto: globalThis._VSCODE_NODE_MODULES.crypto,
+		zlib: globalThis._VSCODE_NODE_MODULES.zlib,
+		net: globalThis._VSCODE_NODE_MODULES.net,
+		os: globalThis._VSCODE_NODE_MODULES.os,
+	};
 }
 
 export class NodeSocket implements ISocket {

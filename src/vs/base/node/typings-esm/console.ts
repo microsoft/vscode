@@ -8,7 +8,7 @@ import * as console from 'console';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const console = globalThis.MonacoNodeModules.console;
+// const console = globalThis._VSCODE_NODE_MODULES.console;
 // ESM-uncomment-end
 
 export const assert = console.assert;

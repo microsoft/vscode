@@ -6,8 +6,8 @@
 /// <reference path="../../../../typings/require.d.ts" />
 
 // ESM-uncomment-begin
-// const path = globalThis.MonacoNodeModules.path;
-// const os = globalThis.MonacoNodeModules.os;
+// const path = globalThis._VSCODE_NODE_MODULES.path;
+// const os = globalThis._VSCODE_NODE_MODULES.os;
 // let __exports = {};
 // ESM-uncomment-end
 

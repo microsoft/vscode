@@ -8,7 +8,7 @@ import * as _util from 'util';
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// const _util = globalThis.MonacoNodeModules.util;
+// const _util = globalThis._VSCODE_NODE_MODULES.util;
 // ESM-uncomment-end
 
 
