@@ -23,7 +23,7 @@ export class HoverService implements IHoverService {
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 
-	private _lastFocusedElement: HTMLElement | null = null;
+	private _lastFocusedElementBeforeOpen: HTMLElement | null = null;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -39,7 +39,7 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
-		this._lastFocusedElement = <HTMLElement | null>document.activeElement;
+		this._lastFocusedElementBeforeOpen = <HTMLElement | null>document.activeElement;
 
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
@@ -68,7 +68,10 @@ export class HoverService implements IHoverService {
 			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => this._keyUp(e, hover)));
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_UP, e => this._keyUp(e, hover)));
 			if (options.hideOnKeyDown) {
-				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => this.hideHover()));
+				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => {
+					this.hideHover();
+					this._lastFocusedElementBeforeOpen?.focus();
+				}));
 			}
 		}
 
@@ -112,6 +115,7 @@ export class HoverService implements IHoverService {
 		}
 		if (e.key !== 'Tab') {
 			this.hideHover();
+			this._lastFocusedElementBeforeOpen?.focus();
 		}
 	}
 
@@ -121,13 +125,7 @@ export class HoverService implements IHoverService {
 			// Hide if alt is released while the mouse os not over hover/target
 			if (!hover.isMouseIn) {
 				this.hideHover();
-			}
-		}
-		if (e.key === 'Tab') {
-			const focusedElement = <HTMLElement | null>document.activeElement;
-			if (!focusedElement || !this._currentHover || !this._currentHover.domNode.contains(focusedElement)) {
-				this._lastFocusedElement?.focus();
-				this.hideHover();
+				this._lastFocusedElementBeforeOpen?.focus();
 			}
 		}
 	}
