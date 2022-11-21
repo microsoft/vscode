@@ -3,7 +3,10 @@
 <html>
 	<head>
 		<meta charset="utf-8" />
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' node:; connect-src 'self' https:;">
+		<meta http-equiv="Content-Security-Policy" content="
+			default-src 'none';
+			script-src 'self' node: 'sha256-dIi31KrQLN+HT34lXCM9yk0b9Ia7HUTNfaU1sWMEkMc=';
+			connect-src 'self' https:;" />
 	</head>
 
 	<body aria-label="">
@@ -11,6 +14,25 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
+
+	<script type="importmap">
+		{
+			"imports":{
+				"os": "../../../../vs/base/node/typings-esm/os.js",
+				"yauzl": "../../../../vs/base/node/typings-esm/yauzl.js",
+				"yazl": "../../../../vs/base/node/typings-esm/yazl.js",
+				"minimist": "../../../../vs/base/node/typings-esm/minimist.js",
+				"child_process": "../../../../vs/base/node/typings-esm/child_process.js",
+				"console": "../../../../vs/base/node/typings-esm/console.js",
+				"crypto": "../../../../vs/base/node/typings-esm/crypto.js",
+				"fs": "../../../../vs/base/node/typings-esm/fs.js",
+				"https": "../../../../vs/base/node/typings-esm/https.js",
+				"net": "../../../../vs/base/node/typings-esm/net.js",
+				"path": "../../../../vs/base/node/typings-esm/path.js",
+				"util": "../../../../vs/base/node/typings-esm/util.js"
+			}
+		}
+	</script>
 	<script src="../../../../bootstrap.js"></script>
 	<script src="../../../../bootstrap-window.js"></script>
 	<script src="sharedProcess.js"></script>

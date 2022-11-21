@@ -133,7 +133,7 @@ function discoverImports(fileContents) {
  * @param {string} fileContents
  */
 function migrateTS(filePath, fileContents) {
-	if (filePath.endsWith('.d.ts')) {
+	if (filePath.endsWith('.d.ts') || filePath.includes('/typings-esm/')) {
 		return writeDestFile(filePath, fileContents);
 	}
 
@@ -160,10 +160,10 @@ function migrateTS(filePath, fileContents) {
 		// to some guess for what files endup in the shared process
 		if (!filePath.includes('vs/workbench/') && !filePath.includes('vs/editor/')) {
 			const monacoNodeModules = new Set([
-				'child_process', 'console', 'crypto', 'fs', 'graceful-fs', 'https', 'minimist', 'net',
-				'os', 'path', 'util', 'xterm-headless', 'xterm', 'yauzl', 'yazl',
+				'graceful-fs',
+				'xterm-headless',
 			]);
-			if (monacoNodeModules.has(importedFilename) && !filePath.includes('/typings-esm/')) {
+			if (monacoNodeModules.has(importedFilename)) {
 				importedFilepath = `vs/base/node/typings-esm/${importedFilename}`;
 			}
 		}
