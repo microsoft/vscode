@@ -318,6 +318,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
