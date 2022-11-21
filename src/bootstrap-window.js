@@ -119,6 +119,16 @@ const isESM = false;
 
 		window['MonacoEnvironment'] = {};
 
+		// VSCODE_GLOBALS: node_modules
+		globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => (require.__$__nodeRequire ?? require)(String(mod)) });
+
+		if (!safeProcess.sandboxed && !isESM) {
+			// VSCODE_GLOBALS: package/product.json
+			globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.json');
+			globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/package.json');
+		}
+
+
 		if (isESM) {
 			globalThis.MonacoFileRoot = `${configuration.appRoot}/out`;
 			globalThis.MonacoNodeModules = new Proxy({}, {

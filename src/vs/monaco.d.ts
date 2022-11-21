@@ -2235,6 +2235,124 @@ declare namespace monaco.editor {
 	export interface ILineChange extends IChange {
 		readonly charChanges: ICharChange[] | undefined;
 	}
+
+	/**
+	 * A document diff provider computes the diff between two text models.
+	 */
+	export interface IDocumentDiffProvider {
+		/**
+		 * Computes the diff between the text models `original` and `modified`.
+		 */
+		computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff>;
+		/**
+		 * Is fired when settings of the diff algorithm change that could alter the result of the diffing computation.
+		 * Any user of this provider should recompute the diff when this event is fired.
+		 */
+		onDidChange: IEvent<void>;
+	}
+
+	/**
+	 * Options for the diff computation.
+	 */
+	export interface IDocumentDiffProviderOptions {
+		/**
+		 * When set to true, the diff should ignore whitespace changes.i
+		 */
+		ignoreTrimWhitespace: boolean;
+		/**
+		 * A diff computation should throw if it takes longer than this value.
+		 */
+		maxComputationTimeMs: number;
+	}
+
+	/**
+	 * Represents a diff between two text models.
+	 */
+	export interface IDocumentDiff {
+		/**
+		 * If true, both text models are identical (byte-wise).
+		 */
+		readonly identical: boolean;
+		/**
+		 * If true, the diff computation timed out and the diff might not be accurate.
+		 */
+		readonly quitEarly: boolean;
+		/**
+		 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
+		 */
+		readonly changes: LineRangeMapping[];
+	}
+
+	/**
+	 * Maps a line range in the original text model to a line range in the modified text model.
+	 */
+	export class LineRangeMapping {
+		/**
+		 * The line range in the original text model.
+		 */
+		readonly originalRange: LineRange;
+		/**
+		 * The line range in the modified text model.
+		 */
+		readonly modifiedRange: LineRange;
+		/**
+		 * If inner changes have not been computed, this is set to undefined.
+		 * Otherwise, it represents the character-level diff in this line range.
+		 * The original range of each range mapping should be contained in the original line range (same for modified).
+		 * Must not be an empty array.
+		 */
+		readonly innerChanges: RangeMapping[] | undefined;
+		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
+		toString(): string;
+	}
+
+	/**
+	 * A range of lines (1-based).
+	 */
+	export class LineRange {
+		/**
+		 * The start line number.
+		 */
+		readonly startLineNumber: number;
+		/**
+		 * The end line number (exclusive).
+		 */
+		readonly endLineNumberExclusive: number;
+		constructor(startLineNumber: number, endLineNumberExclusive: number);
+		/**
+		 * Indicates if this line range is empty.
+		 */
+		get isEmpty(): boolean;
+		/**
+		 * Moves this line range by the given offset of line numbers.
+		 */
+		delta(offset: number): LineRange;
+		/**
+		 * The number of lines this line range spans.
+		 */
+		get length(): number;
+		/**
+		 * Creates a line range that combines this and the given line range.
+		 */
+		join(other: LineRange): LineRange;
+		toString(): string;
+	}
+
+	/**
+	 * Maps a range in the original text model to a range in the modified text model.
+	 */
+	export class RangeMapping {
+		/**
+		 * The original range.
+		 */
+		readonly originalRange: Range;
+		/**
+		 * The modified range.
+		 */
+		readonly modifiedRange: Range;
+		constructor(originalRange: Range, modifiedRange: Range);
+		toString(): string;
+	}
 	export interface IDimension {
 		width: number;
 		height: number;
@@ -3155,6 +3273,12 @@ declare namespace monaco.editor {
 		 */
 		wordWrapBreakAfterCharacters?: string;
 		/**
+		 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+		 * When wordBreak = 'normal', Use the default line break rule.
+		 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+		 */
+		wordBreak?: 'normal' | 'keepAll';
+		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
 		 * Use -1 to never stop rendering
@@ -3448,7 +3572,7 @@ declare namespace monaco.editor {
 		/**
 		 * The font family
 		 */
-		fontFamily?: string;
+		fontFamily?: string | string[];
 		/**
 		 * The font weight
 		 */
@@ -3574,7 +3698,7 @@ declare namespace monaco.editor {
 		/**
 		 * Diff Algorithm
 		*/
-		diffAlgorithm?: 'smart' | 'experimental';
+		diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
 	}
 
 	/**
@@ -4544,22 +4668,23 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 116,
 		useShadowDOM = 117,
 		useTabStops = 118,
-		wordSeparators = 119,
-		wordWrap = 120,
-		wordWrapBreakAfterCharacters = 121,
-		wordWrapBreakBeforeCharacters = 122,
-		wordWrapColumn = 123,
-		wordWrapOverride1 = 124,
-		wordWrapOverride2 = 125,
-		wrappingIndent = 126,
-		wrappingStrategy = 127,
-		showDeprecated = 128,
-		inlayHints = 129,
-		editorClassName = 130,
-		pixelRatio = 131,
-		tabFocusMode = 132,
-		layoutInfo = 133,
-		wrappingInfo = 134
+		wordBreak = 119,
+		wordSeparators = 120,
+		wordWrap = 121,
+		wordWrapBreakAfterCharacters = 122,
+		wordWrapBreakBeforeCharacters = 123,
+		wordWrapColumn = 124,
+		wordWrapOverride1 = 125,
+		wordWrapOverride2 = 126,
+		wrappingIndent = 127,
+		wrappingStrategy = 128,
+		showDeprecated = 129,
+		inlayHints = 130,
+		editorClassName = 131,
+		pixelRatio = 132,
+		tabFocusMode = 133,
+		layoutInfo = 134,
+		wrappingInfo = 135
 	}
 
 	export const EditorOptions: {
@@ -4684,6 +4809,7 @@ declare namespace monaco.editor {
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
+		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;

@@ -165,7 +165,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				if (err && err.stack) {
 					failureTelemetryEvent.errorStack = err.stack;
 				}
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent, true);
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent);
 
 				return null;
 			}

@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, ConnectionInfo, IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, ConnectionInfo, IRemoteTunnelService, LOGGER_NAME, LOG_CHANNEL_ID, LOG_FILE_NAME } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -21,7 +21,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { IOutputService, registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -32,11 +32,11 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Action } from 'vs/base/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { join } from 'vs/base/common/path';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote Tunnels',
@@ -106,7 +106,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.logger = this._register(loggerService.createLogger(environmentService.remoteTunnelLogResource, { name: 'remoteTunnel' }));
+		const remoteTunnelServiceLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
+
+		this.logger = this._register(loggerService.createLogger(remoteTunnelServiceLogResource, { name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
@@ -153,6 +155,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			this.initialize(true);
 		}
 
+		registerLogChannel(LOG_CHANNEL_ID, localize('remoteTunnelLog', "Remote Tunnel Service"), remoteTunnelServiceLogResource, fileService, logService);
 	}
 
 	private get existingSessionId() {
@@ -259,11 +262,16 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async getAccountPreference(): Promise<ExistingSessionItem | undefined> {
+		const sessions = await this.getAllSessions();
+		if (sessions.length === 1) {
+			return sessions[0];
+		}
+
 		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
 		quickpick.ignoreFocusOut = true;
-		quickpick.items = await this.createQuickpickItems();
+		quickpick.items = await this.createQuickpickItems(sessions);
 
 		return new Promise((resolve, reject) => {
 			quickpick.onDidHide((e) => {
@@ -297,12 +305,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		};
 	}
 
-	private async createQuickpickItems(): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
+	private async createQuickpickItems(sessions: ExistingSessionItem[]): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
 		const options: (ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
 		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
 
-		const sessions = await this.getAllSessions();
 		options.push(...sessions);
 
 		options.push({ type: 'separator', label: localize('others', "Others") });
@@ -465,7 +472,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: RemoteTunnelCommandIds.manage,
-					title: localize('remoteTunnel.actions.manage.on', 'Remote Tunnel Access in On'),
+					title: localize('remoteTunnel.actions.manage.on.v2', 'Remote Tunnel Access is On'),
 					category: REMOTE_TUNNEL_CATEGORY,
 					menu: [{
 						id: MenuId.AccountsContext,
@@ -542,7 +549,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 			async run(accessor: ServicesAccessor) {
 				const outputService = accessor.get(IOutputService);
-				outputService.showChannel(Constants.remoteTunnelLogChannelId);
+				outputService.showChannel(LOG_CHANNEL_ID);
 			}
 		}));
 

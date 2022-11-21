@@ -29,25 +29,14 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { parentOriginHash } from 'vs/workbench/browser/webview';
-import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
+import { parentOriginHash } from 'vs/workbench/browser/iframe';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
-import { FromWebviewMessage, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
+import { FromWebviewMessage, KeyEvent, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
+import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-
-interface IKeydownEvent {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
-}
 
 interface WebviewContent {
 	readonly html: string;
@@ -77,18 +66,15 @@ namespace WebviewState {
 }
 
 interface WebviewActionContext {
-	webview?: string;
-	[key: string]: unknown;
+	readonly webview?: string;
+	readonly [key: string]: unknown;
 }
 
 const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
-	/**
-	 * External identifier of this webview.
-	 */
-	public readonly id: string;
+	protected readonly id = generateUuid();
 
 	/**
 	 * The provided identifier of this webview.
@@ -99,11 +85,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 * The origin this webview itself is loaded from. May not be unique
 	 */
 	public readonly origin: string;
-
-	/**
-	 * Unique internal identifier of this webview's iframe element.
-	 */
-	private readonly _iframeId: string;
 
 	private readonly _encodedWebviewOriginPromise: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
@@ -175,10 +156,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	) {
 		super();
 
-		this.id = initInfo.id;
 		this.providedViewType = initInfo.providedViewType;
-		this._iframeId = generateUuid();
-		this.origin = initInfo.origin ?? this._iframeId;
+		this.origin = initInfo.origin ?? this.id;
 
 		this._encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 
@@ -201,7 +180,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 
 		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
-			if (!this._encodedWebviewOrigin || e?.data?.target !== this._iframeId) {
+			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
 
@@ -361,7 +340,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		if (initInfo.options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
-			this.styledFindWidget();
 		}
 
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
@@ -470,7 +448,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private _initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
-			id: this._iframeId,
+			id: this.id,
 			origin: this.origin,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
@@ -679,13 +657,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		const screenReader = this._accessibilityService.isScreenReaderOptimized();
 
 		this._send('styles', { styles, activeTheme, themeId, themeLabel, reduceMotion, screenReader });
-
-		this.styledFindWidget();
 	}
 
-	private styledFindWidget() {
-		this._webviewFindWidget?.updateTheme(this.webviewThemeDataProvider.getTheme());
-	}
 
 	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
@@ -696,7 +669,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 	}
 
-	private handleKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
+	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
 		// Create a fake KeyboardEvent from the data provided
 		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target

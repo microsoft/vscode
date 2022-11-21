@@ -17,6 +17,7 @@ import * as os from 'os';
 import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
+import { Mangler } from './mangleTypeScript';
 const watch = require('./watch');
 
 
@@ -87,6 +88,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	pipeline.tsProjectSrc = () => {
 		return compilation.src({ base: src });
 	};
+	pipeline.projectPath = projectPath;
 	return pipeline;
 }
 
@@ -118,7 +120,27 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			generator.execute();
 		}
 
+		// mangle: TypeScript to TypeScript
+		let mangleStream = es.through();
+		if (build) {
+			let ts2tsMangler = new Mangler(compile.projectPath);
+			const newContentsByFileName = ts2tsMangler.computeNewFileContents();
+			mangleStream = es.through(function write(data: File) {
+				const newContents = newContentsByFileName.get(data.path);
+				if (newContents !== undefined) {
+					data.contents = Buffer.from(newContents);
+				}
+				this.push(data);
+			}, function end() {
+				this.push(null);
+				// free resources
+				newContentsByFileName.clear();
+				(<any>ts2tsMangler) = undefined;
+			});
+		}
+
 		return srcPipe
+			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
 			.pipe(gulp.dest(out));

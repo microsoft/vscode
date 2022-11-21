@@ -36,6 +36,7 @@ import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/p
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -129,6 +130,7 @@ export interface IExtensionsScannerService {
 
 	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
 	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
+	initializeDefaultProfileExtensions(): Promise<void>;
 }
 
 export abstract class AbstractExtensionsScannerService extends Disposable implements IExtensionsScannerService {
@@ -257,6 +259,42 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+	}
+
+	private _initializeDefaultProfileExtensionsPromise: Promise<void> | undefined = undefined;
+	initializeDefaultProfileExtensions(): Promise<void> {
+		if (!this._initializeDefaultProfileExtensionsPromise) {
+			this._initializeDefaultProfileExtensionsPromise = (async () => {
+				try {
+					const initMarker = this.uriIdentityService.extUri.joinPath(this.userExtensionsLocation, '.init-default-profile-extensions');
+					if (await this.fileService.exists(initMarker)) {
+						return;
+					}
+					if (
+						// current default profile extensions location
+						!(await this.fileService.exists(this.userDataProfilesService.defaultProfile.extensionsResource))
+						// old default profile extensions location
+						&& !(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json')))
+					) {
+						this.logService.info('Started initializing default profile extensions in extensions installation folder.', this.userExtensionsLocation.toString());
+						const userExtensions = await this.scanUserExtensions({ includeInvalid: true });
+						await this.extensionsProfileScannerService.addExtensionsToProfile(userExtensions.map(e => [e, e.metadata]), this.userDataProfilesService.defaultProfile.extensionsResource);
+						this.logService.info('Completed initializing default profile extensions in extensions installation folder.', this.userExtensionsLocation.toString());
+					}
+					try {
+						await this.fileService.createFile(initMarker, VSBuffer.fromString(''));
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							this.logService.warn('Failed to create default profile extensions initialize marker in extensions installation folder.', this.userExtensionsLocation.toString(), getErrorMessage(error));
+						}
+					}
+				} catch (error) {
+					this.logService.error(error);
+					throw error;
+				}
+			})();
+		}
+		return this._initializeDefaultProfileExtensionsPromise;
 	}
 
 	private async applyScanOptions(extensions: IRelaxedScannedExtension[], type: ExtensionType | 'development', scanOptions: ScanOptions, pickLatest: boolean): Promise<IRelaxedScannedExtension[]> {
@@ -577,6 +615,7 @@ class ExtensionsScanner extends Disposable {
 				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
+				ImplicitActivationEvents.updateManifest(manifest);
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
 				const extension = {
 					type,

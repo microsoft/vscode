@@ -333,7 +333,7 @@ class ProcessExplorer {
 
 						return 'header';
 					}
-				},
+				}
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
