@@ -107,7 +107,9 @@ export class HoverService implements IHoverService {
 		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
 			return;
 		}
-		this.hideHover();
+		if (e.key !== 'Tab') {
+			this.hideHover();
+		}
 	}
 
 	private _keyUp(e: KeyboardEvent, hover: HoverWidget) {
@@ -115,6 +117,12 @@ export class HoverService implements IHoverService {
 			hover.isLocked = false;
 			// Hide if alt is released while the mouse os not over hover/target
 			if (!hover.isMouseIn) {
+				this.hideHover();
+			}
+		}
+		if (e.key === 'Tab') {
+			const focusedElement = <HTMLElement | null>document.activeElement;
+			if (!focusedElement || !this._currentHover || !this._currentHover.domNode.contains(focusedElement)) {
 				this.hideHover();
 			}
 		}
