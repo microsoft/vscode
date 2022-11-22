@@ -432,10 +432,10 @@ napi-build-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/napi-build-utils/-/napi-build-utils-1.0.2.tgz#b1fddc0b2c46e380a0b7a76f984dd47c41a13806"
   integrity sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==
 
-native-watchdog@1.4.1:
-  version "1.4.1"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.1.tgz#f5462cb878796c75f8a6c3c71aa0aa52d4992e05"
-  integrity sha512-RzGXNgoe54BmkkIFwegz7eeJm7xovTj/VG5qREfF+KeSqiVzHGnVwFoLzNLlYsqSSdIOIYoCOFlEhoS+asRVyQ==
+native-watchdog@1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.0.tgz#547a1f9f88754c38089c622d405ed1e324c7a545"
+  integrity sha512-4FynAeGtTpoQ2+5AxVJXGEGsOzPsNYDh8Xmawjgs7YWJe+bbbgt7CYlA/Qx6X+kwtN5Ey1aNSm9MqZa0iNKkGw==
 
 node-abi@^3.3.0:
   version "3.8.0"
