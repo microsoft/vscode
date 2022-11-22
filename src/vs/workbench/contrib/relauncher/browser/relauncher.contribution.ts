@@ -61,10 +61,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	}
 
 	private onConfigurationChange(config: IConfiguration, e: IConfigurationChangeEvent | undefined): void {
-		if (e?.source === ConfigurationTarget.DEFAULT) {
-			return; // ignore changes that are triggered programmatically (e.g. from experiments)
-		}
-
 		let changed = false;
 
 		function processChanged(didChange: boolean) {
@@ -118,8 +114,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
 
-		// Notify only when changed and we are the focused window (avoids notification spam across windows)
-		if (e && changed) {
+		// Notify only when changed from an event and the change
+		// was not triggerd programmatically (e.g. from experiments)
+		if (changed && e && e.source !== ConfigurationTarget.DEFAULT) {
 			this.doConfirm(
 				isNative ?
 					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
