@@ -12,6 +12,13 @@
 	// const isESM = true;
 	// ESM-uncomment-end
 
+	// SHARED-PROCESS: worker with node integration but with blink's import
+	if (isESM && 'require' in globalThis) {
+		const nodeRequire = require;
+		// VSCODE_GLOBALS: node_modules
+		globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
+	}
+
 	const MonacoEnvironment = (<any>self).MonacoEnvironment;
 	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 

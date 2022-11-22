@@ -162,6 +162,8 @@ function migrateTS(filePath, fileContents) {
 			const monacoNodeModules = new Set([
 				'graceful-fs',
 				'xterm-headless',
+				'child_process', // inside worker of shared process
+				'console', // inside worker of shared process
 			]);
 			if (monacoNodeModules.has(importedFilename)) {
 				importedFilepath = `vs/base/node/typings-esm/${importedFilename}`;
