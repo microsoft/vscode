@@ -46,15 +46,13 @@ export class HoverWidget extends Widget {
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
 
-	private readonly _lastFocusedElementBeforeOpen: HTMLElement | null;
-
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
-	private _addedTabLoop: boolean = false;
+	private _addedFocusTrap: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
@@ -91,8 +89,6 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
-		this._lastFocusedElementBeforeOpen = <HTMLElement | null>document.activeElement;
-
 		this._linkHandler = options.linkHandler || (url => {
 			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
 		});
@@ -124,7 +120,6 @@ export class HoverWidget extends Widget {
 		// Hide hover on escape
 		this.onkeydown(this._hover.containerDomNode, e => {
 			if (e.equals(KeyCode.Escape)) {
-				this._lastFocusedElementBeforeOpen?.focus();
 				this.dispose();
 			}
 		});
@@ -228,13 +223,18 @@ export class HoverWidget extends Widget {
 		}
 	}
 
-	private addTabLoop() {
+	private addFocusTrap() {
+		if (this._addedFocusTrap) {
+			return;
+		}
+		this._addedFocusTrap = true;
+
 		// Add a hover tab loop if the hover has at least one element with a valid tabIndex
 		const firstContainerFocusElement = this._hover.containerDomNode;
 		const lastContainerFocusElement = this.findLastFocusableChild(this._hover.contentsDomNode);
 		if (lastContainerFocusElement) {
-			const beforeContainerFocusElement = dom.prepend(this._hoverContainer, $('div.focus-before'));
-			const afterContainerFocusElement = dom.append(this._hoverContainer, $('div.focus-after'));
+			const beforeContainerFocusElement = dom.prepend(this._hoverContainer, $('div'));
+			const afterContainerFocusElement = dom.append(this._hoverContainer, $('div'));
 			beforeContainerFocusElement.tabIndex = 0;
 			afterContainerFocusElement.tabIndex = 0;
 			this._register(dom.addDisposableListener(afterContainerFocusElement, 'focus', (e) => {
@@ -253,7 +253,7 @@ export class HoverWidget extends Widget {
 			for (let i = 0; i < root.childNodes.length; i++) {
 				const node = root.childNodes.item(root.childNodes.length - i - 1);
 				if (node.nodeType === node.ELEMENT_NODE) {
-					const parsedNode = <HTMLElement>node;
+					const parsedNode = node as HTMLElement;
 					if (typeof parsedNode.tabIndex === 'number' && parsedNode.tabIndex >= 0) {
 						return parsedNode;
 					}
@@ -271,10 +271,7 @@ export class HoverWidget extends Widget {
 		container.appendChild(this._hoverContainer);
 
 		this.layout();
-		if (!this._addedTabLoop) {
-			this.addTabLoop();
-			this._addedTabLoop = true;
-		}
+		this.addFocusTrap();
 	}
 
 	public layout() {

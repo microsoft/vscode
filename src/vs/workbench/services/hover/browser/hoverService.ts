@@ -23,7 +23,7 @@ export class HoverService implements IHoverService {
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 
-	private _lastFocusedElementBeforeOpen: HTMLElement | null = null;
+	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -39,11 +39,16 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
-		this._lastFocusedElementBeforeOpen = <HTMLElement | null>document.activeElement;
+		if (document.activeElement) {
+			this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
+		}
 
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		hover.onDispose(() => {
+			// Required to handle cases such as closing the hover with the escape key
+			this._lastFocusedElementBeforeOpen?.focus();
+
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
 			if (this._currentHoverOptions === options) {
