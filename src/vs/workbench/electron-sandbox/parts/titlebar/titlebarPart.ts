@@ -149,7 +149,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const ret = super.createContentArea(parent);
 
 		// Native menu controller

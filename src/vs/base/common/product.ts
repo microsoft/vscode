@@ -133,7 +133,10 @@ export interface IProductConfiguration {
 	readonly serverDataFolderName?: string;
 
 	readonly tunnelApplicationName?: string;
-	readonly tunnelApplicationConfig?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+	readonly tunnelApplicationConfig?: {
+		authenticationProviders: IStringDictionary<{ scopes: string[] }>;
+		editorWebUrl: string;
+	};
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
