@@ -1824,6 +1824,7 @@
 		"ionic.project": "_ionic",
 		"platformio.ini": "_platformio",
 		"rollup.config.js": "_rollup",
+		"rollup.config.mjs": "_rollup",
 		"sass-lint.yml": "_sass",
 		"stylelint.config.js": "_stylelint",
 		"stylelint.config.cjs": "_stylelint",
