@@ -857,6 +857,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		originalRange: Range;
 		isShadow: boolean;
 		highlightResult?: IHighlightResult;
+		searchPreviewInfo?: ISearchPreviewInfo;
+	}
+
+	interface ISearchPreviewInfo {
+		line: string;
+		range: {
+			start: number;
+			end: number;
+		};
 	}
 
 	interface IHighlighter {
@@ -983,7 +992,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	function extractSelectionLine(selection: Selection) {
+	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
 
 		const range = selection.getRangeAt(0);
 		const oldRange = document.createRange();
@@ -993,14 +1002,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 		selection.modify('move', 'backward', 'lineboundary');
 		selection.modify('extend', 'forward', 'lineboundary');
 
+		const newRange = selection.getRangeAt(0);
 		const line = selection.toString();
+		const lineRange = {
+			start: oldRange.startOffset - newRange.startOffset,
+			end: oldRange.endOffset - newRange.startOffset,
+		};
 
 		// re-add the old range so that the selection is restored
 		selection.removeAllRanges();
 		selection.addRange(oldRange);
 
-		return line;
+		return { line, range: lineRange };
 	}
+
 	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
@@ -1038,14 +1053,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
 						if (shadowSelection && shadowSelection.anchorNode) {
-							console.log(extractSelectionLine(shadowSelection));
 							matches.push({
 								type: 'preview',
 								id: preview.id,
 								cellId: preview.id,
 								container: preview,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: extractSelectionLine(shadowSelection),
 							});
 						}
 					}
@@ -1065,7 +1080,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: cellId,
 								container: outputNode,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: extractSelectionLine(shadowSelection)
 							});
 						}
 					}
@@ -1141,7 +1157,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				type: match.type,
 				id: match.id,
 				cellId: match.cellId,
-				index
+				index,
+				searchPreviewInfo: match.searchPreviewInfo,
 			}))
 		});
 	};

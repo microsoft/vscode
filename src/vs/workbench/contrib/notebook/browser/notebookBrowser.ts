@@ -692,8 +692,17 @@ export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
 	getNextVisibleCellIndex(index: number): number;
 }
 
+export interface ISearchPreviewInfo {
+	line: string;
+	range: {
+		start: number;
+		end: number;
+	};
+}
+
 export interface OutputFindMatch {
 	readonly index: number;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export interface CellFindMatch {

@@ -30,9 +30,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+// import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
+import { notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+// import { addContextToNotebookEditorMatches, notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -350,7 +354,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
 				includeMarkupInput: true,
-				includeCodeInput: true
+				includeMarkupPreview: true,
+				includeCodeInput: true,
+				includeOutput: true,
 			}, CancellationToken.None);
 		// const matches = allMatches.map((elem) => elem.matches)
 		// 	.flat()
@@ -366,7 +372,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (!model) {
 			return;
 		}
-		// this.updateNotebookMatches(allMatches, true);
+		this.updateNotebookMatches(allMatches, true);
 	}
 
 	private updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): void {
@@ -387,31 +393,31 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateMatches(matches, modelChange, this._model);
 	}
 
-	// private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
-	// 	if (!this._notebookEditorWidget) {
-	// 		return;
-	// 	}
+	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
 
-	// 	const textSearchResults = matches.forEach((m) => notebookEditorMatchesToTextSearchResults(m.matches, this._notebookEditorWidget, this._previewOptions));
-	// 	textSearchResults.forEach(textSearchResult => {
-	// 		textSearchResultToMatches(textSearchResult, this).forEach(match => {
-	// 			if (!this._removedMatches.has(match.id())) {
-	// 				this.add(match);
-	// 				if (this.isMatchSelected(match)) {
-	// 					this._selectedMatch = match;
-	// 				}
-	// 			}
-	// 		});
-	// 	});
+		const textSearchResults = notebookEditorMatchesToTextSearchResults(matches, this._notebookEditorWidget, this._previewOptions);
+		textSearchResults.forEach(textSearchResult => {
+			textSearchResultToMatches(textSearchResult, this).forEach(match => {
+				if (!this._removedMatches.has(match.id())) {
+					this.add(match);
+					if (this.isMatchSelected(match)) {
+						this._selectedMatch = match;
+					}
+				}
+			});
+		});
 
-	// 	this.addContext(
-	// 		addContextToNotebookEditorMatches(textSearchResults, this._notebookEditorWidget, this.parent().parent().query!)
-	// 			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-	// 			.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+		// 	this.addContext(
+		// 		addContextToNotebookEditorMatches(textSearchResults, this._notebookEditorWidget, this.parent().parent().query!)
+		// 			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+		// 			.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
 
-	// 	this._onChange.fire({ forceUpdateModel: modelChange });
-	// 	this.updateHighlights();
-	// }
+		this._onChange.fire({ forceUpdateModel: modelChange });
+		// 	this.updateHighlights();
+	}
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean, model: ITextModel): void {
 

@@ -3,73 +3,83 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { FindMatch } from 'vs/editor/common/model';
-// import { CellFindMatchWithIndex, ICellViewModel, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-// import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-// import { ITextSearchPreviewOptions, ITextSearchResult, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { FindMatch } from 'vs/editor/common/model';
+import { CellFindMatchWithIndex, ICellViewModel, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { ITextSearchPreviewOptions, SearchRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { Range } from 'vs/editor/common/core/range';
 
-// interface CellFindMatchInfoForTextModel {
-// 	cell: ICellViewModel;
-// 	matches: FindMatch[] | OutputFindMatch;
-// }
+interface CellFindMatchInfoForTextModel {
+	cell: ICellViewModel;
+	matches: FindMatch[] | OutputFindMatch;
+}
 
-// function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, editorWidget: NotebookEditorWidget, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
-// 	// what do I want here?
-// 	// I want to take all of my matches and group them
-// 	const matches: FindMatch[] | OutputFindMatch = cellInfo.matches;
-// 	if (matches instanceof OutputFindMatch) {
-
-// 		return new TextSearchMatch(
-// 			lineTexts.join('\n') + '\n',
-// 			matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
-// 			previewOptions);
-// 	} else {
-// 		const firstLine = matches[0].range.startLineNumber;
-// 		const lastLine = matches[matches.length - 1].range.endLineNumber;
-// 		const lineTexts: string[] = [];
-// 		for (let i = firstLine; i <= lastLine; i++) {
-// 			lineTexts.push(editorWidget.textModel?.getLineContent(i));
-// 		}
-
-// 		return new TextSearchMatch(
-// 			lineTexts.join('\n') + '\n',
-// 			matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
-// 			previewOptions);
-// 	}
-
-// }
-
-// export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], editorWidget: NotebookEditorWidget, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
-// 	let previousEndLine = -1;
-// 	const groupedMatches: CellFindMatchInfoForTextModel[] = [];
-// 	let currentMatches: FindMatch[] = [];
+function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, editorWidget: NotebookEditorWidget, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch | undefined {
+	const matches = cellInfo.matches;
 
 
-// 	cellFindMatches.forEach((cellFindMatch) => {
-// 		cellFindMatch.matches.forEach((match) => {
-// 			if (match instanceof FindMatch) {
+	if (Array.isArray(matches)) {
 
-// 				if (match.range.startLineNumber !== previousEndLine) {
-// 					currentMatches = [];
-// 					groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
-// 				}
+		const firstLine = matches[0].range.startLineNumber;
+		const lastLine = matches[matches.length - 1].range.endLineNumber;
+		const lineTexts: string[] = [];
+		for (let i = firstLine; i <= lastLine; i++) {
+			if (cellInfo.cell.textModel) {
+				lineTexts.push(cellInfo.cell.textModel?.getLineContent(i));
+			}
+		}
 
-// 				currentMatches.push(match);
-// 				previousEndLine = match.range.endLineNumber;
-// 			} else {
-// 				groupedMatches.push({ cell: cellFindMatch.cell, matches: match });
-// 			}
-// 		});
+		return new TextSearchMatch(
+			lineTexts.join('\n') + '\n',
+			matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
+			previewOptions);
 
-// 		currentMatches = [];
-// 		groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
-// 	});
+	}
+	else if (matches.searchPreviewInfo) {
+		return new TextSearchMatch(
+			matches.searchPreviewInfo.line,
+			new Range(0, matches.searchPreviewInfo.range.start, 1, matches.searchPreviewInfo.range.end),
+			previewOptions);
+	}
 
-// 	return groupedMatches.map(sameLineMatches => {
 
-// 		return notebookEditorMatchToTextSearchResult(sameLineMatches, editorWidget, previewOptions);
-// 	});
-// }
+	const ranges = new SearchRange(0, 0, 1, 1);
+	return new TextSearchMatch(
+		'\n',
+		ranges,
+		previewOptions);
+}
+export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], editorWidget: NotebookEditorWidget, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
+	let previousEndLine = -1;
+	const groupedMatches: CellFindMatchInfoForTextModel[] = [];
+	let currentMatches: FindMatch[] = [];
+
+
+	cellFindMatches.forEach((cellFindMatch) => {
+		cellFindMatch.matches.forEach((match) => {
+			if (match instanceof FindMatch) {
+
+				if (match.range.startLineNumber !== previousEndLine) {
+					currentMatches = [];
+					groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
+				}
+
+				currentMatches.push(match);
+				previousEndLine = match.range.endLineNumber;
+			} else {
+				groupedMatches.push({ cell: cellFindMatch.cell, matches: match });
+			}
+		});
+
+		currentMatches = [];
+		groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
+	});
+
+	return groupedMatches.map(sameLineMatches => {
+
+		return notebookEditorMatchToTextSearchResult(sameLineMatches, editorWidget, previewOptions);
+	}).filter((item): item is TextSearchMatch => !!item);
+}
 
 // export function addContextToNotebookEditorMatches(matches: ITextSearchMatch[], editorWidget: NotebookEditorWidget, query: ITextQuery): ITextSearchResult[] {
 // 	const results: ITextSearchResult[] = [];
