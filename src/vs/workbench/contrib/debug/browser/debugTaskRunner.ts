@@ -10,7 +10,7 @@ import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -22,7 +22,7 @@ import { Action } from 'vs/base/common/actions';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
+function once(match: (e: ITaskEvent) => boolean, event: Event<ITaskEvent>): Event<ITaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
 		const result = event(e => {
 			if (match(e)) {
@@ -59,7 +59,7 @@ export class DebugTaskRunner {
 		this.canceled = true;
 	}
 
-	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
+	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | ITaskIdentifier | undefined): Promise<TaskRunResult> {
 		try {
 			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
@@ -149,7 +149,7 @@ export class DebugTaskRunner {
 		}
 	}
 
-	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | ITaskIdentifier | undefined): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}

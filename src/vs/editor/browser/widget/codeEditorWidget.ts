@@ -14,17 +14,16 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { CursorsController } from 'vs/editor/common/cursor/cursor';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -38,15 +37,15 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
-import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
+import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -60,6 +59,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IdleValue } from 'vs/base/common/async';
 
 let EDITOR_ID = 0;
 
@@ -241,8 +241,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution };
-	protected _actions: { [key: string]: editorCommon.IEditorAction };
+	protected readonly _contributions = new DisposableMap<string, editorCommon.IEditorContribution | IdleValue<editorCommon.IEditorContribution | null>>();
+	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -267,7 +267,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _bannerDomNode: HTMLElement | null = null;
 
-	private _dropIntoEditorDecorationIds: string[] = [];
+	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
 	constructor(
 		domElement: HTMLElement,
@@ -318,9 +318,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._modelData = null;
 
-		this._contributions = {};
-		this._actions = {};
-
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._register(this._focusTracker.onChange(() => {
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
@@ -336,22 +333,39 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			contributions = EditorExtensionsRegistry.getEditorContributions();
 		}
 		for (const desc of contributions) {
-			if (this._contributions[desc.id]) {
+			if (this._contributions.has(desc.id)) {
 				onUnexpectedError(new Error(`Cannot have two contributions with the same id ${desc.id}`));
 				continue;
 			}
 			try {
-				const contribution = this._instantiationService.createInstance(desc.ctor, this);
-				this._contributions[desc.id] = contribution;
+				if (desc.instantiation === EditorContributionInstantiation.Idle) {
+					const contribution = new IdleValue(() => {
+						try {
+							// Replace the original entry in _contributions with the resolved contribution
+							const instance = this._instantiationService.createInstance(desc.ctor, this);
+							this._contributions.set(desc.id, instance);
+							return instance;
+						} catch (err) {
+							// In case of an exception, we delete the idle value from _contributions
+							onUnexpectedError(err);
+							this._contributions.deleteAndDispose(desc.id);
+							return null;
+						}
+					});
+					this._contributions.set(desc.id, contribution);
+				} else {
+					const contribution = this._instantiationService.createInstance(desc.ctor, this);
+					this._contributions.set(desc.id, contribution);
+				}
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 		}
 
-		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
-			if (this._actions[action.id]) {
+		for (const action of EditorExtensionsRegistry.getEditorActions()) {
+			if (this._actions.has(action.id)) {
 				onUnexpectedError(new Error(`Cannot have two actions with the same id ${action.id}`));
-				return;
+				continue;
 			}
 			const internalAction = new InternalEditorAction(
 				action.id,
@@ -365,13 +379,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				},
 				this._contextKeyService
 			);
-			this._actions[internalAction.id] = internalAction;
-		});
+			this._actions.set(internalAction.id, internalAction);
+		}
+
+		const isDropIntoEnabled = () => {
+			return !this._configuration.options.get(EditorOption.readOnly)
+				&& this._configuration.options.get(EditorOption.dropIntoEditor).enabled;
+		};
 
 		this._register(new dom.DragAndDropObserver(this._domElement, {
 			onDragEnter: () => undefined,
 			onDragOver: e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!isDropIntoEnabled()) {
 					return;
 				}
 
@@ -381,7 +400,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 			},
 			onDrop: async e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!isDropIntoEnabled()) {
 					return;
 				}
 
@@ -424,14 +443,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.removeCodeEditor(this);
 
 		this._focusTracker.dispose();
-
-		const keys = Object.keys(this._contributions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const contributionId = keys[i];
-			this._contributions[contributionId].dispose();
-		}
-		this._contributions = {};
-		this._actions = {};
+		this._contributions.dispose();
+		this._actions.clear();
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
 
@@ -533,9 +546,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _removeDecorationTypes(): void {
 		this._decorationTypeKeysToIds = {};
 		if (this._decorationTypeSubtypes) {
-			for (let decorationType in this._decorationTypeSubtypes) {
+			for (const decorationType in this._decorationTypeSubtypes) {
 				const subTypes = this._decorationTypeSubtypes[decorationType];
-				for (let subType in subTypes) {
+				for (const subType in subTypes) {
 					this._removeDecorationType(decorationType + '-' + subType);
 				}
 			}
@@ -564,33 +577,47 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getWhitespaces();
 	}
 
-	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number): number {
+	private static _getVerticalOffsetAfterPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean): number {
 		const modelPosition = modelData.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});
 		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+		return modelData.viewModel.viewLayout.getVerticalOffsetAfterLineNumber(viewPosition.lineNumber, includeViewZones);
 	}
 
-	public getTopForLineNumber(lineNumber: number): number {
+	public getTopForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1, includeViewZones);
 	}
 
 	public getTopForPosition(lineNumber: number, column: number): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column, false);
 	}
 
-	public setHiddenAreas(ranges: IRange[]): void {
-		if (this._modelData) {
-			this._modelData.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
+	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean = false): number {
+		const modelPosition = modelData.model.validatePosition({
+			lineNumber: modelLineNumber,
+			column: modelColumn
+		});
+		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber, includeViewZones);
+	}
+
+	public getBottomForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
+		if (!this._modelData) {
+			return -1;
 		}
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
+	}
+
+	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -982,10 +1009,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const contributionsState: { [key: string]: any } = {};
 
-		const keys = Object.keys(this._contributions);
-		for (const id of keys) {
-			const contribution = this._contributions[id];
-			if (typeof contribution.saveViewState === 'function') {
+		for (const [id, contribution] of this._contributions) {
+			if (!(contribution instanceof IdleValue) && typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
@@ -1016,11 +1041,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 
 			const contributionsState = codeEditorState.contributionsState || {};
-			const keys = Object.keys(this._contributions);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const id = keys[i];
-				const contribution = this._contributions[id];
-				if (typeof contribution.restoreViewState === 'function') {
+			for (const [id, contribution] of this._contributions) {
+				if (!(contribution instanceof IdleValue) && typeof contribution.restoreViewState === 'function') {
 					contribution.restoreViewState(contributionsState[id]);
 				}
 			}
@@ -1040,19 +1062,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null {
-		return <T>(this._contributions[id] || null);
+		const entry = this._contributions.get(id);
+		if (!entry) {
+			return null;
+		}
+
+		return (entry instanceof IdleValue ? entry.value : entry) as T | null;
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
-		const result: editorCommon.IEditorAction[] = [];
-
-		const keys = Object.keys(this._actions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const id = keys[i];
-			result.push(this._actions[id]);
-		}
-
-		return result;
+		return Array.from(this._actions.values());
 	}
 
 	public getSupportedActions(): editorCommon.IEditorAction[] {
@@ -1063,8 +1082,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return result;
 	}
 
-	public getAction(id: string): editorCommon.IEditorAction {
-		return this._actions[id] || null;
+	public getAction(id: string): editorCommon.IEditorAction | null {
+		return this._actions.get(id) || null;
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
@@ -1163,9 +1182,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
-		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		this._modelData.viewModel.paste(text, pasteOnNewLine, multicursorText, source);
-		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
+		const viewModel = this._modelData.viewModel;
+		const startPosition = viewModel.getSelection().getStartPosition();
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
+		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
@@ -1288,6 +1308,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(this._configuration.options));
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
 		if (!this._modelData) {
 			return [];
@@ -1300,7 +1323,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
-	public setDecorations(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public removeDecorations(decorationIds: string[]): void {
+		if (!this._modelData || decorationIds.length === 0) {
+			return;
+		}
+
+		this._modelData.model.changeDecorations((changeAccessor) => {
+			changeAccessor.deltaDecorations(decorationIds, []);
+		});
+	}
+
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1308,7 +1341,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const newModelDecorations: IModelDeltaDecoration[] = [];
 
-		for (let decorationOption of decorationOptions) {
+		for (const decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
 			if (decorationOption.renderOptions) {
 				// identify custom reder options by a hash code over all keys and values
@@ -1331,7 +1364,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
-		for (let subType in oldDecorationsSubTypes) {
+		for (const subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
 				this._removeDecorationType(decorationTypeKey + '-' + subType);
 			}
@@ -1342,11 +1375,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
-	public setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void {
+	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
-		for (let subType in oldDecorationsSubTypes) {
+		for (const subType in oldDecorationsSubTypes) {
 			this._removeDecorationType(decorationTypeKey + '-' + subType);
 		}
 		this._decorationTypeSubtypes[decorationTypeKey] = {};
@@ -1362,7 +1395,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
-	public removeDecorations(decorationTypeKey: string): void {
+	public removeDecorationsByType(decorationTypeKey: string): void {
 		// remove decorations for type and sub type
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
 		if (oldDecorationsIds) {
@@ -1629,7 +1662,25 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.CursorStateChanged: {
 					if (e.reachedMaxCursorCount) {
-						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", CursorsController.MAX_CURSOR_COUNT));
+
+						const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
+						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes.", multiCursorLimit);
+						this._notificationService.prompt(Severity.Warning, message, [
+							{
+								label: 'Find and Replace',
+								run: () => {
+									this._commandService.executeCommand('editor.action.startFindReplaceAction');
+								}
+							},
+							{
+								label: nls.localize('goToSetting', 'Open Settings'),
+								run: () => {
+									this._commandService.executeCommand('workbench.action.openSettings2', {
+										query: 'editor.multiCursorLimit'
+									});
+								}
+							}
+						]);
 					}
 
 					const positions: Position[] = [];
@@ -1786,9 +1837,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
-		if (detachedModel) {
-			detachedModel.removeAllDecorationsWithOwnerId(this._id);
-		}
+		detachedModel?.removeAllDecorationsWithOwnerId(this._id);
 	}
 
 	private _detachModel(): ITextModel | null {
@@ -1833,17 +1882,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private showDropIndicatorAt(position: Position): void {
-		let newDecorations: IModelDeltaDecoration[] = [{
+		const newDecorations: IModelDeltaDecoration[] = [{
 			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			options: CodeEditorWidget.dropIntoEditorDecorationOptions
 		}];
 
-		this._dropIntoEditorDecorationIds = this.deltaDecorations(this._dropIntoEditorDecorationIds, newDecorations);
+		this._dropIntoEditorDecorations.set(newDecorations);
 		this.revealPosition(position, editorCommon.ScrollType.Immediate);
 	}
 
 	private removeDropIndicator(): void {
-		this._dropIntoEditorDecorationIds = this.deltaDecorations(this._dropIntoEditorDecorationIds, []);
+		this._dropIntoEditorDecorations.clear();
 	}
 }
 
@@ -2136,9 +2185,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	}
 
 	public refreshState(): void {
-		if (this._domFocusTracker.refreshState) {
-			this._domFocusTracker.refreshState();
-		}
+		this._domFocusTracker.refreshState?.();
 	}
 }
 
@@ -2233,64 +2280,24 @@ function getDotDotDotSVGData(color: Color) {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const errorBorderColor = theme.getColor(editorErrorBorder);
-	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
-	}
 	const errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
-	}
-	const errorBackground = theme.getColor(editorErrorBackground);
-	if (errorBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${errorBackground}; }`);
-	}
-
-	const warningBorderColor = theme.getColor(editorWarningBorder);
-	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	const warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
-	const warningBackground = theme.getColor(editorWarningBackground);
-	if (warningBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${warningBackground}; }`);
-	}
-
-	const infoBorderColor = theme.getColor(editorInfoBorder);
-	if (infoBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
-	}
 	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
-	}
-	const infoBackground = theme.getColor(editorInfoBackground);
-	if (infoBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${infoBackground}; }`);
-	}
-
-	const hintBorderColor = theme.getColor(editorHintBorder);
-	if (hintBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
 	const hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
-
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
 		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
-
-	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
-	if (unnecessaryBorder) {
-		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
-	}
-
-	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';
-	collector.addRule(`.monaco-editor.showDeprecated .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; text-decoration-color: ${deprecatedForeground}}`);
 });

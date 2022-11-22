@@ -52,6 +52,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/;
 			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/;
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/;
+			const UTILITY_EXTENSION_HOST_HINT = /--utility-sub-type=node.mojom.NodeService/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
 			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
@@ -92,6 +93,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				} else if (matches[1] === 'utility') {
 					if (UTILITY_NETWORK_HINT.exec(cmd)) {
 						return 'utility-network-service';
+					}
+
+					if (UTILITY_EXTENSION_HOST_HINT.exec(cmd)) {
+						return 'extension-host';
 					}
 				}
 				return matches[1];
@@ -193,7 +198,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				// The cpu usage value reported on Linux is the average over the process lifetime,
 				// recalculate the usage over a one second interval
 				// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
-				let cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/cpuUsage.sh', require).fsPath);
+				let cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/cpuUsage.sh').fsPath);
 				cmd += ' ' + pids.join(' ');
 
 				exec(cmd, {}, (err, stdout, stderr) => {
@@ -221,7 +226,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (process.platform !== 'linux') {
 						reject(err || new Error(stderr.toString()));
 					} else {
-						const cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/ps.sh', require).fsPath);
+						const cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/ps.sh').fsPath);
 						exec(cmd, {}, (err, stdout, stderr) => {
 							if (err || stderr) {
 								reject(err || new Error(stderr.toString()));

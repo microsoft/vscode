@@ -48,6 +48,11 @@ native-watchdog/build/**
 native-watchdog/src/**
 !native-watchdog/build/Release/*.node
 
+node-vsce-sign/**
+!node-vsce-sign/src/main.js
+!node-vsce-sign/package.json
+!node-vsce-sign/bin/**
+
 spdlog/binding.gyp
 spdlog/build/**
 spdlog/deps/**
@@ -122,10 +127,6 @@ vscode-windows-ca-certs/**/*
 node-addon-api/**/*
 prebuild-install/**/*
 
-@microsoft/applicationinsights*/**
-@microsoft/dynamicproto-js/**
-!@microsoft/applicationinsights-web/dist/applicationinsights-web.min.js
-
 # other node modules
 
 **/docs/**
@@ -145,6 +146,11 @@ prebuild-install/**/*
 
 **/*.ts
 !typescript/**/*.d.ts
+
+# Exclude TS files that aren't needed by TS extension
+typescript/lib/tsc.js
+typescript/lib/typescriptServices.js
+typescript/lib/tsserverlibrary.js
 
 jschardet/index.js
 jschardet/src/**
@@ -166,5 +172,3 @@ xterm-addon-*/src/**
 xterm-addon-*/fixtures/**
 xterm-addon-*/out/**
 xterm-addon-*/out-test/**
-
-

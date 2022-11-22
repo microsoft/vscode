@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as lp from 'vs/base/node/languagePacks';
 import product from 'vs/platform/product/common/product';
 
-const metaData = path.join(FileAccess.asFileUri('', require).fsPath, 'nls.metadata.json');
+const metaData = path.join(FileAccess.asFileUri('').fsPath, 'nls.metadata.json');
 const _cache: Map<string, Promise<lp.NLSConfiguration>> = new Map();
 
 function exists(file: string) {
@@ -23,7 +23,7 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 			// console.log(`==> MetaData or commit unknown. Using default language.`);
 			return Promise.resolve({ locale: 'en', availableLanguages: {} });
 		}
-		let key = `${language}||${userDataPath}`;
+		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
 			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
@@ -40,7 +40,7 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 
 export namespace InternalNLSConfiguration {
 	export function is(value: lp.NLSConfiguration): value is lp.InternalNLSConfiguration {
-		let candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
+		const candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
 		return candidate && typeof candidate._languagePackId === 'string';
 	}
 }

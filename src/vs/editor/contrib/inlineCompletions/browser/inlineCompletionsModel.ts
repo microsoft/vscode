@@ -28,7 +28,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { assertNever } from 'vs/base/common/types';
+import { assertNever } from 'vs/base/common/assert';
 import { matchesSubString } from 'vs/base/common/filters';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -47,7 +47,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	private readonly debounceValue = this.debounceService.for(
 		this.languageFeaturesService.inlineCompletionsProvider,
 		'InlineCompletionsDebounce',
-		{ min: 50, max: 200 }
+		{ min: 50, max: 50 }
 	);
 
 	constructor(
@@ -217,7 +217,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly updateSoon = this._register(new RunOnceScheduler(() => {
-		let triggerKind = this.initialTriggerKind;
+		const triggerKind = this.initialTriggerKind;
 		// All subsequent triggers are automatic.
 		this.initialTriggerKind = InlineCompletionTriggerKind.Automatic;
 		return this.update(triggerKind);
@@ -243,9 +243,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				lastCompletionItem = currentCompletion.sourceInlineCompletion;
 
 				const provider = currentCompletion.sourceProvider;
-				if (provider.handleItemDidShow) {
-					provider.handleItemDidShow(currentCompletion.sourceInlineCompletions, lastCompletionItem);
-				}
+				provider.handleItemDidShow?.(currentCompletion.sourceInlineCompletions, lastCompletionItem);
 			}
 		}));
 
@@ -514,6 +512,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// otherwise command args might get disposed.
 		const cache = this.cache.clearAndLeak();
 
+		this.editor.pushUndoStop();
 		if (completion.snippetInfo) {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
@@ -523,7 +522,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				]
 			);
 			this.editor.setPosition(completion.snippetInfo.range.getStartPosition());
-			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet);
+			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
@@ -579,18 +578,21 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 	) {
 		super();
 
-		const decorationIds = editor.deltaDecorations(
-			[],
-			completionsSource.items.map(i => ({
-				range: i.range,
-				options: {
-					description: 'inline-completion-tracking-range'
-				},
-			}))
-		);
+		const decorationIds = editor.changeDecorations((changeAccessor) => {
+			return changeAccessor.deltaDecorations(
+				[],
+				completionsSource.items.map(i => ({
+					range: i.range,
+					options: {
+						description: 'inline-completion-tracking-range'
+					},
+				}))
+			);
+		});
+
 		this._register(toDisposable(() => {
 			this.isDisposing = true;
-			editor.deltaDecorations(decorationIds, []);
+			editor.removeDecorations(decorationIds);
 		}));
 
 		this.completions = completionsSource.items.map((c, idx) => new CachedInlineCompletion(c, decorationIds[idx]));
@@ -698,7 +700,7 @@ export async function provideInlineCompletions(
 		}
 
 		for (const item of completions.items) {
-			const range = item.range ? Range.lift(item.range) : defaultReplaceRange;
+			let range = item.range ? Range.lift(item.range) : defaultReplaceRange;
 
 			if (range.startLineNumber !== range.endLineNumber) {
 				// Ignore invalid ranges.
@@ -723,12 +725,36 @@ export async function provideInlineCompletions(
 						model,
 						languageConfigurationService
 					);
+
+					// Modify range depending on if brackets are added or removed
+					const diff = insertText.length - item.insertText.length;
+					if (diff !== 0) {
+						range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+					}
 				}
 
 				snippetInfo = undefined;
 			} else if ('snippet' in item.insertText) {
+				const preBracketCompletionLength = item.insertText.snippet.length;
+
+				if (languageConfigurationService && item.completeBracketPairs) {
+					item.insertText.snippet = closeBrackets(
+						item.insertText.snippet,
+						range.getStartPosition(),
+						model,
+						languageConfigurationService
+					);
+
+					// Modify range depending on if brackets are added or removed
+					const diff = item.insertText.snippet.length - preBracketCompletionLength;
+					if (diff !== 0) {
+						range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+					}
+				}
+
 				const snippet = new SnippetParser().parse(item.insertText.snippet);
 				insertText = snippet.toString();
+
 				snippetInfo = {
 					snippet: item.insertText.snippet,
 					range: range

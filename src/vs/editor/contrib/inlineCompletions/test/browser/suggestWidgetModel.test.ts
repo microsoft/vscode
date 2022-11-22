@@ -27,7 +27,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import assert = require('assert');
+import * as assert from 'assert';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -92,7 +92,7 @@ suite('Suggest Widget Model', () => {
 
 				context.keyboardType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.', 'hello.[hello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['h', 'hello', 'hello.', 'hello.[hello]']);
 
 				suggestController.cancelSuggestWidget();
 

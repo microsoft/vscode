@@ -58,7 +58,7 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
  */
 export function migrateEmmetExtensionsPath() {
 	// Get the detail info of emmet.extensionsPath setting
-	let config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
+	const config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
 
 	// Update Global setting if the value type is string or the value is null
 	if (typeof config?.globalValue === 'string') {
@@ -100,12 +100,12 @@ export const LANGUAGE_MODES: { [id: string]: string[] } = {
 };
 
 export function isStyleSheet(syntax: string): boolean {
-	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
+	const stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
 	return stylesheetSyntaxes.includes(syntax);
 }
 
 export function validate(allowStylesheet: boolean = true): boolean {
-	let editor = vscode.window.activeTextEditor;
+	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return false;
@@ -197,7 +197,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 
 	function findOpeningCommentBeforePosition(pos: number): number | undefined {
 		const text = document.getText().substring(0, pos);
-		let offset = text.lastIndexOf('/*');
+		const offset = text.lastIndexOf('/*');
 		if (offset === -1) {
 			return;
 		}

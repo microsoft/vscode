@@ -92,7 +92,7 @@ class CallHierarchyController implements IEditorContribution {
 
 		const cts = new CancellationTokenSource();
 		const model = CallHierarchyModel.create(document, position, cts.token);
-		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, CallHierarchyDirection.CallsTo));
+		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.PROFILE, CallHierarchyDirection.CallsTo));
 
 		this._showCallHierarchyWidget(position, direction, model, cts);
 	}
@@ -130,7 +130,7 @@ class CallHierarchyController implements IEditorContribution {
 		this._widget.showLoading();
 		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.PROFILE, StorageTarget.USER);
 		}));
 		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
 		this._sessionDisposables.add(this._widget);
@@ -284,13 +284,11 @@ registerAction2(class extends EditorAction2 {
 			id: 'editor.closeCallHierarchy',
 			title: localize('close', 'Close'),
 			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				_ctxCallHierarchyVisible,
-				ContextKeyExpr.not('config.editor.stablePeek')
-			),
+			precondition: _ctxCallHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.not('config.editor.stablePeek')
 			},
 			menu: {
 				id: CallHierarchyTreePeekWidget.TitleMenu,

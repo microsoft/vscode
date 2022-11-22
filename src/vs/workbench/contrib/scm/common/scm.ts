@@ -63,10 +63,10 @@ export interface ISCMProvider extends IDisposable {
 	readonly count?: number;
 	readonly commitTemplate: string;
 	readonly onDidChangeCommitTemplate: Event<string>;
-	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
+	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
-	readonly statusBarCommands?: Command[];
+	readonly statusBarCommands?: readonly Command[];
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
@@ -99,7 +99,9 @@ export interface ISCMInputChangeEvent {
 
 export interface ISCMActionButtonDescriptor {
 	command: Command;
+	secondaryCommands?: Command[][];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface ISCMActionButton {

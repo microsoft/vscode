@@ -15,7 +15,7 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 
 	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
-		let model = createTextModel(original.join('\n'));
+		const model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.strictEqual(model.mightContainRTL(), before);
@@ -61,7 +61,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
 	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
-		let model = createTextModel(original.join('\n'));
+		const model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.strictEqual(model.mightContainNonBasicASCII(), before);
@@ -853,7 +853,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	function testApplyEditsFails(original: string[], edits: ISingleEditOperation[]): void {
-		let model = createTextModel(original.join('\n'));
+		const model = createTextModel(original.join('\n'));
 
 		let hasThrown = false;
 		try {
@@ -1037,14 +1037,14 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = createTextModel('Hello\nWorld!');
+		const model = createTextModel('Hello\nWorld!');
 		assert.strictEqual(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {
-			let versionId = e.versionId;
+			const versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
 			}
@@ -1052,7 +1052,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			mirrorModel2.onEvents(e);
 		});
 
-		let assertMirrorModels = () => {
+		const assertMirrorModels = () => {
 			assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
 			assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 		};
@@ -1065,7 +1065,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #47733: Undo mangles unicode characters', () => {
-		let model = createTextModel('\'👁\'');
+		const model = createTextModel('\'👁\'');
 
 		model.applyEdits([
 			{ range: new Range(1, 1, 1, 1), text: '"' },
@@ -1087,7 +1087,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #48741: Broken undo stack with move lines up with multiple cursors', () => {
-		let model = createTextModel([
+		const model = createTextModel([
 			'line1',
 			'line2',
 			'line3',

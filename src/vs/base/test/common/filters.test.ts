@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
-	let r = filter(word, wordToMatchAgainst);
+	const r = filter(word, wordToMatchAgainst);
 	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
 		assert.deepStrictEqual(r, highlights);
@@ -21,7 +21,7 @@ suite('Filters', () => {
 	test('or', () => {
 		let filter: IFilter;
 		let counters: number[];
-		let newFilter = function (i: number, r: boolean): IFilter {
+		const newFilter = function (i: number, r: boolean): IFilter {
 			return function (): IMatch[] { counters[i]++; return r as any; };
 		};
 
@@ -185,23 +185,27 @@ suite('Filters', () => {
 		assert(matchesWords('Debug Console', 'Open: Debug Console'));
 
 		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
-		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 3, end: 4 }, { start: 5, end: 6 }]);
+		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
 		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
-		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 13, end: 14 }, { start: 15, end: 16 }]);
+		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
 		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17 }]);
 
 		filterNotOk(matchesWords, 'it', 'Git: Pull');
 		filterNotOk(matchesWords, 'll', 'Git: Pull');
 
 		filterOk(matchesWords, 'git: プル', 'git: プル', [{ start: 0, end: 7 }]);
-		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 4 }, { start: 5, end: 7 }]);
+		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
 		// Handles issue #123915
 		filterOk(matchesWords, 'C++', 'C/C++: command', [{ start: 2, end: 5 }]);
+
+		// Handles issue #154533
+		filterOk(matchesWords, '.', ':', []);
+		filterOk(matchesWords, '.', '.', [{ start: 0, end: 1 }]);
 
 		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
 		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
@@ -223,10 +227,10 @@ suite('Filters', () => {
 	});
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number; wordPos?: number; firstMatchCanBeWeak?: boolean } = {}) {
-		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, { firstMatchCanBeWeak: opts.firstMatchCanBeWeak ?? false, boostFullMatch: true });
+		const r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, { firstMatchCanBeWeak: opts.firstMatchCanBeWeak ?? false, boostFullMatch: true });
 		assert.ok(!decoratedWord === !r);
 		if (r) {
-			let matches = createMatches(r);
+			const matches = createMatches(r);
 			let actualWord = '';
 			let pos = 0;
 			for (const match of matches) {
@@ -403,8 +407,8 @@ suite('Filters', () => {
 	});
 
 	test('Cannot set property \'1\' of undefined, #26511', function () {
-		let word = new Array<void>(123).join('a');
-		let pattern = new Array<void>(120).join('a');
+		const word = new Array<void>(123).join('a');
+		const pattern = new Array<void>(120).join('a');
 		fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0);
 		assert.ok(true); // must not explode
 	});
@@ -559,18 +563,18 @@ suite('Filters', () => {
 	});
 
 	test('configurable full match boost', function () {
-		let prefix = 'create';
-		let a = 'createModelServices';
-		let b = 'create';
+		const prefix = 'create';
+		const a = 'createModelServices';
+		const b = 'create';
 
-		let aBoost = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
-		let bBoost = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		const aBoost = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		const bBoost = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
 		assert.ok(aBoost);
 		assert.ok(bBoost);
 		assert.ok(aBoost[0] < bBoost[0]);
 
-		let aScore = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
-		let bScore = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
+		const aScore = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
+		const bScore = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
 		assert.ok(aScore);
 		assert.ok(bScore);
 		assert.ok(aScore[0] === bScore[0]);

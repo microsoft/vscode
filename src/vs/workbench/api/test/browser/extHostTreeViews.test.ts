@@ -65,11 +65,11 @@ suite('ExtHostTreeView', function () {
 		labels = {};
 		nodes = {};
 
-		let rpcProtocol = new TestRPCProtocol();
+		const rpcProtocol = new TestRPCProtocol();
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			let instantiationService = new TestInstantiationService();
+			const instantiationService = new TestInstantiationService();
 			inst = instantiationService;
 		}
 
@@ -738,7 +738,7 @@ suite('ExtHostTreeView', function () {
 		if (!key) {
 			return Object.keys(tree);
 		}
-		let treeElement = getTreeElement(key);
+		const treeElement = getTreeElement(key);
 		if (treeElement) {
 			return Object.keys(treeElement);
 		}

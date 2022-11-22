@@ -8,7 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor Core - Range', () => {
 	test('empty range', () => {
-		let s = new Range(1, 1, 1, 1);
+		const s = new Range(1, 1, 1, 1);
 		assert.strictEqual(s.startLineNumber, 1);
 		assert.strictEqual(s.startColumn, 1);
 		assert.strictEqual(s.endLineNumber, 1);
@@ -17,7 +17,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('swap start and stop same line', () => {
-		let s = new Range(1, 2, 1, 1);
+		const s = new Range(1, 2, 1, 1);
 		assert.strictEqual(s.startLineNumber, 1);
 		assert.strictEqual(s.startColumn, 1);
 		assert.strictEqual(s.endLineNumber, 1);
@@ -26,7 +26,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('swap start and stop', () => {
-		let s = new Range(2, 1, 1, 2);
+		const s = new Range(2, 1, 1, 2);
 		assert.strictEqual(s.startLineNumber, 1);
 		assert.strictEqual(s.startColumn, 2);
 		assert.strictEqual(s.endLineNumber, 2);
@@ -35,7 +35,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('no swap same line', () => {
-		let s = new Range(1, 1, 1, 2);
+		const s = new Range(1, 1, 1, 2);
 		assert.strictEqual(s.startLineNumber, 1);
 		assert.strictEqual(s.startColumn, 1);
 		assert.strictEqual(s.endLineNumber, 1);
@@ -44,7 +44,7 @@ suite('Editor Core - Range', () => {
 	});
 
 	test('no swap', () => {
-		let s = new Range(1, 1, 2, 1);
+		const s = new Range(1, 1, 2, 1);
 		assert.strictEqual(s.startLineNumber, 1);
 		assert.strictEqual(s.startColumn, 1);
 		assert.strictEqual(s.endLineNumber, 2);

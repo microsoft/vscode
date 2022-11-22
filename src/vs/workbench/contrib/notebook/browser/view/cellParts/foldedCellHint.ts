@@ -8,10 +8,10 @@ import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { CellEditState, CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 
-export class FoldedCellHint extends CellPart {
+export class FoldedCellHint extends CellContentPart {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -39,7 +39,7 @@ export class FoldedCellHint extends CellPart {
 
 			const foldHintTop = element.layoutInfo.previewHeight;
 			this._container.style.top = `${foldHintTop}px`;
-		} else if (element.foldingState === CellFoldingState.Expanded) {
+		} else {
 			DOM.hide(this._container);
 		}
 	}

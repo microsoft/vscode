@@ -669,9 +669,6 @@ export interface CodeAction {
 	disabled?: string;
 }
 
-/**
- * @internal
- */
 export const enum CodeActionTriggerType {
 	Invoke = 1,
 	Auto = 2,
@@ -724,10 +721,21 @@ export interface CodeActionProvider {
 /**
  * @internal
  */
-export interface DocumentPasteEditProvider {
-	prepareDocumentPaste?(model: model.ITextModel, selection: Selection, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+export interface DocumentPasteEdit {
+	insertText: string | { snippet: string };
+	additionalEdit?: WorkspaceEdit;
+}
 
-	provideDocumentPasteEdits(model: model.ITextModel, selection: Selection, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<WorkspaceEdit | SnippetTextEdit | undefined>;
+/**
+ * @internal
+ */
+export interface DocumentPasteEditProvider {
+
+	readonly pasteMimeTypes: readonly string[];
+
+	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+
+	provideDocumentPasteEdits(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 /**
@@ -1121,11 +1129,10 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
-
-export interface SnippetTextEdit {
+export interface TextEdit {
 	range: IRange;
-	snippet: string;
+	text: string;
+	eol?: model.EndOfLineSequence;
 }
 
 /**
@@ -1330,6 +1337,11 @@ export interface FoldingContext {
 export interface FoldingRangeProvider {
 
 	/**
+	 * @internal
+	 */
+	readonly id?: string;
+
+	/**
 	 * An optional event to signal that the folding ranges from this provider have changed.
 	 */
 	onDidChange?: Event<this>;
@@ -1404,24 +1416,25 @@ export interface WorkspaceFileEditOptions {
 	folder?: boolean;
 	skipTrashBin?: boolean;
 	maxSize?: number;
+	contentsBase64?: string;
 }
 
-export interface WorkspaceFileEdit {
-	oldUri?: URI;
-	newUri?: URI;
+export interface IWorkspaceFileEdit {
+	oldResource?: URI;
+	newResource?: URI;
 	options?: WorkspaceFileEditOptions;
 	metadata?: WorkspaceEditMetadata;
 }
 
-export interface WorkspaceTextEdit {
+export interface IWorkspaceTextEdit {
 	resource: URI;
-	edit: TextEdit;
-	modelVersionId?: number;
+	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
 }
 
 export interface Rejection {
@@ -1535,15 +1548,17 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
-	onDidChangeComments: Event<Comment[] | undefined>;
+	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	initialCollapsibleState?: CommentThreadCollapsibleState;
+	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
@@ -1800,10 +1815,17 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
+/**
+ * @internal
+ */
+export interface DocumentOnDropEdit {
+	insertText: string | { snippet: string };
+	additionalEdit?: WorkspaceEdit;
+}
 
 /**
  * @internal
  */
 export interface DocumentOnDropEditProvider {
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }

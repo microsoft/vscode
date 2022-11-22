@@ -7,13 +7,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkupCellLayoutChangeEvent, MarkupCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -23,14 +22,16 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	readonly cellKind = CellKind.Markup;
 
-	private _layoutInfo: MarkdownCellLayoutInfo;
+	private _layoutInfo: MarkupCellLayoutInfo;
 
 	private _renderedHtml?: string;
 
 	public get renderedHtml(): string | undefined { return this._renderedHtml; }
 	public set renderedHtml(value: string | undefined) {
-		this._renderedHtml = value;
-		this._onDidChangeState.fire({ contentChanged: true });
+		if (this._renderedHtml !== value) {
+			this._renderedHtml = value;
+			this._onDidChangeState.fire({ contentChanged: true });
+		}
 	}
 
 	get layoutInfo() {
@@ -56,7 +57,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		throw new Error('MarkdownCellViewModel.editorHeight is write only');
 	}
 
-	protected readonly _onDidChangeLayout = this._register(new Emitter<MarkdownCellLayoutChangeEvent>());
+	protected readonly _onDidChangeLayout = this._register(new Emitter<MarkupCellLayoutChangeEvent>());
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	get foldingState() {
@@ -99,7 +100,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		readonly viewContext: ViewContext,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
@@ -183,7 +183,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		}
 	}
 
-	layoutChange(state: MarkdownCellLayoutChangeEvent) {
+	layoutChange(state: MarkupCellLayoutChangeEvent) {
 		// recompute
 		const foldHintHeight = this._computeFoldHintHeight();
 		if (!this.isInputCollapsed) {

@@ -124,7 +124,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
 		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				this.startBreakpoints();
 			}
 		});
@@ -285,8 +285,12 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
 			noDebug: options.noDebug,
 			compact: options.compact,
-			debugUI: options.debugUI,
-			suppressSaveBeforeStart: options.suppressSaveBeforeStart
+			suppressSaveBeforeStart: options.suppressSaveBeforeStart,
+
+			// Check debugUI for back-compat, #147264
+			suppressDebugStatusbar: options.suppressDebugStatusbar ?? (options as any).debugUI?.simple,
+			suppressDebugToolbar: options.suppressDebugToolbar ?? (options as any).debugUI?.simple,
+			suppressDebugView: options.suppressDebugView ?? (options as any).debugUI?.simple,
 		});
 	}
 
@@ -495,9 +499,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 
 		const da = this._debugAdapters.get(debugAdapterHandle);
-		if (da) {
-			da.sendMessage(message);
-		}
+		da?.sendMessage(message);
 	}
 
 	public $stopDASession(debugAdapterHandle: number): Promise<void> {
@@ -663,9 +665,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	public async $acceptDebugSessionNameChanged(sessionDto: IDebugSessionDto, name: string): Promise<void> {
 		const session = await this.getSession(sessionDto);
-		if (session) {
-			session._acceptNameChanged(name);
-		}
+		session?._acceptNameChanged(name);
 	}
 
 	public async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Promise<void> {

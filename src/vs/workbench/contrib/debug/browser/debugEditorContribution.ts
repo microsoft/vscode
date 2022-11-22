@@ -32,11 +32,11 @@ import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -48,7 +48,6 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
-const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
@@ -210,11 +209,38 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 	return result;
 }
 
+export class LazyDebugEditorContribution extends Disposable implements IDebugEditorContribution {
+	private _contrib: IDebugEditorContribution | undefined;
+
+	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+
+		const listener = editor.onDidChangeModel(() => {
+			if (editor.hasModel()) {
+				listener.dispose();
+				this._contrib = this._register(instantiationService.createInstance(DebugEditorContribution, editor));
+			}
+		});
+	}
+
+	showHover(position: Position, focus: boolean): Promise<void> {
+		return this._contrib ? this._contrib.showHover(position, focus) : Promise.resolve();
+	}
+
+	addLaunchConfiguration(): Promise<any> {
+		return this._contrib ? this._contrib.addLaunchConfiguration() : Promise.resolve();
+	}
+
+	closeExceptionWidget(): void {
+		this._contrib?.closeExceptionWidget();
+	}
+}
+
 export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private hoverRange: Range | null = null;
+	private hoverPosition: Position | null = null;
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
 
@@ -241,7 +267,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
 		this.registerListeners();
-		this.updateConfigurationWidgetVisibility();
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
 	}
@@ -280,7 +305,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
-			this.updateConfigurationWidgetVisibility();
 			this._wordToLineNumbersMap = undefined;
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
@@ -321,10 +345,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					const debugHoverWasVisible = this.hoverWidget.isVisible();
 					this.hoverWidget.hide();
 					this.enableEditorHover();
-					if (debugHoverWasVisible && this.hoverRange) {
+					if (debugHoverWasVisible && this.hoverPosition) {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
 						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-						hoverController?.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+						const range = new Range(this.hoverPosition.lineNumber, this.hoverPosition.column, this.hoverPosition.lineNumber, this.hoverPosition.column);
+						hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');
@@ -368,11 +393,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	async showHover(range: Range, focus: boolean): Promise<void> {
+	async showHover(position: Position, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
-			return this.hoverWidget.showAt(range, focus);
+			return this.hoverWidget.showAt(position, focus);
 		}
 	}
 
@@ -394,8 +419,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get showHoverScheduler(): RunOnceScheduler {
 		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverRange) {
-				this.showHover(this.hoverRange, false);
+			if (this.hoverPosition) {
+				this.showHover(this.hoverPosition, false);
 			}
 		}, hoverOption.delay * 2);
 		this.toDispose.push(scheduler);
@@ -446,8 +471,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
-			if (target.range && !target.range.equalsRange(this.hoverRange)) {
-				this.hoverRange = target.range;
+			if (target.position && !Position.equals(target.position, this.hoverPosition)) {
+				this.hoverPosition = target.position;
 				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}
@@ -521,19 +546,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			if (shouldFocusEditor) {
 				this.editor.focus();
 			}
-		}
-	}
-
-	// configuration widget
-	private updateConfigurationWidgetVisibility(): void {
-		const model = this.editor.getModel();
-		if (this.configurationWidget) {
-			this.configurationWidget.dispose();
-		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getOption(EditorOption.readOnly)) {
-			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
-			this.configurationWidget.render();
-			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));
 		}
 	}
 

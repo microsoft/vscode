@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 // --- bisect service
 
@@ -78,7 +78,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchEnvironmentService private readonly _envService: IWorkbenchEnvironmentService
 	) {
-		const raw = _storageService.get(ExtensionBisectService._storageKey, StorageScope.GLOBAL);
+		const raw = _storageService.get(ExtensionBisectService._storageKey, StorageScope.APPLICATION);
 		this._state = BisectState.fromJSON(raw);
 
 		if (this._state) {
@@ -126,7 +126,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		}
 		const extensionIds = extensions.map(ext => ext.identifier.id);
 		const newState = new BisectState(extensionIds, 0, extensionIds.length, 0);
-		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		await this._storageService.flush();
 	}
 
@@ -150,18 +150,18 @@ class ExtensionBisectService implements IExtensionBisectService {
 			seeingBad ? this._state.low : this._state.mid,
 			seeingBad ? this._state.mid : this._state.high,
 		);
-		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		await this._storageService.flush();
 		return undefined;
 	}
 
 	async reset(): Promise<void> {
-		this._storageService.remove(ExtensionBisectService._storageKey, StorageScope.GLOBAL);
+		this._storageService.remove(ExtensionBisectService._storageKey, StorageScope.APPLICATION);
 		await this._storageService.flush();
 	}
 }
 
-registerSingleton(IExtensionBisectService, ExtensionBisectService, true);
+registerSingleton(IExtensionBisectService, ExtensionBisectService, InstantiationType.Delayed);
 
 // --- bisect UI
 
@@ -219,7 +219,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.start',
 			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
-			category: CATEGORIES.Help,
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
 			menu: {
@@ -259,7 +259,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.next',
 			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});
@@ -346,7 +346,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.stop',
 			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});

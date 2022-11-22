@@ -20,17 +20,22 @@ export interface IExtensionDescriptionDelta {
 export interface IExtensionHostInitData {
 	version: string;
 	commit?: string;
-	parentPid: number;
+	/**
+	 * When set to `0`, no polling for the parent process still running will happen.
+	 */
+	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
+	nlsBaseUrl?: URI;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
 	logFile: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
+	consoleForward: { includeStack: boolean; logNative: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }
@@ -41,6 +46,7 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
+	extensionTelemetryLogResource: URI;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -48,6 +54,7 @@ export interface IEnvironment {
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
+	extensionLogLevel?: [string, string][];
 }
 
 export interface IStaticWorkspaceData {
@@ -121,4 +128,9 @@ export function isMessageOfType(message: VSBuffer, type: MessageType): boolean {
 		case 3: return type === MessageType.Terminate;
 		default: return false;
 	}
+}
+
+export const enum NativeLogMarkers {
+	Start = 'START_NATIVE_LOG',
+	End = 'END_NATIVE_LOG',
 }

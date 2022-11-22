@@ -6,6 +6,7 @@
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -17,8 +18,8 @@ export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
 	command: string;
-	title: string;
-	category?: string;
+	title: string | ILocalizedString;
+	category?: string | ILocalizedString;
 }
 
 export interface IConfigurationProperty {
@@ -95,7 +96,7 @@ export interface IColor {
 	defaults: { light: string; dark: string; highContrast: string };
 }
 
-export interface IWebviewEditor {
+interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
 	readonly selector: readonly {
@@ -136,6 +137,7 @@ export interface IWalkthroughStep {
 export interface IWalkthrough {
 	readonly id: string;
 	readonly title: string;
+	readonly icon?: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
 	readonly featuredFor: string[] | undefined;
@@ -267,6 +269,10 @@ export interface IRelaxedExtensionManifest {
 	description?: string;
 	main?: string;
 	browser?: string;
+	preview?: boolean;
+	// For now this only supports pointing to l10n bundle files
+	// but it will be used for package.l10n.json files in the future
+	l10n?: string;
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
@@ -323,6 +329,7 @@ export interface IExtension {
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
+	readonly browserNlsBundleUris?: { [language: string]: URI };
 }
 
 /**
@@ -360,8 +367,8 @@ export class ExtensionIdentifier {
 		if (typeof a === 'string' || typeof b === 'string') {
 			// At least one of the arguments is an extension id in string form,
 			// so we have to use the string comparison which ignores case.
-			let aValue = (typeof a === 'string' ? a : a.value);
-			let bValue = (typeof b === 'string' ? b : b.value);
+			const aValue = (typeof a === 'string' ? a : a.value);
+			const bValue = (typeof b === 'string' ? b : b.value);
 			return strings.equalsIgnoreCase(aValue, bValue);
 		}
 
@@ -389,9 +396,14 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
+	browserNlsBundleUris?: { [language: string]: URI };
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
+
+export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
+	return isLanguagePackExtension(manifest);
+}
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;

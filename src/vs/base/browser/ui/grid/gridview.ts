@@ -592,6 +592,10 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.splitview.resizeView(index, size);
 	}
 
+	isChildSizeMaximized(index: number): boolean {
+		return this.splitview.isViewSizeMaximized(index);
+	}
+
 	distributeViewSizes(recursive = false): void {
 		this.splitview.distributeViewSizes();
 
@@ -857,9 +861,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	set boundarySashes(boundarySashes: IRelativeBoundarySashes) {
 		this._boundarySashes = boundarySashes;
 
-		if (this.view.setBoundarySashes) {
-			this.view.setBoundarySashes(toAbsoluteBoundarySashes(boundarySashes, this.orientation));
-		}
+		this.view.setBoundarySashes?.(toAbsoluteBoundarySashes(boundarySashes, this.orientation));
 	}
 
 	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
@@ -897,9 +899,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	setVisible(visible: boolean): void {
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
-		}
+		this.view.setVisible?.(visible);
 	}
 
 	dispose(): void {
@@ -1153,7 +1153,7 @@ export class GridView implements IDisposable {
 		this.layoutController.isLayoutEnabled = true;
 
 		const [size, orthogonalSize, offset, orthogonalOffset] = this.root.orientation === Orientation.HORIZONTAL ? [height, width, top, left] : [width, height, left, top];
-		this.root.layout(size, offset, { orthogonalSize, absoluteOffset: offset, absoluteOrthogonalOffset: orthogonalOffset, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
+		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: offset, absoluteOrthogonalOffset: orthogonalOffset, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
 	}
 
 	/**
@@ -1433,6 +1433,27 @@ export class GridView implements IDisposable {
 		for (let i = 0; i < ancestors.length; i++) {
 			ancestors[i].resizeChild(location[i], Number.POSITIVE_INFINITY);
 		}
+	}
+
+	/**
+	 * Returns whether all other {@link IView views} are at their minimum size.
+	 *
+	 * @param location The {@link GridLocation location} of the view.
+	 */
+	isViewSizeMaximized(location: GridLocation): boolean {
+		const [ancestors, node] = this.getNode(location);
+
+		if (!(node instanceof LeafNode)) {
+			throw new Error('Invalid location');
+		}
+
+		for (let i = 0; i < ancestors.length; i++) {
+			if (!ancestors[i].isChildSizeMaximized(location[i])) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**

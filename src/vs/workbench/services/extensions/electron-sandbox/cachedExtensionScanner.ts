@@ -15,6 +15,8 @@ import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class CachedExtensionScanner {
 
@@ -26,6 +28,8 @@ export class CachedExtensionScanner {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IHostService private readonly _hostService: IHostService,
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
@@ -41,24 +45,29 @@ export class CachedExtensionScanner {
 
 	public async startScanningExtensions(): Promise<void> {
 		try {
-			const { system, user, development } = await this._scanInstalledExtensions();
-			const r = dedupExtensions(system, user, development, this._logService);
-			this._scannedExtensionsResolve(r);
+			const extensions = await this._scanInstalledExtensions();
+			this._scannedExtensionsResolve(extensions);
 		} catch (err) {
 			this._scannedExtensionsReject(err);
 		}
 	}
 
-	private async _scanInstalledExtensions(): Promise<{ system: IExtensionDescription[]; user: IExtensionDescription[]; development: IExtensionDescription[] }> {
+	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {
 		try {
 			const language = platform.language;
+			const defaultProfileExtensionsInitKey = `${this._userDataProfileService.currentProfile.extensionsResource.toString()}.init`;
+			if (this._userDataProfileService.currentProfile.isDefault && !this._storageService.getBoolean(defaultProfileExtensionsInitKey, StorageScope.APPLICATION, false)) {
+				await this._extensionsScannerService.initializeDefaultProfileExtensions();
+				this._storageService.store(defaultProfileExtensionsInitKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 			const [scannedSystemExtensions, scannedUserExtensions] = await Promise.all([
 				this._extensionsScannerService.scanSystemExtensions({ language, useCache: true, checkControlFile: true }),
-				this._extensionsScannerService.scanUserExtensions({ language, useCache: true })]);
+				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfileService.currentProfile.extensionsResource, useCache: true })]);
 			const scannedDevelopedExtensions = await this._extensionsScannerService.scanExtensionsUnderDevelopment({ language }, [...scannedSystemExtensions, ...scannedUserExtensions]);
 			const system = scannedSystemExtensions.map(e => toExtensionDescription(e, false));
 			const user = scannedUserExtensions.map(e => toExtensionDescription(e, false));
 			const development = scannedDevelopedExtensions.map(e => toExtensionDescription(e, true));
+			const r = dedupExtensions(system, user, development, this._logService);
 			const disposable = this._extensionsScannerService.onDidChangeCache(() => {
 				disposable.dispose();
 				this._notificationService.prompt(
@@ -71,11 +80,11 @@ export class CachedExtensionScanner {
 				);
 			});
 			timeout(5000).then(() => disposable.dispose());
-			return { system, user, development };
+			return r;
 		} catch (err) {
 			this._logService.error(`Error scanning installed extensions:`);
 			this._logService.error(err);
-			return { system: [], user: [], development: [] };
+			return [];
 		}
 	}
 

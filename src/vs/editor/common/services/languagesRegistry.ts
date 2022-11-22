@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
@@ -19,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
 
-export interface IResolvedLanguage {
+interface IResolvedLanguage {
 	identifier: string;
 	name: string | null;
 	mimetypes: string[];
@@ -198,20 +197,20 @@ export class LanguagesRegistry extends Disposable {
 			} else {
 				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
 			}
-			for (let extension of lang.extensions) {
+			for (const extension of lang.extensions) {
 				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
-			for (let filename of lang.filenames) {
+			for (const filename of lang.filenames) {
 				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
-			for (let filenamePattern of lang.filenamePatterns) {
+			for (const filenamePattern of lang.filenamePatterns) {
 				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
@@ -228,7 +227,7 @@ export class LanguagesRegistry extends Disposable {
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
-				onUnexpectedError(err);
+				console.warn(`[${lang.id}]: Invalid regular expression \`${firstLineRegexStr}\`: `, err);
 			}
 		}
 

@@ -6,15 +6,12 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
@@ -27,9 +24,14 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
+import { IMatch } from 'vs/base/common/filters';
+import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
+import { basename } from 'vs/base/common/resources';
+import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
-export const COMMENTS_VIEW_TITLE = 'Comments';
+export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
+export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
@@ -71,7 +73,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
+class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
@@ -172,9 +174,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const renderedComment = renderMarkdown(commentBody, {
 			inline: true,
 			actionHandler: {
-				callback: (content) => {
-					this.openerService.open(content, { allowCommands: commentBody.isTrusted }).catch(onUnexpectedError);
-				},
+				callback: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
 				disposables: disposables
 			}
 		});
@@ -188,9 +188,19 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
+	private getIcon(threadState?: CommentThreadState): Codicon {
+		if (threadState === CommentThreadState.Unresolved) {
+			return Codicon.commentUnresolved;
+		} else {
+			return Codicon.comment;
+		}
+	}
+
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		const commentCount = node.element.replies.length + 1;
-		templateData.threadMetadata.icon?.classList.add(...ThemeIcon.asClassNameArray((commentCount === 1) ? Codicon.comment : Codicon.commentDiscussion));
+		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
+			.filter(value => value.startsWith('codicon')));
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
@@ -209,7 +219,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
 
@@ -244,7 +254,92 @@ export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any
 	overrideStyles?: IColorMapping;
 }
 
-export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
+const enum FilterDataType {
+	Resource,
+	Comment
+}
+
+interface ResourceFilterData {
+	type: FilterDataType.Resource;
+	uriMatches: IMatch[];
+}
+
+interface CommentFilterData {
+	type: FilterDataType.Comment;
+	textMatches: IMatch[];
+}
+
+type FilterData = ResourceFilterData | CommentFilterData;
+
+export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentNode, FilterData> {
+
+	constructor(public options: FilterOptions) { }
+
+	filter(element: ResourceWithCommentThreads | CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+		if (element instanceof ResourceWithCommentThreads) {
+			return this.filterResourceMarkers(element);
+		} else {
+			return this.filterCommentNode(element, parentVisibility);
+		}
+	}
+
+	private filterResourceMarkers(resourceMarkers: ResourceWithCommentThreads): TreeFilterResult<FilterData> {
+		// Filter by text. Do not apply negated filters on resources instead use exclude patterns
+		if (this.options.textFilter.text && !this.options.textFilter.negate) {
+			const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
+			if (uriMatches) {
+				return { visibility: true, data: { type: FilterDataType.Resource, uriMatches: uriMatches || [] } };
+			}
+		}
+
+		return TreeVisibility.Recurse;
+	}
+
+	private filterCommentNode(comment: CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+		const matchesResolvedState = (comment.threadState === undefined) || (this.options.showResolved && CommentThreadState.Resolved === comment.threadState) ||
+			(this.options.showUnresolved && CommentThreadState.Unresolved === comment.threadState);
+
+		if (!matchesResolvedState) {
+			return false;
+		}
+
+		if (!this.options.textFilter.text) {
+			return true;
+		}
+
+		const textMatches =
+			// Check body of comment for value
+			FilterOptions._messageFilter(this.options.textFilter.text, typeof comment.comment.body === 'string' ? comment.comment.body : comment.comment.body.value)
+			// Check first user for value
+			|| FilterOptions._messageFilter(this.options.textFilter.text, comment.comment.userName)
+			// Check all replies for value
+			|| (comment.replies.map(reply => {
+				// Check user for value
+				return FilterOptions._messageFilter(this.options.textFilter.text, reply.comment.userName)
+					// Check body of reply for value
+					|| FilterOptions._messageFilter(this.options.textFilter.text, typeof reply.comment.body === 'string' ? reply.comment.body : reply.comment.body.value);
+			}).filter(value => !!value) as IMatch[][]).flat();
+
+		// Matched and not negated
+		if (textMatches.length && !this.options.textFilter.negate) {
+			return { visibility: true, data: { type: FilterDataType.Comment, textMatches } };
+		}
+
+		// Matched and negated - exclude it only if parent visibility is not set
+		if (textMatches.length && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return false;
+		}
+
+		// Not matched and negated - include it only if parent visibility is not set
+		if ((textMatches.length === 0) && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return true;
+		}
+
+		return parentVisibility;
+	}
+}
+
+export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
 	constructor(
 		labels: ResourceLabels,
 		container: HTMLElement,
@@ -254,8 +349,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const delegate = new CommentsModelVirualDelegate();
 		const dataSource = new CommentsAsyncDataSource();
@@ -297,14 +390,34 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				collapseByDefault: () => {
 					return false;
 				},
-				overrideStyles: options.overrideStyles
+				overrideStyles: options.overrideStyles,
+				filter: options.filter,
+				findWidgetEnabled: false
 			},
+			instantiationService,
 			contextKeyService,
 			listService,
 			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService
+			configurationService
 		);
+	}
+
+	filterComments(): void {
+		this.refilter();
+	}
+
+	getVisibleItemCount(): number {
+		let filtered = 0;
+		const root = this.getNode();
+
+		for (const resourceNode of root.children) {
+			for (const commentNode of resourceNode.children) {
+				if (commentNode.visible && resourceNode.visible) {
+					filtered++;
+				}
+			}
+		}
+
+		return filtered;
 	}
 }

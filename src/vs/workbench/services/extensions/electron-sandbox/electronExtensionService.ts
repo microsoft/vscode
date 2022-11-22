@@ -8,8 +8,8 @@ import { AbstractExtensionService, ExtensionHostCrashTracker, ExtensionRunningPr
 import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -26,16 +26,15 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { flatten } from 'vs/base/common/arrays';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteName, parseAuthorityWithPort } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
@@ -48,6 +47,7 @@ import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { URI } from 'vs/base/common/uri';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export abstract class ElectronExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -66,20 +66,20 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(
 			instantiationService,
@@ -93,9 +93,10 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			contextService,
 			configurationService,
 			extensionManifestPropertiesService,
-			webExtensionsScannerService,
 			logService,
-			remoteAgentService
+			remoteAgentService,
+			lifecycleService,
+			userDataProfileService
 		);
 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
@@ -108,7 +109,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		// some editors require the extension host to restore
 		// and this would result in a deadlock
 		// see https://github.com/microsoft/vscode/issues/41322
-		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
+		lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
 			runWhenIdle(() => {
 				this._initialize();
@@ -147,10 +148,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
-		return flatten(await Promise.all([
-			this._extensionScanner.scannedExtensions,
-			this._scanWebExtensions(),
-		]));
+		return this._extensionScanner.scannedExtensions;
 	}
 
 	protected _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
@@ -306,9 +304,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		type ExtensionHostCrashClassification = {
 			owner: 'alexdima';
 			comment: 'The extension host has terminated unexpectedly';
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the extension host process.' };
+			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The signal that caused the extension host process to exit.' };
+			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The list of loaded extensions.' };
 		};
 		type ExtensionHostCrashEvent = {
 			code: number;
@@ -325,9 +323,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			type ExtensionHostCrashExtensionClassification = {
 				owner: 'alexdima';
 				comment: 'The extension host has terminated unexpectedly';
-				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the extension host process.' };
+				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The signal that caused the extension host process to exit.' };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the extension.' };
 			};
 			type ExtensionHostCrashExtensionEvent = {
 				code: number;
@@ -349,12 +347,12 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			const lastColon = remoteAuthority.lastIndexOf(':');
+			const { host, port } = parseAuthorityWithPort(remoteAuthority);
 			return {
 				authority: {
 					authority: remoteAuthority,
-					host: remoteAuthority.substring(0, lastColon),
-					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
+					host,
+					port,
 					connectionToken: undefined
 				}
 			};
@@ -413,6 +411,37 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 
 		// we can only reach this if there was no resolver extension that can return the cannonical uri
 		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
+	}
+
+	private async _resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
+		const MAX_ATTEMPTS = 5;
+
+		for (let attempt = 1; ; attempt++) {
+			const sw = StopWatch.create(false);
+			this._logService.info(`[attempt ${attempt}] Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
+			try {
+				const resolverResult = await this._resolveAuthority(remoteAuthority);
+				this._logService.info(`[attempt ${attempt}] resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
+				return resolverResult;
+			} catch (err) {
+				this._logService.error(`[attempt ${attempt}] resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
+
+				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
+					// There is no point in retrying if there is no resolver found
+					throw err;
+				}
+
+				if (RemoteAuthorityResolverError.isNotAvailable(err)) {
+					// The resolver is not available and asked us to not retry
+					throw err;
+				}
+
+				if (attempt >= MAX_ATTEMPTS) {
+					// Too many failed attempts, give up
+					throw err;
+				}
+			}
+		}
 	}
 
 	private async _resolveAuthorityAgain(): Promise<void> {
@@ -475,14 +504,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			}
 
 			let resolverResult: ResolverResult;
-
-			const sw = StopWatch.create(false);
-			this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 			try {
-				resolverResult = await this._resolveAuthority(remoteAuthority);
-				this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
+				resolverResult = await this._resolveAuthorityInitial(remoteAuthority);
 			} catch (err) {
-				this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
 				} else {
@@ -594,6 +618,10 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
 
+		// Dispose the management connection to avoid reconnecting after the extension host exits
+		const connection = this._remoteAgentService.getConnection();
+		connection?.dispose();
+
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
 			this._nativeHostService.exit(code);
@@ -681,7 +709,7 @@ class RestartExtensionHostAction extends Action2 {
 		super({
 			id: 'workbench.action.restartExtensionHost',
 			title: { value: nls.localize('restartExtensionHost', "Restart Extension Host"), original: 'Restart Extension Host' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

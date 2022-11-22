@@ -14,6 +14,7 @@ import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { splitLines } from 'vs/base/common/strings';
 import { IMatch } from 'vs/base/common/filters';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -22,8 +23,8 @@ export function compareMarkersByUri(a: IMarker, b: IMarker) {
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
-	let [firstMarkerOfA] = a.markers;
-	let [firstMarkerOfB] = b.markers;
+	const [firstMarkerOfA] = a.markers;
+	const [firstMarkerOfB] = b.markers;
 	let res = 0;
 	if (firstMarkerOfA && firstMarkerOfB) {
 		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
@@ -71,7 +72,7 @@ export class ResourceMarkers {
 	}
 
 	delete(uri: URI) {
-		let array = this._markersMap.get(uri);
+		const array = this._markersMap.get(uri);
 		if (array) {
 			this._total -= array.length;
 			this._cachedMarkers = undefined;
@@ -188,6 +189,10 @@ export class MarkersModel {
 	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
 		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
 		for (const [resource, rawMarkers] of resourcesMarkers) {
+
+			if (unsupportedSchemas.has(resource.scheme)) {
+				continue;
+			}
 
 			const key = extUri.getComparisonKey(resource, true);
 			let resourceMarkers = this.resourcesByUri.get(key);

@@ -19,12 +19,12 @@ import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/lang
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionSet, getCodeActions } from './codeAction';
-import { CodeActionTrigger } from './types';
+import { getCodeActions } from './codeAction';
+import { CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
-export type TriggeredCodeAction = undefined | {
+type TriggeredCodeAction = undefined | {
 	readonly selection: Selection;
 	readonly trigger: CodeActionTrigger;
 	readonly position: Position;
@@ -58,30 +58,15 @@ class CodeActionOracle extends Disposable {
 
 		if (resources.some(resource => isEqual(resource, model.uri))) {
 			this._autoTriggerTimer.cancelAndSet(() => {
-				this.trigger({ type: CodeActionTriggerType.Auto });
+				this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 			}, this._delay);
 		}
 	}
 
 	private _onCursorChange(): void {
 		this._autoTriggerTimer.cancelAndSet(() => {
-			this.trigger({ type: CodeActionTriggerType.Auto });
+			this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		}, this._delay);
-	}
-
-	private _getRangeOfMarker(selection: Selection): Range | undefined {
-		const model = this._editor.getModel();
-		if (!model) {
-			return undefined;
-		}
-		for (const marker of this._markerService.read({ resource: model.uri })) {
-			const markerRange = model.validateRange(marker);
-			if (Range.intersectRanges(markerRange, selection)) {
-				return Range.lift(markerRange);
-			}
-		}
-
-		return undefined;
 	}
 
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
@@ -124,13 +109,10 @@ class CodeActionOracle extends Disposable {
 			return undefined;
 		}
 
-		const markerRange = this._getRangeOfMarker(selection);
-		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-
 		const e: TriggeredCodeAction = {
 			trigger,
 			selection,
-			position
+			position: selection.getStartPosition(),
 		};
 		this._signalChange(e);
 		return e;
@@ -256,16 +238,14 @@ export class CodeActionModel extends Disposable {
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection, trigger.position, actions));
 
 			}, undefined);
-			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto });
+			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
 		}
 	}
 
 	public trigger(trigger: CodeActionTrigger) {
-		if (this._codeActionOracle.value) {
-			this._codeActionOracle.value.trigger(trigger);
-		}
+		this._codeActionOracle.value?.trigger(trigger);
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

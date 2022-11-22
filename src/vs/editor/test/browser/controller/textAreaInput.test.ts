@@ -41,13 +41,13 @@ suite('TextAreaInput', () => {
 	}
 
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
-		let disposables = new DisposableStore();
+		const disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
 			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
-			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
-				return new TextAreaState('', 0, 0, null, null);
+			getScreenReaderContent: function (): TextAreaState {
+				return new TextAreaState('', 0, 0, null, undefined);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
@@ -202,7 +202,7 @@ suite('TextAreaInput', () => {
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();
 
-		let outgoingEvents: OutoingEvent[] = [];
+		const outgoingEvents: OutoingEvent[] = [];
 
 		disposables.add(input.onType((e) => outgoingEvents.push({
 			type: 'type',

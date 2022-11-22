@@ -5,13 +5,14 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, SnippetTextEdit } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -22,7 +23,7 @@ import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { SnippetSession } from './snippetSession';
+import { ISnippetEdit, SnippetSession } from './snippetSession';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -87,6 +88,19 @@ export class SnippetController2 implements IEditorContribution {
 		this._snippetListener.dispose();
 	}
 
+	apply(edits: ISnippetEdit[], opts?: Partial<ISnippetInsertOptions>) {
+		try {
+			this._doInsert(edits, typeof opts === 'undefined' ? _defaultOptions : { ..._defaultOptions, ...opts });
+
+		} catch (e) {
+			this.cancel();
+			this._logService.error(e);
+			this._logService.error('snippet_error');
+			this._logService.error('insert_edits=', edits);
+			this._logService.error('existing_template=', this._session ? this._session._logInfo() : '<no_session>');
+		}
+	}
+
 	insert(
 		template: string,
 		opts?: Partial<ISnippetInsertOptions>
@@ -107,7 +121,7 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	private _doInsert(
-		template: string,
+		template: string | ISnippetEdit[],
 		opts: ISnippetInsertOptions
 	): void {
 		if (!this._editor.hasModel()) {
@@ -122,11 +136,17 @@ export class SnippetController2 implements IEditorContribution {
 			this._editor.getModel().pushStackElement();
 		}
 
+		// don't merge
+		if (this._session && typeof template !== 'string') {
+			this.cancel();
+		}
+
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
 			this._session = new SnippetSession(this._editor, template, opts, this._languageConfigurationService);
 			this._session.insert();
 		} else {
+			assertType(typeof template === 'string');
 			this._session.merge(template, opts);
 		}
 
@@ -259,16 +279,12 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	prev(): void {
-		if (this._session) {
-			this._session.prev();
-		}
+		this._session?.prev();
 		this._updateState();
 	}
 
 	next(): void {
-		if (this._session) {
-			this._session.next();
-		}
+		this._session?.next();
 		this._updateState();
 	}
 
@@ -331,17 +347,3 @@ registerEditorCommand(new CommandCtor({
 	// 	primary: KeyCode.Enter,
 	// }
 }));
-
-
-// ---
-
-export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
-	const controller = SnippetController2.get(editor);
-	if (!controller) {
-		return false;
-	}
-	editor.focus();
-	editor.setSelection(edit.range);
-	controller.insert(edit.snippet);
-	return controller.isInSnippet();
-}

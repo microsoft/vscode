@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
 import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
@@ -37,14 +37,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; supportsFileDataTransfers: boolean }): Promise<void> {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			this._dataProviders.set(treeViewId, dataProvider);
 			const dndController = (options.hasHandleDrag || options.hasHandleDrop)
-				? new TreeViewDragAndDropController(treeViewId, options.dropMimeTypes, options.dragMimeTypes, options.hasHandleDrag, options.supportsFileDataTransfers, this._proxy) : undefined;
+				? new TreeViewDragAndDropController(treeViewId, options.dropMimeTypes, options.dragMimeTypes, options.hasHandleDrag, this._proxy) : undefined;
 			const viewer = this.getTreeView(treeViewId);
 			if (viewer) {
 				// Order is important here. The internal tree isn't created until the dataProvider is set.
@@ -117,12 +117,19 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer> {
 		const controller = this._dndControllers.get(destinationViewId);
 		if (!controller) {
 			throw new Error('Unknown tree');
 		}
-		return controller.resolveDropFileData(requestId, dataItemIndex);
+		return controller.resolveDropFileData(requestId, dataItemId);
+	}
+
+	public async $disposeTree(treeViewId: string): Promise<void> {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.dataProvider = undefined;
+		}
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -168,7 +175,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._register(treeView.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
 		this._register(treeView.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
 		this._register(treeView.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
+		this._register(treeView.onDidChangeFocus(item => this._proxy.$setFocus(treeViewId, item.handle)));
 		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
+		this._register(treeView.onDidChangeCheckboxState(items => {
+			this._proxy.$changeCheckboxState(treeViewId, <CheckboxUpdate[]>items.map(item => {
+				return { treeItemHandle: item.handle, newState: item.checkbox?.isChecked ?? false };
+			}));
+		}));
 	}
 
 	private getTreeView(treeViewId: string): ITreeView | null {
@@ -201,7 +214,6 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		readonly dropMimeTypes: string[],
 		readonly dragMimeTypes: string[],
 		readonly hasWillDrop: boolean,
-		readonly supportsFileDataTransfers: boolean,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
 	async handleDrop(dataTransfer: VSDataTransfer, targetTreeItem: ITreeItem | undefined, token: CancellationToken,
@@ -230,8 +242,8 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		return additionalDataTransfer;
 	}
 
-	public resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
-		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemIndex);
+	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
+		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemId);
 	}
 }
 

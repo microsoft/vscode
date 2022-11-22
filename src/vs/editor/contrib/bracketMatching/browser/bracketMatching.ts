@@ -17,12 +17,11 @@ import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/com
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/core/editorColorRegistry';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hcDark: '#A0A0A0', hcLight: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -275,9 +274,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		}
 		this._recomputeBrackets();
 
-		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
+		const newDecorations: IModelDeltaDecoration[] = [];
+		let newDecorationsLen = 0;
 		for (const bracketData of this._lastBracketsData) {
-			let brackets = bracketData.brackets;
+			const brackets = bracketData.brackets;
 			if (brackets) {
 				newDecorations[newDecorationsLen++] = { range: brackets[0], options: bracketData.options };
 				newDecorations[newDecorationsLen++] = { range: brackets[1], options: bracketData.options };
@@ -311,9 +311,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			previousData = this._lastBracketsData;
 		}
 
-		let positions: Position[] = [], positionsLen = 0;
+		const positions: Position[] = [];
+		let positionsLen = 0;
 		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+			const selection = selections[i];
 
 			if (selection.isEmpty()) {
 				// will bracket match a cursor only if the selection is collapsed
@@ -326,10 +327,12 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			positions.sort(Position.compare);
 		}
 
-		let newData: BracketsData[] = [], newDataLen = 0;
-		let previousIndex = 0, previousLen = previousData.length;
+		const newData: BracketsData[] = [];
+		let newDataLen = 0;
+		let previousIndex = 0;
+		const previousLen = previousData.length;
 		for (let i = 0, len = positions.length; i < len; i++) {
-			let position = positions[i];
+			const position = positions[i];
 
 			while (previousIndex < previousLen && previousData[previousIndex].position.isBefore(position)) {
 				previousIndex++;
@@ -356,16 +359,6 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 registerEditorContribution(BracketMatchingController.ID, BracketMatchingController);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
-registerThemingParticipant((theme, collector) => {
-	const bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
-	if (bracketMatchBackground) {
-		collector.addRule(`.monaco-editor .bracket-match { background-color: ${bracketMatchBackground}; }`);
-	}
-	const bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
-	if (bracketMatchBorder) {
-		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
-	}
-});
 
 // Go to menu
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {

@@ -27,8 +27,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, remoteExtHostLog, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 
 export interface IRemoteExtensionHostInitData {
@@ -68,7 +67,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -81,8 +79,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		this._protocol = null;
 		this._hasLostConnection = false;
 		this._terminating = false;
-
-		this._register(this._lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -129,7 +125,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 			return connectRemoteAgentExtensionHost(options, startParams).then(result => {
 				this._register(result);
-				let { protocol, debugPort, reconnectionToken } = result;
+				const { protocol, debugPort, reconnectionToken } = result;
 				const isExtensionDevelopmentDebug = typeof debugPort === 'number';
 				if (debugOk && this._environmentService.isExtensionDevelopment && this._environmentService.debugExtensionHost.debugId && debugPort) {
 					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, debugPort, this._initDataProvider.remoteAuthority);
@@ -149,7 +145,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				// 2) wait for the incoming `initialized` event.
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
-					let handle = setTimeout(() => {
+					const handle = setTimeout(() => {
 						reject('The remote extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
@@ -175,7 +171,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 							disposable.dispose();
 
 							// Register log channel for remote exthost log
-							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'remoteExtHostLog', label: localize('remote extension host Log', "Remote Extension Host"), file: logFile, log: true });
+							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLog, label: localize('remote extension host Log', "Remote Extension Host"), file: logFile, log: true });
 
 							// release this promise
 							this._protocol = protocol;
@@ -225,11 +221,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
+				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				workspaceStorageHome: remoteInitData.workspaceStorageHome
+				workspaceStorageHome: remoteInitData.workspaceStorageHome,
+				extensionLogLevel: this._environmentService.extensionLogLevel
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
@@ -241,6 +239,10 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				isRemote: true,
 				authority: this._initDataProvider.remoteAuthority,
 				connectionData: remoteInitData.connectionData
+			},
+			consoleForward: {
+				includeStack: false,
+				logNative: Boolean(this._environmentService.debugExtensionHost.debugId)
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
@@ -269,12 +271,16 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		if (this._protocol) {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
+			// setTimeout(() => {
+			// console.log(`SENDING TERMINATE TO REMOTE EXT HOST!`);
 			const socket = this._protocol.getSocket();
 			this._protocol.send(createMessageOfType(MessageType.Terminate));
 			this._protocol.sendDisconnect();
 			this._protocol.dispose();
+			// this._protocol.drain();
 			socket.end();
 			this._protocol = null;
+			// }, 1000);
 		}
 	}
 }

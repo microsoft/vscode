@@ -19,7 +19,7 @@ import { FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/en
 import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
@@ -89,9 +89,7 @@ class InspectTokens extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = InspectTokensController.get(editor);
-		if (controller) {
-			controller.launch();
-		}
+		controller?.launch();
 	}
 }
 
@@ -339,14 +337,5 @@ registerThemingParticipant((theme, collector) => {
 	if (border) {
 		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
 		collector.addRule(`.monaco-editor .tokens-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .tokens-inspect-widget .tokens-inspect-separator { background-color: ${border}; }`);
-	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { background-color: ${background}; }`);
-	}
-	const foreground = theme.getColor(editorHoverForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { color: ${foreground}; }`);
 	}
 });

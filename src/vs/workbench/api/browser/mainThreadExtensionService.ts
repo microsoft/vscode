@@ -189,7 +189,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	}
 
 	async $asBrowserUri(uri: UriComponents): Promise<UriComponents> {
-		return FileAccess.asBrowserUri(URI.revive(uri));
+		return FileAccess.uriToBrowserUri(URI.revive(uri));
 	}
 }
 
@@ -210,9 +210,6 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	}
 	extensionTestsExecute(): Promise<number> {
 		return this._actual.$extensionTestsExecute();
-	}
-	extensionTestsExit(code: number): Promise<void> {
-		return this._actual.$extensionTestsExit(code);
 	}
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		return this._actual.$activateByEvent(activationEvent, activationKind);

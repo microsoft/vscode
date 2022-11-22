@@ -192,7 +192,9 @@ suite('CodeEditorWidget', () => {
 			const calls: string[] = [];
 			disposables.add(editor.onDidChangeModelContent((e) => {
 				calls.push(`listener1 - contentchange(${e.changes.reduce<any[]>((aggr, c) => [...aggr, c.text, c.rangeOffset, c.rangeLength], []).join(', ')})`);
-				editor.deltaDecorations([], [{ range: new Range(1, 1, 1, 1), options: { description: 'test' } }]);
+				editor.changeDecorations((changeAccessor) => {
+					changeAccessor.deltaDecorations([], [{ range: new Range(1, 1, 1, 1), options: { description: 'test' } }]);
+				});
 			}));
 			disposables.add(editor.onDidChangeCursorSelection((e) => {
 				calls.push(`listener1 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);

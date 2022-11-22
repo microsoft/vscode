@@ -227,10 +227,10 @@ export class Range {
 		let resultStartColumn = a.startColumn;
 		let resultEndLineNumber = a.endLineNumber;
 		let resultEndColumn = a.endColumn;
-		let otherStartLineNumber = b.startLineNumber;
-		let otherStartColumn = b.startColumn;
-		let otherEndLineNumber = b.endLineNumber;
-		let otherEndColumn = b.endColumn;
+		const otherStartLineNumber = b.startLineNumber;
+		const otherStartColumn = b.startColumn;
+		const otherEndLineNumber = b.endLineNumber;
+		const otherEndColumn = b.endColumn;
 
 		if (resultStartLineNumber < otherStartLineNumber) {
 			resultStartLineNumber = otherStartLineNumber;
@@ -267,6 +267,9 @@ export class Range {
 	 * Test if range `a` equals `b`.
 	 */
 	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
+		if (!a && !b) {
+			return true;
+		}
 		return (
 			!!a &&
 			!!b &&
@@ -331,6 +334,13 @@ export class Range {
 	 */
 	public collapseToStart(): Range {
 		return Range.collapseToStart(this);
+	}
+
+	/**
+	 * Moves the range by the given amount of lines.
+	 */
+	public delta(lineCount: number): Range {
+		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
 	}
 
 	/**

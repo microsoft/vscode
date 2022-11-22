@@ -13,7 +13,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
+import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -71,7 +71,7 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }, language = 'typescript') {
 	const colorIndex = themeData.tokenColorMap;
 
-	for (let qualifiedClassifier in expected) {
+	for (const qualifiedClassifier in expected) {
 		const [type, ...modifiers] = qualifiedClassifier.split('.');
 
 		const expectedTokenStyle = expected[qualifiedClassifier];
@@ -99,7 +99,7 @@ suite('Themes - TokenStyleResolving', () => {
 
 	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		themeData.location = FileAccess.asFileUri('./color-theme.json', require);
+		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/electron-browser/color-theme.json');
 		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.strictEqual(themeData.isLoaded, true);
@@ -160,7 +160,7 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.setCustomTokenColors(customTokenColors);
 
 		let tokenStyle;
-		let defaultTokenStyle = undefined;
+		const defaultTokenStyle = undefined;
 
 		tokenStyle = themeData.resolveScopes([['variable']]);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', unsetStyle), 'variable');

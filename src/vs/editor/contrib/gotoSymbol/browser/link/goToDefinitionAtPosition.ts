@@ -27,8 +27,6 @@ import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
@@ -55,7 +53,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.editor = editor;
 		this.linkDecorations = this.editor.createDecorationsCollection();
 
-		let linkGesture = new ClickLinkGesture(editor);
+		const linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);
 
 		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
@@ -151,7 +149,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.currentWordAtPosition = word;
 
 		// Find definition and decorate word if found
-		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 		if (this.previousPromise) {
 			this.previousPromise.cancel();
@@ -166,17 +164,29 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return;
 			}
 
+			const linkRange = results[0].originSelectionRange
+				? Range.lift(results[0].originSelectionRange)
+				: new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+
 			// Multiple results
 			if (results.length > 1) {
+
+				let combinedRange = linkRange;
+				for (const { originSelectionRange } of results) {
+					if (originSelectionRange) {
+						combinedRange = Range.plusRange(combinedRange, originSelectionRange);
+					}
+				}
+
 				this.addDecoration(
-					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+					combinedRange,
 					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length))
 				);
 			}
 
 			// Single result
 			else {
-				let result = results[0];
+				const result = results[0];
 
 				if (!result.uri) {
 					return;
@@ -199,17 +209,9 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 					}
 
 					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
-
-					let wordRange: Range;
-					if (result.originSelectionRange) {
-						wordRange = Range.lift(result.originSelectionRange);
-					} else {
-						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-					}
-
 					const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
-						wordRange,
+						linkRange,
 						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)
 					);
 					ref.dispose();
@@ -248,7 +250,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		let endLineNumber = startLineNumber + 1;
 
 		for (; endLineNumber < maxLineNumber; endLineNumber++) {
-			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
 
 			if (startIndent === endIndent) {
 				break;
@@ -277,11 +279,12 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return this.editor.hasModel() &&
-			mouseEvent.isNoneOrSingleMouseDown &&
-			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
-			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
-			this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
+		return this.editor.hasModel()
+			&& mouseEvent.isLeftClick
+			&& mouseEvent.isNoneOrSingleMouseDown
+			&& mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+			&& (mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false))
+			&& this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
 	}
 
 	private findDefinition(position: Position, token: CancellationToken): Promise<LocationLink[] | null> {
@@ -297,7 +300,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.editor.setPosition(position);
 		return this.editor.invokeWithinContext((accessor) => {
 			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
-			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
+			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
 			return action.run(accessor, this.editor);
 		});
 	}
@@ -313,10 +316,3 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 }
 
 registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution);
-
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
-	}
-});

@@ -73,7 +73,7 @@ export class TMGrammarFactory extends Disposable {
 			this._scopeRegistry.register(validGrammar);
 
 			if (validGrammar.injectTo) {
-				for (let injectScope of validGrammar.injectTo) {
+				for (const injectScope of validGrammar.injectTo) {
 					let injections = this._injections[injectScope];
 					if (!injections) {
 						this._injections[injectScope] = injections = [];
@@ -82,7 +82,7 @@ export class TMGrammarFactory extends Disposable {
 				}
 
 				if (validGrammar.embeddedLanguages) {
-					for (let injectScope of validGrammar.injectTo) {
+					for (const injectScope of validGrammar.injectTo) {
 						let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[injectScope];
 						if (!injectedEmbeddedLanguages) {
 							this._injectedEmbeddedLanguages[injectScope] = injectedEmbeddedLanguages = [];
@@ -123,7 +123,7 @@ export class TMGrammarFactory extends Disposable {
 			throw new Error(missingTMGrammarErrorMessage);
 		}
 
-		let embeddedLanguages = grammarDefinition.embeddedLanguages;
+		const embeddedLanguages = grammarDefinition.embeddedLanguages;
 		if (this._injectedEmbeddedLanguages[scopeName]) {
 			const injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
 			for (const injected of injectedEmbeddedLanguages) {

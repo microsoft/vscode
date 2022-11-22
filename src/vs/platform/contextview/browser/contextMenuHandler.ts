@@ -49,7 +49,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
-		let shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
+		const shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -57,7 +57,7 @@ export class ContextMenuHandler {
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
 
 			render: (container) => {
-				let className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
+				const className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
 
 				if (className) {
 					container.className += ' ' + className;
@@ -81,7 +81,7 @@ export class ContextMenuHandler {
 				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
-				actionRunner.onBeforeRun(this.onActionRun, this, menuDisposables);
+				actionRunner.onWillRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
 					actionViewItemProvider: delegate.getActionViewItem,
@@ -100,7 +100,7 @@ export class ContextMenuHandler {
 						return;
 					}
 
-					let event = new StandardMouseEvent(e);
+					const event = new StandardMouseEvent(e);
 					let element: HTMLElement | null = event.target;
 
 					// Don't do anything as we are likely creating a context menu
@@ -123,24 +123,18 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				if (menu) {
-					menu.focus(!!delegate.autoSelectFirstItem);
-				}
+				menu?.focus(!!delegate.autoSelectFirstItem);
 			},
 
 			onHide: (didCancel?: boolean) => {
-				if (delegate.onHide) {
-					delegate.onHide(!!didCancel);
-				}
+				delegate.onHide?.(!!didCancel);
 
 				if (this.block) {
 					this.block.remove();
 					this.block = null;
 				}
 
-				if (this.focusToReturn) {
-					this.focusToReturn.focus();
-				}
+				this.focusToReturn?.focus();
 			}
 		}, shadowRootElement, !!shadowRootElement);
 	}
@@ -151,9 +145,7 @@ export class ContextMenuHandler {
 		this.contextViewService.hideContextView(false);
 
 		// Restore focus here
-		if (this.focusToReturn) {
-			this.focusToReturn.focus();
-		}
+		this.focusToReturn?.focus();
 	}
 
 	private onDidActionRun(e: IRunEvent): void {

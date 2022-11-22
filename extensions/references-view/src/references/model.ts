@@ -6,8 +6,6 @@
 import * as vscode from 'vscode';
 import { SymbolItemDragAndDrop, SymbolItemEditorHighlights, SymbolItemNavigation, SymbolTreeInput, SymbolTreeModel } from '../references-view';
 import { asResourceUrl, del, getPreviewChunks, tail } from '../utils';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 export class ReferencesTreeInput implements SymbolTreeInput<FileItem | ReferenceItem> {
 
@@ -78,8 +76,8 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 
 	private static _compareUriIgnoreFragment(a: vscode.Uri, b: vscode.Uri): number {
-		let aStr = a.with({ fragment: '' }).toString();
-		let bStr = b.with({ fragment: '' }).toString();
+		const aStr = a.with({ fragment: '' }).toString();
+		const bStr = b.with({ fragment: '' }).toString();
 		if (aStr < bStr) {
 			return -1;
 		} else if (aStr > bStr) {
@@ -89,16 +87,16 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 
 	private static _compareLocations(a: vscode.Location | vscode.LocationLink, b: vscode.Location | vscode.LocationLink): number {
-		let aUri = a instanceof vscode.Location ? a.uri : a.targetUri;
-		let bUri = b instanceof vscode.Location ? b.uri : b.targetUri;
+		const aUri = a instanceof vscode.Location ? a.uri : a.targetUri;
+		const bUri = b instanceof vscode.Location ? b.uri : b.targetUri;
 		if (aUri.toString() < bUri.toString()) {
 			return -1;
 		} else if (aUri.toString() > bUri.toString()) {
 			return 1;
 		}
 
-		let aRange = a instanceof vscode.Location ? a.range : a.targetRange;
-		let bRange = b instanceof vscode.Location ? b.range : b.targetRange;
+		const aRange = a instanceof vscode.Location ? a.range : a.targetRange;
+		const bRange = b instanceof vscode.Location ? b.range : b.targetRange;
 		if (aRange.start.isBefore(bRange.start)) {
 			return -1;
 		} else if (aRange.start.isAfter(bRange.start)) {
@@ -112,18 +110,18 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	get message() {
 		if (this.items.length === 0) {
-			return localize('noresult', 'No results.');
+			return vscode.l10n.t('No results.');
 		}
 		const total = this.items.reduce((prev, cur) => prev + cur.references.length, 0);
 		const files = this.items.length;
 		if (total === 1 && files === 1) {
-			return localize('result.1', '{0} result in {1} file', total, files);
+			return vscode.l10n.t('{0} result in {1} file', total, files);
 		} else if (total === 1) {
-			return localize('result.1n', '{0} result in {1} files', total, files);
+			return vscode.l10n.t('{0} result in {1} files', total, files);
 		} else if (files === 1) {
-			return localize('result.n1', '{0} results in {1} file', total, files);
+			return vscode.l10n.t('{0} results in {1} file', total, files);
 		} else {
-			return localize('result.nm', '{0} results in {1} files', total, files);
+			return vscode.l10n.t('{0} results in {1} files', total, files);
 		}
 	}
 
@@ -163,10 +161,10 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 		// (3) pick the file with the longest common prefix
 		let best = 0;
-		let bestValue = ReferencesModel._prefixLen(this.items[best].toString(), uri.toString());
+		const bestValue = ReferencesModel._prefixLen(this.items[best].toString(), uri.toString());
 
 		for (let i = 1; i < this.items.length; i++) {
-			let value = ReferencesModel._prefixLen(this.items[i].uri.toString(), uri.toString());
+			const value = ReferencesModel._prefixLen(this.items[i].uri.toString(), uri.toString());
 			if (value > bestValue) {
 				best = i;
 			}
@@ -299,7 +297,7 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			result.contextValue = 'reference-item';
 			result.command = {
 				command: 'vscode.open',
-				title: localize('open', 'Open Reference'),
+				title: vscode.l10n.t('Open Reference'),
 				arguments: [
 					element.location.uri,
 					<vscode.TextDocumentShowOptions>{ selection: range.with({ end: range.start }) }
@@ -340,7 +338,7 @@ export class FileItem {
 
 	async asCopyText() {
 		let result = `${vscode.workspace.asRelativePath(this.uri)}\n`;
-		for (let ref of this.references) {
+		for (const ref of this.references) {
 			result += `  ${await ref.asCopyText()}\n`;
 		}
 		return result;
@@ -379,8 +377,8 @@ export class ReferenceItem {
 	}
 
 	async asCopyText() {
-		let doc = await this.getDocument();
-		let chunks = getPreviewChunks(doc, this.location.range, 21, false);
+		const doc = await this.getDocument();
+		const chunks = getPreviewChunks(doc, this.location.range, 21, false);
 		return `${this.location.range.start.line + 1}, ${this.location.range.start.character + 1}: ${chunks.before + chunks.inside + chunks.after}`;
 	}
 }

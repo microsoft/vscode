@@ -8,6 +8,7 @@ import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
@@ -56,7 +57,7 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	allowWorkspaceOpen?: boolean;
 }
 
-export async function extractEditorsDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
+export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
@@ -107,18 +108,6 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			}
 		}
 
-		// Web: Check for file transfer
-		if (isWeb && containsDragType(e, DataTransfers.FILES)) {
-			const files = e.dataTransfer.items;
-			if (files) {
-				const instantiationService = accessor.get(IInstantiationService);
-				const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
-				for (const fileData of filesData) {
-					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
-				}
-			}
-		}
-
 		// Workbench contributions
 		const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
 		for (const contribution of contributions) {
@@ -129,6 +118,39 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 				} catch (error) {
 					// Invalid transfer
 				}
+			}
+		}
+	}
+
+	// Prevent duplicates: it is possible that we end up with the same
+	// dragged editor multiple times because multiple data transfers
+	// are being used (https://github.com/microsoft/vscode/issues/128925)
+
+	const coalescedEditors: IDraggedResourceEditorInput[] = [];
+	const seen = new ResourceMap<boolean>();
+	for (const editor of editors) {
+		if (!editor.resource) {
+			coalescedEditors.push(editor);
+		} else if (!seen.has(editor.resource)) {
+			coalescedEditors.push(editor);
+			seen.set(editor.resource, true);
+		}
+	}
+
+	return coalescedEditors;
+}
+
+export async function extractEditorsAndFilesDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
+	const editors = extractEditorsDropData(e);
+
+	// Web: Check for file transfer
+	if (e.dataTransfer && isWeb && containsDragType(e, DataTransfers.FILES)) {
+		const files = e.dataTransfer.items;
+		if (files) {
+			const instantiationService = accessor.get(IInstantiationService);
+			const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
+			for (const fileData of filesData) {
+				editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
 			}
 		}
 	}
@@ -309,7 +331,7 @@ export interface IDragAndDropContributionRegistry {
 	getAll(): IterableIterator<IDragAndDropContribution>;
 }
 
-export interface IDragAndDropContribution {
+interface IDragAndDropContribution {
 	readonly dataFormatKey: string;
 	getEditorInputs(data: string): IDraggedResourceEditorInput[];
 	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
