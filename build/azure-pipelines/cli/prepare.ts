@@ -46,6 +46,11 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_VERSION', packageJson.version],
 		['VSCODE_CLI_UPDATE_ENDPOINT', product.updateUrl],
 		['VSCODE_CLI_QUALITY', product.quality],
+		['VSCODE_CLI_NAME_SHORT', product.nameShort],
+		['VSCODE_CLI_NAME_LONG', product.nameLong],
+		['VSCODE_CLI_QUALITYLESS_PRODUCT_NAME', product.nameLong.replace(/ - [a-z]+$/i, '')],
+		['VSCODE_CLI_APPLICATION_NAME', product.applicationName],
+		['VSCODE_CLI_EDITOR_WEB_URL', product.tunnelApplicationConfig?.editorWebUrl],
 		['VSCODE_CLI_COMMIT', commit],
 		[
 			'VSCODE_CLI_WIN32_APP_IDS',
@@ -56,12 +61,24 @@ const setLauncherEnvironmentVars = () => {
 			),
 		],
 		[
+			'VSCODE_CLI_NAME_LONG_MAP',
+			!isOSS && JSON.stringify(makeQualityMap(json => json.nameLong)),
+		],
+		[
+			'VSCODE_CLI_APPLICATION_NAME_MAP',
+			!isOSS && JSON.stringify(makeQualityMap(json => json.applicationName)),
+		],
+		[
+			'VSCODE_CLI_SERVER_NAME_MAP',
+			!isOSS && JSON.stringify(makeQualityMap(json => json.serverApplicationName)),
+		],
+		[
 			'VSCODE_CLI_QUALITY_DOWNLOAD_URIS',
 			!isOSS && JSON.stringify(makeQualityMap(json => json.downloadUrl)),
 		],
 	]);
 
-	console.log(JSON.stringify([...vars].reduce((obj, kv) => ({...obj, [kv[0]]: kv[1]}), {})));
+	console.log(JSON.stringify([...vars].reduce((obj, kv) => ({ ...obj, [kv[0]]: kv[1] }), {})));
 
 	for (const [key, value] of vars) {
 		if (value) {

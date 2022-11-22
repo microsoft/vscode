@@ -13,8 +13,8 @@ interface ExperimentTypes {
 }
 
 export class ExperimentationService {
-	private _experimentationServicePromise: Promise<tas.IExperimentationService>;
-	private _telemetryReporter: IExperimentationTelemetryReporter;
+	private readonly _experimentationServicePromise: Promise<tas.IExperimentationService>;
+	private readonly _telemetryReporter: IExperimentationTelemetryReporter;
 
 	constructor(telemetryReporter: IExperimentationTelemetryReporter, id: string, version: string, globalState: vscode.Memento) {
 		this._telemetryReporter = telemetryReporter;

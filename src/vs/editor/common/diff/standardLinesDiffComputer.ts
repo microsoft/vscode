@@ -7,7 +7,7 @@ import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
 import { optimizeSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
@@ -34,10 +34,10 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const srcDocLines = originalLines.map((l) => getOrCreateHash(l.trim()));
 		const tgtDocLines = modifiedLines.map((l) => getOrCreateHash(l.trim()));
 
-		const sequence1 = new SequenceFromIntArray(srcDocLines);
-		const sequence2 = new SequenceFromIntArray(tgtDocLines);
+		const sequence1 = new LineSequence(srcDocLines, originalLines);
+		const sequence2 = new LineSequence(tgtDocLines, modifiedLines);
 
-		const lineAlignments = (() => {
+		let lineAlignments = (() => {
 			if (sequence1.length + sequence2.length < 1500) {
 				// Use the improved algorithm for small files
 				return this.dynamicProgrammingDiffing.compute(
@@ -57,6 +57,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 				sequence2
 			);
 		})();
+
+		lineAlignments = optimizeSequenceDiffs(sequence1, sequence2, lineAlignments);
 
 		const alignments: RangeMapping[] = [];
 
@@ -180,6 +182,35 @@ function* group<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => 
 	if (currentGroup) {
 		yield currentGroup;
 	}
+}
+
+export class LineSequence implements ISequence {
+	constructor(
+		private readonly trimmedHash: number[],
+		private readonly lines: string[]
+	) { }
+
+	getElement(offset: number): number {
+		return this.trimmedHash[offset];
+	}
+
+	get length(): number {
+		return this.trimmedHash.length;
+	}
+
+	getBoundaryScore(length: number): number {
+		const indentationBefore = length === 0 ? 0 : getIndentation(this.lines[length - 1]);
+		const indentationAfter = length === this.lines.length ? 0 : getIndentation(this.lines[length]);
+		return 1000 - (indentationBefore + indentationAfter);
+	}
+}
+
+function getIndentation(str: string): number {
+	let i = 0;
+	while (i < str.length && (str.charCodeAt(i) === CharCode.Space || str.charCodeAt(i) === CharCode.Tab)) {
+		i++;
+	}
+	return i;
 }
 
 class Slice implements ISequence {

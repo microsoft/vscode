@@ -15,7 +15,7 @@ import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybi
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -56,6 +56,7 @@ export interface IQuickInputOptions {
 export interface IQuickInputStyles {
 	widget: IQuickInputWidgetStyles;
 	inputBox: IInputBoxStyles;
+	toggle: IToggleStyles;
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
@@ -540,7 +541,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
-	private get scrollTop() {
+	get scrollTop() {
 		return this.ui.list.scrollTop;
 	}
 
@@ -1282,7 +1283,7 @@ export class QuickInputController extends Disposable {
 		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
 		const filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
 
-		const inputBox = this._register(new QuickInputBox(filterContainer));
+		const inputBox = this._register(new QuickInputBox(filterContainer, this.styles.inputBox, this.styles.toggle));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
 
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
@@ -1295,14 +1296,14 @@ export class QuickInputController extends Disposable {
 		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const ok = new Button(okContainer);
+		const ok = new Button(okContainer, this.styles.button);
 		ok.label = localize('ok', "OK");
 		this._register(ok.onDidClick(e => {
 			this.onDidAcceptEmitter.fire();
 		}));
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = new Button(customButtonContainer);
+		const customButton = new Button(customButtonContainer, this.styles.button);
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
@@ -1335,7 +1336,7 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 
-		const progressBar = new ProgressBar(container);
+		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const focusTracker = dom.trackFocus(container);
@@ -1823,11 +1824,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
-			this.ui.inputBox.style(this.styles.inputBox);
 			this.ui.count.style(this.styles.countBadge);
-			this.ui.ok.style(this.styles.button);
-			this.ui.customButton.style(this.styles.button);
-			this.ui.progressBar.style(this.styles.progressBar);
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];

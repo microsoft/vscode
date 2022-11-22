@@ -64,14 +64,19 @@ export interface PreloadOptions {
 	dragAndDropEnabled: boolean;
 }
 
+export interface RenderOptions {
+	readonly lineLimit: number;
+	readonly outputScrolling: boolean;
+}
+
 interface PreloadContext {
 	readonly nonce: string;
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 	readonly rendererData: readonly webviewMessages.RendererMetadata[];
 	readonly staticPreloadsData: readonly webviewMessages.StaticPreloadMetadata[];
 	readonly isWorkspaceTrusted: boolean;
-	readonly lineLimit: number;
 }
 
 declare function __import(path: string): Promise<any>;
@@ -82,7 +87,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	const lineLimit = ctx.lineLimit;
+	const lineLimit = ctx.renderOptions.lineLimit;
+	const outputScrolling = ctx.renderOptions.outputScrolling;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -211,7 +217,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
-		readonly settings: { readonly lineLimit: number };
+		readonly settings: RenderOptions;
 	}
 
 	interface RendererModule {
@@ -1344,10 +1350,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			try {
+				const renderStart = performance.now();
 				await this._api.renderOutputItem(item, element, signal);
+				this.postDebugMessage('Rendered output item', { id: item.id, duration: `${performance.now() - renderStart}ms` });
+
 			} catch (e) {
 				if (!signal.aborted) {
 					showRenderError(`Error rendering output item using '${this.data.id}'`, element, e instanceof Error ? [e] : []);
+
+					this.postDebugMessage('Rendering output item failed', { id: item.id, error: e + '' });
 				}
 			}
 		}
@@ -1379,6 +1390,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 				settings: {
 					get lineLimit() { return lineLimit; },
+					get outputScrolling() { return outputScrolling; },
 				}
 			};
 
@@ -1397,36 +1409,60 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		/** Inner function cached in the _loadPromise(). */
 		private async _load(): Promise<rendererApi.RendererApi | undefined> {
-			// Preloads need to be loaded before loading renderers.
-			await kernelPreloads.waitForAllCurrent();
+			this.postDebugMessage('Start loading renderer');
 
-			const module: RendererModule = await __import(this.data.entrypoint.path);
-			if (!module) {
-				return;
+			try {
+				// Preloads need to be loaded before loading renderers.
+				await kernelPreloads.waitForAllCurrent();
+
+				const importStart = performance.now();
+				const module: RendererModule = await __import(this.data.entrypoint.path);
+				this.postDebugMessage('Imported renderer', { duration: `${performance.now() - importStart}ms` });
+
+				if (!module) {
+					return;
+				}
+
+				this._api = await module.activate(this.createRendererContext());
+				this.postDebugMessage('Activated renderer', { duration: `${performance.now() - importStart}ms` });
+
+				const dependantRenderers = ctx.rendererData
+					.filter(d => d.entrypoint.extends === this.data.id);
+
+				if (dependantRenderers.length) {
+					this.postDebugMessage('Activating dependant renderers', { dependents: dependantRenderers.map(x => x.id).join(', ') });
+				}
+
+				// Load all renderers that extend this renderer
+				await Promise.all(dependantRenderers.map(async d => {
+					const renderer = renderers.getRenderer(d.id);
+					if (!renderer) {
+						throw new Error(`Could not find extending renderer: ${d.id}`);
+					}
+
+					try {
+						return await renderer.load();
+					} catch (e) {
+						// Squash any errors extends errors. They won't prevent the renderer
+						// itself from working, so just log them.
+						console.error(e);
+						this.postDebugMessage('Activating dependant renderer failed', { dependent: d.id, error: e + '' });
+						return undefined;
+					}
+				}));
+
+				return this._api;
+			} catch (e) {
+				this.postDebugMessage('Loading renderer failed');
+				throw e;
 			}
+		}
 
-			this._api = await module.activate(this.createRendererContext());
-			// Load all renderers that extend this renderer
-			await Promise.all(
-				ctx.rendererData
-					.filter(d => d.entrypoint.extends === this.data.id)
-					.map(async d => {
-						const renderer = renderers.getRenderer(d.id);
-						if (!renderer) {
-							throw new Error(`Could not find extending renderer: ${d.id}`);
-						}
-
-						try {
-							return await renderer.load();
-						} catch (e) {
-							// Squash any errors extends errors. They won't prevent the renderer
-							// itself from working, so just log them.
-							console.error(e);
-							return undefined;
-						}
-					}));
-
-			return this._api;
+		private postDebugMessage(msg: string, data?: Record<string, string>) {
+			postNotebookMessage<webviewMessages.ILogRendererDebugMessage>('logRendererDebugMessage', {
+				message: `[renderer ${this.data.id}] - ${msg}`,
+				data
+			});
 		}
 	}
 
@@ -2444,14 +2480,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}();
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, lineLimit: number, nonce: string) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderOptions: RenderOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
+		renderOptions,
 		rendererData: renderers,
 		staticPreloadsData: preloads,
 		isWorkspaceTrusted,
-		lineLimit,
 		nonce,
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead

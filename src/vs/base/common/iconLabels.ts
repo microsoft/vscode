@@ -7,7 +7,7 @@ import { CSSIcon } from 'vs/base/common/codicons';
 import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 
-export const iconStartMarker = '$(';
+const iconStartMarker = '$(';
 
 const iconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
 const iconNameCharacterRegexp = new RegExp(CSSIcon.iconNameCharacter);

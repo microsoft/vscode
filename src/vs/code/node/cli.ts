@@ -57,7 +57,8 @@ export async function main(argv: string[]): Promise<any> {
 		return new Promise((resolve, reject) => {
 			let tunnelProcess;
 			if (process.env['VSCODE_DEV']) {
-				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...argv.slice(5)], { cwd: join(getAppRoot(), 'cli') });
+				const env = { ...process.env, VSCODE_CLI_EDITOR_WEB_URL: product.tunnelApplicationConfig?.editorWebUrl };
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...argv.slice(5)], { cwd: join(getAppRoot(), 'cli'), env });
 			} else {
 				const appPath = process.platform === 'darwin'
 					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
@@ -496,7 +497,7 @@ export async function main(argv: string[]): Promise<any> {
 }
 
 function getAppRoot() {
-	return dirname(FileAccess.asFileUri('', require).fsPath);
+	return dirname(FileAccess.asFileUri('').fsPath);
 }
 
 function eventuallyExit(code: number): void {

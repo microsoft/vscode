@@ -90,6 +90,7 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
+	readonly trustedExtensionAuthAccess?: readonly string[];
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -132,7 +133,10 @@ export interface IProductConfiguration {
 	readonly serverDataFolderName?: string;
 
 	readonly tunnelApplicationName?: string;
-	readonly tunnelApplicationConfig?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+	readonly tunnelApplicationConfig?: {
+		authenticationProviders: IStringDictionary<{ scopes: string[] }>;
+		editorWebUrl: string;
+	};
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;

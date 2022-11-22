@@ -295,7 +295,7 @@ function isStackFrame(obj: any): obj is IStackFrame {
 	return obj instanceof StackFrame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
+class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
 
 	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
 		if (!element) {
@@ -402,9 +402,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	get templateId(): string {

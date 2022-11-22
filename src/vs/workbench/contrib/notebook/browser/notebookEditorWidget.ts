@@ -42,8 +42,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, iconForeground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, toolbarHoverBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_PANE_BACKGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -77,7 +76,6 @@ import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/co
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -85,12 +83,20 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 const $ = DOM.$;
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
 	// We inlined the id to avoid loading comment contrib in tests
-	const skipContributions = ['editor.contrib.review', FloatingClickMenu.ID];
+	const skipContributions = [
+		'editor.contrib.review',
+		FloatingClickMenu.ID,
+		'editor.contrib.dirtydiff',
+		'editor.contrib.testingOutputPeek',
+		'editor.contrib.testingDecorations',
+		'store.contrib.stickyScrollController'
+	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {
@@ -325,12 +331,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		this._register(editorGroupsService.onDidScroll(() => {
+		this._register(editorGroupsService.onDidScroll(e => {
 			if (!this._shadowElement || !this._isVisible) {
 				return;
 			}
 
-			this.updateShadowElement(this._shadowElement);
+			this.updateShadowElement(this._shadowElement, this._dimension);
 			this.layoutContainerOverShadowElement(this._dimension);
 		}));
 
@@ -559,6 +565,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			insertToolbarPosition,
 			insertToolbarAlignment,
 			fontSize,
+			outputFontSize,
 			focusIndicatorLeftMargin,
 			focusIndicatorGap
 		} = this._notebookOptions.getLayoutConfiguration();
@@ -573,9 +580,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const fontFamily = this._generateFontFamily();
 
 		styleSheets.push(`
-		:root {
-			--notebook-cell-output-font-size: ${fontSize}px;
-			--notebook-cell-output-font-family: ${fontFamily};
+		.notebook-editor {
+			--notebook-cell-output-font-size: ${outputFontSize}px;
 			--notebook-cell-input-preview-font-size: ${fontSize}px;
 			--notebook-cell-input-preview-font-family: ${fontFamily};
 		}
@@ -645,7 +651,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				border-radius: 4px;
 				width: 0px;
 				margin-left: ${focusIndicatorLeftMargin}px;
-				border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+				border-color: var(--vscode-notebook-inactiveFocusedCellBorder) !important;
 			}
 
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator-container,
@@ -664,7 +670,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			styleSheets.push(`
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container.cell-output-focus .cell-focus-indicator-left .codeOutput-focus-indicator,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .codeOutput-focus-indicator {
-				border-color: var(--notebook-focused-cell-border-color) !important;
+				border-color: var(--vscode-notebook-focusedCellBorder) !important;
 			}
 
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-inner-container .cell-focus-indicator-left .output-focus-indicator {
@@ -1246,7 +1252,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (!this._webview) {
-			this._createWebview(this.getId(), this.textModel.viewType, this.textModel.uri);
+			this._ensureWebview(this.getId(), this.textModel.viewType, this.textModel.uri);
 		}
 
 		this._webviewResolvePromise = (async () => {
@@ -1283,7 +1289,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._webviewResolvePromise;
 	}
 
-	private async _createWebview(id: string, viewType: string, resource: URI): Promise<void> {
+	private _ensureWebview(id: string, viewType: string, resource: URI) {
+		if (this._webview) {
+			return;
+		}
+
 		const that = this;
 
 		this._webview = this.instantiationService.createInstance(BackLayerWebView, {
@@ -1316,7 +1326,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
-		await this._createWebview(this.getId(), textModel.viewType, textModel.uri);
+		this._ensureWebview(this.getId(), textModel.viewType, textModel.uri);
+
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
@@ -1688,7 +1699,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
 			return;
@@ -1700,7 +1711,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement);
+			this.updateShadowElement(shadowElement, dimension, position);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1729,7 +1740,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension);
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1742,19 +1753,36 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
-	private updateShadowElement(shadowElement: HTMLElement) {
-		const containerRect = shadowElement.getBoundingClientRect();
-
+	private updateShadowElement(shadowElement: HTMLElement, dimension?: IDimension, position?: DOM.IDomPosition) {
 		this._shadowElement = shadowElement;
-		this._shadowElementViewInfo = {
-			height: containerRect.height,
-			width: containerRect.width,
-			top: containerRect.top,
-			left: containerRect.left
-		};
+		if (dimension && position) {
+			this._shadowElementViewInfo = {
+				height: dimension.height,
+				width: dimension.width,
+				top: position.top,
+				left: position.left,
+			};
+		} else {
+			// We have to recompute position and size ourselves (which is slow)
+			const containerRect = shadowElement.getBoundingClientRect();
+			this._shadowElementViewInfo = {
+				height: containerRect.height,
+				width: containerRect.width,
+				top: containerRect.top,
+				left: containerRect.left
+			};
+		}
 	}
 
-	private layoutContainerOverShadowElement(dimension?: DOM.Dimension | null): void {
+	private layoutContainerOverShadowElement(dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
+		if (dimension && position) {
+			this._overlayContainer.style.top = `${position.top}px`;
+			this._overlayContainer.style.left = `${position.left}px`;
+			this._overlayContainer.style.width = `${dimension.width}px`;
+			this._overlayContainer.style.height = `${dimension.height}px`;
+			return;
+		}
+
 		if (!this._shadowElementViewInfo) {
 			return;
 		}
@@ -3099,246 +3127,9 @@ export const cellEditorBackground = registerColor('notebook.cellEditorBackground
 	hcLight: null
 }, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
 
-export const notebookEditorBackground = registerColor('notebook.editorBackground', {
+const notebookEditorBackground = registerColor('notebook.editorBackground', {
 	light: EDITOR_PANE_BACKGROUND,
 	dark: EDITOR_PANE_BACKGROUND,
 	hcDark: null,
 	hcLight: null
 }, nls.localize('notebook.editorBackground', "Notebook background color."));
-
-registerThemingParticipant((theme, collector) => {
-	// add css variable rules
-
-	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
-	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
-	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
-	collector.addRule(`
-	:root {
-		--notebook-focused-cell-border-color: ${focusedCellBorderColor};
-		--notebook-inactive-focused-cell-border-color: ${inactiveFocusedBorderColor};
-		--notebook-selected-cell-border-color: ${selectedCellBorderColor};
-	}
-	`);
-
-	const cellStatusIconSuccessColor = theme.getColor(cellStatusIconSuccess);
-	const cellStatusIconErrorColor = theme.getColor(cellStatusIconError);
-	const cellStatusIconRunningColor = theme.getColor(cellStatusIconRunning);
-	collector.addRule(`
-	:root {
-		--notebook-cell-status-icon-success: ${cellStatusIconSuccessColor};
-		--notebook-cell-status-icon-error: ${cellStatusIconErrorColor};
-		--notebook-cell-status-icon-running: ${cellStatusIconRunningColor};
-	}
-	`);
-
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.notebookOverlay .cell.markdown a,
-			.notebookOverlay .output-show-more-container a,
-			.notebookOverlay div.output-show-more a
-			{ color: ${link};} `);
-	}
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.notebookOverlay .output-show-more-container a:active,
-		.notebookOverlay .output-show-more a:active
-			{ color: ${activeLink}; }`);
-	}
-	const shortcut = theme.getColor(textPreformatForeground);
-	if (shortcut) {
-		collector.addRule(`.notebookOverlay code,
-			.notebookOverlay .shortcut { color: ${shortcut}; }`);
-	}
-	const border = theme.getColor(contrastBorder);
-	if (border) {
-		collector.addRule(`.notebookOverlay .monaco-editor { border-color: ${border}; }`);
-	}
-	const quoteBackground = theme.getColor(textBlockQuoteBackground);
-	if (quoteBackground) {
-		collector.addRule(`.notebookOverlay blockquote { background: ${quoteBackground}; }`);
-	}
-	const quoteBorder = theme.getColor(textBlockQuoteBorder);
-	if (quoteBorder) {
-		collector.addRule(`.notebookOverlay blockquote { border-color: ${quoteBorder}; }`);
-	}
-
-	const containerBackground = theme.getColor(notebookOutputContainerColor);
-	if (containerBackground) {
-		collector.addRule(`.notebookOverlay .output { background-color: ${containerBackground}; }`);
-		collector.addRule(`.notebookOverlay .output-element { background-color: ${containerBackground}; }`);
-		collector.addRule(`.notebookOverlay .output-show-more-container { background-color: ${containerBackground}; }`);
-	}
-
-	const containerBorder = theme.getColor(notebookOutputContainerBorderColor);
-	if (containerBorder) {
-		collector.addRule(`.notebookOverlay .output-element { border-top: none !important; border: 1px solid transparent; border-color: ${containerBorder} !important; }`);
-	}
-
-	const notebookBackground = theme.getColor(editorBackground);
-	if (notebookBackground) {
-		collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { background: ${notebookBackground} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-title-toolbar { background-color: ${notebookBackground}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-drag-image { background-color: ${notebookBackground}; }`);
-		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item { background-color: ${notebookBackground} }`);
-		collector.addRule(`.notebookOverlay .cell-list-top-cell-toolbar-container .action-item { background-color: ${notebookBackground} }`);
-	}
-
-	const notebookBackgroundColor = theme.getColor(notebookEditorBackground);
-
-	if (notebookBackgroundColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay.notebook-editor { background-color: ${notebookBackgroundColor}; }`);
-	}
-
-	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.notebookOverlay .cell .monaco-editor-background,
-		.notebookOverlay .cell .margin-view-overlays,
-		.notebookOverlay .cell .cell-statusbar-container { background: ${editorBackgroundColor}; }`);
-	}
-
-	const cellToolbarSeperator = theme.getColor(CELL_TOOLBAR_SEPERATOR);
-	if (cellToolbarSeperator) {
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-title-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
-		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item { border: solid 1px ${cellToolbarSeperator} }`);
-		collector.addRule(`.notebookOverlay .cell-list-top-cell-toolbar-container .action-item { border: solid 1px ${cellToolbarSeperator} }`);
-		collector.addRule(`.notebookOverlay .monaco-action-bar .action-item.verticalSeparator { background-color: ${cellToolbarSeperator} }`);
-		collector.addRule(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container { border-bottom: solid 1px ${cellToolbarSeperator} }`);
-	}
-
-	const focusedCellBackgroundColor = theme.getColor(focusedCellBackground);
-	if (focusedCellBackgroundColor) {
-		collector.addRule(`.notebookOverlay .code-cell-row.focused .cell-focus-indicator { background-color: ${focusedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .markdown-cell-row.focused { background-color: ${focusedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .code-cell-row.focused .input-collapse-container { background-color: ${focusedCellBackgroundColor} !important; }`);
-	}
-
-	const selectedCellBackgroundColor = theme.getColor(selectedCellBackground);
-	if (selectedCellBackground) {
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-top { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-left { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-right { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
-	}
-
-	const inactiveSelectedCellBorderColor = theme.getColor(inactiveSelectedCellBorder);
-	collector.addRule(`
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-focus-indicator-top:before,
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-focus-indicator-bottom:before,
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
-					border-color: ${inactiveSelectedCellBorderColor} !important;
-			}
-	`);
-
-	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);
-	if (cellHoverBackgroundColor) {
-		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .cell-focus-indicator,
-			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-focus-indicator,
-			.notebookOverlay .markdown-cell-row:not(.focused):hover { background-color: ${cellHoverBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .input-collapse-container,
-			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .input-collapse-container { background-color: ${cellHoverBackgroundColor}; }`);
-	}
-
-	const cellSymbolHighlightColor = theme.getColor(cellSymbolHighlight);
-	if (cellSymbolHighlightColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-symbolHighlight .cell-focus-indicator,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-symbolHighlight {
-			background-color: ${cellSymbolHighlightColor} !important;
-		}`);
-	}
-
-	const focusedEditorBorderColorColor = theme.getColor(focusedEditorBorderColor);
-	if (focusedEditorBorderColorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorBorderColorColor}; }`);
-	}
-
-	const cellBorderColor = theme.getColor(notebookCellBorder);
-	if (cellBorderColor) {
-		collector.addRule(`.notebookOverlay .cell.markdown h1 { border-color: ${cellBorderColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-part:before { outline: solid 1px ${cellBorderColor}; }`);
-	}
-
-	const cellStatusBarHoverBg = theme.getColor(cellStatusBarItemHover);
-	if (cellStatusBarHoverBg) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover,
-		.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command:hover { background-color: ${cellStatusBarHoverBg}; }`);
-	}
-
-	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
-	if (cellInsertionIndicatorColor) {
-		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${cellInsertionIndicatorColor}; }`);
-	}
-
-	const scrollbarSliderBackgroundColor = theme.getColor(listScrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${scrollbarSliderBackgroundColor}; } `);
-	}
-
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${scrollbarSliderHoverBackgroundColor}; } `);
-	}
-
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active { background: ${scrollbarSliderActiveBackgroundColor}; } `);
-	}
-
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandInputIcon:hover,
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandOutputIcon:hover,
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-expand-part-button:hover {
-			background-color: ${toolbarHoverBackgroundColor};
-		}
-	`);
-	}
-
-
-	// case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
-	// case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
-	// case ChangeType.Delete: return theme.getColor(editorGutterDeletedBackground);
-	// diff
-
-	const modifiedBackground = theme.getColor(editorGutterModifiedBackground);
-	if (modifiedBackground) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-modified .cell-focus-indicator {
-			background-color: ${modifiedBackground} !important;
-		}
-
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-cell-modified {
-			background-color: ${modifiedBackground} !important;
-		}`);
-	}
-
-	const addedBackground = theme.getColor(diffInserted);
-	if (addedBackground) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-added .cell-focus-indicator {
-			background-color: ${addedBackground} !important;
-		}
-
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-cell-added {
-			background-color: ${addedBackground} !important;
-		}`);
-	}
-	const deletedBackground = theme.getColor(diffRemoved);
-	if (deletedBackground) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-deleted .cell-focus-indicator {
-			background-color: ${deletedBackground} !important;
-		}
-
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-cell-deleted {
-			background-color: ${deletedBackground} !important;
-		}`);
-	}
-
-	const iconForegroundColor = theme.getColor(iconForeground);
-	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor} !important; }`);
-	}
-});

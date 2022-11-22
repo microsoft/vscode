@@ -57,7 +57,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
@@ -65,7 +65,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
 			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
-		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
+		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
@@ -127,7 +127,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
 		}
 	}
 
@@ -145,7 +145,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._iframeDelayer.trigger(() => {
 			this._findStarted = true;
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
 		});
 	}
 
@@ -155,7 +155,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 		this._iframeDelayer.cancel();
 		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame({ windowId: this.nativeHostService.windowId }, this.id, {
+		this._webviewMainService.stopFindInFrame({ windowId: this._nativeHostService.windowId }, this.id, {
 			keepSelection
 		});
 		this._onDidStopFind.fire();

@@ -21,8 +21,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { attachToggleStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { InputState, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
@@ -38,7 +37,6 @@ export class InputCodeEditorView extends CodeEditorView {
 		viewModel: IObservable<MergeEditorViewModel | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(instantiationService, viewModel, configurationService);
@@ -53,7 +51,7 @@ export class InputCodeEditorView extends CodeEditorView {
 							getIntersectingGutterItems: (range, reader) => {
 								return this.modifiedBaseRangeGutterItemInfos.read(reader);
 							},
-							createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
+							createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
 						})
 					);
 				}
@@ -140,7 +138,7 @@ export class InputCodeEditorView extends CodeEditorView {
 			}
 
 			const blockClassNames = ['merge-editor-block'];
-			const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+			const isHandled = model.isInputHandled(modifiedBaseRange, this.inputNumber).read(reader);
 			if (isHandled) {
 				blockClassNames.push('handled');
 			}
@@ -261,7 +259,8 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 				.getState(this.baseRange)
 				.get()
 				.withInputValue(this.inputNumber, value),
-			tx
+			tx,
+			this.inputNumber
 		);
 	}
 	public toggleBothSides(): void {
@@ -288,7 +287,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 		const update = (newState: ModifiedBaseRangeState) => {
 			transaction(tx => {
 				/** @description Context Menu: Update Base Range State */
-				return this.viewModel.setState(this.baseRange, newState, tx);
+				return this.viewModel.setState(this.baseRange, newState, tx, this.inputNumber);
 			});
 		};
 
@@ -374,7 +373,6 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		item: ModifiedBaseRangeGutterItemModel,
 		target: HTMLElement,
 		contextMenuService: IContextMenuService,
-		themeService: IThemeService
 	) {
 		super();
 
@@ -383,11 +381,10 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		const checkBox = new Toggle({
 			isChecked: false,
 			title: '',
-			icon: Codicon.check
+			icon: Codicon.check,
+			...defaultToggleStyles
 		});
 		checkBox.domNode.classList.add('accept-conflict-group');
-
-		this._register(attachToggleStyler(checkBox, themeService));
 
 		this._register(
 			addDisposableListener(checkBox.domNode, EventType.MOUSE_DOWN, (e) => {

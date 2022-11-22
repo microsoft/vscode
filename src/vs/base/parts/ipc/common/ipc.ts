@@ -36,7 +36,7 @@ export interface IServerChannel<TContext = string> {
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
 
-export const enum RequestType {
+const enum RequestType {
 	Promise = 100,
 	PromiseCancel = 101,
 	EventListen = 102,
@@ -62,7 +62,7 @@ type IRawEventListenRequest = { type: RequestType.EventListen; id: number; chann
 type IRawEventDisposeRequest = { type: RequestType.EventDispose; id: number };
 type IRawRequest = IRawPromiseRequest | IRawPromiseCancelRequest | IRawEventListenRequest | IRawEventDisposeRequest;
 
-export const enum ResponseType {
+const enum ResponseType {
 	Initialize = 200,
 	PromiseSuccess = 201,
 	PromiseError = 202,
@@ -610,7 +610,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		let uninitializedPromise: CancelablePromise<void> | null = null;
 
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
@@ -618,7 +618,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest(request);
 				});
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				if (uninitializedPromise) {
 					uninitializedPromise.cancel();
 					uninitializedPromise = null;
@@ -846,7 +846,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		// disconnects from all clients as soon as the last listener
 		// is removed.
 		const emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				disposables = new DisposableStore();
 
 				// The event multiplexer is useful since the active
@@ -881,7 +881,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				disposables.add(eventMultiplexer);
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				disposables.dispose();
 			}
 		});
@@ -1186,7 +1186,7 @@ function pretty(data: any): any {
 	return prettyWithoutArrays(data);
 }
 
-export function logWithColors(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+function logWithColors(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 	data = pretty(data);
 
 	const colorTable = colorTables[initiator];

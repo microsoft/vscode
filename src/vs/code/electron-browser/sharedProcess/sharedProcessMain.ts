@@ -14,7 +14,6 @@ import { URI } from 'vs/base/common/uri';
 import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
-import { ExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/extensionsCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
@@ -81,8 +80,8 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { UserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/electron-sandbox/userDataSyncProfilesStorageService';
-import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -113,6 +112,7 @@ import { RemoteTunnelService } from 'vs/platform/remoteTunnel/electron-browser/r
 import { IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
+import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/contrib/extensions';
 
 class SharedProcessMain extends Disposable {
 
@@ -186,7 +186,7 @@ class SharedProcessMain extends Disposable {
 			instantiationService.createInstance(UnusedWorkspaceStorageDataCleaner),
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
-			instantiationService.createInstance(ExtensionsCleaner),
+			instantiationService.createInstance(ExtensionsContributions),
 			instantiationService.createInstance(UserDataProfilesCleaner)
 		));
 	}
@@ -361,7 +361,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService, undefined, false /* Eagerly cleans up old backups */));
 		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService, undefined, false /* Initializes the Sync State */));
-		services.set(IUserDataSyncProfilesStorageService, new SyncDescriptor(UserDataSyncProfilesStorageService, undefined, true));
+		services.set(IUserDataProfileStorageService, new SyncDescriptor(UserDataProfileStorageService, undefined, true));
 		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
 
 		// Terminal

@@ -10,7 +10,6 @@
 	/* Must be higher than sash's z-index and terminal canvases */
 	z-index: 40;
 	overflow: hidden;
-	overflow-y: auto;
 	max-width: 700px;
 }
 

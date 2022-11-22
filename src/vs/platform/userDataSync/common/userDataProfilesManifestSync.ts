@@ -15,7 +15,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
-import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IUserDataProfileManifestResourceMergeResult extends IAcceptResult {
 	readonly local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };
@@ -66,6 +66,9 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean): Promise<IUserDataProfilesManifestResourcePreview[]> {
+		if (!this.userDataProfilesService.isEnabled()) {
+			throw new UserDataSyncError('Cannot sync profiles because they are disabled', UserDataSyncErrorCode.LocalError);
+		}
 		const remoteProfiles: ISyncUserDataProfile[] | null = remoteUserData.syncData ? parseUserDataProfilesManifest(remoteUserData.syncData) : null;
 		const lastSyncProfiles: ISyncUserDataProfile[] | null = lastSyncUserData?.syncData ? parseUserDataProfilesManifest(lastSyncUserData.syncData) : null;
 		const localProfiles = this.getLocalUserDataProfiles();
@@ -180,15 +183,27 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.backupLocal(stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
 			const promises: Promise<any>[] = [];
 			for (const profile of local.added) {
-				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName }));
+				promises.push((async () => {
+					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
+					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName });
+					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
+				})());
 			}
 			for (const profile of local.removed) {
-				promises.push(this.userDataProfilesService.removeProfile(profile));
+				promises.push((async () => {
+					this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
+					await this.userDataProfilesService.removeProfile(profile);
+					this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
+				})());
 			}
 			for (const profile of local.updated) {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
-					promises.push(this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName }));
+					promises.push((async () => {
+						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
+						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName });
+						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
+					})());
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
 				}

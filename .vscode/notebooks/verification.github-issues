@@ -32,7 +32,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos $milestone is:closed reason:completed -assignee:@me label:bug -label:verified -label:*duplicate -author:@me -assignee:@me label:bug -label:verified -author:@me -author:aeschli -author:alexdima -author:alexr00 -author:bpasero -author:chrisdias -author:chrmarti -author:connor4312 -author:dbaeumer -author:deepak1556 -author:eamodio -author:egamma -author:gregvanl  -author:isidorn -author:JacksonKearl -author:joaomoreno -author:jrieken -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:RMacfarlane -author:roblourens -author:sana-ajani -author:sandy081 -author:sbatten -author:Tyriar -author:weinand -author:rzhao271 -author:kieferrm -author:TylerLeonhardt -author:bamurtaugh -author:hediet -author:joyceerhl -author:rchiodo -author:IanMatthewHuff"
+    "value": "$repos $milestone is:closed reason:completed -assignee:@me label:bug -label:verified -label:*duplicate -author:@me -assignee:@me label:bug -label:verified -author:@me -author:aeschli -author:alexdima -author:alexr00 -author:bpasero -author:chrisdias -author:chrmarti -author:connor4312 -author:dbaeumer -author:deepak1556 -author:eamodio -author:egamma -author:gregvanl  -author:isidorn -author:JacksonKearl -author:joaomoreno -author:jrieken -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:RMacfarlane -author:roblourens -author:sana-ajani -author:sandy081 -author:sbatten -author:Tyriar -author:weinand -author:rzhao271 -author:kieferrm -author:TylerLeonhardt -author:bamurtaugh -author:hediet -author:joyceerhl -author:rchiodo"
   },
   {
     "kind": 1,

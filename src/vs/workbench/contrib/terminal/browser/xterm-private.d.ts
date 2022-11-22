@@ -41,7 +41,7 @@ export interface IXtermCore {
 		_renderer: {
 			_renderLayers?: any[];
 		};
-		_onIntersectionChange: any;
+		_handleIntersectionChange: any;
 	};
 }
 

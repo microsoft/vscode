@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
@@ -16,10 +16,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_PROFILE_BACKGROUND, ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -38,6 +38,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -125,14 +126,11 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, options, themeService, hoverService, configurationService, keybindingService);
+		super(action, options, () => true, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-
-		// Context menus are triggered on mouse down so that an item can be picked
-		// and executed with releasing the mouse over it
 
 		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, async (e: MouseEvent) => {
 			EventHelper.stop(e, true);
@@ -140,22 +138,25 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 			// Left-click run
 			if (isLeftClick) {
 				this.run();
-			} else {
-				const disposables = new DisposableStore();
-				const actions = await this.resolveContextMenuActions(disposables);
-
-				const elementPosition = getDomNodePagePosition(this.container);
-				const anchor = {
-					x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
-					y: elementPosition.top + elementPosition.height
-				};
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => actions,
-					onHide: () => disposables.dispose()
-				});
 			}
+		}));
+
+		// The rest of the activity bar uses context menu event for the context menu, so we match this
+		this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, async (e: MouseEvent) => {
+			const disposables = new DisposableStore();
+			const actions = await this.resolveContextMenuActions(disposables);
+
+			const event = new StandardMouseEvent(e);
+			const anchor = {
+				x: event.posx,
+				y: event.posy
+			};
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				onHide: () => disposables.dispose()
+			});
 		}));
 
 		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -380,7 +381,7 @@ export class ProfilesActivityActionViewItem extends MenuActivityActionViewItem {
 	}
 
 	protected override computeTitle(): string {
-		return localize('profiles', "{0} (Settings Profile)", this.userDataProfileService.currentProfile.name);
+		return localize('profiles', "{0} (Profile)", this.userDataProfileService.currentProfile.name);
 	}
 
 }
@@ -408,6 +409,17 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 export class PlaceHolderViewContainerActivityAction extends ViewContainerActivityAction { }
 
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+
+	constructor(id: string, compositeBar: ICompositeBar) {
+		super({ id, name: id, cssClass: undefined }, compositeBar);
+	}
+
+	setActivity(activity: IActivity): void {
+		this.label = activity.name;
+	}
+}
+
+export class PlaceHolderToggleCompositeBadgeAction extends ToggleCompositeBadgeAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
 		super({ id, name: id, cssClass: undefined }, compositeBar);
@@ -509,24 +521,24 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	const activityBarSettingsProfileBgColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND);
-	if (activityBarSettingsProfileBgColor) {
+	const activityBarProfileBgColor = theme.getColor(ACTIVITY_BAR_PROFILE_BACKGROUND);
+	if (activityBarProfileBgColor) {
 		collector.addRule(`
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item {
-				background-color: ${activityBarSettingsProfileBgColor} !important;
+				background-color: ${activityBarProfileBgColor} !important;
 			}
 		`);
 	}
 
-	const activityBarSettingsProfileHoverFgColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND);
-	if (activityBarSettingsProfileHoverFgColor) {
+	const activityBarProfileHoverFgColor = theme.getColor(ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND);
+	if (activityBarProfileHoverFgColor) {
 		collector.addRule(`
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.profile-activity-item {
-				color: ${activityBarSettingsProfileHoverFgColor} !important;
+				color: ${activityBarProfileHoverFgColor} !important;
 			}
 		`);
 	}

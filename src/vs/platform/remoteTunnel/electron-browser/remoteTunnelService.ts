@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_FILE_NAME, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,6 +18,7 @@ import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-b
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';
+import { URI } from 'vs/base/common/uri';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -65,7 +66,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this._logger = this._register(loggerService.createLogger(environmentService.remoteTunnelLogResource, { name: 'remoteTunnel' }));
+		const remoteTunnelLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
+		this._logger = this._register(loggerService.createLogger(remoteTunnelLogResource, { name: LOGGER_NAME }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(sharedProcessLifecycleService.onWillShutdown(e => {
@@ -220,7 +222,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (process.env['VSCODE_DEV']) {
 					onOutput('Compiling tunnel CLI from sources and run', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
+					const env = { ...process.env, VSCODE_CLI_EDITOR_WEB_URL: this.productService.tunnelApplicationConfig?.editorWebUrl };
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), env });
 				} else {
 					onOutput('Running tunnel CLI', false);
 					const tunnelCommand = this.getTunnelCommandLocation();

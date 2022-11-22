@@ -17,8 +17,6 @@ import { Schemas } from 'vs/base/common/network';
 
 class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
 
-	override _serviceBrand: any;
-
 	private readonly channel: IChannel;
 
 	constructor(

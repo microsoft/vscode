@@ -85,6 +85,7 @@ import 'vs/workbench/services/search/electron-sandbox/searchService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 import 'vs/workbench/services/extensions/electron-sandbox/sandboxExtensionService';
+import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -162,3 +163,6 @@ import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contributi
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
 
 //#endregion
+
+
+export { main } from 'vs/workbench/electron-sandbox/desktop.main';
