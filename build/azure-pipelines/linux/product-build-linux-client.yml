@@ -170,7 +170,7 @@ steps:
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         # Download clang based on chromium revision used by vscode
-        curl -s https://raw.githubusercontent.com/chromium/chromium/108.0.5359.40/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+        curl -s https://raw.githubusercontent.com/chromium/chromium/108.0.5359.48/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
         # Download libcxx headers and objects from upstream electron releases
         DEBUG=libcxx-fetcher \
         VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
@@ -180,9 +180,9 @@ steps:
         node build/linux/libcxx-fetcher.js
         # Set compiler toolchain
         # Flags for the client build are based on
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.40:build/config/arm.gni
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.40:build/config/compiler/BUILD.gn
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.40:build/config/c++/BUILD.gn
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.48:build/config/arm.gni
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.48:build/config/compiler/BUILD.gn
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.48:build/config/c++/BUILD.gn
         export CC=$PWD/.build/CR_Clang/bin/clang
         export CXX=$PWD/.build/CR_Clang/bin/clang++
         export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"

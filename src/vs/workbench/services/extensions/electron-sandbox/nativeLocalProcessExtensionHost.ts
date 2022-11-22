@@ -23,14 +23,8 @@ import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunic
  */
 export class LegacyNativeLocalProcessExtensionHost extends NativeLocalProcessExtensionHost {
 	protected override async _start(): Promise<IMessagePassingProtocol> {
-		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
-		if (canUseUtilityProcess) {
-			const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
-			return this._startWithCommunication(communication);
-		} else {
-			const communication = this._toDispose.add(new ExtHostNamedPipeCommunication(this._logService));
-			return this._startWithCommunication(communication);
-		}
+		const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
+		return this._startWithCommunication(communication);
 	}
 }
 
