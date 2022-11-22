@@ -42,3 +42,7 @@
 .monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar .actions-container {
 	justify-content: flex-end;
 }
+
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row[data-last-element="false"] > .notification-list-item {
+	border-bottom: 1px solid var(--vscode-notifications-border);
+}
