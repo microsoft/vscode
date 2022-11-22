@@ -154,7 +154,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
-		this._storage = new ExtHostStorage(this._extHostContext);
+		this._storage = new ExtHostStorage(this._extHostContext, this._logService);
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 

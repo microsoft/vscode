@@ -16,7 +16,8 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { defaultButtonStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 
@@ -176,7 +177,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return this.controller.cancel();
 	}
 
-	protected override updateStyles() {
+	override updateStyles() {
 		if (this.hasController) {
 			this.controller.applyStyles(this.computeStyles());
 		}
@@ -193,41 +194,16 @@ export class QuickInputService extends Themable implements IQuickInputService {
 					widgetShadow
 				}),
 			},
-			inputBox: computeStyles(this.theme, {
-				inputForeground,
-				inputBackground,
-				inputBorder,
-				inputValidationInfoBackground,
-				inputValidationInfoForeground,
-				inputValidationInfoBorder,
-				inputValidationWarningBackground,
-				inputValidationWarningForeground,
-				inputValidationWarningBorder,
-				inputValidationErrorBackground,
-				inputValidationErrorForeground,
-				inputValidationErrorBorder
-			}),
+			inputBox: defaultInputBoxStyles,
+			toggle: defaultToggleStyles,
 			countBadge: computeStyles(this.theme, {
 				badgeBackground,
 				badgeForeground,
 				badgeBorder: contrastBorder
 			}),
-			button: computeStyles(this.theme, {
-				buttonForeground,
-				buttonBackground,
-				buttonHoverBackground,
-				buttonBorder: contrastBorder
-			}),
-			progressBar: computeStyles(this.theme, {
-				progressBarBackground
-			}),
-			keybindingLabel: computeStyles(this.theme, {
-				keybindingLabelBackground,
-				keybindingLabelForeground,
-				keybindingLabelBorder,
-				keybindingLabelBottomBorder,
-				keybindingLabelShadow: widgetShadow
-			}),
+			button: defaultButtonStyles,
+			progressBar: defaultProgressBarStyles, // default uses progressBarBackground
+			keybindingLabel: defaultKeybindingLabelStyles,
 			list: computeStyles(this.theme, {
 				listBackground: quickInputBackground,
 				// Look like focused when inactive.

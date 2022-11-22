@@ -219,7 +219,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		socketServer.registerChannel('credentials', credentialsChannel);
 
 		// clean up deprecated extensions
-		extensionManagementService.removeUninstalledExtensions(true);
+		extensionManagementService.removeUninstalledExtensions();
 
 		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 
@@ -309,16 +309,6 @@ class ServerLogService extends AbstractLogger implements ILogService {
 		if (this.getLevel() <= LogLevel.Error) {
 			if (this.useColors) {
 				console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[${now()}]`, message, ...args);
-			}
-		}
-	}
-
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			if (this.useColors) {
-				console.error(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
 				console.error(`[${now()}]`, message, ...args);
 			}

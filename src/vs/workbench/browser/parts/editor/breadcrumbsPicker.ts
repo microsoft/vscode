@@ -352,7 +352,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		super(parent, resource, instantiationService, themeService, configService);
 	}
 
-	_createTree(container: HTMLElement) {
+	protected _createTree(container: HTMLElement) {
 
 		// tree icon theme specials
 		this._treeContainer.classList.add('file-icon-themable-tree');
@@ -388,7 +388,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			});
 	}
 
-	async _setInput(element: FileElement | OutlineElement2): Promise<void> {
+	protected async _setInput(element: FileElement | OutlineElement2): Promise<void> {
 		const { uri, kind } = (element as FileElement);
 		let input: IWorkspace | URI;
 		if (kind === FileKind.ROOT_FOLDER) {
@@ -420,7 +420,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		return Disposable.None;
 	}
 
-	async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
+	protected async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		if (!isWorkspaceFolder(element) && element.isFile) {
 			this._onWillPickElement.fire();
 			await this._editorService.openEditor({ resource: element.resource, options }, sideBySide ? SIDE_GROUP : undefined);
@@ -502,7 +502,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		return outline.preview(element);
 	}
 
-	async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
+	protected async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		this._onWillPickElement.fire();
 		const outline: IOutline<any> = this._tree.getInput();
 		await outline.reveal(element, options, sideBySide);

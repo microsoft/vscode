@@ -14,10 +14,8 @@ import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contex
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
-import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
@@ -25,7 +23,7 @@ import * as nls from 'vs/nls';
 
 const $ = dom.$;
 
-export interface IInputOptions extends IInputBoxStyles {
+export interface IInputOptions {
 	readonly placeholder?: string;
 	readonly showPlaceholderOnFocus?: boolean;
 	readonly tooltip?: string;
@@ -36,21 +34,22 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
+	readonly inputBoxStyles: IInputBoxStyles;
 }
 
 export interface IInputBoxStyles {
-	readonly inputBackground?: Color;
-	readonly inputForeground?: Color;
-	readonly inputBorder?: Color;
-	readonly inputValidationInfoBorder?: Color;
-	readonly inputValidationInfoBackground?: Color;
-	readonly inputValidationInfoForeground?: Color;
-	readonly inputValidationWarningBorder?: Color;
-	readonly inputValidationWarningBackground?: Color;
-	readonly inputValidationWarningForeground?: Color;
-	readonly inputValidationErrorBorder?: Color;
-	readonly inputValidationErrorBackground?: Color;
-	readonly inputValidationErrorForeground?: Color;
+	readonly inputBackground: string | undefined;
+	readonly inputForeground: string | undefined;
+	readonly inputBorder: string | undefined;
+	readonly inputValidationInfoBorder: string | undefined;
+	readonly inputValidationInfoBackground: string | undefined;
+	readonly inputValidationInfoForeground: string | undefined;
+	readonly inputValidationWarningBorder: string | undefined;
+	readonly inputValidationWarningBackground: string | undefined;
+	readonly inputValidationWarningForeground: string | undefined;
+	readonly inputValidationErrorBorder: string | undefined;
+	readonly inputValidationErrorBackground: string | undefined;
+	readonly inputValidationErrorForeground: string | undefined;
 }
 
 export interface IInputValidator {
@@ -78,15 +77,19 @@ export interface IRange {
 	end: number;
 }
 
-const defaultOpts = {
-	inputBackground: Color.fromHex('#3C3C3C'),
-	inputForeground: Color.fromHex('#CCCCCC'),
-	inputValidationInfoBorder: Color.fromHex('#55AAFF'),
-	inputValidationInfoBackground: Color.fromHex('#063B49'),
-	inputValidationWarningBorder: Color.fromHex('#B89500'),
-	inputValidationWarningBackground: Color.fromHex('#352A05'),
-	inputValidationErrorBorder: Color.fromHex('#BE1100'),
-	inputValidationErrorBackground: Color.fromHex('#5A1D1D')
+export const unthemedInboxStyles: IInputBoxStyles = {
+	inputBackground: '#3C3C3C',
+	inputForeground: '#CCCCCC',
+	inputValidationInfoBorder: '#55AAFF',
+	inputValidationInfoBackground: '#063B49',
+	inputValidationWarningBorder: '#B89500',
+	inputValidationWarningBackground: '#352A05',
+	inputValidationErrorBorder: '#BE1100',
+	inputValidationErrorBackground: '#5A1D1D',
+	inputBorder: undefined,
+	inputValidationErrorForeground: undefined,
+	inputValidationInfoForeground: undefined,
+	inputValidationWarningForeground: undefined
 };
 
 export class InputBox extends Widget {
@@ -94,7 +97,7 @@ export class InputBox extends Widget {
 	element: HTMLElement;
 	protected input: HTMLInputElement;
 	private actionbar?: ActionBar;
-	private options: IInputOptions;
+	private readonly options: IInputOptions;
 	private message: IMessage | null;
 	protected placeholder: string;
 	private tooltip: string;
@@ -108,50 +111,22 @@ export class InputBox extends Widget {
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
 
-	private inputBackground?: Color;
-	private inputForeground?: Color;
-	private inputBorder?: Color;
-
-	private inputValidationInfoBorder?: Color;
-	private inputValidationInfoBackground?: Color;
-	private inputValidationInfoForeground?: Color;
-	private inputValidationWarningBorder?: Color;
-	private inputValidationWarningBackground?: Color;
-	private inputValidationWarningForeground?: Color;
-	private inputValidationErrorBorder?: Color;
-	private inputValidationErrorBackground?: Color;
-	private inputValidationErrorForeground?: Color;
-
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
 	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options?: IInputOptions) {
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IInputOptions) {
 		super();
 
 		this.contextViewProvider = contextViewProvider;
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
+		this.options = options;
+
 		this.message = null;
 		this.placeholder = this.options.placeholder || '';
 		this.tooltip = this.options.tooltip ?? (this.placeholder || '');
 		this.ariaLabel = this.options.ariaLabel || '';
-
-		this.inputBackground = this.options.inputBackground;
-		this.inputForeground = this.options.inputForeground;
-		this.inputBorder = this.options.inputBorder;
-
-		this.inputValidationInfoBorder = this.options.inputValidationInfoBorder;
-		this.inputValidationInfoBackground = this.options.inputValidationInfoBackground;
-		this.inputValidationInfoForeground = this.options.inputValidationInfoForeground;
-		this.inputValidationWarningBorder = this.options.inputValidationWarningBorder;
-		this.inputValidationWarningBackground = this.options.inputValidationWarningBackground;
-		this.inputValidationWarningForeground = this.options.inputValidationWarningForeground;
-		this.inputValidationErrorBorder = this.options.inputValidationErrorBorder;
-		this.inputValidationErrorBackground = this.options.inputValidationErrorBackground;
-		this.inputValidationErrorForeground = this.options.inputValidationErrorForeground;
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
@@ -436,11 +411,12 @@ export class InputBox extends Widget {
 		return errorMsg?.type;
 	}
 
-	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {
+	public stylesForType(type: MessageType | undefined): { border: string | undefined; background: string | undefined; foreground: string | undefined } {
+		const styles = this.options.inputBoxStyles;
 		switch (type) {
-			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground, foreground: this.inputValidationInfoForeground };
-			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground, foreground: this.inputValidationWarningForeground };
-			default: return { border: this.inputValidationErrorBorder, background: this.inputValidationErrorBackground, foreground: this.inputValidationErrorForeground };
+			case MessageType.INFO: return { border: styles.inputValidationInfoBorder, background: styles.inputValidationInfoBackground, foreground: styles.inputValidationInfoForeground };
+			case MessageType.WARNING: return { border: styles.inputValidationWarningBorder, background: styles.inputValidationWarningBackground, foreground: styles.inputValidationWarningForeground };
+			default: return { border: styles.inputValidationErrorBorder, background: styles.inputValidationErrorBackground, foreground: styles.inputValidationErrorForeground };
 		}
 	}
 
@@ -555,37 +531,22 @@ export class InputBox extends Widget {
 		this.layout();
 	}
 
-	public style(styles: IInputBoxStyles): void {
-		this.inputBackground = styles.inputBackground;
-		this.inputForeground = styles.inputForeground;
-		this.inputBorder = styles.inputBorder;
-
-		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
-		this.inputValidationInfoForeground = styles.inputValidationInfoForeground;
-		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
-		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
-		this.inputValidationWarningForeground = styles.inputValidationWarningForeground;
-		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
-		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
-		this.inputValidationErrorForeground = styles.inputValidationErrorForeground;
-		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
-
-		this.applyStyles();
-	}
-
 	protected applyStyles(): void {
-		const background = this.inputBackground ? this.inputBackground.toString() : '';
-		const foreground = this.inputForeground ? this.inputForeground.toString() : '';
-		const border = this.inputBorder ? this.inputBorder.toString() : '';
+		const styles = this.options.inputBoxStyles;
+
+		const background = styles.inputBackground ?? '';
+		const foreground = styles.inputForeground ?? '';
+		const border = styles.inputBorder ?? '';
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
 		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
-		this.element.style.borderWidth = border ? '1px' : '';
-		this.element.style.borderStyle = border ? 'solid' : '';
-		this.element.style.borderColor = border;
+		if (border) {
+			this.element.style.border = '1px solid ' + border;
+		}
+
 	}
 
 	public layout(): void {

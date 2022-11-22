@@ -29,13 +29,13 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
 
-registerSingleton(IExtHostDebugService, ExtHostDebugService, false);
-registerSingleton(IExtHostSearch, NativeExtHostSearch, false);
-registerSingleton(IExtHostTask, ExtHostTask, false);
-registerSingleton(IExtHostTerminalService, ExtHostTerminalService, false);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService, false);
-registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, false);
+registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);
+registerSingleton(IExtHostSearch, NativeExtHostSearch, InstantiationType.Eager);
+registerSingleton(IExtHostTask, ExtHostTask, InstantiationType.Eager);
+registerSingleton(IExtHostTerminalService, ExtHostTerminalService, InstantiationType.Eager);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
+registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);

@@ -48,6 +48,7 @@ const vscodeEntryPoints = _.flatten([
 	buildfile.workerLanguageDetection,
 	buildfile.workerSharedProcess,
 	buildfile.workerLocalFileSearch,
+	buildfile.workerProfileAnalysis,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ]);
@@ -118,7 +119,8 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 					// TODO: we cannot inline `product.json` because
 					// it is being changed during build time at a later
 					// point in time (such as `checksums`)
-					'../product.json'
+					'../product.json',
+					'../package.json',
 				]
 			},
 			manual: [

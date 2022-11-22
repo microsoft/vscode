@@ -5,6 +5,7 @@
 
 use async_trait::async_trait;
 use std::fmt;
+use std::str::FromStr;
 use sysinfo::{Pid, SystemExt};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -73,7 +74,7 @@ impl ServiceContainer for TunnelServiceContainer {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::Receiver<ShutdownSignal>,
+		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError> {
 		let csa = (&self.args).into();
 		serve_with_csa(
@@ -94,6 +95,7 @@ impl ServiceContainer for TunnelServiceContainer {
 pub enum ShutdownSignal {
 	CtrlC,
 	ParentProcessKilled,
+	ServiceStopped,
 }
 
 impl fmt::Display for ShutdownSignal {
@@ -101,6 +103,7 @@ impl fmt::Display for ShutdownSignal {
 		match self {
 			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
 			ShutdownSignal::ParentProcessKilled => write!(f, "Parent process no longer exists"),
+			ShutdownSignal::ServiceStopped => write!(f, "Service stopped"),
 		}
 	}
 }
@@ -109,7 +112,7 @@ pub async fn service(
 	ctx: CommandContext,
 	service_args: TunnelServiceSubCommands,
 ) -> Result<i32, AnyError> {
-	let manager = create_service_manager(ctx.log.clone());
+	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
 		TunnelServiceSubCommands::Install => {
 			// ensure logged in, otherwise subsequent serving will fail
@@ -118,28 +121,36 @@ pub async fn service(
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths)?;
+			legal::require_consent(&ctx.paths, false)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
-			manager.register(
-				current_exe,
-				&[
-					"--cli-data-dir",
-					ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
-					"tunnel",
-					"service",
-					"internal-run",
-				],
-			)?;
+			manager
+				.register(
+					current_exe,
+					&[
+						"--verbose",
+						"--cli-data-dir",
+						ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
+						"tunnel",
+						"service",
+						"internal-run",
+					],
+				)
+				.await?;
 			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
 		}
 		TunnelServiceSubCommands::Uninstall => {
-			manager.unregister()?;
+			manager.unregister().await?;
+		}
+		TunnelServiceSubCommands::Log => {
+			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
-			manager.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))?;
+			manager
+				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
+				.await?;
 		}
 	}
 
@@ -217,7 +228,7 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 		log, paths, args, ..
 	} = ctx;
 
-	legal::require_consent(&paths)?;
+	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
 	serve_with_csa(paths, log, gateway_args, csa, None).await
@@ -228,7 +239,7 @@ async fn serve_with_csa(
 	log: Logger,
 	gateway_args: TunnelServeArgs,
 	csa: CodeServerArgs,
-	shutdown_rx: Option<mpsc::Receiver<ShutdownSignal>>,
+	shutdown_rx: Option<mpsc::UnboundedReceiver<ShutdownSignal>>,
 ) -> Result<i32, AnyError> {
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
@@ -241,31 +252,35 @@ async fn serve_with_csa(
 	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 		dt.start_existing_tunnel(d).await
 	} else {
-		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name).await
+		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name)
+			.await
 	}?;
 
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
 		tx
 	} else {
-		let (tx, rx) = mpsc::channel::<ShutdownSignal>(2);
+		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
 		if let Some(process_id) = gateway_args.parent_process_id {
-			let tx = tx.clone();
-			info!(log, "checking for parent process {}", process_id);
-			tokio::spawn(async move {
-				let mut s = sysinfo::System::new();
-				#[cfg(windows)]
-				let pid = Pid::from(process_id as usize);
-				#[cfg(unix)]
-				let pid = Pid::from(process_id);
-				while s.refresh_process(pid) {
-					sleep(Duration::from_millis(2000)).await;
+			match Pid::from_str(&process_id) {
+				Ok(pid) => {
+					let tx = tx.clone();
+					info!(log, "checking for parent process {}", process_id);
+					tokio::spawn(async move {
+						let mut s = sysinfo::System::new();
+						while s.refresh_process(pid) {
+							sleep(Duration::from_millis(2000)).await;
+						}
+						tx.send(ShutdownSignal::ParentProcessKilled).ok();
+					});
 				}
-				tx.send(ShutdownSignal::ParentProcessKilled).await.ok();
-			});
+				Err(_) => {
+					info!(log, "invalid parent process id: {}", process_id);
+				}
+			}
 		}
 		tokio::spawn(async move {
 			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).await.ok();
+			tx.send(ShutdownSignal::CtrlC).ok();
 		});
 		rx
 	};

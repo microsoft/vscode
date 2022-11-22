@@ -8,15 +8,16 @@ import { Lazy } from 'vs/base/common/lazy';
 import { CodeAction } from 'vs/editor/common/languages';
 import { codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
+import { IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export interface ResolveCodeActionKeybinding {
+interface ResolveCodeActionKeybinding {
 	readonly kind: CodeActionKind;
 	readonly preferred: boolean;
 	readonly resolvedKeybinding: ResolvedKeybinding;
 }
 
-export class CodeActionKeybindingResolver {
+export class CodeActionKeybindingResolver implements IActionKeybindingResolver {
 	private static readonly codeActionCommands: readonly string[] = [
 		refactorCommandId,
 		codeActionCommandId,

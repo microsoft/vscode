@@ -17,7 +17,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { replaceAsync } from 'vs/base/common/strings';
 
-export interface IVariableResolveContext {
+interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
 	getConfigurationValue(folderUri: uri | undefined, section: string): string | undefined;
