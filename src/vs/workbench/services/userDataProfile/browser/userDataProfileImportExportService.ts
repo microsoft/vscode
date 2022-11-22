@@ -357,11 +357,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 		const options: QuickPickItem[] = [];
 		if (linkHandlers.length) {
-			options.push({ label: localize('link', "Link"), type: 'separator' });
+			options.push({ label: localize('link', "link"), type: 'separator' });
 			options.push(...linkHandlers);
 		}
 		if (fileHandlers.length) {
-			options.push({ label: localize('file', "File"), type: 'separator' });
+			options.push({ label: localize('file', "file"), type: 'separator' });
 			options.push(...fileHandlers);
 		}
 		const result = await this.quickInputService.pick(options,
