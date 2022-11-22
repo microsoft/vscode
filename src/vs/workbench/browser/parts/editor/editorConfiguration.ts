@@ -21,7 +21,8 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 	private static readonly AUTO_LOCK_REMOVE_EDITORS = new Set<string>([
 		'vscode-interactive-input',
-		'interactive'
+		'interactive',
+		'vscode.markdown.preview.editor',
 	]);
 
 	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
@@ -91,7 +92,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
 		}
 
-		// Register settng for auto locking groups
+		// Register setting for auto locking groups
 		const oldAutoLockConfigurationNode = this.autoLockConfigurationNode;
 		this.autoLockConfigurationNode = {
 			...workbenchConfigurationNodeBase,
