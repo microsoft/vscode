@@ -673,14 +673,14 @@ export class ModeToggle extends Toggle {
 }
 
 export class FuzzyToggle extends Toggle {
-	constructor(opts?: ITreeFindToggleOpts) {
+	constructor(opts: ITreeFindToggleOpts) {
 		super({
 			icon: Codicon.searchFuzzy,
 			title: localize('fuzzySearch', "Fuzzy Match"),
-			isChecked: opts?.isChecked ?? false,
-			inputActiveOptionBorder: opts?.inputActiveOptionBorder,
-			inputActiveOptionForeground: opts?.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts?.inputActiveOptionBackground
+			isChecked: opts.isChecked ?? false,
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
@@ -780,7 +780,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		}
 
 		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter }));
-		this.matchTypeToggle = this._register(new FuzzyToggle({ ...options, isChecked: matchType === TreeFindMatchType.Fuzzy }));
+		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
 		this.onDidChangeMatchType = Event.map(this.matchTypeToggle.onChange, () => this.matchTypeToggle.checked ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous, this._store);
 
