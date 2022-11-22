@@ -30,7 +30,7 @@ declare module 'vscode' {
 		 * Whether or not unhandled errors on the extension host caused by your extension should be logged to your appender.
 		 * Defaults to false if not defined.
 		 */
-		readonly ignoreUnhandledExtHostErrors?: boolean;
+		readonly ignoreUnhandledErrors?: boolean;
 	}
 
 	export interface TelemetryLogger {

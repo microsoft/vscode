@@ -144,7 +144,7 @@ export class ExtHostTelemetryLogger {
 		private readonly _commonProperties: Record<string, any>,
 		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }
 	) {
-		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledExtHostErrors ?? false;
+		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
 		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
 		this._additionalCommonProperties = options?.additionalCommonProperties;
 		this._appender = appender;
