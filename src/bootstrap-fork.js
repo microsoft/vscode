@@ -45,11 +45,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load AMD entry point
-if (isESM) {
-	require('./bootstrap-esm').load(`./${process.env['VSCODE_AMD_ENTRYPOINT']}.js`);
-} else {
-	require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
-}
+require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
 //#region Helpers
 

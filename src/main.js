@@ -150,12 +150,9 @@ function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	const onLoadMainBundle = () => { perf.mark('code/didLoadMainBundle'); };
-	if (isESM) {
-		require('./bootstrap-esm').load('./vs/code/electron-main/main.js', onLoadMainBundle);
-	} else {
-		require('./bootstrap-amd').load('vs/code/electron-main/main', onLoadMainBundle);
-	}
+	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+		perf.mark('code/didLoadMainBundle');
+	});
 }
 
 async function onReady() {
