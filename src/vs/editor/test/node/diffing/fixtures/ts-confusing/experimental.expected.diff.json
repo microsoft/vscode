@@ -1,0 +1,112 @@
+{
+	"originalFileName": "./1.tst",
+	"modifiedFileName": "./2.tst",
+	"diffs": [
+		{
+			"originalRange": "[8,9)",
+			"modifiedRange": "[8,9)",
+			"innerChanges": [
+				{
+					"originalRange": "[8,9 -> 8,9]",
+					"modifiedRange": "[8,9 -> 8,33]"
+				}
+			]
+		},
+		{
+			"originalRange": "[10,11)",
+			"modifiedRange": "[10,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[10,11 -> 10,14]",
+					"modifiedRange": "[10,11 -> 10,17]"
+				},
+				{
+					"originalRange": "[10,15 -> 10,20]",
+					"modifiedRange": "[10,18 -> 10,19]"
+				},
+				{
+					"originalRange": "[10,24 -> 10,25]",
+					"modifiedRange": "[10,23 -> 10,25]"
+				},
+				{
+					"originalRange": "[10,26 -> 10,27]",
+					"modifiedRange": "[10,26 -> 10,32]"
+				},
+				{
+					"originalRange": "[10,28 -> 10,31]",
+					"modifiedRange": "[10,33 -> 10,33]"
+				},
+				{
+					"originalRange": "[10,35 -> 10,36]",
+					"modifiedRange": "[10,37 -> 10,50]"
+				},
+				{
+					"originalRange": "[10,37 -> 10,38]",
+					"modifiedRange": "[10,51 -> 10,72]"
+				},
+				{
+					"originalRange": "[10,39 -> 10,40]",
+					"modifiedRange": "[10,73 -> 11,6]"
+				},
+				{
+					"originalRange": "[10,42 -> 10,42]",
+					"modifiedRange": "[11,8 -> 11,18]"
+				},
+				{
+					"originalRange": "[10,72 -> 10,73]",
+					"modifiedRange": "[11,48 -> 11,59]"
+				}
+			]
+		},
+		{
+			"originalRange": "[18,19)",
+			"modifiedRange": "[19,20)",
+			"innerChanges": [
+				{
+					"originalRange": "[18,50 -> 18,50]",
+					"modifiedRange": "[19,50 -> 19,53]"
+				},
+				{
+					"originalRange": "[18,51 -> 18,52]",
+					"modifiedRange": "[19,54 -> 19,55]"
+				},
+				{
+					"originalRange": "[18,53 -> 18,65]",
+					"modifiedRange": "[19,56 -> 19,56]"
+				},
+				{
+					"originalRange": "[18,66 -> 18,70]",
+					"modifiedRange": "[19,57 -> 19,57]"
+				},
+				{
+					"originalRange": "[18,72 -> 18,73]",
+					"modifiedRange": "[19,59 -> 19,61]"
+				},
+				{
+					"originalRange": "[18,74 -> 18,76]",
+					"modifiedRange": "[19,62 -> 19,65]"
+				},
+				{
+					"originalRange": "[18,77 -> 18,78]",
+					"modifiedRange": "[19,66 -> 19,66]"
+				},
+				{
+					"originalRange": "[18,79 -> 18,85]",
+					"modifiedRange": "[19,67 -> 19,74]"
+				},
+				{
+					"originalRange": "[18,86 -> 18,87]",
+					"modifiedRange": "[19,75 -> 19,81]"
+				},
+				{
+					"originalRange": "[18,88 -> 18,91]",
+					"modifiedRange": "[19,82 -> 19,82]"
+				},
+				{
+					"originalRange": "[18,95 -> 18,107]",
+					"modifiedRange": "[19,86 -> 19,87]"
+				}
+			]
+		}
+	]
+}

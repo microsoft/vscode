@@ -52,6 +52,8 @@
 	left: 0;
 	height: 3px;
 	width: 3px;
+}
+.monaco-scrollable-element > .shadow.top.left {
 	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
 }
 

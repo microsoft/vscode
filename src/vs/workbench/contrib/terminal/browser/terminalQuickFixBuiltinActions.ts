@@ -7,6 +7,8 @@ import { localize } from 'vs/nls';
 import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixAction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
+import { TerminalQuickFixType } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
@@ -41,7 +43,7 @@ export function gitSimilar(): ITerminalQuickFixOptions {
 				if (fixedCommand) {
 					actions.push({
 						id: 'Git Similar',
-						type: 'command',
+						type: TerminalQuickFixType.Command,
 						command: command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
 						addNewLine: true
 					});
@@ -70,7 +72,7 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 				return;
 			}
 			return {
-				type: 'command',
+				type: TerminalQuickFixType.Command,
 				id: 'Git Two Dashes',
 				command: command.command.replace(` -${problemArg}`, ` --${problemArg}`),
 				addNewLine: true
@@ -97,7 +99,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			}
 			const label = localize("terminal.freePort", "Free port {0}", port);
 			return {
-				class: undefined,
+				class: TerminalQuickFixType.Port,
 				tooltip: label,
 				id: 'terminal.freePort',
 				label,

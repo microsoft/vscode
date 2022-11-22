@@ -9,6 +9,7 @@ use std::process::Command;
 use clap::Parser;
 use cli::{
 	commands::{args, tunnels, update, version, CommandContext},
+	constants::get_default_user_agent,
 	desktop, log as own_log,
 	state::LauncherPaths,
 	util::{
@@ -38,16 +39,12 @@ async fn main() -> Result<(), std::convert::Infallible> {
 
 	let core = parsed.core();
 	let context = CommandContext {
-		http: reqwest::Client::new(),
+		http: reqwest::ClientBuilder::new()
+			.user_agent(get_default_user_agent())
+			.build()
+			.unwrap(),
 		paths: LauncherPaths::new(&core.global_options.cli_data_dir).unwrap(),
-		log: own_log::Logger::new(
-			SdkTracerProvider::builder().build().tracer("codecli"),
-			if core.global_options.verbose {
-				own_log::Level::Trace
-			} else {
-				core.global_options.log.unwrap_or(own_log::Level::Info)
-			},
-		),
+		log: make_logger(core),
 		args: core.clone(),
 	};
 
@@ -111,6 +108,23 @@ async fn main() -> Result<(), std::convert::Infallible> {
 	}
 }
 
+fn make_logger(core: &args::CliCore) -> own_log::Logger {
+	let log_level = if core.global_options.verbose {
+		own_log::Level::Trace
+	} else {
+		core.global_options.log.unwrap_or(own_log::Level::Info)
+	};
+
+	let tracer = SdkTracerProvider::builder().build().tracer("codecli");
+	let mut log = own_log::Logger::new(tracer, log_level);
+	if let Some(f) = &core.global_options.log_to_file {
+		log =
+			log.tee(own_log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
+	}
+
+	log
+}
+
 fn print_and_exit<E>(err: E) -> !
 where
 	E: std::fmt::Display,
@@ -143,7 +157,7 @@ async fn start_code(context: CommandContext, args: Vec<String>) -> Result<i32, A
 		.args(args)
 		.status()
 		.map(|s| s.code().unwrap_or(1))
-		.map_err(|e| wrap(e, format!("error running VS Code from {}", binary.display())))?;
+		.map_err(|e| wrap(e, format!("error running editor from {}", binary.display())))?;
 
 	Ok(code)
 }

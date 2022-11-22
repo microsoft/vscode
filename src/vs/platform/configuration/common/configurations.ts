@@ -107,13 +107,13 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
-		this.update(await this.registerPolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
+		this.update(await this.updatePolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
-		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.registerPolicyDefinitions(properties), true)));
+		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.updatePolicyDefinitions(properties), true)));
 		return this._configurationModel;
 	}
 
-	private async registerPolicyDefinitions(properties: string[]): Promise<string[]> {
+	private async updatePolicyDefinitions(properties: string[]): Promise<string[]> {
 		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 		const keys: string[] = [];
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
@@ -136,7 +136,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		}
 
 		if (!isEmptyObject(policyDefinitions)) {
-			await this.policyService.registerPolicyDefinitions(policyDefinitions);
+			await this.policyService.updatePolicyDefinitions(policyDefinitions);
 		}
 
 		return keys;

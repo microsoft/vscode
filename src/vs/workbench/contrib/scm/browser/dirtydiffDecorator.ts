@@ -10,10 +10,8 @@ import { ThrottledDelayer, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -21,7 +19,7 @@ import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IColorTheme, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, isCodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -53,6 +51,10 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { Iterable } from 'vs/base/common/iterator';
+import { ResourceMap } from 'vs/base/common/map';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -66,7 +68,7 @@ class DiffActionRunner extends ActionRunner {
 }
 
 export interface IModelRegistry {
-	getModel(editorModel: IEditorModel): DirtyDiffModel | null;
+	getModel(editorModel: IEditorModel): DirtyDiffModel | undefined;
 }
 
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
@@ -253,8 +255,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(this.editor), ThemeIcon.asClassName(gotoNextLocation));
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
@@ -305,7 +307,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(this.diffEditor);
 	}
 
-	override _onWidth(width: number): void {
+	protected override _onWidth(width: number): void {
 		if (typeof this.height === 'undefined') {
 			return;
 		}
@@ -363,7 +365,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 export class ShowPreviousChangeAction extends EditorAction {
 
-	constructor() {
+	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.previous',
 			label: nls.localize('show previous change', "Show Previous Change"),
@@ -373,8 +375,8 @@ export class ShowPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	run(accessor: ServicesAccessor): void {
+		const outerEditor = this.outerEditor ?? getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor) {
 			return;
@@ -397,7 +399,7 @@ registerEditorAction(ShowPreviousChangeAction);
 
 export class ShowNextChangeAction extends EditorAction {
 
-	constructor() {
+	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.next',
 			label: nls.localize('show next change', "Show Next Change"),
@@ -407,8 +409,8 @@ export class ShowNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	run(accessor: ServicesAccessor): void {
+		const outerEditor = this.outerEditor ?? getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor) {
 			return;
@@ -460,7 +462,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(accessor: ServicesAccessor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
@@ -502,7 +504,7 @@ export class GotoNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(accessor: ServicesAccessor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
@@ -1328,7 +1330,10 @@ export class DirtyDiffModel extends Disposable {
 
 class DirtyDiffItem {
 
-	constructor(readonly model: DirtyDiffModel, readonly decorator: DirtyDiffDecorator) { }
+	constructor(
+		readonly model: DirtyDiffModel,
+		readonly decorator: DirtyDiffDecorator
+	) { }
 
 	dispose(): void {
 		this.decorator.dispose();
@@ -1345,7 +1350,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 	private enabled = false;
 	private viewState: IViewState = { width: 3, visibility: 'always' };
-	private items = new Map<IResolvedTextFileEditorModel, DirtyDiffItem>();
+	private items = new ResourceMap<DirtyDiffItem>();
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private stylesheet: HTMLStyleElement;
 
@@ -1425,7 +1430,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			this.disable();
 		}
 
-		this.transientDisposables.add(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
+		this.transientDisposables.add(Event.any(this.editorService.onDidCloseEditor, this.editorService.onDidVisibleEditorsChange)(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
 		this.enabled = true;
 	}
@@ -1445,59 +1450,38 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.enabled = false;
 	}
 
-	// HACK: This is the best current way of figuring out whether to draw these decorations
-	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
-	// etc.
 	private onEditorsChanged(): void {
-		const models = this.editorService.visibleTextEditorControls
+		for (const editor of this.editorService.visibleTextEditorControls) {
+			if (isCodeEditor(editor)) {
+				const textModel = editor.getModel();
+				const controller = DirtyDiffController.get(editor);
 
-			// only interested in code editor widgets
-			.filter(c => c instanceof CodeEditorWidget)
-
-			// set model registry and map to models
-			.map(editor => {
-				const codeEditor = editor as CodeEditorWidget;
-				const controller = DirtyDiffController.get(codeEditor);
 				if (controller) {
 					controller.modelRegistry = this;
 				}
-				return codeEditor.getModel();
-			})
 
-			// remove nulls and duplicates
-			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1)
+				if (textModel && !this.items.has(textModel.uri)) {
+					const textFileModel = this.textFileService.files.get(textModel.uri);
 
-			// only want resolved text file service models
-			.map(m => this.textFileService.files.get(m!.uri))
-			.filter(m => m?.isResolved()) as IResolvedTextFileEditorModel[];
-
-		const set = new Set(models);
-		const newModels = models.filter(o => !this.items.has(o));
-		const oldModels = [...this.items.keys()].filter(m => !set.has(m));
-
-		oldModels.forEach(m => this.onModelInvisible(m));
-		newModels.forEach(m => this.onModelVisible(m));
-	}
-
-	private onModelVisible(textFileModel: IResolvedTextFileEditorModel): void {
-		const model = this.instantiationService.createInstance(DirtyDiffModel, textFileModel);
-		const decorator = new DirtyDiffDecorator(textFileModel.textEditorModel, model, this.configurationService);
-		this.items.set(textFileModel, new DirtyDiffItem(model, decorator));
-	}
-
-	private onModelInvisible(textFileModel: IResolvedTextFileEditorModel): void {
-		this.items.get(textFileModel)!.dispose();
-		this.items.delete(textFileModel);
-	}
-
-	getModel(editorModel: ITextModel): DirtyDiffModel | null {
-		for (const [model, diff] of this.items) {
-			if (model.textEditorModel.id === editorModel.id) {
-				return diff.model;
+					if (textFileModel?.isResolved()) {
+						const dirtyDiffModel = this.instantiationService.createInstance(DirtyDiffModel, textFileModel);
+						const decorator = new DirtyDiffDecorator(textFileModel.textEditorModel, dirtyDiffModel, this.configurationService);
+						this.items.set(textModel.uri, new DirtyDiffItem(dirtyDiffModel, decorator));
+					}
+				}
 			}
 		}
 
-		return null;
+		for (const [uri, item] of this.items) {
+			if (!this.editorService.isOpened({ resource: uri, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
+				item.dispose();
+				this.items.delete(uri);
+			}
+		}
+	}
+
+	getModel(editorModel: ITextModel): DirtyDiffModel | undefined {
+		return this.items.get(editorModel.uri)?.model;
 	}
 
 	override dispose(): void {

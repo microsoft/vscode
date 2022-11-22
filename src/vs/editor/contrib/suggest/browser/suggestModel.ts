@@ -111,7 +111,7 @@ function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKey
 		return true;
 	}
 
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions');
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
 	if (allowQuickSuggestions !== undefined) {
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
@@ -128,7 +128,7 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		return true;
 	}
 
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters');
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
 	if (allowQuickSuggestions !== undefined) {
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
