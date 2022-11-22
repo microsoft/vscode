@@ -141,7 +141,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			}
 
 			// the actual command handlers...
-			const languageOnClickOrTap = async (e: MouseEvent) => {
+			const languageOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
@@ -149,7 +149,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 			};
 
-			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+			const chooseEditorOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 
 				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
