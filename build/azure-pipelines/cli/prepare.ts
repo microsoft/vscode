@@ -48,6 +48,7 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_NAME_SHORT', product.nameShort],
 		['VSCODE_CLI_NAME_LONG', product.nameLong],
 		['VSCODE_CLI_QUALITYLESS_PRODUCT_NAME', product.nameLong.replace(/ - [a-z]+$/i, '')],
+		['VSCODE_CLI_DOCUMENTATION_URL', product.documentationUrl],
 		['VSCODE_CLI_APPLICATION_NAME', product.applicationName],
 		['VSCODE_CLI_EDITOR_WEB_URL', product.tunnelApplicationConfig?.editorWebUrl],
 		['VSCODE_CLI_COMMIT', commit],
