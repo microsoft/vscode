@@ -344,6 +344,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 							// Replace the original entry in _contributions with the resolved contribution
 							const instance = this._instantiationService.createInstance(desc.ctor, this);
 							this._contributions.set(desc.id, instance);
+							if (typeof instance.restoreViewState === 'function') {
+								console.warn(`Editor contribution '${desc.id}' should be eager instantiated because it uses saveViewState / restoreViewState.`);
+							}
 							return instance;
 						} catch (err) {
 							// In case of an exception, we delete the idle value from _contributions

@@ -10,7 +10,7 @@ import { hash } from 'vs/base/common/hash';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -456,7 +456,7 @@ export class CodeLensContribution implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);
+registerEditorContribution(CodeLensContribution.ID, CodeLensContribution, EditorContributionInstantiation.Idle);
 
 registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 
