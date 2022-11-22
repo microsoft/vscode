@@ -182,13 +182,6 @@ function migrateTS(filePath, fileContents) {
 			}
 		}
 
-		// if (
-		// 	importedFilepath === 'graceful-fs'
-		// 	&& !filePath.endsWith('vs/base/node/graceful-fs.ts')
-		// ) {
-		// 	importedFilepath = 'vs/base/node/graceful-fs';
-		// }
-
 		/** @type {boolean} */
 		let isRelativeImport;
 		if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
