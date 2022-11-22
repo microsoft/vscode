@@ -23,6 +23,7 @@ pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VER
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
 pub const VSCODE_CLI_AI_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI_AI_ENDPOINT");
 pub const VSCODE_CLI_QUALITY: Option<&'static str> = option_env!("VSCODE_CLI_QUALITY");
+pub const DOCUMENTATION_URL: Option<&'static str> = option_env!("VSCODE_CLI_DOCUMENTATION_URL");
 pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMMIT");
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
@@ -42,11 +43,11 @@ pub const PRODUCT_NAME_LONG: &str = match option_env!("VSCODE_CLI_NAME_LONG") {
 };
 
 /// Name of the application without quality information.
-pub const QUALITYLESS_PRODUCT_NAME: &str =
-	match option_env!("VSCODE_CLI_QUALITYLESS_PRODUCT_NAME") {
-		Some(n) => n,
-		None => "Code",
-	};
+pub const QUALITYLESS_PRODUCT_NAME: &str = match option_env!("VSCODE_CLI_QUALITYLESS_PRODUCT_NAME")
+{
+	Some(n) => n,
+	None => "Code",
+};
 
 /// Name of the application without quality information.
 pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " Server");

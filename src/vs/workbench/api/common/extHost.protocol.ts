@@ -1079,6 +1079,16 @@ export interface ExtHostUriOpenersShape {
 	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
+export interface MainThreadProfileContentHandlersShape {
+	$registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void>;
+	$unregisterProfileContentHandler(id: string): Promise<void>;
+}
+
+export interface ExtHostProfileContentHandlersShape {
+	$saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<UriComponents | null>;
+	$readProfile(id: string, uri: UriComponents, token: CancellationToken): Promise<string | null>;
+}
+
 export interface ITextSearchComplete {
 	limitHit?: boolean;
 }
@@ -2326,6 +2336,7 @@ export const MainContext = {
 	MainThreadCustomEditors: createProxyIdentifier<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
 	MainThreadUrls: createProxyIdentifier<MainThreadUrlsShape>('MainThreadUrls'),
 	MainThreadUriOpeners: createProxyIdentifier<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
+	MainThreadProfileContentHandlers: createProxyIdentifier<MainThreadProfileContentHandlersShape>('MainThreadProfileContentHandlers'),
 	MainThreadWorkspace: createProxyIdentifier<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createProxyIdentifier<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createProxyIdentifier<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -2385,6 +2396,7 @@ export const ExtHostContext = {
 	ExtHostStorage: createProxyIdentifier<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createProxyIdentifier<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
+	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>('ExtHostProfileContentHandlers'),
 	ExtHostOutputService: createProxyIdentifier<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHosLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostNotebook: createProxyIdentifier<ExtHostNotebookShape>('ExtHostNotebook'),

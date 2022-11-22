@@ -13,7 +13,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { ITreeItem } from 'vs/workbench/common/views';
+import { ITreeItem, ITreeItemCheckboxState, ITreeItemLabel } from 'vs/workbench/common/views';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -68,11 +70,21 @@ export const IUserDataProfileImportExportService = createDecorator<IUserDataProf
 export interface IUserDataProfileImportExportService {
 	readonly _serviceBrand: undefined;
 
-	registerProfileContentHandler(profileContentHandler: IUserDataProfileContentHandler): void;
+	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
+	unregisterProfileContentHandler(id: string): void;
 
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
+}
+
+export const enum ProfileResourceType {
+	Settings = 'settings',
+	Keybindings = 'keybindings',
+	Snippets = 'snippets',
+	Tasks = 'tasks',
+	Extensions = 'extensions',
+	GlobalState = 'globalState',
 }
 
 export interface IProfileResource {
@@ -81,7 +93,11 @@ export interface IProfileResource {
 }
 
 export interface IProfileResourceTreeItem extends ITreeItem {
+	readonly type: ProfileResourceType;
+	checkbox: ITreeItemCheckboxState;
+	readonly label: ITreeItemLabel;
 	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
+	getContent(): Promise<string>;
 }
 
 export interface IProfileResourceChildTreeItem extends ITreeItem {
@@ -89,11 +105,10 @@ export interface IProfileResourceChildTreeItem extends ITreeItem {
 }
 
 export interface IUserDataProfileContentHandler {
-	readonly id: string;
 	readonly name: string;
-	readonly description?: string;
-	saveProfile(name: string, content: string): Promise<URI | null>;
-	readProfile(uri: URI): Promise<string>;
+	readonly extensionId?: string;
+	saveProfile(name: string, content: string, token: CancellationToken): Promise<URI | null>;
+	readProfile(uri: URI, token: CancellationToken): Promise<string | null>;
 }
 
 export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));

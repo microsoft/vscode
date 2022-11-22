@@ -34,7 +34,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
@@ -83,6 +83,7 @@ export class UserDataSyncClient extends Disposable {
 
 		const fileService = this._register(new FileService(logService));
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
+		fileService.registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
 		const uriIdentityService = this.instantiationService.createInstance(UriIdentityService);

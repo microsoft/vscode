@@ -42,8 +42,8 @@ import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -85,6 +85,8 @@ const enum ReadyState {
 export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
+
+	private static sandboxState: boolean | undefined = undefined;
 
 	//#region Events
 
@@ -180,7 +182,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
 
@@ -195,13 +198,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
+			if (typeof CodeWindow.sandboxState === 'undefined') {
+				// we should only check this once so that we do not end up
+				// with some windows in sandbox mode and some not!
+				CodeWindow.sandboxState = this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false);
+			}
+
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 			let useSandbox = false;
 			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
 				useSandbox = windowSettings.experimental.useSandbox;
+			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
+				useSandbox = true;
 			} else {
-				useSandbox = typeof product.quality === 'string' && product.quality !== 'stable';
+				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
 
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
@@ -710,31 +721,55 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 				// Process gone
 				else if (type === WindowError.PROCESS_GONE) {
-					let message: string;
-					if (!details) {
-						message = localize('appGone', "The window terminated unexpectedly");
-					} else {
-						message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+
+					// Windows: running as admin with AppLocker enabled is unsupported
+					//          when sandbox: true.
+					//          we cannot detect AppLocker use currently, but make a
+					//          guess based on the reason and exit code.
+					if (isWindows && details?.reason === 'launch-failed' && details.exitCode === 18 && await this.nativeHostMainService.isAdmin(undefined)) {
+						await this.dialogMainService.showMessageBox({
+							title: this.productService.nameLong,
+							type: 'error',
+							buttons: [
+								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							],
+							message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
+							detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
+							noLink: true,
+							defaultId: 0
+						}, this._win);
+
+						await this.destroyWindow(false, false);
 					}
 
-					// Show Dialog
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
-						type: 'warning',
-						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
-						],
-						message,
-						detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
-						noLink: true,
-						defaultId: 0,
-						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this._win);
+					// Any other crash: offer to restart
+					else {
+						let message: string;
+						if (!details) {
+							message = localize('appGone', "The window terminated unexpectedly");
+						} else {
+							message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+						}
 
-					// Handle choice
-					const reopen = result.response === 0;
-					await this.destroyWindow(reopen, result.checkboxChecked);
+						// Show Dialog
+						const result = await this.dialogMainService.showMessageBox({
+							title: this.productService.nameLong,
+							type: 'warning',
+							buttons: [
+								mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							],
+							message,
+							detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+							noLink: true,
+							defaultId: 0,
+							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
+						}, this._win);
+
+						// Handle choice
+						const reopen = result.response === 0;
+						await this.destroyWindow(reopen, result.checkboxChecked);
+					}
 				}
 				break;
 		}

@@ -108,7 +108,7 @@ export class OutputViewPane extends ViewPane {
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.editor.layout(new Dimension(width, height));
 	}

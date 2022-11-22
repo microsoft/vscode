@@ -260,7 +260,7 @@ export class Themable extends Disposable {
 		this.updateStyles();
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		// Subclasses to override
 	}
 
