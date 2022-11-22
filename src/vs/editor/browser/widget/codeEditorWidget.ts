@@ -59,7 +59,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IdleValue } from 'vs/base/common/async';
+import { IdleValue, TimeoutTimer } from 'vs/base/common/async';
 
 let EDITOR_ID = 0;
 
@@ -426,6 +426,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			},
 		}));
 
+		// Instantiate all editor contributions at the latest 5s after editor creation
+		this._register(new TimeoutTimer(() => {
+			const allContributions: (editorCommon.IEditorContribution | null)[] = [];
+			for (const [, entry] of this._contributions) {
+				if (entry instanceof IdleValue) {
+					allContributions.push(entry.value);
+				}
+			}
+		}, 5000));
 
 		this._codeEditorService.addCodeEditor(this);
 	}
