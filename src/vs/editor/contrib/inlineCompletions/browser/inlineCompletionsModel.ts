@@ -197,6 +197,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this.session?.commitCurrentCompletion();
 	}
 
+	public commitCurrentSuggestionPartially(): void {
+		this.session?.commitCurrentCompletionNextWord();
+	}
+
 	public showNext(): void {
 		this.session?.showNextInlineCompletion();
 	}
@@ -492,6 +496,54 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 	public takeOwnership(disposable: IDisposable): void {
 		this._register(disposable);
+	}
+
+	public commitCurrentCompletionNextWord(): void {
+		const ghostText = this.ghostText;
+		if (!ghostText) {
+			return;
+		}
+		const completion = this.currentCompletion;
+		if (!completion) {
+			return;
+		}
+		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
+			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
+			this.commit(completion);
+			return;
+		}
+
+		if (ghostText.parts.length === 0) {
+			return;
+		}
+		const firstPart = ghostText.parts[0];
+		const position = new Position(ghostText.lineNumber, firstPart.column);
+
+		const line = firstPart.lines[0];
+		const langId = this.editor.getModel()!.getLanguageIdAtPosition(ghostText.lineNumber, 1);
+		const config = this.languageConfigurationService.getLanguageConfiguration(langId);
+		const m = line.match(config.wordDefinition);
+		let acceptUntilIndexExclusive = 0;
+		if (m && m.index !== undefined) {
+			if (m.index === 0) {
+				acceptUntilIndexExclusive = m[0].length;
+			} else {
+				acceptUntilIndexExclusive = m.index;
+			}
+		} else {
+			acceptUntilIndexExclusive = line.length;
+		}
+
+		const partialText = line.substring(0, acceptUntilIndexExclusive);
+
+		this.editor.pushUndoStop();
+		this.editor.executeEdits(
+			'inlineSuggestion.accept',
+			[
+				EditOperation.replace(Range.fromPositions(position), partialText),
+			]
+		);
+		this.editor.setPosition(position.delta(0, partialText.length));
 	}
 
 	public commitCurrentCompletion(): void {
