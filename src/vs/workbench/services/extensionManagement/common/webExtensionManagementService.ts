@@ -105,6 +105,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
+	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		return this.install(location, { profileLocation });
+	}
+
 	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
 		return this.webExtensionsScannerService.scanMetadata(extension.location, this.userDataProfileService.currentProfile.extensionsResource);
 	}
@@ -127,6 +131,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		return local;
+	}
+
+	protected getCurrentExtensionsManifestLocation(): URI {
+		return this.userDataProfileService.currentProfile.extensionsResource;
 	}
 
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {

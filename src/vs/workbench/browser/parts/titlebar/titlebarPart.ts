@@ -36,6 +36,7 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -89,12 +90,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IProductService protected readonly productService: IProductService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
@@ -228,7 +230,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
 
@@ -236,7 +238,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// App Icon (Native Windows/Linux and Web)
-		if (!isMacintosh || isWeb) {
+		if (!isMacintosh && !isWeb) {
 			this.appIcon = prepend(this.rootContainer, $('a.window-appicon'));
 
 			// Web-only home indicator and menu

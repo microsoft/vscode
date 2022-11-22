@@ -582,16 +582,43 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 function createL10nBundleForExtension(extensionFolderName: string): ThroughStream {
 	const result = through();
 	gulp.src([
-		`extensions/${extensionFolderName}/src/**/*.ts`,
+		// For source code of extensions
+		`extensions/${extensionFolderName}/src/**/*.{ts,tsx}`,
+		// For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+		`extensions/${extensionFolderName}/node_modules/**/*.{js,jsx}`,
+		// For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
+		`extensions/${extensionFolderName}/node_modules/**/bundle.l10n.json`,
 	]).pipe(writeArray((err, files: File[]) => {
 		if (err) {
 			result.emit('error', err);
 			return;
 		}
 
-		const json = getL10nJson(files.map(file => {
-			return file.contents.toString('utf8');
-		}));
+		const buffers = files.filter(file => file.isBuffer());
+
+		const json = getL10nJson(buffers
+			.filter(file => path.extname(file.path) !== '.json')
+			.map(file => ({
+				contents: file.contents.toString('utf8'),
+				extension: path.extname(file.path)
+			})));
+
+		buffers
+			.filter(file => path.extname(file.path) === '.json')
+			.forEach(file => {
+				const bundleJson = JSON.parse(file.contents.toString('utf8'));
+				for (const key in bundleJson) {
+					if (
+						// some validation of the bundle.l10n.json format
+						typeof bundleJson[key] !== 'string' &&
+						(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
+					) {
+						console.error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format. Skipping key...`);
+						continue;
+					}
+					json[key] = bundleJson[key];
+				}
+			});
 
 		if (Object.keys(json).length > 0) {
 			result.emit('data', new File({

@@ -8,6 +8,7 @@ import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
@@ -121,7 +122,22 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		}
 	}
 
-	return editors;
+	// Prevent duplicates: it is possible that we end up with the same
+	// dragged editor multiple times because multiple data transfers
+	// are being used (https://github.com/microsoft/vscode/issues/128925)
+
+	const coalescedEditors: IDraggedResourceEditorInput[] = [];
+	const seen = new ResourceMap<boolean>();
+	for (const editor of editors) {
+		if (!editor.resource) {
+			coalescedEditors.push(editor);
+		} else if (!seen.has(editor.resource)) {
+			coalescedEditors.push(editor);
+			seen.set(editor.resource, true);
+		}
+	}
+
+	return coalescedEditors;
 }
 
 export async function extractEditorsAndFilesDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {

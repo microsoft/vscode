@@ -32,9 +32,6 @@
       }
     ]
   },
-  "dependencies": {
-    "vscode-nls": "^5.2.0"
-  },
   "devDependencies": {
     "@types/node": "16.x"
   },

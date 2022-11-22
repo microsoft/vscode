@@ -8,7 +8,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { isLoggingOnly, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTelemetryShape, MainContext, MainThreadTelemetryShape } from '../common/extHost.protocol';
 
@@ -33,8 +33,8 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 				this._proxy.$onDidChangeTelemetryLevel(level);
 			}));
 		}
-
-		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, this._productService.enabledTelemetryLevels);
+		const loggingOnly = isLoggingOnly(this._productService, this._environmentService);
+		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, loggingOnly, this._productService.enabledTelemetryLevels);
 	}
 
 	private get telemetryLevel(): TelemetryLevel {

@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
@@ -137,7 +137,7 @@ export class HoverWidget extends Widget {
 			const markdown = options.content;
 			const mdRenderer = this._instantiationService.createInstance(
 				MarkdownRenderer,
-				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
+				{ codeBlockFontFamily: EditorOptions.fontFamily.validate(this._configurationService.getValue<IEditorOptions>('editor').fontFamily) }
 			);
 
 			const { element } = mdRenderer.render(markdown, {
@@ -455,6 +455,16 @@ export class HoverWidget extends Widget {
 		maxHeight = Math.min(maxHeight, this._hover.containerDomNode.clientHeight);
 
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		if (this._hover.contentsDomNode.clientHeight > maxHeight) {
+			this._hover.contentsDomNode.style.height = `${maxHeight}px`;
+		}
+		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
+			// Add padding for a vertical scrollbar
+			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
+			if (this._hover.contentsDomNode.style.paddingRight !== extraRightPadding) {
+				this._hover.contentsDomNode.style.paddingRight = extraRightPadding;
+			}
+		}
 	}
 
 	private setHoverPointerPosition(target: TargetRect): void {

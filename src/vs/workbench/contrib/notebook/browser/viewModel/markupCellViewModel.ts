@@ -285,8 +285,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 		return {
 			cell: this,
-			matches,
-			modelMatchCount: matches.length
+			contentMatches: matches
 		};
 	}
 
