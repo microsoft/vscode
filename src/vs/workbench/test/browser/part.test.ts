@@ -36,12 +36,12 @@ suite('Workbench parts', () => {
 			super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
 		}
 
-		override createTitleArea(parent: HTMLElement): HTMLElement {
+		protected override createTitleArea(parent: HTMLElement): HTMLElement {
 			assert.strictEqual(parent, this.expectedParent);
 			return super.createTitleArea(parent)!;
 		}
 
-		override createContentArea(parent: HTMLElement): HTMLElement {
+		protected override createContentArea(parent: HTMLElement): HTMLElement {
 			assert.strictEqual(parent, this.expectedParent);
 			return super.createContentArea(parent)!;
 		}
@@ -61,7 +61,7 @@ suite('Workbench parts', () => {
 			super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
 		}
 
-		override createTitleArea(parent: HTMLElement): HTMLElement {
+		protected override createTitleArea(parent: HTMLElement): HTMLElement {
 			const titleContainer = append(parent, $('div'));
 			const titleLabel = append(titleContainer, $('span'));
 			titleLabel.id = 'myPart.title';
@@ -70,7 +70,7 @@ suite('Workbench parts', () => {
 			return titleContainer;
 		}
 
-		override createContentArea(parent: HTMLElement): HTMLElement {
+		protected override createContentArea(parent: HTMLElement): HTMLElement {
 			const contentContainer = append(parent, $('div'));
 			const contentSpan = append(contentContainer, $('span'));
 			contentSpan.id = 'myPart.content';
@@ -86,11 +86,11 @@ suite('Workbench parts', () => {
 			super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
 		}
 
-		override createTitleArea(parent: HTMLElement): HTMLElement {
+		protected override createTitleArea(parent: HTMLElement): HTMLElement {
 			return null!;
 		}
 
-		override createContentArea(parent: HTMLElement): HTMLElement {
+		protected override createContentArea(parent: HTMLElement): HTMLElement {
 			const contentContainer = append(parent, $('div'));
 			const contentSpan = append(contentContainer, $('span'));
 			contentSpan.id = 'myPart.content';
