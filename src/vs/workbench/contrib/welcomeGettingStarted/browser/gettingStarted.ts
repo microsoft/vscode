@@ -400,6 +400,7 @@ export class GettingStartedPage extends EditorPane {
 			// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
 			case 'selectTask': {
 				this.selectStep(argument);
+				this.gettingStartedService.progressStep(argument);
 				break;
 			}
 			case 'toggleStepCompletion': {
@@ -1286,7 +1287,6 @@ export class GettingStartedPage extends EditorPane {
 					const codicon = $('.codicon' + (step.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
 						{
 							'data-done-step-id': step.id,
-							'x-dispatch': 'toggleStepCompletion:' + step.id,
 							'role': 'checkbox',
 							'tabindex': '0',
 						});
