@@ -58,10 +58,10 @@ declare module 'vscode' {
 		 * Calls `TelemetryAppender.logException`. Does cleaning, telemetry checks, and data mix-in.
 		 * Automatically supports echoing to extension telemetry output channel.
 		 * Will also automatically log any exceptions thrown within the extension host process.
-		 * @param exception The error object which contains the stack trace cleaned of PII
+		 * @param error The error object which contains the stack trace cleaned of PII
 		 * @param data Additional data to log alongside the stack trace
 		 */
-		logError(exception: Error, data?: Record<string, any | TrustedTelemetryValue>): void;
+		logError(error: Error, data?: Record<string, any | TrustedTelemetryValue>): void;
 
 		dispose(): void;
 	}
@@ -76,18 +76,10 @@ declare module 'vscode' {
 
 		/**
 		 * User-defined function which logs an error, used within the TelemetryLogger
-		 * @param exception The exception being logged
+		 * @param error The error being logged
 		 * @param data Any additional data to be collected with the exception
 		 */
-		logException(exception: Error, data?: Record<string, any>): void;
-
-		/**
-		 * Optional preprocessor function which we call before logging the data object so that you may
-		 * do any additional data manipulation on the data object. This will not include common properties, since those are static and therefore don't need processing on each log call.
-		 * We will run our own cleaning on this object afterwards.
-		 * @param data The data object to process.
-		 */
-		preProcessor?(data: Record<string, any>): Record<string, any>;
+		logError(error: Error, data?: Record<string, any>): void;
 
 		/**
 		 * Optional flush function which will give your appender one last chance to send any remaining events as the TelemetryLogger is being disposed

@@ -79,7 +79,7 @@ suite('ExtHostTelemetry', function () {
 			logEvent: (eventName: string, data) => {
 				functionSpy.dataArr.push({ eventName, data });
 			},
-			logException: (exception, data) => {
+			logError: (exception, data) => {
 				functionSpy.exceptionArr.push({ exception, data });
 			},
 			flush: () => {

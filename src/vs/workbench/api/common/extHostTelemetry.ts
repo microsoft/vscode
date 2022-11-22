@@ -161,13 +161,7 @@ export class ExtHostTelemetryLogger {
 	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
 		// Some telemetry modules prefer to break properties and measurmements up
 		// We mix common properties into the properties tab.
-		// TODO @lramos15 should this be up to the implementer and not done here?
 		let updatedData = data.properties ?? data;
-
-		// If the appender contributes a preprocess function, we run this now before cleaning and mixing in.
-		if (this._appender.preProcessor) {
-			updatedData = this._appender.preProcessor(updatedData);
-		}
 
 		// We don't clean measurements since they are just numbers
 		updatedData = cleanData(updatedData, []);
@@ -218,7 +212,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.logException(eventNameOrException, data);
+			this._appender.logError(eventNameOrException, data);
 		}
 	}
 
