@@ -46,6 +46,7 @@ clap_lex = "0.2"
 url = "2.3"
 async-trait = "0.1"
 log = "0.4"
+const_format = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.5"
@@ -53,6 +54,7 @@ winreg = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }
+zbus = { version = "3.4", default-features = false, features = ["tokio"] }
 
 [patch.crates-io]
 russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }

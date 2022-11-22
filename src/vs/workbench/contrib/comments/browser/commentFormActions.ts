@@ -17,21 +17,23 @@ export class CommentFormActions implements IDisposable {
 	constructor(
 		private container: HTMLElement,
 		private actionHandler: (action: IAction) => void,
+		private readonly maxActions?: number
 	) { }
 
-	setActions(menu: IMenu) {
+	setActions(menu: IMenu, hasOnlySecondaryActions: boolean = false) {
 		this._toDispose.clear();
 
 		this._buttonElements.forEach(b => b.remove());
 
 		const groups = menu.getActions({ shouldForwardArgs: true });
-		let isPrimary: boolean = true;
+		let isPrimary: boolean = !hasOnlySecondaryActions;
 		for (const group of groups) {
 			const [, actions] = group;
 
 			this._actions = actions;
 			for (const action of actions) {
 				const button = new Button(this.container, { secondary: !isPrimary, ...defaultButtonStyles });
+
 				isPrimary = false;
 				this._buttonElements.push(button.element);
 
@@ -40,6 +42,10 @@ export class CommentFormActions implements IDisposable {
 
 				button.enabled = action.enabled;
 				button.label = action.label;
+				if ((this.maxActions !== undefined) && (this._buttonElements.length >= this.maxActions)) {
+					console.warn(`An extension has contributed more than the allowable number of actions to a comments menu.`);
+					return;
+				}
 			}
 		}
 	}

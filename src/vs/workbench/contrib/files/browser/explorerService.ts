@@ -23,6 +23,8 @@ import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProg
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExpression } from 'vs/base/common/glob';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -39,6 +41,7 @@ export class ExplorerService implements IExplorerService {
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
+	private revealExcludeMatcher: ResourceGlobMatcher;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -130,6 +133,11 @@ export class ExplorerService implements IExplorerService {
 				this.refresh(false);
 			}
 		}));
+		this.revealExcludeMatcher = new ResourceGlobMatcher(
+			(uri) => getRevealExcludes(configurationService.getValue<IFilesConfiguration>({ resource: uri })),
+			(event) => event.affectsConfiguration('explorer.autoRevealExclude'),
+			contextService, configurationService);
+		this.disposables.add(this.revealExcludeMatcher);
 	}
 
 	get roots(): ExplorerItem[] {
@@ -254,8 +262,14 @@ export class ExplorerService implements IExplorerService {
 			return;
 		}
 
+		// If file or parent matches exclude patterns, do not reveal unless reveal argument is 'force'
+		const ignoreRevealExcludes = reveal === 'force';
+
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
+			if (!this.shouldAutoRevealItem(fileStat, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(fileStat.resource, reveal);
 			return Promise.resolve(undefined);
 		}
@@ -277,7 +291,10 @@ export class ExplorerService implements IExplorerService {
 			const item = root.find(resource);
 			await this.view.refresh(true, root);
 
-			// Select and Reveal
+			// Once item is resolved, check again if folder should be expanded
+			if (item && !this.shouldAutoRevealItem(item, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
 		} catch (error) {
 			root.isError = true;
@@ -395,6 +412,28 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
+	// Check if an item matches a explorer.autoRevealExclude pattern
+	private shouldAutoRevealItem(item: ExplorerItem | undefined, ignore: boolean): boolean {
+		if (item === undefined || ignore) {
+			return true;
+		}
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+			return false;
+		}
+		const root = item.root;
+		let currentItem = item.parent;
+		while (currentItem !== root) {
+			if (currentItem === undefined) {
+				return true;
+			}
+			if (this.revealExcludeMatcher.matches(currentItem.resource)) {
+				return false;
+			}
+			currentItem = currentItem.parent;
+		}
+		return true;
+	}
+
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		let shouldRefresh = false;
 
@@ -439,4 +478,14 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 	}
 
 	return false;
+}
+
+function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
+	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+
+	if (!revealExcludes) {
+		return {};
+	}
+
+	return revealExcludes;
 }

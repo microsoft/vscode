@@ -66,7 +66,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 						}
 
 						return commentThread.value;
-					} else if (arg && arg.$mid === MarshalledId.CommentThreadReply) {
+					} else if (arg && (arg.$mid === MarshalledId.CommentThreadReply || arg.$mid === MarshalledId.CommentThreadInstance)) {
 						const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
 
 						if (!commentController) {
@@ -77,6 +77,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 						if (!commentThread) {
 							return arg;
+						}
+
+						if (arg.$mid === MarshalledId.CommentThreadInstance) {
+							return commentThread.value;
 						}
 
 						return {

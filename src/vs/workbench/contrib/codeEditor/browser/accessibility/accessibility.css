@@ -7,4 +7,8 @@
 	padding: 10px;
 	vertical-align: middle;
 	overflow: auto;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	border: 2px solid var(--vscode-contrastBorder);
 }

@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { transaction } from 'vs/base/common/observable';
+import { IReader, transaction } from 'vs/base/common/observable';
+import { isDefined } from 'vs/base/common/types';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
@@ -13,7 +14,8 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { IMergeDiffComputer, IMergeDiffComputerResult, toLineRange, toRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 
@@ -260,23 +262,27 @@ class MergeModelInterface extends Disposable {
 		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
 
-		const diffComputer = instantiationService.createInstance(MergeDiffComputer,
-			{
-				// Don't go through the webworker to improve unit test performance & reduce dependencies
-				async computeDiff(textModel1, textModel2) {
-					const result = linesDiffComputers.smart.computeDiff(
-						textModel1.getLinesContent(),
-						textModel2.getLinesContent(),
-						{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
-					);
-					return {
-						changes: result.changes,
-						quitEarly: result.quitEarly,
-						identical: result.changes.length === 0
-					};
-				},
+		const diffComputer: IMergeDiffComputer = {
+			async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
+				const result = await linesDiffComputers.smart.computeDiff(
+					textModel1.getLinesContent(),
+					textModel2.getLinesContent(),
+					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000 }
+				);
+				const changes = result.changes.map(c =>
+					new DetailedLineRangeMapping(
+						toLineRange(c.originalRange),
+						textModel1,
+						toLineRange(c.modifiedRange),
+						textModel2,
+						c.innerChanges?.map(ic => toRangeMapping(ic)).filter(isDefined)
+					)
+				);
+				return {
+					diffs: changes
+				};
 			}
-		);
+		};
 
 		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
 			baseTextModel,
@@ -293,7 +299,6 @@ class MergeModelInterface extends Disposable {
 				title: '',
 			},
 			resultTextModel,
-			diffComputer,
 			diffComputer,
 			{
 				resetResult: false
