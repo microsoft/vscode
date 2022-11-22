@@ -44,6 +44,7 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -180,7 +181,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
 
@@ -710,31 +712,55 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 				// Process gone
 				else if (type === WindowError.PROCESS_GONE) {
-					let message: string;
-					if (!details) {
-						message = localize('appGone', "The window terminated unexpectedly");
-					} else {
-						message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+
+					// Windows: running as admin with AppLocker enabled is unsupported
+					//          when sandbox: true.
+					//          we cannot detect AppLocker use currently, but make a
+					//          guess based on the reason and exit code.
+					if (isWindows && details?.reason === 'launch-failed' && details.exitCode === 18 && await this.nativeHostMainService.isAdmin(undefined)) {
+						await this.dialogMainService.showMessageBox({
+							title: this.productService.nameLong,
+							type: 'error',
+							buttons: [
+								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							],
+							message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
+							detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
+							noLink: true,
+							defaultId: 0
+						}, this._win);
+
+						await this.destroyWindow(false, false);
 					}
 
-					// Show Dialog
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
-						type: 'warning',
-						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
-						],
-						message,
-						detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
-						noLink: true,
-						defaultId: 0,
-						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this._win);
+					// Any other crash: offer to restart
+					else {
+						let message: string;
+						if (!details) {
+							message = localize('appGone', "The window terminated unexpectedly");
+						} else {
+							message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+						}
 
-					// Handle choice
-					const reopen = result.response === 0;
-					await this.destroyWindow(reopen, result.checkboxChecked);
+						// Show Dialog
+						const result = await this.dialogMainService.showMessageBox({
+							title: this.productService.nameLong,
+							type: 'warning',
+							buttons: [
+								mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							],
+							message,
+							detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+							noLink: true,
+							defaultId: 0,
+							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
+						}, this._win);
+
+						// Handle choice
+						const reopen = result.response === 0;
+						await this.destroyWindow(reopen, result.checkboxChecked);
+					}
 				}
 				break;
 		}
