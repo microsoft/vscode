@@ -188,7 +188,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return await this.progressService.withProgress(
 			{
 				location: silent ? ProgressLocation.Window : ProgressLocation.Notification,
-				title: localize('progress.title', "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				title: localize({ key: 'progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
 			},
 			(progress: IProgress<IProgressStep>) => {
 				return new Promise<ConnectionInfo | undefined>((s, e) => {
@@ -310,7 +310,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
 			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
 				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
-				options.push({ label: localize('sign in using account', "Sign in with {0}", providerName), provider: authenticationProvider });
+				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", providerName), provider: authenticationProvider });
 			}
 		}
 
@@ -424,7 +424,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					const linkToOpen = that.getLinkToOpen(connectionInfo);
 					await notificationService.notify({
 						severity: Severity.Info,
-						message: localize('progress.turnOn.final',
+						message: localize({ key: 'progress.turnOn.final', comment: ['{0} will be a host name, {1} will the link address to the web UI. [label](command:commandId) is a markdown lionk. Only translate label, never change the format'] },
 							"Remote tunnel access is enabled for [{0}](command:{4}). To access from a different machine, open [{1}]({2}) or use the Remote - Tunnels extension. Use the Account menu to [configure](command:{3}) or [turn off](command:{5}).",
 							connectionInfo.hostName, connectionInfo.domain, linkToOpen, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
 						actions: {
@@ -621,7 +621,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			const items: Array<QuickPickItem> = [];
 			items.push({ id: RemoteTunnelCommandIds.learnMore, label: RemoteTunnelCommandLabels.learnMore });
 			if (this.connectionInfo && account) {
-				quickPick.title = localize('manage.title.on', 'Remote Machine Access enabled for {0}({1}) as {2}', account.label, account.description, this.connectionInfo.hostName);
+				quickPick.title = localize(
+					{ key: 'manage.title.on', comment: ['{0} will be a user account name, {1} the provider name (e.g. Github), {2} is the machine name'] },
+					'Remote Machine Access enabled for {0}({1}) as {2}', account.label, account.description, this.connectionInfo.hostName);
 				items.push({ id: RemoteTunnelCommandIds.copyToClipboard, label: RemoteTunnelCommandLabels.copyToClipboard, description: this.connectionInfo.domain });
 			} else {
 				quickPick.title = localize('manage.title.off', 'Remote Machine Access not enabled');
