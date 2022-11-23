@@ -1758,6 +1758,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
