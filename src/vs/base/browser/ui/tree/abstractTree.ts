@@ -625,6 +625,9 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 		}
 
 		if (this.tree.findMode === TreeFindMode.Filter) {
+			if (element.hasChildren && element.childrenUnresolved) {
+				return TreeVisibility.Visible;
+			}
 			return TreeVisibility.Recurse;
 		} else {
 			return { data: FuzzyScore.Default, visibility };

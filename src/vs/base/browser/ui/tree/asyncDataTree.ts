@@ -29,6 +29,7 @@ interface IAsyncDataTreeNode<TInput, T> {
 	readonly id?: string | null;
 	refreshPromise: Promise<void> | undefined;
 	hasChildren: boolean;
+	childrenUnresolved: boolean;
 	stale: boolean;
 	slow: boolean;
 	collapsedByDefault: boolean | undefined;
@@ -45,6 +46,7 @@ function createAsyncDataTreeNode<TInput, T>(props: IAsyncDataTreeNodeRequiredPro
 		...props,
 		children: [],
 		refreshPromise: undefined,
+		childrenUnresolved: true,
 		stale: true,
 		slow: false,
 		collapsedByDefault: undefined
@@ -825,6 +827,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return result;
 		}
 		const children = this.dataSource.getChildren(node.element!);
+		node.childrenUnresolved = false;
 		if (isIterable(children)) {
 			return this.processChildren(children);
 		} else {
