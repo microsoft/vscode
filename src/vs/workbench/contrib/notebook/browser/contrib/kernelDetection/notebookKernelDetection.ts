@@ -75,6 +75,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 					clearTimeout(timer);
 				}
 
+				// activation state might not be updated yet, postpone to next frame
 				timer = setTimeout(() => {
 					for (const [notebookType, task] of this._detectionMap) {
 						if (this._extensionService.activationEventIsDone(`onNotebook:${notebookType}`)) {
