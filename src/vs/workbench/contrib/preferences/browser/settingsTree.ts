@@ -614,6 +614,7 @@ interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 	selectBox: SelectBox;
 	selectElement: HTMLSelectElement | null;
 	enumDescriptionElement: HTMLElement;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
@@ -1606,6 +1607,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 
 	renderTemplate(container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'enum');
+		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
 		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, {
 			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
@@ -1625,10 +1627,9 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			selectElement.tabIndex = 0;
 		}
 
-		common.toDispose.add(
-			selectBox.onDidSelect(e => {
-				template.onChange?.(e.index);
-			}));
+		common.toDispose.add(selectBox.onDidSelect(e => {
+			template.onChange?.(e.index);
+		}));
 
 		const enumDescriptionElement = common.containerElement.insertBefore($('.setting-item-enumDescription'), common.descriptionElement.nextSibling);
 
@@ -1636,7 +1637,8 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			...common,
 			selectBox,
 			selectElement,
-			enumDescriptionElement
+			enumDescriptionElement,
+			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -1700,14 +1702,15 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		template.onChange = undefined;
 		template.selectBox.select(idx);
 		template.onChange = (idx) => {
-			if (createdDefault && idx === 0) {
-				onChange(dataElement.defaultValue);
-			} else {
-				onChange(settingEnum[idx]);
-			}
+			// No validation needed since the user selected something from the SelectBox.
+			template.containerElement.classList.remove('invalid-input');
+			const useDefaultValue = createdDefault && idx === 0;
+			const valueToUse = useDefaultValue ? dataElement.defaultValue : settingEnum[idx];
+			onChange(valueToUse);
 		};
 
 		template.enumDescriptionElement.innerText = '';
+		renderEnumValidations(dataElement, template);
 	}
 }
 
@@ -1998,6 +2001,23 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 			return true;
 		} else {
 			template.inputBox.inputElement.parentElement!.removeAttribute('aria-label');
+		}
+	}
+	template.containerElement.classList.remove('invalid-input');
+	return false;
+}
+
+function renderEnumValidations(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate): boolean {
+	if (dataElement.setting.validator) {
+		const errMsg = dataElement.setting.validator(dataElement.value);
+		if (errMsg) {
+			template.containerElement.classList.add('invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			const validationError = localize('validationError', "Validation Error.");
+			template.selectElement!.parentElement!.setAttribute('aria-label', [validationError, errMsg].join(' '));
+			return true;
+		} else {
+			template.selectElement!.parentElement!.removeAttribute('aria-label');
 		}
 	}
 	template.containerElement.classList.remove('invalid-input');
