@@ -172,7 +172,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return false; // only supported when title bar is custom
 	}
 
-	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
+	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.windowControlsOverlay.enabled');
 	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
 		return configuredUseWindowControlsOverlay;
 	}

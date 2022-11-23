@@ -26,7 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	window: IWindowSettings & { windowControlsOverlay?: { enabled?: boolean }; experimental?: { useSandbox?: boolean } };
 	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } }; enableExperiments?: boolean };
 	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
@@ -73,7 +73,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 
 			// Windows: Window Controls Overlay
-			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled));
+			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.windowControlsOverlay?.enabled));
 
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
