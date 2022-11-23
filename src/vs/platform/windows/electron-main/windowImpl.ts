@@ -46,7 +46,7 @@ import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electr
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Promises } from 'vs/base/node/pfs';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
@@ -772,7 +772,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private async handleWindowsAdminCrash(details: { reason: string; exitCode: number }) {
 
 		// Prepare telemetry event (TODO@bpasero remove me eventually)
-		const appenders: OneDataSystemAppender[] = [];
+		const appenders: ITelemetryAppender[] = [];
 		const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 		if (supportsTelemetry(this.productService, this.environmentMainService)) {
 			if (this.productService.aiConfig && this.productService.aiConfig.ariaKey) {
