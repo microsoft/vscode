@@ -41,6 +41,8 @@ export class TestService extends Disposable implements ITestService {
 	private readonly providerCount: IContextKey<number>;
 	private readonly canRefreshTests: IContextKey<boolean>;
 	private readonly isRefreshingTests: IContextKey<boolean>;
+	private readonly activeEditorHasTests: IContextKey<boolean>;
+
 	/**
 	 * Cancellation for runs requested by the user being managed by the UI.
 	 * Test runs initiated by extensions are not included here.
@@ -97,6 +99,9 @@ export class TestService extends Disposable implements ITestService {
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
 		this.canRefreshTests = TestingContextKeys.canRefreshTests.bindTo(contextKeyService);
 		this.isRefreshingTests = TestingContextKeys.isRefreshingTests.bindTo(contextKeyService);
+		this.activeEditorHasTests = TestingContextKeys.activeEditorHasTests.bindTo(contextKeyService);
+
+		this._register(editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
 	}
 
 	/**
@@ -228,6 +233,7 @@ export class TestService extends Disposable implements ITestService {
 	public publishDiff(_controllerId: string, diff: TestsDiff) {
 		this.willProcessDiffEmitter.fire(diff);
 		this.collection.apply(diff);
+		this.updateEditorContextKeys();
 		this.didProcessDiffEmitter.fire(diff);
 	}
 
@@ -311,6 +317,15 @@ export class TestService extends Disposable implements ITestService {
 		disposable.add(controller.canRefresh.onDidChange(this.updateCanRefresh, this));
 
 		return disposable;
+	}
+
+	private updateEditorContextKeys() {
+		const uri = this.editorService.activeEditor?.resource;
+		if (uri) {
+			this.activeEditorHasTests.set(!Iterable.isEmpty(this.collection.getNodeByUrl(uri)));
+		} else {
+			this.activeEditorHasTests.set(false);
+		}
 	}
 
 	private async saveAllBeforeTest(req: ResolvedTestRunRequest, configurationService: IConfigurationService = this.configurationService, editorService: IEditorService = this.editorService): Promise<void> {

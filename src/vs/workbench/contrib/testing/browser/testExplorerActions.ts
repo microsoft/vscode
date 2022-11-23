@@ -678,7 +678,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				id: MenuId.EditorContext,
 				group: 'testing',
 				order: group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug,
-				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
 			}]
 		});
 	}
@@ -804,7 +804,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 				group: 'testing',
 				// add 0.1 to be after the "at cursor" commands
 				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
-				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
 			}],
 		});
 	}
