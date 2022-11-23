@@ -3,25 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::fmt;
+use std::{fmt, path::PathBuf};
 
 use crate::{constants, log, options, tunnels::code_server::CodeServerArgs};
 use clap::{ArgEnum, Args, Parser, Subcommand};
+use const_format::concatcp;
 
-const TEMPLATE: &str = "
- Visual Studio Code CLI - {version}
+const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
+const TEMPLATE: &str = concatcp!(
+	CLI_NAME,
+	" - {version}
 
- Usage: code-insiders.exe [options][paths...]
+Usage: ",
+	constants::APPLICATION_NAME,
+	" [options][paths...]
 
- To read output from another program, append '-' (e.g. 'echo Hello World | code-insiders.exe -')
+To read output from another program, append '-' (e.g. 'echo Hello World | ",
+	constants::APPLICATION_NAME,
+	" -')
 
- {all-args}";
+{all-args}"
+);
 
 #[derive(Parser, Debug, Default)]
 #[clap(
    help_template = TEMPLATE,
    long_about = None,
-   name = "Visual Studio Code CLI",
+   name = CLI_NAME,
    version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
  )]
 pub struct IntegratedCli {
@@ -53,7 +61,7 @@ pub struct CliCore {
 #[clap(
    help_template = TEMPLATE,
    long_about = None,
-   name = "Visual Studio Code CLI",
+   name = CLI_NAME,
    version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
  )]
 pub struct StandaloneCli {
@@ -115,7 +123,7 @@ impl<'a> From<&'a CliCore> for CodeServerArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum StandaloneCommands {
-	/// Updates the VS Code CLI.
+	/// Updates the CLI.
 	Update(StandaloneUpdateArgs),
 }
 
@@ -133,14 +141,14 @@ pub enum Commands {
 	/// Run `code tunnel --help` for more usage info.
 	Tunnel(TunnelArgs),
 
-	/// Manage VS Code extensions.
+	/// Manage editor extensions.
 	#[clap(name = "ext")]
 	Extension(ExtensionArgs),
 
 	/// Print process usage and diagnostics information.
 	Status,
 
-	/// Changes the version of VS Code you're using.
+	/// Changes the version of the editor you're using.
 	Version(VersionArgs),
 }
 
@@ -251,16 +259,16 @@ pub struct VersionArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum VersionSubcommand {
-	/// Switches the instance of VS Code in use.
+	/// Switches the version of the editor in use.
 	Use(UseVersionArgs),
 
-	/// Shows the currently configured VS Code version.
+	/// Shows the currently configured editor version.
 	Show,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct UseVersionArgs {
-	/// The version of VS Code you want to use. Can be "stable", "insiders",
+	/// The version of the editor you want to use. Can be "stable", "insiders",
 	/// a version number, or an absolute path to an existing install.
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
@@ -346,7 +354,7 @@ impl EditorOptions {
 	}
 }
 
-/// Arguments applicable whenever VS Code desktop is launched
+/// Arguments applicable whenever the desktop editor is launched
 #[derive(Args, Debug, Default, Clone)]
 pub struct DesktopCodeOptions {
 	/// Set the root path for extensions.
@@ -354,11 +362,11 @@ pub struct DesktopCodeOptions {
 	pub extensions_dir: Option<String>,
 
 	/// Specifies the directory that user data is kept in. Can be used to
-	/// open multiple distinct instances of Code.
+	/// open multiple distinct instances of the editor.
 	#[clap(long, value_name = "dir")]
 	pub user_data_dir: Option<String>,
 
-	/// Sets the VS Code version to use for this command. The preferred version
+	/// Sets the editor version to use for this command. The preferred version
 	/// can be persisted with `code version use <version>`. Can be "stable",
 	/// "insiders", a version number, or an absolute path to an existing install.
 	#[clap(long, value_name = "stable | insiders | x.y.z | path")]
@@ -386,13 +394,17 @@ impl DesktopCodeOptions {
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct GlobalOptions {
-	/// Directory where CLI metadata, such as VS Code installations, should be stored.
+	/// Directory where CLI metadata should be stored.
 	#[clap(long, env = "VSCODE_CLI_DATA_DIR", global = true)]
 	pub cli_data_dir: Option<String>,
 
 	/// Print verbose output (implies --wait).
 	#[clap(long, global = true)]
 	pub verbose: bool,
+
+	/// Log to a file in addition to stdout. Used when running as a service.
+	#[clap(long, global = true, hide = true)]
+	pub log_to_file: Option<PathBuf>,
 
 	/// Log level to use.
 	#[clap(long, arg_enum, value_name = "level", global = true)]
@@ -460,7 +472,7 @@ pub struct EditorTroubleshooting {
 	#[clap(long, value_name = "memory")]
 	pub max_memory: Option<usize>,
 
-	/// Shows all telemetry events which VS code collects.
+	/// Shows all telemetry events which the editor collects.
 	#[clap(long)]
 	pub telemetry: bool,
 }
@@ -595,6 +607,9 @@ pub enum TunnelServiceSubCommands {
 
 	/// Uninstalls and stops the tunnel service.
 	Uninstall,
+
+	/// Shows logs for the running service.
+	Log,
 
 	/// Internal command for running the service
 	#[clap(hide = true)]

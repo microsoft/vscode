@@ -217,7 +217,7 @@ export class CallStackView extends ViewPane {
 		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-call-stack');
@@ -382,7 +382,7 @@ export class CallStackView extends ViewPane {
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}

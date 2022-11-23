@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use crate::constants::PRODUCT_NAME_LONG;
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{AnyError, MissingLegalConsent};
 use crate::util::input::prompt_yn;
@@ -46,10 +47,10 @@ pub fn require_consent(
 				load.consented = Some(true);
 			}
 			Ok(false) => {
-				return Err(AnyError::from(MissingLegalConsent(
-					"Sorry you cannot use VS Code Server CLI without accepting the terms."
-						.to_string(),
-				)))
+				return Err(AnyError::from(MissingLegalConsent(format!(
+					"Sorry you cannot use {} CLI without accepting the terms.",
+					PRODUCT_NAME_LONG
+				))))
 			}
 			Err(e) => return Err(AnyError::from(MissingLegalConsent(e.to_string()))),
 		}

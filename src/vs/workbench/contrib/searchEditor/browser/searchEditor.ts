@@ -33,7 +33,6 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
@@ -61,6 +60,7 @@ import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchM
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -124,7 +124,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
 	}
 
-	override createEditor(parent: HTMLElement) {
+	protected override createEditor(parent: HTMLElement) {
 		DOM.append(parent, this.container);
 		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
 		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
@@ -143,7 +143,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 
 	private createQueryEditor(container: HTMLElement, scopedInstantiationService: IInstantiationService, inputBoxFocusedContextKey: IContextKey<boolean>) {
-		this.queryEditorWidget = this._register(scopedInstantiationService.createInstance(SearchWidget, container, { _hideReplaceToggle: true, showContextToggle: true }));
+		const searchEditorInputboxStyles = getInputBoxStyle({ inputBorder: searchEditorTextInputBorder });
+
+		this.queryEditorWidget = this._register(scopedInstantiationService.createInstance(SearchWidget, container, { _hideReplaceToggle: true, showContextToggle: true, inputBoxStyles: searchEditorInputboxStyles, toggleStyles: defaultToggleStyles }));
 		this._register(this.queryEditorWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.queryEditorWidget.onDidHeightChange(() => this.reLayout()));
 		this._register(this.queryEditorWidget.onSearchSubmit(({ delay }) => this.triggerSearch({ delay })));
@@ -185,6 +187,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		DOM.append(folderIncludesList, DOM.$('h4', undefined, filesToIncludeTitle));
 		this.inputPatternIncludes = this._register(scopedInstantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
+			inputBoxStyles: searchEditorInputboxStyles
 		}));
 		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
@@ -195,12 +198,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		DOM.append(excludesList, DOM.$('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(scopedInstantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
+			inputBoxStyles: searchEditorInputboxStyles
 		}));
 		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
 		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch()));
-
-		[this.queryEditorWidget.searchInput, this.inputPatternIncludes, this.inputPatternExcludes, this.queryEditorWidget.contextLinesInput].map(input =>
-			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
 
 		// Messages
 		this.messageBox = DOM.append(container, DOM.$('.messages.text-search-provider-messages'));

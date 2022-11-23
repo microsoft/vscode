@@ -25,7 +25,7 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { DomEmitter } from 'vs/base/browser/event';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { Event } from 'vs/base/common/event';
-import { defaultButtonStyles, getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -257,7 +257,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.mainRow.appendChild(toolbarContainer);
 
 		// Progress: below the rows to span the entire width of the item
-		data.progress = new ProgressBar(container, getProgressBarStyles());
+		data.progress = new ProgressBar(container, defaultProgressBarStyles);
 		data.toDispose.add(data.progress);
 
 		// Renderer

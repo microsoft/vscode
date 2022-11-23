@@ -30,9 +30,24 @@ export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
 export type IDiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
 
+export enum EditorContributionInstantiation {
+	/**
+	 * The contribution is created eagerly when the {@linkcode ICodeEditor} is instantiated.
+	 */
+	Eager,
+
+	/**
+	 * The contribution is created on idle (or when explicitly requested).
+	 *
+	 * Idle contributions cannot participate in saving or restoring of view states.
+	 */
+	Idle,
+}
+
 export interface IEditorContributionDescription {
-	id: string;
-	ctor: IEditorContributionCtor;
+	readonly id: string;
+	readonly ctor: IEditorContributionCtor;
+	readonly instantiation: EditorContributionInstantiation;
 }
 
 export interface IDiffEditorContributionDescription {
@@ -481,8 +496,8 @@ export function registerInstantiatedEditorAction(editorAction: EditorAction): vo
 	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
 }
 
-export function registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }): void {
-	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
+export function registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }, instantiation = EditorContributionInstantiation.Eager): void {
+	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor, instantiation);
 }
 
 export function registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
@@ -533,8 +548,8 @@ class EditorContributionRegistry {
 		this.editorCommands = Object.create(null);
 	}
 
-	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }): void {
-		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor });
+	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }, instantiation = EditorContributionInstantiation.Eager): void {
+		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor, instantiation });
 	}
 
 	public getEditorContributions(): IEditorContributionDescription[] {

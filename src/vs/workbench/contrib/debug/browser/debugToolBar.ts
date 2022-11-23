@@ -186,7 +186,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		if (this.$el) {

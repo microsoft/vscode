@@ -11,7 +11,6 @@ import { asArray } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, TerminalQuickFixAction, TerminalQuickFixMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IDecoration, Terminal } from 'xterm';
@@ -24,10 +23,10 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IActionWidgetService, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionWidget';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
-import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+import { TerminalQuickFix, TerminalQuickFixType, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -79,7 +78,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
 	) {
 		super();
@@ -232,7 +230,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				};
 				// TODO: What's documentation do? Need a vscode command?
 				const documentation = fixes.map(f => { return { id: f.id, title: f.label, tooltip: f.tooltip }; });
-				const actions = fixes.map(f => new TerminalQuickFix(f, f.label));
+				const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.label));
 				const actionSet = {
 					// TODO: Documentation and actions are separate?
 					documentation,
@@ -247,24 +245,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					return;
 				}
 				const delegate = {
-					onSelect: async (fix: TerminalQuickFix, preview?: boolean) => {
-						if (preview) {
-							this._commandService.executeCommand(previewSelectedActionCommand);
-						} else {
-							fix.action?.run();
-							this._actionWidgetService.hide();
-						}
+					onSelect: async (fix: TerminalQuickFix) => {
+						fix.action?.run();
+						this._actionWidgetService.hide();
 					},
 					onHide: () => {
 						this._terminal?.focus();
 					},
 				};
-				this._actionWidgetService.show('quickFixWidget', toMenuItems, delegate, actionSet, anchor, parentElement,
-					{
-						showHeaders: true,
-						includeDisabledActions: false,
-						fromLightbulb: true
-					});
+				this._actionWidgetService.show('quickFixWidget', toMenuItems(actionSet.validActions, true), delegate, anchor, parentElement);
 			}));
 		});
 	}
@@ -302,12 +291,12 @@ export function getQuickFixesForCommand(
 					let action: IAction | undefined;
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
-							case 'command': {
+							case TerminalQuickFixType.Command: {
 								const label = localize('quickFix.command', 'Run: {0}', quickFix.command);
 								action = {
 									id: quickFix.id,
 									label,
-									class: undefined,
+									class: quickFix.type,
 									enabled: true,
 									run: () => {
 										onDidRequestRerunCommand?.fire({
@@ -321,12 +310,12 @@ export function getQuickFixesForCommand(
 								expectedCommands.push(quickFix.command);
 								break;
 							}
-							case 'opener': {
+							case TerminalQuickFixType.Opener: {
 								const label = localize('quickFix.opener', 'Open: {0}', quickFix.uri.toString());
 								action = {
-									id: `quickFix.opener`,
+									id: quickFix.id,
 									label,
-									class: undefined,
+									class: quickFix.type,
 									enabled: true,
 									run: () => {
 										openerService.open(quickFix.uri);
@@ -417,7 +406,7 @@ export function convertToQuickFixOptions(quickFix: IExtensionTerminalQuickFix): 
 				}
 				link = link.replaceAll(varToResolve, value);
 			}
-			return link ? { type: 'opener', uri: URI.parse(link) } as ITerminalQuickFixOpenerAction : [];
+			return link ? { type: 'opener', uri: URI.parse(link), id: quickFix.id } as ITerminalQuickFixOpenerAction : [];
 		},
 		exitStatus: quickFix.exitStatus,
 		source: quickFix.extensionIdentifier

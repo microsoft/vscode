@@ -89,6 +89,7 @@ import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/brows
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { EditorOptions } from 'vs/editor/common/config/editorOptions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -2147,7 +2148,7 @@ class SCMInputWidget {
 		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
 
 		if (inputFontFamily.toLowerCase() === 'editor') {
-			return this.configurationService.getValue<string>('editor.fontFamily').trim();
+			return EditorOptions.fontFamily.validate(this.configurationService.getValue<string | string[]>('editor.fontFamily')).trim();
 		}
 
 		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
@@ -2329,7 +2330,7 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 	}
 
-	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
+	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
 		if (height === undefined) {
 			return;
 		}

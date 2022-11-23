@@ -7,9 +7,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class ShowAudioCueHelp extends Action2 {

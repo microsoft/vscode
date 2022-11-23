@@ -19,7 +19,6 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 interface IViewsCustomizations {
@@ -55,8 +54,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 
-	private readonly viewContainersCustomLocations: Map<string, ViewContainerLocation>;
-	private readonly viewDescriptorsCustomLocations: Map<string, string>;
+	private viewContainersCustomLocations: Map<string, ViewContainerLocation>;
+	private viewDescriptorsCustomLocations: Map<string, string>;
 
 	private readonly _onDidChangeViewContainers = this._register(new Emitter<{ added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>; removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }> }>());
 	readonly onDidChangeViewContainers = this._onDidChangeViewContainers.event;
@@ -114,11 +113,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
 
-		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
-			.registerKeys([{
-				key: ViewDescriptorService.VIEWS_CUSTOMIZATIONS,
-				description: localize('views customizations', "Views Customizations"),
-			}]);
 	}
 
 	private migrateToViewsCustomizationsStorage(): void {
@@ -573,6 +567,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		for (const { views, from, to } of viewsToMove) {
 			this.moveViewsWithoutSaving(views, from, to);
 		}
+
+		this.viewContainersCustomLocations = newViewContainerCustomizations;
+		this.viewDescriptorsCustomLocations = newViewDescriptorCustomizations;
 	}
 
 	// Generated Container Id Format
