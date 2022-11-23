@@ -30,7 +30,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -57,6 +57,7 @@ import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from 'vs/base/common/codicons';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -735,7 +736,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 						ThemeIcon.isThemeIcon(icon) ? `$(${icon.id}) ${title}` : title,
 						command.id,
 						command.source,
-						ContextKeyExpr.deserialize(contribution.when)
+						ContextKeyExpr.deserialize(contribution.when),
+						contribution.documentation
 					));
 				}
 			}
@@ -787,6 +789,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			});
 
 			quickPick.show();
+
+			quickPick.onDidTriggerItemButton(async (e) => {
+				if (e.item.description !== undefined) {
+					const uri = URI.isUri(e.item.description) ? URI.parse(e.item.description) : await this.commandService.executeCommand(e.item.description);
+					void this.openerService.open(uri, { openExternal: true });
+				}
+			});
 		});
 
 		quickPick.dispose();
@@ -824,19 +833,31 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
+const infoButtonClass = ThemeIcon.asClassName(Codicon.info);
 class ContinueEditSessionItem implements IQuickPickItem {
+	public readonly buttons: IQuickInputButton[] | undefined;
+
 	constructor(
 		public readonly label: string,
 		public readonly command: string,
 		public readonly description?: string,
 		public readonly when?: ContextKeyExpression,
-	) { }
+		documentation?: string,
+	) {
+		if (documentation !== undefined) {
+			this.buttons = [{
+				iconClass: infoButtonClass,
+				tooltip: localize('learnMoreTooltip', 'Learn More'),
+			}];
+		}
+	}
 }
 
 interface ICommand {
 	command: string;
 	group: string;
 	when: string;
+	documentation?: string;
 }
 
 const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<ICommand[]>({
@@ -853,6 +874,10 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 				},
 				group: {
 					description: localize('continueEditSessionExtPoint.group', 'Group into which this item belongs.'),
+					type: 'string'
+				},
+				description: {
+					description: localize('continueEditSessionExtPoint.description', "The url, or a command that returns the url, to the option's documentation page."),
 					type: 'string'
 				},
 				when: {
