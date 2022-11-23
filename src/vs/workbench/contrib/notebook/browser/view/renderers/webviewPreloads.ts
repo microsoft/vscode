@@ -862,8 +862,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		container: Node;
 		originalRange: Range;
 		isShadow: boolean;
+		searchPreviewInfo: ISearchPreviewInfo;
 		highlightResult?: IHighlightResult;
-		searchPreviewInfo?: ISearchPreviewInfo;
 	}
 
 	interface ISearchPreviewInfo {
@@ -1110,7 +1110,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: selection.getRangeAt(0)
+								originalRange: selection.getRangeAt(0),
+								searchPreviewInfo: extractSelectionLine(selection),
 							});
 
 						} else {
@@ -1132,7 +1133,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: selection.getRangeAt(0)
+											originalRange: selection.getRangeAt(0),
+											searchPreviewInfo: extractSelectionLine(selection),
 										});
 									}
 									break;

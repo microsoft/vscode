@@ -51,7 +51,7 @@ export class Match {
 	// For replace
 	private _fullPreviewRange: ISearchRange;
 
-	constructor(private _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, private _cellFragment?: string) {
+	constructor(private _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange) {
 		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
 		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
 			_fullPreviewRange.endColumn :
@@ -83,10 +83,6 @@ export class Match {
 
 	range(): Range {
 		return this._range;
-	}
-
-	fragment(): string | undefined {
-		return this._cellFragment;
 	}
 
 	@memoize
@@ -352,25 +348,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 				wholeWord: this._query.isWordMatch,
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
-				includeMarkupInput: true,
+				includeMarkupInput: false,
 				includeMarkupPreview: true,
 				includeCodeInput: true,
 				includeOutput: true,
 			}, CancellationToken.None);
-		// const matches = allMatches.map((elem) => elem.matches)
-		// 	.flat()
-		// 	.map((elem) => {
-		// 		if (elem instanceof FindMatch) {
-		// 			return elem;
-		// 		} else {
-		// 			return undefined;
-		// 		}
-		// 	}).filter((e): e is FindMatch => !!FindMatch);
-		console.log(allMatches);
-		const model = this._notebookEditorWidget.textModel;
-		if (!model) {
-			return;
-		}
+
 		this.updateNotebookMatches(allMatches, true);
 	}
 
@@ -397,7 +380,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 
-		const textSearchResults = notebookEditorMatchesToTextSearchResults(matches, this._notebookEditorWidget, this._previewOptions);
+		const textSearchResults = notebookEditorMatchesToTextSearchResults(matches, this._previewOptions);
 		textSearchResults.forEach(textSearchResult => {
 			textSearchResultToMatches(textSearchResult, this).forEach(match => {
 				if (!this._removedMatches.has(match.id())) {
@@ -409,10 +392,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		// 	this.addContext(
-		// 		addContextToNotebookEditorMatches(textSearchResults, this._notebookEditorWidget, this.parent().parent().query!)
-		// 			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-		// 			.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+		// this.addContext(
+		// 	addContextToEditorMatches(textSearchResults, model, this.parent().parent().query!)
+		// 		.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+		// 		.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
 
 		this._onChange.fire({ forceUpdateModel: modelChange });
 		// 	this.updateHighlights();

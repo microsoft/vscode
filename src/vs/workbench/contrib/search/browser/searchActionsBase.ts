@@ -11,7 +11,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/common/searchModel';
+import { RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 export const category = { value: nls.localize('search', "Search"), original: 'Search' };

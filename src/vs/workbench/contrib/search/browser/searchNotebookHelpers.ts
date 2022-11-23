@@ -4,81 +4,73 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FindMatch } from 'vs/editor/common/model';
-import { CellFindMatchWithIndex, ICellViewModel, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { ITextSearchPreviewOptions, SearchRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { CellFindMatchWithIndex, ICellViewModel, CellWebviewFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+
+import { ITextSearchPreviewOptions, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 
 interface CellFindMatchInfoForTextModel {
 	cell: ICellViewModel;
-	matches: FindMatch[] | OutputFindMatch;
+	matches: FindMatch[] | CellWebviewFindMatch;
 }
 
-function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, editorWidget: NotebookEditorWidget, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch | undefined {
+function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch | undefined {
 	const matches = cellInfo.matches;
 
 
 	if (Array.isArray(matches)) {
-
-		const firstLine = matches[0].range.startLineNumber;
-		const lastLine = matches[matches.length - 1].range.endLineNumber;
-		const lineTexts: string[] = [];
-		for (let i = firstLine; i <= lastLine; i++) {
-			if (cellInfo.cell.textModel) {
-				lineTexts.push(cellInfo.cell.textModel?.getLineContent(i));
+		if (matches.length > 0) {
+			const lineTexts: string[] = [];
+			const firstLine = matches[0].range.startLineNumber;
+			const lastLine = matches[matches.length - 1].range.endLineNumber;
+			for (let i = firstLine; i <= lastLine; i++) {
+				if (cellInfo.cell.textModel) {
+					lineTexts.push(cellInfo.cell.textModel?.getLineContent(i));
+				}
 			}
+
+			return new TextSearchMatch(
+				lineTexts.join('\n') + '\n',
+				matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
+				previewOptions);
 		}
-
-		return new TextSearchMatch(
-			lineTexts.join('\n') + '\n',
-			matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
-			previewOptions);
-
 	}
-	else if (matches.searchPreviewInfo) {
+	else {
 		return new TextSearchMatch(
 			matches.searchPreviewInfo.line,
-			new Range(0, matches.searchPreviewInfo.range.start, 1, matches.searchPreviewInfo.range.end),
+			new Range(0, matches.searchPreviewInfo.range.start, 0, matches.searchPreviewInfo.range.end),
 			previewOptions);
 	}
-
-
-	const ranges = new SearchRange(0, 0, 1, 1);
-	return new TextSearchMatch(
-		'\n',
-		ranges,
-		previewOptions);
+	return undefined;
 }
-export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], editorWidget: NotebookEditorWidget, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
+export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
 	let previousEndLine = -1;
 	const groupedMatches: CellFindMatchInfoForTextModel[] = [];
 	let currentMatches: FindMatch[] = [];
 
 
 	cellFindMatches.forEach((cellFindMatch) => {
-		cellFindMatch.matches.forEach((match) => {
-			if (match instanceof FindMatch) {
-
-				if (match.range.startLineNumber !== previousEndLine) {
-					currentMatches = [];
-					groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
-				}
-
-				currentMatches.push(match);
-				previousEndLine = match.range.endLineNumber;
-			} else {
-				groupedMatches.push({ cell: cellFindMatch.cell, matches: match });
+		cellFindMatch.contentMatches.forEach((match) => {
+			if (match.range.startLineNumber !== previousEndLine) {
+				currentMatches = [];
+				groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
 			}
+
+			currentMatches.push(match);
+			previousEndLine = match.range.endLineNumber;
 		});
 
 		currentMatches = [];
 		groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
+
+		cellFindMatch.webviewMatches.forEach((match) => {
+			groupedMatches.push({ cell: cellFindMatch.cell, matches: match });
+		});
 	});
 
 	return groupedMatches.map(sameLineMatches => {
-
-		return notebookEditorMatchToTextSearchResult(sameLineMatches, editorWidget, previewOptions);
-	}).filter((item): item is TextSearchMatch => !!item);
+		return notebookEditorMatchToTextSearchResult(sameLineMatches, previewOptions);
+	}).filter((elem): elem is TextSearchMatch => !!elem);
 }
 
 // export function addContextToNotebookEditorMatches(matches: ITextSearchMatch[], editorWidget: NotebookEditorWidget, query: ITextQuery): ITextSearchResult[] {
