@@ -177,7 +177,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return this.controller.cancel();
 	}
 
-	protected override updateStyles() {
+	override updateStyles() {
 		if (this.hasController) {
 			this.controller.applyStyles(this.computeStyles());
 		}

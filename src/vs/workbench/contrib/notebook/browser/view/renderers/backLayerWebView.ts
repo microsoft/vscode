@@ -274,8 +274,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
-		const findHighlight = this.getColor(editorFindMatch);
-		const currentMatchHighlight = this.getColor(editorFindMatchHighlight);
+		const currentHighlight = this.getColor(editorFindMatch);
+		const findMatchHighlight = this.getColor(editorFindMatchHighlight);
 		return /* html */`
 		<html lang="en">
 			<head>
@@ -293,11 +293,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				">` : ''}
 				<style nonce="${this.nonce}">
 					::highlight(find-highlight) {
-						background-color: var(--vscode-editor-findMatchBackground, ${findHighlight});
+						background-color: var(--vscode-editor-findMatchBackground, ${findMatchHighlight});
 					}
 
 					::highlight(current-find-highlight) {
-						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentMatchHighlight});
+						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentHighlight});
 					}
 
 					#container .cell_container {

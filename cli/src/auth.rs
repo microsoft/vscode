@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{
-	constants::get_default_user_agent,
+	constants::{get_default_user_agent, PRODUCT_NAME_LONG},
 	info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
@@ -500,7 +500,7 @@ impl Auth {
 		}
 
 		let provider = prompt_options(
-			"How would you like to log in to VS Code?",
+			format!("How would you like to log in to {}?", PRODUCT_NAME_LONG),
 			&[AuthProvider::Microsoft, AuthProvider::Github],
 		)?;
 
