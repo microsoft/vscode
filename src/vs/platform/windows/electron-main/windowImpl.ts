@@ -47,7 +47,6 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Promises } from 'vs/base/node/pfs';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
 
@@ -784,19 +783,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: (async () => {
-					let machineId: string | undefined = undefined;
-					try {
-						const storageContents = await Promises.readFile(this.environmentMainService.stateResource.fsPath);
-						machineId = JSON.parse(storageContents.toString())[machineIdKey];
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							this.logService.error(error);
-						}
-					}
-
-					return resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath);
-				})(),
+				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, this.stateMainService.getItem<string>(machineIdKey), isInternal, installSourcePath),
 				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
 			};
 
@@ -812,7 +799,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				reason: string | undefined;
 				code: number | undefined;
 			};
-			telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
+			await telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
 		}
 
 		// Inform user
@@ -829,7 +816,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}, this._win);
 
 		// Ensure to await flush telemetry
-		await Promise.all(appenders.map(a => a.flush()));
+		await Promise.all(appenders.map(appender => appender.flush()));
 
 		// Exit
 		await this.destroyWindow(false, false);
