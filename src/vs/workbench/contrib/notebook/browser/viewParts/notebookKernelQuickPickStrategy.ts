@@ -192,23 +192,23 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			quickPick.activeItems = activeItems;
 		}, this);
 
-		const pick = await new Promise<KernelQuickPickItem>((resolve, reject) => {
+		const pick = await new Promise<KernelQuickPickItem | undefined>((resolve, reject) => {
 			quickPick.onDidAccept(() => {
 				const item = quickPick.selectedItems[0];
 				if (item) {
 					resolve(item);
 				} else {
-					reject();
+					resolve(undefined);
 				}
 
 				quickPick.hide();
 			});
 
-			quickPick.onDidHide(() => () => {
+			quickPick.onDidHide(() => {
 				kernelDetectionTaskListener.dispose();
 				kernelChangeEventListener.dispose();
 				quickPick.dispose();
-				reject();
+				resolve(undefined);
 			});
 			quickPick.show();
 		});
