@@ -142,7 +142,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		}
 		const { token, providerId, accountLabel: accountName } = this._account;
 
-		this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.authorizing', 'Connecting as {0} ({1})', accountName, providerId)));
+		this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', accountName, providerId)));
 		const onOutput = (a: string, isErr: boolean) => {
 			a = a.replaceAll(token, '*'.repeat(4));
 			if (isErr) {
@@ -171,7 +171,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 		const hostName = this.getHostName();
 		if (hostName) {
-			this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.openTunnelWithName', 'Opening tunnel for {0}', hostName)));
+			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.openTunnelWithName', comment: ['{0} is a host name'] }, 'Opening tunnel for {0}', hostName)));
 		} else {
 			this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.openTunnel', 'Opening tunnel')));
 		}
@@ -234,12 +234,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				});
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run', false);
-					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')} `, false);
+					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`, false);
 					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
 				} else {
 					onOutput('Running tunnel CLI', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
-					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')} `, false);
+					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}`, false);
 					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir() });
 				}
 
