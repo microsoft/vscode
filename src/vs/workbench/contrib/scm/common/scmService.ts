@@ -281,7 +281,7 @@ export class SCMService implements ISCMService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _repositories = new Map<string, ISCMRepository>();
+	_repositories = new Map<string, ISCMRepository>();  // used in tests
 	get repositories(): Iterable<ISCMRepository> { return this._repositories.values(); }
 	get repositoryCount(): number { return this._repositories.size; }
 

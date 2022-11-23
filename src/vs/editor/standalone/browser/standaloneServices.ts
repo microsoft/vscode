@@ -90,6 +90,8 @@ import { staticObservableValue } from 'vs/base/common/observableValue';
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { constObservable, IObservable } from 'vs/base/common/observable';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -627,7 +629,9 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: StandaloneConfigurationService
+		@IConfigurationService private readonly configurationService: StandaloneConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
@@ -636,13 +640,28 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 
 	getValue<T>(resource: URI, section?: string): T;
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
-	getValue<T>(resource: any, arg2?: any, arg3?: any) {
+	getValue<T>(resource: URI | undefined, arg2?: any, arg3?: any) {
 		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
 		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
+		const language = resource ? this.getLanguage(resource, position) : undefined;
 		if (typeof section === 'undefined') {
-			return this.configurationService.getValue<T>();
+			return this.configurationService.getValue<T>({
+				resource,
+				overrideIdentifier: language
+			});
 		}
-		return this.configurationService.getValue<T>(section);
+		return this.configurationService.getValue<T>(section, {
+			resource,
+			overrideIdentifier: language
+		});
+	}
+
+	private getLanguage(resource: URI, position: IPosition | null): string | null {
+		const model = this.modelService.getModel(resource);
+		if (model) {
+			return position ? model.getLanguageIdAtPosition(position.lineNumber, position.column) : model.getLanguageId();
+		}
+		return this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 	}
 
 	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
@@ -971,6 +990,22 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
+class StandaloneAudioService implements IAudioCueService {
+	_serviceBrand: undefined;
+	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+
+	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	}
+
+	isEnabled(cue: AudioCue): IObservable<boolean, void> {
+		return constObservable(false);
+	}
+
+	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
@@ -1007,6 +1042,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
+registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

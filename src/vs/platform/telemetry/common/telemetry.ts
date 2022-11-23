@@ -34,13 +34,13 @@ export interface ITelemetryService {
 	/**
 	 * @deprecated Use publicLog2 and the typescript GDPR annotation where possible
 	 */
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
+	publicLog(eventName: string, data?: ITelemetryData): Promise<void>;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
 
 	/**
 	 * @deprecated Use publicLogError2 and the typescript GDPR annotation where possible

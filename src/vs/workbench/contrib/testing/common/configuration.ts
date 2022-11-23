@@ -68,7 +68,7 @@ export const testingConfiguation: IConfigurationNode = {
 			default: 1000,
 		},
 		[TestingConfigKeys.AutoOpenPeekView]: {
-			description: localize('testing.automaticallyOpenPeekView', "Configures when the error peek view is automatically opened."),
+			description: localize('testing.automaticallyOpenPeekView', "Configures when the error Peek view is automatically opened."),
 			enum: [
 				AutoOpenPeekViewWhen.FailureAnywhere,
 				AutoOpenPeekViewWhen.FailureVisible,
@@ -82,12 +82,12 @@ export const testingConfiguation: IConfigurationNode = {
 			],
 		},
 		[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: {
-			description: localize('testing.automaticallyOpenPeekViewDuringAutoRun', "Controls whether to automatically open the peek view during auto-run mode."),
+			description: localize('testing.automaticallyOpenPeekViewDuringAutoRun', "Controls whether to automatically open the Peek view during auto-run mode."),
 			type: 'boolean',
 			default: false,
 		},
 		[TestingConfigKeys.FollowRunningTest]: {
-			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the test explorer view'),
+			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the Test Explorer view.'),
 			type: 'boolean',
 			default: true,
 		},

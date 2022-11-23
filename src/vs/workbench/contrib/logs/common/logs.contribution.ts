@@ -17,7 +17,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { isLoggingOnly, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
 
@@ -50,13 +50,15 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	private registerCommonContributions(): void {
 		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
 		this.registerLogChannel(Constants.editSessionsLogChannelId, nls.localize('editSessionsLog', "Edit Sessions"), this.environmentService.editSessionsLogResource);
-		this.registerLogChannel(Constants.remoteTunnelLogChannelId, nls.localize('remoteTunnelLog', "Remote Tunnel"), this.environmentService.remoteTunnelLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 
 		const registerTelemetryChannel = () => {
 			if (supportsTelemetry(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
-				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
-				this.registerLogChannel(Constants.extensionTelemetryLogChannelId, nls.localize('extensionTelemetryLog', "Extension Telemetry"), this.environmentService.extHostTelemetryLogFile);
+				// Not a perfect check, but a nice way to indicate if we only have logging enabled for debug purposes and nothing is actually being sent
+				const justLoggingAndNotSending = isLoggingOnly(this.productService, this.environmentService);
+				const logSuffix = justLoggingAndNotSending ? ' (Not Sent)' : '';
+				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry{0}", logSuffix), this.environmentService.telemetryLogResource);
+				this.registerLogChannel(Constants.extensionTelemetryLogChannelId, nls.localize('extensionTelemetryLog', "Extension Telemetry{0}", logSuffix), this.environmentService.extHostTelemetryLogFile);
 				return true;
 			}
 			return false;

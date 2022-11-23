@@ -203,6 +203,7 @@ export interface MainThreadDocumentsShape extends IDisposable {
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
+	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean | 'auto';
 	cursorStyle?: TextEditorCursorStyle;
 	lineNumbers?: RenderLineNumbersType;
@@ -210,6 +211,7 @@ export interface ITextEditorConfigurationUpdate {
 
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
+	indentSize: number;
 	insertSpaces: boolean;
 	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: RenderLineNumbersType;
@@ -594,7 +596,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 }
 
 export interface MainThreadStorageShape extends IDisposable {
-	$initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined>;
+	$initializeExtensionStorage(shared: boolean, extensionId: string): Promise<string | undefined>;
 	$setValue(shared: boolean, extensionId: string, value: object): Promise<void>;
 	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void;
 }
@@ -1042,6 +1044,12 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void;
 	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
+
+	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
+	$removeKernelDetectionTask(handle: number): void;
+
+	$addKernelSourceActionProvider(handle: number, notebookType: string): Promise<void>;
+	$removeKernelSourceActionProvider(handle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -1069,6 +1077,16 @@ export interface MainThreadUriOpenersShape extends IDisposable {
 export interface ExtHostUriOpenersShape {
 	$canOpenUri(id: string, uri: UriComponents, token: CancellationToken): Promise<languages.ExternalUriOpenerPriority>;
 	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
+}
+
+export interface MainThreadProfileContentHandlersShape {
+	$registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void>;
+	$unregisterProfileContentHandler(id: string): Promise<void>;
+}
+
+export interface ExtHostProfileContentHandlersShape {
+	$saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<UriComponents | null>;
+	$readProfile(id: string, uri: UriComponents, token: CancellationToken): Promise<string | null>;
 }
 
 export interface ITextSearchComplete {
@@ -1392,6 +1410,7 @@ export interface DataTransferItemDTO {
 	readonly id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
+	readonly uriListData?: ReadonlyArray<string | UriComponents>;
 }
 
 export interface DataTransferDTO {
@@ -1789,7 +1808,7 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void;
+	$initializeTelemetryLevel(level: TelemetryLevel, debugLoggingOnly: boolean, productConfig?: { usage: boolean; error: boolean }): void;
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 
@@ -1939,7 +1958,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [boolean, string, string, ThemeColor];
+export type DecorationData = [boolean, string, string | ThemeIcon, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
@@ -2130,6 +2149,7 @@ export interface ExtHostNotebookKernelsShape {
 	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
+	$provideKernelSourceActions(handle: number, token: CancellationToken): Promise<notebookCommon.INotebookKernelSourceAction[]>;
 }
 
 export interface ExtHostInteractiveShape {
@@ -2138,7 +2158,7 @@ export interface ExtHostInteractiveShape {
 }
 
 export interface ExtHostStorageShape {
-	$acceptValue(shared: boolean, extensionId: string, value: object | undefined): void;
+	$acceptValue(shared: boolean, extensionId: string, value: string): void;
 }
 
 export interface ExtHostThemingShape {
@@ -2316,6 +2336,7 @@ export const MainContext = {
 	MainThreadCustomEditors: createProxyIdentifier<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
 	MainThreadUrls: createProxyIdentifier<MainThreadUrlsShape>('MainThreadUrls'),
 	MainThreadUriOpeners: createProxyIdentifier<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
+	MainThreadProfileContentHandlers: createProxyIdentifier<MainThreadProfileContentHandlersShape>('MainThreadProfileContentHandlers'),
 	MainThreadWorkspace: createProxyIdentifier<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createProxyIdentifier<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createProxyIdentifier<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -2375,6 +2396,7 @@ export const ExtHostContext = {
 	ExtHostStorage: createProxyIdentifier<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createProxyIdentifier<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
+	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>('ExtHostProfileContentHandlers'),
 	ExtHostOutputService: createProxyIdentifier<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHosLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostNotebook: createProxyIdentifier<ExtHostNotebookShape>('ExtHostNotebook'),

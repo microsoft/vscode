@@ -24,7 +24,7 @@ import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
-import { attachBadgeStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
@@ -88,6 +88,8 @@ import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { EditorOptions } from 'vs/editor/common/config/editorOptions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -114,7 +116,6 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	constructor(
 		@ICommandService private commandService: ICommandService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IThemeService private themeService: IThemeService,
 		@INotificationService private notificationService: INotificationService,
 	) { }
 
@@ -126,7 +127,7 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
 		const buttonContainer = append(container, $('.button-container'));
-		const actionButton = new SCMActionButton(buttonContainer, this.contextMenuService, this.commandService, this.themeService, this.notificationService);
+		const actionButton = new SCMActionButton(buttonContainer, this.contextMenuService, this.commandService, this.notificationService);
 
 		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
 	}
@@ -2147,7 +2148,7 @@ class SCMInputWidget {
 		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
 
 		if (inputFontFamily.toLowerCase() === 'editor') {
-			return this.configurationService.getValue<string>('editor.fontFamily').trim();
+			return EditorOptions.fontFamily.validate(this.configurationService.getValue<string | string[]>('editor.fontFamily')).trim();
 		}
 
 		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
@@ -2329,7 +2330,7 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 	}
 
-	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
+	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
 		if (height === undefined) {
 			return;
 		}
@@ -2511,7 +2512,6 @@ export class SCMActionButton implements IDisposable {
 		private readonly container: HTMLElement,
 		private readonly contextMenuService: IContextMenuService,
 		private readonly commandService: ICommandService,
-		private readonly themeService: IThemeService,
 		private readonly notificationService: INotificationService
 	) {
 	}
@@ -2547,15 +2547,16 @@ export class SCMActionButton implements IDisposable {
 				addPrimaryActionToDropdown: false,
 				contextMenuProvider: this.contextMenuService,
 				title: button.command.tooltip,
-				supportIcons: true
+				supportIcons: true,
+				...defaultButtonStyles
 			});
 		} else if (button.description) {
 			// ButtonWithDescription
-			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
+			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip, ...defaultButtonStyles });
 			(this.button as ButtonWithDescription).description = button.description;
 		} else {
 			// Button
-			this.button = new Button(this.container, { supportIcons: true, title: button.command.tooltip });
+			this.button = new Button(this.container, { supportIcons: true, title: button.command.tooltip, ...defaultButtonStyles });
 		}
 
 		this.button.enabled = button.enabled;
@@ -2563,7 +2564,6 @@ export class SCMActionButton implements IDisposable {
 		this.button.onDidClick(async () => await this.executeCommand(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);
-		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
 	}
 
 	focus(): void {

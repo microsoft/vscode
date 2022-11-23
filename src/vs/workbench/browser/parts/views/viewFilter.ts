@@ -11,7 +11,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -26,6 +26,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/br
 import { SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter } from 'vs/base/common/event';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');
@@ -152,9 +153,9 @@ export class FilterWidget extends Widget {
 			placeholder: this.options.placeholder,
 			ariaLabel: this.options.ariaLabel,
 			history: this.options.history || [],
-			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
+			inputBoxStyles: defaultInputBoxStyles
 		}));
-		this._register(attachInputBoxStyler(inputBox, this.themeService));
 		if (this.options.text) {
 			inputBox.value = this.options.text;
 		}

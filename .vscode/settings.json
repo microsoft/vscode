@@ -12,7 +12,8 @@
 		}
 	},
 	"files.associations": {
-		"cglicenses.json": "jsonc"
+		"cglicenses.json": "jsonc",
+		"*.tst": "typescript"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -27,7 +28,8 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
-		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/editor/test/node/diffing/fixtures/**": true,
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",

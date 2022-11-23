@@ -53,7 +53,7 @@ import { StateService } from 'vs/platform/state/node/stateService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -105,7 +105,7 @@ class CliMain extends Disposable {
 		});
 	}
 
-	private async initServices(): Promise<[IInstantiationService, OneDataSystemAppender[]]> {
+	private async initServices(): Promise<[IInstantiationService, ITelemetryAppender[]]> {
 		const services = new ServiceCollection();
 
 		// Product
@@ -153,7 +153,7 @@ class CliMain extends Disposable {
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(productService.win32RegValueName))
+		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(logService, productService.win32RegValueName))
 			: environmentService.policyFile ? this._register(new FilePolicyService(environmentService.policyFile, fileService, logService))
 				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
@@ -190,7 +190,7 @@ class CliMain extends Disposable {
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
 
 		// Telemetry
-		const appenders: OneDataSystemAppender[] = [];
+		const appenders: ITelemetryAppender[] = [];
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.ariaKey) {
