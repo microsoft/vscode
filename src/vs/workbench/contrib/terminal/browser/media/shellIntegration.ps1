@@ -100,11 +100,3 @@ function Set-MappedKeyHandlers {
 }
 
 Set-MappedKeyHandlers
-
-# Send aliases to the terminal
-$result = $(Get-Alias | Select-Object Name, Definition)
-$resultStr = Out-String -InputObject $result
-$resultStr = Set-Serialized($resultStr)
-[Console]::Write("`e]633;P;UserAliases=$resultStr`a")
-
-
