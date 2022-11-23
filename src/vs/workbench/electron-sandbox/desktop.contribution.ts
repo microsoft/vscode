@@ -205,7 +205,7 @@ import product from 'vs/platform/product/common/product';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
-			'window.windowControlsOverlay.enabled': {
+			'window.enableWindowControlsOverlay': {
 				'type': 'boolean',
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
