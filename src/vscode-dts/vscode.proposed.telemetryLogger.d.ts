@@ -5,6 +5,15 @@
 
 declare module 'vscode' {
 
+	/**
+	 * A special value wrapper denoting a value that is safe to not clean.
+	 * This is to be used when you can guarantee no identifiable information is contained in the value and the cleaning is improperly redacting it.
+	 */
+	export class TrustedTelemetryValue<T = any> {
+		readonly value: T;
+		constructor(value: T);
+	}
+
 	export interface TelemetryLogger {
 		//TODO feels weird having this on all loggers
 		readonly onDidChangeEnableStates: Event<TelemetryLogger>;
@@ -17,7 +26,7 @@ declare module 'vscode' {
 		 * @param eventName The event name to log
 		 * @param data The data to log
 		 */
-		logUsage(eventName: string, data?: Record<string, string | number | boolean>): void;
+		logUsage(eventName: string, data?: Record<string, any | TrustedTelemetryValue>): void;
 
 		/**
 		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetryAppender.logEvent` to log the event. Differs from `logUsage` in that it will log the event if the telemetry setting is Error+.
@@ -25,7 +34,7 @@ declare module 'vscode' {
 		 * @param eventName The event name to log
 		 * @param data The data to log
 		 */
-		logError(eventName: string, data?: Record<string, any>): void;
+		logError(eventName: string, data?: Record<string, any | TrustedTelemetryValue>): void;
 
 		/**
 		 * Calls `TelemetryAppender.logException`. Does cleaning, telemetry checks, and data mix-in.
@@ -34,7 +43,7 @@ declare module 'vscode' {
 		 * @param exception The error object which contains the stack trace cleaned of PII
 		 * @param data Additional data to log alongside the stack trace
 		 */
-		logError(exception: Error, data?: Record<string, any>): void;
+		logError(exception: Error, data?: Record<string, any | TrustedTelemetryValue>): void;
 
 		dispose(): void;
 	}

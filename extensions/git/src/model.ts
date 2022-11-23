@@ -438,6 +438,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
+				this.logger.trace('Automatic detection of git submodules is not enabled.');
 				return;
 			}
 
@@ -449,7 +450,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			repository.submodules
 				.slice(0, submodulesLimit)
 				.map(r => path.join(repository.root, r.path))
-				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+				.forEach(p => {
+					this.logger.trace(`Opening submodule: '${p}'`);
+					this.eventuallyScanPossibleGitRepository(p);
+				});
 		};
 
 		const updateMergeChanges = () => {

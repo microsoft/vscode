@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use super::paths::{InstalledServer, LastUsedServers, ServerPaths};
+use crate::constants::{APPLICATION_NAME, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME};
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::update_service::{
@@ -334,7 +335,8 @@ async fn download_server(
 
 	info!(
 		log,
-		"Downloading VS Code server -> {}",
+		"Downloading {} server -> {}",
+		QUALITYLESS_PRODUCT_NAME,
 		save_path.display()
 	);
 
@@ -445,7 +447,7 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 		};
 		info!(self.logger, "Found running server (pid={})", pid);
 		if !Path::new(&self.server_paths.logfile).exists() {
-			warning!(self.logger, "VS Code Server is running but its logfile is missing. Don't delete the VS Code Server manually, run the command 'code-server prune'.");
+			warning!(self.logger, "{} Server is running but its logfile is missing. Don't delete the {} Server manually, run the command '{} prune'.", QUALITYLESS_PRODUCT_NAME, QUALITYLESS_PRODUCT_NAME, APPLICATION_NAME);
 			return Ok(None);
 		}
 
@@ -479,7 +481,10 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 
 	/// Ensures the server is set up in the configured directory.
 	pub async fn setup(&self) -> Result<(), AnyError> {
-		debug!(self.logger, "Installing and setting up VS Code Server...");
+		debug!(
+			self.logger,
+			"Installing and setting up {}...", QUALITYLESS_SERVER_NAME
+		);
 		check_and_create_dir(&self.server_paths.server_dir).await?;
 		install_server_if_needed(
 			self.logger,

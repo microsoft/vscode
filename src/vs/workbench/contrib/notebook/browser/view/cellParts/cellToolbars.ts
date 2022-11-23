@@ -76,7 +76,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		return betweenCellToolbar;
 	}
 
-	override didRenderCell(element: ICellViewModel): void {
+	protected override didRenderCell(element: ICellViewModel): void {
 		const betweenCellToolbar = this._initialize();
 		betweenCellToolbar.context = <INotebookCellActionContext>{
 			ui: true,

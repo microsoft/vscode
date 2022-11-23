@@ -261,24 +261,24 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registr
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
 
 // Register Commands
-CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
+CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0], { tab });
+		extensionService.open(extension[0], { tab, preserveFocus });
 	}
 });
 
-CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
+CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const commandService = accessor.get(ICommandService);
 
 	const [extension] = await extensionService.getExtensions([{ id: extensionId }], CancellationToken.None);
 	if (extension) {
-		return extensionService.open(extension, { tab });
+		return extensionService.open(extension, { tab, preserveFocus });
 	}
 
-	return commandService.executeCommand('_extensions.manage', extensionId, tab);
+	return commandService.executeCommand('_extensions.manage', extensionId, tab, preserveFocus);
 });
 
 CommandsRegistry.registerCommand({
@@ -833,32 +833,44 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.installWebExtensionFromLocation',
-			title: { value: localize('installWebExtensionFromLocation', "Install Web Extension..."), original: 'Install Web Extension...' },
+			id: 'workbench.extensions.action.installExtensionFromLocation',
+			title: { value: localize('installExtensionFromLocation', "Install Extension from Location..."), original: 'Install Extension from Location...' },
 			category: Categories.Developer,
 			menu: [{
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_WEB_SERVER)
+				when: ContextKeyExpr.or(CONTEXT_HAS_WEB_SERVER, CONTEXT_HAS_LOCAL_SERVER)
 			}],
 			run: async (accessor: ServicesAccessor) => {
-				const quickInputService = accessor.get(IQuickInputService);
 				const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
-
-				const disposables = new DisposableStore();
-				const quickPick = disposables.add(quickInputService.createQuickPick());
-				quickPick.title = localize('installFromLocation', "Install Web Extension from Location");
-				quickPick.customButton = true;
-				quickPick.customLabel = localize('install button', "Install");
-				quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
-				quickPick.ignoreFocusOut = true;
-				disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
-					quickPick.hide();
-					if (quickPick.value) {
-						extensionManagementService.installWebExtension(URI.parse(quickPick.value));
+				if (isWeb) {
+					const quickInputService = accessor.get(IQuickInputService);
+					const disposables = new DisposableStore();
+					const quickPick = disposables.add(quickInputService.createQuickPick());
+					quickPick.title = localize('installFromLocation', "Install Extension from Location");
+					quickPick.customButton = true;
+					quickPick.customLabel = localize('install button', "Install");
+					quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
+					quickPick.ignoreFocusOut = true;
+					disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
+						quickPick.hide();
+						if (quickPick.value) {
+							extensionManagementService.installFromLocation(URI.parse(quickPick.value));
+						}
+					}));
+					disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+					quickPick.show();
+				} else {
+					const fileDialogService = accessor.get(IFileDialogService);
+					const extensionLocation = await fileDialogService.showOpenDialog({
+						canSelectFolders: true,
+						canSelectFiles: false,
+						canSelectMany: false,
+						title: localize('installFromLocation', "Install Extension from Location"),
+					});
+					if (extensionLocation?.[0]) {
+						extensionManagementService.installFromLocation(extensionLocation[0]);
 					}
-				}));
-				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
-				quickPick.show();
+				}
 			}
 		});
 
