@@ -223,6 +223,7 @@ configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration
 
 export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorTheme[]) {
 	// updates enum for the 'workbench.colorTheme` setting
+	themes.sort((a, b) => a.label.localeCompare(b.label));
 	colorThemeSettingEnum.splice(0, colorThemeSettingEnum.length, ...themes.map(t => t.settingsId));
 	colorThemeSettingEnumDescriptions.splice(0, colorThemeSettingEnumDescriptions.length, ...themes.map(t => t.description || ''));
 	colorThemeSettingEnumItemLabels.splice(0, colorThemeSettingEnumItemLabels.length, ...themes.map(t => t.label || ''));
