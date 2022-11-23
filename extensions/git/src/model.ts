@@ -33,6 +33,31 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
+class UnsafeRepositorySet extends Set<string> {
+	constructor() {
+		super();
+		this.updateContextKey();
+	}
+
+	override add(value: string): this {
+		const result = super.add(value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	override delete(value: string): boolean {
+		const result = super.delete(value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	private updateContextKey(): void {
+		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
+	}
+}
+
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -109,6 +134,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
+
+	private _unsafeRepositories = new UnsafeRepositorySet();
 
 	private disposables: Disposable[] = [];
 
@@ -394,6 +421,38 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
+			// Handle unsafe repository
+			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'$/m.exec(ex.stderr);
+			if (match && match.length === 2) {
+				const unsafeRepositoryPath = match[1];
+
+				if (!this._unsafeRepositories.has(unsafeRepositoryPath)) {
+					this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
+
+					// Notification
+					const openRepository = l10n.t('Open Repository');
+					const learnMore = l10n.t('Learn More');
+
+					window.showWarningMessage(l10n.t('The git repository at "{0}" has been detected as potentially unsafe as it\'s owned by someone else other than the current user. Do you want to open the repository?', unsafeRepositoryPath), openRepository, learnMore)
+						.then(async choice => {
+							if (choice === openRepository) {
+								// Mark as Safe
+								await this.git.addSafeDirectory(unsafeRepositoryPath);
+								this._unsafeRepositories.delete(unsafeRepositoryPath);
+
+								this.openRepository(unsafeRepositoryPath);
+							} else if (choice === learnMore) {
+								// Learn More
+								commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
+							}
+						});
+
+					this._unsafeRepositories.add(unsafeRepositoryPath);
+				}
+
+				return;
+			}
+
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}

@@ -684,6 +684,11 @@ export class Git {
 			}
 		}
 	}
+
+	async addSafeDirectory(repositoryPath: string): Promise<void> {
+		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
+		return;
+	}
 }
 
 export interface Commit {
