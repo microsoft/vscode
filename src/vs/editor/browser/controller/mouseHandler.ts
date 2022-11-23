@@ -222,7 +222,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	public _onMouseMove(e: EditorMouseEvent): void {
+	protected _onMouseMove(e: EditorMouseEvent): void {
 		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
 		if (!targetIsWidget) {
 			e.preventDefault();
@@ -244,7 +244,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	public _onMouseLeave(e: EditorMouseEvent): void {
+	protected _onMouseLeave(e: EditorMouseEvent): void {
 		if (this._mouseLeaveMonitor) {
 			this._mouseLeaveMonitor.dispose();
 			this._mouseLeaveMonitor = null;
@@ -256,14 +256,14 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	public _onMouseUp(e: EditorMouseEvent): void {
+	protected _onMouseUp(e: EditorMouseEvent): void {
 		this.viewController.emitMouseUp({
 			event: e,
 			target: this._createMouseTarget(e, true)
 		});
 	}
 
-	public _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
+	protected _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
 		const t = this._createMouseTarget(e, true);
 
 		const targetIsContent = (t.type === MouseTargetType.CONTENT_TEXT || t.type === MouseTargetType.CONTENT_EMPTY);
@@ -308,7 +308,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	public _onMouseWheel(e: IMouseWheelEvent): void {
+	protected _onMouseWheel(e: IMouseWheelEvent): void {
 		this.viewController.emitMouseWheel(e);
 	}
 }

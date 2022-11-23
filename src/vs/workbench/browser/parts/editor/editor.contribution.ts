@@ -129,7 +129,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, LifecyclePhase.Ready);
 
 registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu);
-
 //#endregion
 
 //#region Quick Access

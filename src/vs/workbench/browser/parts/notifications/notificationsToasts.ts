@@ -471,7 +471,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		this.mapNotificationToToast.forEach(({ toast }) => {
 			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
 			toast.style.background = backgroundColor ? backgroundColor : '';

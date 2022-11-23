@@ -244,6 +244,10 @@ class Slice implements ISequence {
 		}
 	}
 
+	get text(): string {
+		return [...this.elements].map(e => String.fromCharCode(e)).join('');
+	}
+
 	getElement(offset: number): number {
 		return this.elements[offset];
 	}
@@ -259,9 +263,17 @@ class Slice implements ISequence {
 		const prevCategory = getCategory(length > 0 ? this.elements[length - 1] : -1);
 		const nextCategory = getCategory(length < this.elements.length ? this.elements[length] : -1);
 
+		if (prevCategory === CharBoundaryCategory.LineBreakCR && nextCategory === CharBoundaryCategory.LineBreakLF) {
+			// don't break between \r and \n
+			return 0;
+		}
+
 		let score = 0;
 		if (prevCategory !== nextCategory) {
 			score += 10;
+			if (nextCategory === CharBoundaryCategory.WordUpper) {
+				score += 1;
+			}
 		}
 
 		score += getCategoryBoundaryScore(prevCategory);
@@ -294,21 +306,44 @@ class Slice implements ISequence {
 }
 
 const enum CharBoundaryCategory {
-	Word = 0,
-	End = 1,
-	Other = 2,
-	Space = 3,
+	WordLower,
+	WordUpper,
+	WordNumber,
+	End,
+	Other,
+	Space,
+	LineBreakCR,
+	LineBreakLF,
 }
 
+const score: Record<CharBoundaryCategory, number> = {
+	[CharBoundaryCategory.WordLower]: 0,
+	[CharBoundaryCategory.WordUpper]: 0,
+	[CharBoundaryCategory.WordNumber]: 0,
+	[CharBoundaryCategory.End]: 10,
+	[CharBoundaryCategory.Other]: 2,
+	[CharBoundaryCategory.Space]: 3,
+	[CharBoundaryCategory.LineBreakCR]: 10,
+	[CharBoundaryCategory.LineBreakLF]: 10,
+};
+
 function getCategoryBoundaryScore(category: CharBoundaryCategory): number {
-	return category;
+	return score[category];
 }
 
 function getCategory(charCode: number): CharBoundaryCategory {
-	if (isSpace(charCode)) {
+	if (charCode === CharCode.LineFeed) {
+		return CharBoundaryCategory.LineBreakLF;
+	} else if (charCode === CharCode.CarriageReturn) {
+		return CharBoundaryCategory.LineBreakCR;
+	} else if (isSpace(charCode)) {
 		return CharBoundaryCategory.Space;
-	} else if (isWordChar(charCode)) {
-		return CharBoundaryCategory.Word;
+	} else if (charCode >= CharCode.a && charCode <= CharCode.z) {
+		return CharBoundaryCategory.WordLower;
+	} else if (charCode >= CharCode.A && charCode <= CharCode.Z) {
+		return CharBoundaryCategory.WordUpper;
+	} else if (charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9) {
+		return CharBoundaryCategory.WordNumber;
 	} else if (charCode === -1) {
 		return CharBoundaryCategory.End;
 	} else {
@@ -316,14 +351,6 @@ function getCategory(charCode: number): CharBoundaryCategory {
 	}
 }
 
-function isWordChar(charCode: number): boolean {
-	return (
-		(charCode >= CharCode.a && charCode <= CharCode.z)
-		|| (charCode >= CharCode.A && charCode <= CharCode.Z)
-		|| (charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9)
-	);
-}
-
 function isSpace(charCode: number): boolean {
-	return charCode === CharCode.Space || charCode === CharCode.Tab || charCode === CharCode.LineFeed || charCode === CharCode.CarriageReturn;
+	return charCode === CharCode.Space || charCode === CharCode.Tab;
 }

@@ -54,7 +54,7 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 		case LogLevel.Info: logger.info(message); break;
 		case LogLevel.Warning: logger.warn(message); break;
 		case LogLevel.Error: logger.error(message); break;
-		default: throw new Error('Invalid log level');
+		default: throw new Error(`Invalid log level ${level}`);
 	}
 }
 

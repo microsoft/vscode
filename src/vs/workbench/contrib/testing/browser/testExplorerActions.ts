@@ -41,6 +41,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const category = Categories.Test;
 
@@ -669,10 +671,15 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: hasAnyTestProvider,
-			},
+			}, {
+				id: MenuId.EditorContext,
+				group: 'testing',
+				order: group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug,
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
+			}]
 		});
 	}
 
@@ -749,6 +756,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				group: this.group,
 				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
+		} else if (isCodeEditor(activeControl)) {
+			MessageController.get(activeControl)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
 		}
 	}
 }
@@ -787,10 +796,16 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-			},
+			}, {
+				id: MenuId.EditorContext,
+				group: 'testing',
+				// add 0.1 to be after the "at cursor" commands
+				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
+			}],
 		});
 	}
 
@@ -828,6 +843,10 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 				tests: discovered,
 				group: this.group,
 			});
+		}
+
+		if (isCodeEditor(control)) {
+			MessageController.get(control)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
 		}
 
 		return undefined;

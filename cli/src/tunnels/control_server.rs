@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::commands::tunnels::ShutdownSignal;
-use crate::constants::{CONTROL_PORT, PROTOCOL_VERSION, VSCODE_CLI_VERSION};
+use crate::constants::{
+	CONTROL_PORT, EDITOR_WEB_URL, PROTOCOL_VERSION, QUALITYLESS_SERVER_NAME, VSCODE_CLI_VERSION,
+};
 use crate::log;
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
@@ -17,6 +19,7 @@ use crate::util::http::{
 	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
 };
 use crate::util::io::SilentCopyProgress;
+use crate::util::is_integrated_cli;
 use crate::util::sync::{new_barrier, Barrier};
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
@@ -130,7 +133,10 @@ pub struct ServerTermination {
 }
 
 fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	debug!(log, "VS Code Server is listening for incoming connections");
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
 
 	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
 	let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
@@ -141,7 +147,12 @@ fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		current_dir
 	};
 
-	let mut addr = url::Url::parse("https://insiders.vscode.dev").unwrap();
+	let base_web_url = match EDITOR_WEB_URL {
+		Some(u) => u,
+		None => return,
+	};
+
+	let mut addr = url::Url::parse(base_web_url).unwrap();
 	{
 		let mut ps = addr.path_segments_mut().unwrap();
 		ps.push("tunnel");
@@ -167,7 +178,7 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
-	shutdown_rx: mpsc::Receiver<ShutdownSignal>,
+	shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
 	print_listening(log, &tunnel.name);
@@ -773,6 +784,13 @@ async fn handle_update(
 	log: &log::Logger,
 	params: &UpdateParams,
 ) -> Result<UpdateResult, AnyError> {
+	if let Ok(true) = is_integrated_cli() {
+		return Ok(UpdateResult {
+			up_to_date: true,
+			did_update: false,
+		});
+	}
+
 	let update_service = UpdateService::new(log.clone(), http.clone());
 	let updater = SelfUpdate::new(&update_service)?;
 	let latest_release = updater.get_current_release().await?;

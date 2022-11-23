@@ -94,7 +94,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
@@ -228,12 +228,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
-
-		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh && !isWeb) {
@@ -253,6 +250,9 @@ export class TitlebarPart extends Part implements ITitleService {
 				}
 			}
 		}
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Menubar: install a custom menu bar depending on configuration
 		// and when not in activity bar
