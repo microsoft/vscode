@@ -14,6 +14,8 @@ import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -145,13 +147,38 @@ export class CommentService extends Disposable implements ICommentService {
 	private _isCommentingEnabled: boolean = true;
 
 	constructor(
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this._register(layoutService.onDidChangeZenMode(e => {
-			this.enableCommenting(!e);
+		this._handleConfiguration();
+		this._handleZenMode();
+	}
+
+	private _handleConfiguration() {
+		this._isCommentingEnabled = this._defaultCommentingEnablement;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('comments.visible')) {
+				this.enableCommenting(this._defaultCommentingEnablement);
+			}
 		}));
+	}
+
+	private _handleZenMode() {
+		let preZenModeValue: boolean = this._isCommentingEnabled;
+		this._register(this.layoutService.onDidChangeZenMode(e => {
+			if (e) {
+				preZenModeValue = this._isCommentingEnabled;
+				this.enableCommenting(false);
+			} else {
+				this.enableCommenting(preZenModeValue);
+			}
+		}));
+	}
+
+	private get _defaultCommentingEnablement(): boolean {
+		return !!this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).visible;
 	}
 
 	get isCommentingEnabled(): boolean {

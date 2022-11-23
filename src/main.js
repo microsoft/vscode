@@ -99,19 +99,16 @@ if (locale) {
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
-if (product.quality === 'insider' || product.quality === 'exploration') {
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows,
+// and so that the traffic lights are rendered properly
+// on macOS when using a custom titlebar.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
 
-	// Pass in the locale to Electron so that the
-	// Windows Control Overlay is rendered correctly on Windows,
-	// and so that the traffic lights are rendered properly
-	// on macOS when using a custom titlebar.
-	// If the locale is `qps-ploc`, the Microsoft
-	// Pseudo Language Language Pack is being used.
-	// In that case, use `en` as the Electron locale.
-
-	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
-	app.commandLine.appendSwitch('lang', electronLocale);
-}
+const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+app.commandLine.appendSwitch('lang', electronLocale);
 
 // Load our code once ready
 app.once('ready', function () {
@@ -576,8 +573,7 @@ async function resolveNlsConfiguration() {
 		// VS Code moves to Electron 22.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
-		if ((product.quality === 'insider' || product.quality === 'exploration')
-			&& 'getPreferredSystemLanguages' in app
+		if ('getPreferredSystemLanguages' in app
 			&& typeof app.getPreferredSystemLanguages === 'function'
 			&& app.getPreferredSystemLanguages().length) {
 			appLocale = app.getPreferredSystemLanguages()[0];

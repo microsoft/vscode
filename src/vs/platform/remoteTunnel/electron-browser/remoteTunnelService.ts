@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
 import { ChildProcess, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -70,6 +70,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		const remoteTunnelLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
 		this._logger = this._register(loggerService.createLogger(remoteTunnelLogResource, { name: LOGGER_NAME }));
 		this._startTunnelProcessDelayer = new Delayer(100);
+
+		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
 
 		this._register(sharedProcessLifecycleService.onWillShutdown(e => {
 			if (this._tunnelProcess) {
@@ -154,7 +156,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
 			}
 		};
-		const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token], onOutput);
+		const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onOutput);
 		this._tunnelProcess = loginProcess;
 		try {
 			await loginProcess;
@@ -175,7 +177,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		} else {
 			this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.openTunnel', 'Opening tunnel')));
 		}
-		const args = ['--parent-process-id', String(process.pid), '--accept-server-license-terms'];
+		const args = ['--parent-process-id', String(process.pid), '--accept-server-license-terms', '--log', LogLevelToString(this._logger.getLevel())];
 		if (hostName) {
 			args.push('--name', hostName);
 		} else {

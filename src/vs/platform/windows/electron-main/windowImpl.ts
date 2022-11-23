@@ -30,7 +30,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
@@ -44,6 +44,11 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
+import { hostname, release } from 'os';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -285,7 +290,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (useWindowControlsOverlay(this.configurationService, this.productService)) {
+				if (useWindowControlsOverlay(this.configurationService)) {
 
 					// This logic will not perfectly guess the right colors
 					// to use on initialization, but prefer to keep things
@@ -316,7 +321,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService, this.productService)) || isMacintosh)) {
+			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
 				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -727,19 +732,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					//          we cannot detect AppLocker use currently, but make a
 					//          guess based on the reason and exit code.
 					if (isWindows && details?.reason === 'launch-failed' && details.exitCode === 18 && await this.nativeHostMainService.isAdmin(undefined)) {
-						await this.dialogMainService.showMessageBox({
-							title: this.productService.nameLong,
-							type: 'error',
-							buttons: [
-								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
-							],
-							message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
-							detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
-							noLink: true,
-							defaultId: 0
-						}, this._win);
-
-						await this.destroyWindow(false, false);
+						await this.handleWindowsAdminCrash(details);
 					}
 
 					// Any other crash: offer to restart
@@ -773,6 +766,60 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 				break;
 		}
+	}
+
+	private async handleWindowsAdminCrash(details: { reason: string; exitCode: number }) {
+
+		// Prepare telemetry event (TODO@bpasero remove me eventually)
+		const appenders: ITelemetryAppender[] = [];
+		const isInternal = isInternalTelemetry(this.productService, this.configurationService);
+		if (supportsTelemetry(this.productService, this.environmentMainService)) {
+			if (this.productService.aiConfig && this.productService.aiConfig.ariaKey) {
+				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
+			}
+
+			const { installSourcePath } = this.environmentMainService;
+
+			const config: ITelemetryServiceConfig = {
+				appenders,
+				sendErrorTelemetry: false,
+				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, this.stateMainService.getItem<string>(machineIdKey), isInternal, installSourcePath),
+				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
+			};
+
+			const telemetryService = new TelemetryService(config, this.configurationService, this.productService);
+
+			type WindowAdminErrorClassification = {
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+				owner: 'bpasero';
+				comment: 'Provides insight into reasons the vscode window had an error when running as admin.';
+			};
+			type WindowAdminErrorEvent = {
+				reason: string | undefined;
+				code: number | undefined;
+			};
+			await telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
+		}
+
+		// Inform user
+		await this.dialogMainService.showMessageBox({
+			title: this.productService.nameLong,
+			type: 'error',
+			buttons: [
+				mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+			],
+			message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
+			detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
+			noLink: true,
+			defaultId: 0
+		}, this._win);
+
+		// Ensure to await flush telemetry
+		await Promise.all(appenders.map(appender => appender.flush()));
+
+		// Exit
+		await this.destroyWindow(false, false);
 	}
 
 	private async destroyWindow(reopen: boolean, skipRestoreEditors: boolean): Promise<void> {
