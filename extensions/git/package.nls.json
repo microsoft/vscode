@@ -322,6 +322,9 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
+	"view.workbench.scm.dircoverRepositories": {
+		"message": "Discovering repositories..."
+	},
 	"view.workbench.scm.unsafeRepository": {
 		"message": "One or more repositories have been detected as potentially unsafe as they are owned by someone else other than the current user.\nPlease review your notifications to take the appropriate action for each repository that was detected potentially unsafe.\n[Learn More](https://aka.ms/vscode-scm)"
 	},

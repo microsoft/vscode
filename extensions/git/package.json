@@ -2710,6 +2710,11 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.dircoverRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState != empty && workspaceFolderCount != 0 && git.state != initialized"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.folder%",
         "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
