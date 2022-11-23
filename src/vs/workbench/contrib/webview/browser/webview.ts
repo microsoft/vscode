@@ -10,11 +10,13 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -65,6 +67,16 @@ export interface IWebviewService {
 	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
 }
 
+export interface WebviewInitInfo {
+	readonly providedViewType?: string;
+	readonly origin?: string;
+
+	readonly options: WebviewOptions;
+	readonly contentOptions: WebviewContentOptions;
+
+	readonly extension: WebviewExtensionDescription | undefined;
+}
+
 export const enum WebviewContentPurpose {
 	NotebookRenderer = 'notebookRenderer',
 	CustomEditor = 'customEditor',
@@ -85,9 +97,6 @@ export interface WebviewOptions {
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 }
 
-/**
- *
- */
 export interface WebviewContentOptions {
 	/**
 	 * Should the webview allow `acquireVsCodeApi` to be called multiple times? Defaults to false.
@@ -116,8 +125,10 @@ export interface WebviewContentOptions {
 
 	/**
 	 * Are command uris enabled in the webview? Defaults to false.
+	 *
+	 * TODO: This is only supported by mainThreadWebviews and should be removed from here.
 	 */
-	readonly enableCommandUris?: boolean;
+	readonly enableCommandUris?: boolean | readonly string[];
 }
 
 /**
@@ -130,18 +141,25 @@ export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: Webvi
 		&& a.allowForms === b.allowForms
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
 		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
-		&& a.enableCommandUris === b.enableCommandUris
+		&& areEnableCommandUrisEqual(a, b)
 	);
+}
+
+function areEnableCommandUrisEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
+	if (a.enableCommandUris === b.enableCommandUris) {
+		return true;
+	}
+
+	if (Array.isArray(a.enableCommandUris) && Array.isArray(b.enableCommandUris)) {
+		return equals(a.enableCommandUris, b.enableCommandUris);
+	}
+
+	return false;
 }
 
 export interface WebviewExtensionDescription {
 	readonly location?: URI;
 	readonly id: ExtensionIdentifier;
-}
-
-export interface IDataLinkClickEvent {
-	readonly dataURL: string;
-	readonly downloadName?: string;
 }
 
 export interface WebviewMessageReceivedEvent {
@@ -152,24 +170,37 @@ export interface WebviewMessageReceivedEvent {
 export interface IWebview extends IDisposable {
 
 	/**
-	 * External identifier of this webview.
-	 */
-	readonly id: string;
-
-	/**
-	 * The origin this webview itself is loaded from. May not be unique
-	 */
-	readonly origin: string;
-
-	/**
 	 * The original view type of the webview.
 	 */
 	readonly providedViewType?: string;
 
+	/**
+	 * The origin this webview itself is loaded from. May not be unique.
+	 */
+	readonly origin: string;
+
+	/**
+	 * The html content of the webview.
+	 */
 	html: string;
+
+	/**
+	 * Control what content is allowed/blocked inside the webview.
+	 */
 	contentOptions: WebviewContentOptions;
+
+	/**
+	 * List of roots from which local resources can be loaded.
+	 *
+	 * Requests for local resources not in this list are blocked.
+	 */
 	localResourcesRoot: readonly URI[];
+
+	/**
+	 * The extension that created/owns this webview.
+	 */
 	extension: WebviewExtensionDescription | undefined;
+
 	initialScrollProgress: number;
 	state: string | undefined;
 
@@ -239,6 +270,8 @@ export interface IOverlayWebview extends IWebview {
 	 */
 	readonly container: HTMLElement;
 
+	origin: string;
+
 	options: WebviewOptions;
 
 	/**
@@ -271,4 +304,62 @@ export interface IOverlayWebview extends IWebview {
 	 * @param clippingContainer Optional container to clip the webview to. This should generally be a parent of `element`.
 	 */
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement): void;
+}
+
+/**
+ * Stores the unique origins for a webview.
+ *
+ * These are randomly generated
+ */
+export class WebviewOriginStore {
+
+	private readonly _memento: Memento;
+	private readonly _state: MementoObject;
+
+	constructor(
+		rootStorageKey: string,
+		@IStorageService storageService: IStorageService,
+	) {
+		this._memento = new Memento(rootStorageKey, storageService);
+		this._state = this._memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	public getOrigin(viewType: string, additionalKey: string | undefined): string {
+		const key = this._getKey(viewType, additionalKey);
+
+		const existing = this._state[key];
+		if (existing && typeof existing === 'string') {
+			return existing;
+		}
+
+		const newOrigin = generateUuid();
+		this._state[key] = newOrigin;
+		this._memento.saveMemento();
+		return newOrigin;
+	}
+
+	private _getKey(viewType: string, additionalKey: string | undefined): string {
+		return JSON.stringify({ viewType, key: additionalKey });
+	}
+}
+
+/**
+ * Stores the unique origins for a webview.
+ *
+ * These are randomly generated, but keyed on extension and webview viewType.
+ */
+export class ExtensionKeyedWebviewOriginStore {
+
+	private readonly _store: WebviewOriginStore;
+
+	constructor(
+		rootStorageKey: string,
+		@IStorageService storageService: IStorageService,
+	) {
+		this._store = new WebviewOriginStore(rootStorageKey, storageService);
+	}
+
+	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
+		return this._store.getOrigin(viewType, extId.value);
+	}
 }

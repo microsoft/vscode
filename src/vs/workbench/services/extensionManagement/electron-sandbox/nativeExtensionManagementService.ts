@@ -15,7 +15,6 @@ import { delta } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { joinPath } from 'vs/base/common/resources';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { Schemas } from 'vs/base/common/network';
@@ -69,22 +68,25 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
 		const { location, cleanup } = await this.downloadVsix(vsix);
 		try {
-			return await super.install(location, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+			options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+			return await super.install(location, options);
 		} finally {
 			await cleanup();
 		}
 	}
 
 	override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		return super.installFromGallery(extension, { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		installOptions = installOptions?.profileLocation ? installOptions : { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		return super.installFromGallery(extension, installOptions);
 	}
 
 	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		return super.uninstall(extension, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		return super.uninstall(extension, options);
 	}
 
-	override getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return super.getInstalled(type, this.userDataProfileService.currentProfile.extensionsResource);
+	override getInstalled(type: ExtensionType | null = null, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<ILocalExtension[]> {
+		return super.getInstalled(type, profileLocation);
 	}
 
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
@@ -92,7 +94,7 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 			return { location: vsix, async cleanup() { } };
 		}
 		this.logService.trace('Downloading extension from', vsix.toString());
-		const location = joinPath(URI.file(this.nativeEnvironmentService.extensionsDownloadPath), generateUuid());
+		const location = joinPath(this.nativeEnvironmentService.extensionsDownloadLocation, generateUuid());
 		await this.downloadService.download(vsix, location);
 		this.logService.info('Downloaded extension to', location.toString());
 		const cleanup = async () => {
@@ -106,8 +108,7 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	}
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
-		const previousExtensionsResource = e.previous.extensionsResource ?? joinPath(e.previous.location, EXTENSIONS_RESOURCE_NAME);
-		const oldExtensions = await super.getInstalled(ExtensionType.User, previousExtensionsResource);
+		const oldExtensions = await super.getInstalled(ExtensionType.User, e.previous.extensionsResource);
 		if (e.preserveData) {
 			const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(oldExtensions
 				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */

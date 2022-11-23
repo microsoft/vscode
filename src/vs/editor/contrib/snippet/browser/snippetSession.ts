@@ -208,9 +208,23 @@ export class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
+	/**
+	 * A snippet is trivial when it has no placeholder or only a final placeholder at
+	 * its very end
+	 */
 	get isTrivialSnippet(): boolean {
-		return this._snippet.placeholders.length === 0
-			|| (this._snippet.placeholders.length === 1 && this._snippet.placeholders[0].isFinalTabstop);
+		if (this._snippet.placeholders.length === 0) {
+			return true;
+		}
+		if (this._snippet.placeholders.length === 1) {
+			const [placeholder] = this._snippet.placeholders;
+			if (placeholder.isFinalTabstop) {
+				if (this._snippet.rightMostDescendant === placeholder) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	computePossibleSelections() {

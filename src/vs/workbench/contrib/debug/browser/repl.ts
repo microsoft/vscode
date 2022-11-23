@@ -49,6 +49,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -129,6 +130,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		const filterText = storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		super({
@@ -268,12 +270,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
 								const history = this.history.getHistory();
-								history.forEach(h => suggestions.push({
+								const idxLength = String(history.length).length;
+								history.forEach((h, i) => suggestions.push({
 									label: h,
 									insertText: h,
 									kind: CompletionItemKind.Text,
 									range: computeRange(h.length),
-									sortText: 'ZZZ'
+									sortText: 'ZZZ' + String(history.length - i).padStart(idxLength, '0')
 								}));
 							}
 
@@ -401,7 +404,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			});
 
 			if (this.tree && treeInput !== session) {
-				await this.tree.setInput(session);
+				try {
+					await this.tree.setInput(session);
+				} catch (err) {
+					// Ignore error because this may happen multiple times while refreshing,
+					// then changing the root may fail. Log to help with debugging if needed.
+					this.logService.error(err);
+				}
 				revealLastElement(this.tree);
 			}
 		}
@@ -460,7 +469,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		return removeAnsiEscapeCodes(text);
 	}
 
-	protected override layoutBodyContent(height: number, width: number): void {
+	protected layoutBodyContent(height: number, width: number): void {
 		this.bodyContentDimension = new dom.Dimension(width, height);
 		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
@@ -623,14 +632,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
-		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(this.contextKeyService, this));
+		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(this.scopedContextKeyService, this));
 		this.setHistoryNavigationEnablement = enabled => {
 			historyNavigationBackwardsEnablement.set(enabled);
 			historyNavigationForwardsEnablement.set(enabled);
 		};
-		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		CONTEXT_IN_DEBUG_REPL.bindTo(this.scopedContextKeyService).set(true);
 
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
 		options.suggest = { showStatusBar: true };

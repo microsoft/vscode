@@ -135,9 +135,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly defaultLocation: TerminalLocation;
-	readonly primaryBackendRegistered: Promise<void>;
 
-	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;
 	onDidCreateInstance: Event<ITerminalInstance>;
@@ -949,15 +947,18 @@ export interface ITerminalInstance {
 
 	/**
 	 * Attempts to detect and kill the process listening on specified port.
+	 * If successful, places commandToRun on the command line
 	 */
-	freePortKillProcess(port: string): Promise<void>;
+	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 }
 
 export interface ITerminalQuickFixOptions {
+	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: TerminalQuickFixCallback;
 	exitStatus?: boolean;
+	source: string;
 }
 export type TerminalQuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type TerminalQuickFixAction = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
@@ -965,12 +966,14 @@ export type TerminalQuickFixCallback = (matchResult: TerminalQuickFixMatchResult
 
 export interface ITerminalQuickFixCommandAction {
 	type: 'command';
+	id: string;
 	command: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine: boolean;
 }
 export interface ITerminalQuickFixOpenerAction {
 	type: 'opener';
+	id: string;
 	uri: URI;
 }
 

@@ -56,6 +56,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+				case 'cli':
+					return `cli-win32-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -65,6 +67,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `server-alpine-${arch}`;
 				case 'web':
 					return `server-alpine-${arch}-web`;
+				case 'cli':
+					return `cli-alpine-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -87,6 +91,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `linux-deb-${arch}`;
 				case 'rpm-package':
 					return `linux-rpm-${arch}`;
+				case 'cli':
+					return `cli-linux-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -107,6 +113,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						return 'server-darwin-web';
 					}
 					return `server-darwin-${arch}-web`;
+				case 'cli':
+					return `cli-darwin-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}

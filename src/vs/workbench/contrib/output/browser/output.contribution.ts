@@ -114,6 +114,19 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerSwitchOutputAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.output.action.switchBetweenOutputs`,
+					title: nls.localize('switchBetweenOutputs.label', "Switch Output"),
+				});
+			}
+			async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
+				if (channelId) {
+					accessor.get(IOutputService).showChannel(channelId, true);
+				}
+			}
+		}));
 		const switchOutputMenu = new MenuId('workbench.output.menu.switchOutput');
 		this._register(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			submenu: switchOutputMenu,
@@ -127,16 +140,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this._register(toDisposable(() => dispose(registeredChannels.values())));
 		const registerOutputChannels = (channels: IOutputChannelDescriptor[]) => {
 			for (const channel of channels) {
-				let group = '0_outputchannels';
-				let title = channel.label;
-				if (channel.log) {
-					title = nls.localize('logChannel', "Log ({0})", channel.label);
-					if (channel.extensionId) {
-						group = '2_extensionlogs';
-					} else {
-						group = '1_logs';
-					}
-				}
+				const title = channel.label;
+				const group = channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
 				registeredChannels.set(channel.id, registerAction2(class extends Action2 {
 					constructor() {
 						super({
@@ -240,9 +245,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
 						order: 4
-					}, {
-						id: MenuId.CommandPalette,
-						when: CONTEXT_ACTIVE_LOG_OUTPUT,
 					}],
 					icon: Codicon.goToFile,
 					precondition: CONTEXT_ACTIVE_LOG_OUTPUT

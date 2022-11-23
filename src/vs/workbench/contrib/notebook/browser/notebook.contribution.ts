@@ -34,7 +34,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
-import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
+import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/browser/services/notebookWorkerServiceImpl';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
@@ -46,7 +46,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
 import { getFormattedMetadataJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -88,6 +88,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/vie
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
+import 'vs/workbench/contrib/notebook/browser/contrib/kernelDetection/notebookKernelDetection';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -105,6 +106,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -697,12 +699,13 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSel
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
-registerSingleton(INotebookService, NotebookService, false);
-registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, false);
+registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
+registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, InstantiationType.Delayed);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, InstantiationType.Delayed);
 registerSingleton(INotebookKernelService, NotebookKernelService, InstantiationType.Delayed);
+registerSingleton(INotebookKernelHistoryService, NotebookKernelHistoryService, InstantiationType.Delayed);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, InstantiationType.Delayed);
 registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, InstantiationType.Delayed);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
@@ -812,7 +815,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.focusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter."),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
@@ -900,7 +903,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
-			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to {0}, {1} is used.", '`0`', '`#editor.fontSize#`'),
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
 			tags: ['notebookLayout']
@@ -910,5 +913,16 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.kernelPickerType]: {
+			markdownDescription: nls.localize('notebook.kernelPickerType', "Controls the type of kernel picker to use."),
+			type: 'string',
+			enum: ['all', 'mru'],
+			enumDescriptions: [
+				nls.localize('notebook.kernelPickerType.all', "Show all kernels."),
+				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
+			],
+			tags: ['notebookLayout'],
+			default: 'all'
+		}
 	}
 });

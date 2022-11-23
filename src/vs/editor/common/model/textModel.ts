@@ -6,7 +6,7 @@
 import { ArrayQueue, pushMany } from 'vs/base/common/arrays';
 import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -42,7 +42,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptions
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -111,7 +111,7 @@ export function createTextBuffer(value: string | model.ITextBufferFactory | mode
 let MODEL_ID = 0;
 
 const LIMIT_FIND_COUNT = 999;
-export const LONG_LINE_BOUNDARY = 10000;
+const LONG_LINE_BOUNDARY = 10000;
 
 class TextModelSnapshot implements model.ITextSnapshot {
 
@@ -172,7 +172,7 @@ const enum StringOffsetValidationType {
 
 export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
 
-	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
+	static _MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB,  // used in tests
 	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
 
@@ -346,7 +346,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._isTooLargeForTokenization = false;
 		}
 
-		this._isTooLargeForSyncing = (bufferTextLength > TextModel.MODEL_SYNC_LIMIT);
+		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
 		this._versionId = 1;
 		this._alternativeVersionId = 1;
@@ -429,9 +429,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public setValue(value: string | model.ITextSnapshot): void {
 		this._assertNotDisposed();
-		if (value === null) {
-			// There's nothing to do
-			return;
+
+		if (value === null || value === undefined) {
+			throw illegalArgument();
 		}
 
 		const { textBuffer, disposable } = createTextBuffer(value, this._options.defaultEOL);
@@ -1242,18 +1242,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return result;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
-			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer);
+			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer, group);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1340,7 +1340,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (this._initialUndoRedoSnapshot === null) {
 			this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
 		}
-		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
+		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer, group);
 	}
 
 	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
@@ -1826,76 +1826,81 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const newDecorationsLen = newDecorations.length;
 		let newDecorationIndex = 0;
 
-		const result = new Array<string>(newDecorationsLen);
-		while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
+		this._onDidChangeDecorations.beginDeferredEmit();
+		try {
+			const result = new Array<string>(newDecorationsLen);
+			while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
 
-			let node: IntervalNode | null = null;
+				let node: IntervalNode | null = null;
 
-			if (oldDecorationIndex < oldDecorationsLen) {
-				// (1) get ourselves an old node
-				do {
-					node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
-				} while (!node && oldDecorationIndex < oldDecorationsLen);
+				if (oldDecorationIndex < oldDecorationsLen) {
+					// (1) get ourselves an old node
+					do {
+						node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
+					} while (!node && oldDecorationIndex < oldDecorationsLen);
 
-				// (2) remove the node from the tree (if it exists)
-				if (node) {
+					// (2) remove the node from the tree (if it exists)
+					if (node) {
+						if (node.options.after) {
+							const nodeRange = this._decorationsTree.getNodeRange(this, node);
+							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+						}
+						if (node.options.before) {
+							const nodeRange = this._decorationsTree.getNodeRange(this, node);
+							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+						}
+
+						this._decorationsTree.delete(node);
+
+						this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+					}
+				}
+
+				if (newDecorationIndex < newDecorationsLen) {
+					// (3) create a new node if necessary
+					if (!node) {
+						const internalDecorationId = (++this._lastDecorationId);
+						const decorationId = `${this._instanceId};${internalDecorationId}`;
+						node = new IntervalNode(decorationId, 0, 0);
+						this._decorations[decorationId] = node;
+					}
+
+					// (4) initialize node
+					const newDecoration = newDecorations[newDecorationIndex];
+					const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
+					const options = _normalizeOptions(newDecoration.options);
+					const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+					const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+
+					node.ownerId = ownerId;
+					node.reset(versionId, startOffset, endOffset, range);
+					node.setOptions(options);
+
 					if (node.options.after) {
-						const nodeRange = this._decorationsTree.getNodeRange(this, node);
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
 					}
 					if (node.options.before) {
-						const nodeRange = this._decorationsTree.getNodeRange(this, node);
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 					}
 
-					this._decorationsTree.delete(node);
+					this._onDidChangeDecorations.checkAffectedAndFire(options);
 
-					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+					this._decorationsTree.insert(node);
+
+					result[newDecorationIndex] = node.id;
+
+					newDecorationIndex++;
+				} else {
+					if (node) {
+						delete this._decorations[node.id];
+					}
 				}
 			}
 
-			if (newDecorationIndex < newDecorationsLen) {
-				// (3) create a new node if necessary
-				if (!node) {
-					const internalDecorationId = (++this._lastDecorationId);
-					const decorationId = `${this._instanceId};${internalDecorationId}`;
-					node = new IntervalNode(decorationId, 0, 0);
-					this._decorations[decorationId] = node;
-				}
-
-				// (4) initialize node
-				const newDecoration = newDecorations[newDecorationIndex];
-				const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
-				const options = _normalizeOptions(newDecoration.options);
-				const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-				const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
-
-				node.ownerId = ownerId;
-				node.reset(versionId, startOffset, endOffset, range);
-				node.setOptions(options);
-
-				if (node.options.after) {
-					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
-				}
-				if (node.options.before) {
-					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
-				}
-
-				this._onDidChangeDecorations.checkAffectedAndFire(options);
-
-				this._decorationsTree.insert(node);
-
-				result[newDecorationIndex] = node.id;
-
-				newDecorationIndex++;
-			} else {
-				if (node) {
-					delete this._decorations[node.id];
-				}
-			}
+			return result;
+		} finally {
+			this._onDidChangeDecorations.endDeferredEmit();
 		}
-
-		return result;
 	}
 
 	//#endregion
@@ -2303,13 +2308,13 @@ function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorat
 	return ModelDecorationOptions.createDynamic(options);
 }
 
-export class DidChangeDecorationsEmitter extends Disposable {
+class DidChangeDecorationsEmitter extends Disposable {
 
 	private readonly _actual: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
 	public readonly event: Event<IModelDecorationsChangedEvent> = this._actual.event;
 
 	private _deferredCnt: number;
-	private _shouldFire: boolean;
+	private _shouldFireDeferred: boolean;
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
@@ -2317,7 +2322,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
 		super();
 		this._deferredCnt = 0;
-		this._shouldFire = false;
+		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
 	}
@@ -2333,17 +2338,8 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	public endDeferredEmit(): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
-			if (this._shouldFire) {
-				this.handleBeforeFire(this._affectedInjectedTextLines);
-
-				const event: IModelDecorationsChangedEvent = {
-					affectsMinimap: this._affectsMinimap,
-					affectsOverviewRuler: this._affectsOverviewRuler
-				};
-				this._shouldFire = false;
-				this._affectsMinimap = false;
-				this._affectsOverviewRuler = false;
-				this._actual.fire(event);
+			if (this._shouldFireDeferred) {
+				this.doFire();
 			}
 
 			this._affectedInjectedTextLines?.clear();
@@ -2365,19 +2361,40 @@ export class DidChangeDecorationsEmitter extends Disposable {
 		if (!this._affectsOverviewRuler) {
 			this._affectsOverviewRuler = options.overviewRuler && options.overviewRuler.color ? true : false;
 		}
-		this._shouldFire = true;
+		this.tryFire();
 	}
 
 	public fire(): void {
 		this._affectsMinimap = true;
 		this._affectsOverviewRuler = true;
-		this._shouldFire = true;
+		this.tryFire();
+	}
+
+	private tryFire() {
+		if (this._deferredCnt === 0) {
+			this.doFire();
+		} else {
+			this._shouldFireDeferred = true;
+		}
+	}
+
+	private doFire() {
+		this.handleBeforeFire(this._affectedInjectedTextLines);
+
+		const event: IModelDecorationsChangedEvent = {
+			affectsMinimap: this._affectsMinimap,
+			affectsOverviewRuler: this._affectsOverviewRuler
+		};
+		this._shouldFireDeferred = false;
+		this._affectsMinimap = false;
+		this._affectsOverviewRuler = false;
+		this._actual.fire(event);
 	}
 }
 
 //#endregion
 
-export class DidChangeContentEmitter extends Disposable {
+class DidChangeContentEmitter extends Disposable {
 
 	/**
 	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.

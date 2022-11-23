@@ -86,8 +86,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		const result = { ...opts, f1: true };
 		// patch context menu when clause
 		if (result.menu) {
-			const iterable = Array.isArray(result.menu) ? result.menu : Iterable.single(result.menu);
-			for (const item of iterable) {
+			for (const item of Iterable.wrap(result.menu)) {
 				if (item.id === MenuId.EditorContext || item.id === MenuId.EditorContextPeek) {
 					item.when = ContextKeyExpr.and(opts.precondition, item.when);
 				}
@@ -817,7 +816,7 @@ CommandsRegistry.registerCommand({
 
 			return editor.invokeWithinContext(accessor => {
 				const command = new class extends GenericGoToLocationAction {
-					override _getNoResultFoundMessage(info: IWordAtPosition | null) {
+					protected override _getNoResultFoundMessage(info: IWordAtPosition | null) {
 						return noResultsMessage || super._getNoResultFoundMessage(info);
 					}
 				}({

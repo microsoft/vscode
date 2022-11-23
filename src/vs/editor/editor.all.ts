@@ -38,6 +38,7 @@ import 'vs/editor/contrib/lineSelection/browser/lineSelection';
 import 'vs/editor/contrib/linesOperations/browser/linesOperations';
 import 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
 import 'vs/editor/contrib/links/browser/links';
+import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';

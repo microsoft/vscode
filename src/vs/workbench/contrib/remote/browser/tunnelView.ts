@@ -28,7 +28,6 @@ import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelIt
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -54,8 +53,10 @@ import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDel
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
+import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
 class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
@@ -68,7 +69,7 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 	}
 }
 
-export interface ITunnelViewModel {
+interface ITunnelViewModel {
 	readonly onForwardedPortsChanged: Event<void>;
 	readonly all: TunnelItem[];
 	readonly input: TunnelItem;
@@ -345,7 +346,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -407,10 +407,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.container.style.paddingLeft = '7px';
 		templateData.container.style.height = '28px';
-		templateData.button = this._register(new Button(templateData.container));
+		templateData.button = this._register(new Button(templateData.container, defaultButtonStyles));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
-		this._register(attachButtonStyler(templateData.button, this.themeService));
 		this._register(templateData.button.onDidClick(() => {
 			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
 		}));
@@ -511,10 +510,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					};
 				}
 			},
-			placeholder: editableData.placeholder || ''
+			placeholder: editableData.placeholder || '',
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
-
 		inputBox.value = value;
 		inputBox.focus();
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
@@ -550,8 +548,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
 				return done(inputBox.validate() !== MessageType.ERROR, true);
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -727,8 +724,8 @@ class TunnelItem implements ITunnelItem {
 	}
 }
 
-export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
-export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
+const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
+const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
 const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacyId | string | undefined>('tunnelPrivacy', undefined, true);
 const TunnelPrivacyEnabledContextKey = new RawContextKey<boolean>('tunnelPrivacyEnabled', false, true);
 const TunnelProtocolContextKey = new RawContextKey<TunnelProtocol | undefined>('tunnelProtocol', TunnelProtocol.Http, true);
@@ -839,7 +836,7 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService,
+			this.menuService, this.contextViewService, this.remoteExplorerService, this.commandService,
 			this.configurationService, this.hoverService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canChangePrivacy) {
@@ -1330,7 +1327,8 @@ export namespace OpenPortInPreviewAction {
 	export async function run(model: TunnelModel, openerService: IOpenerService, externalOpenerService: IExternalUriOpenerService, key: string) {
 		const tunnel = model.forwarded.get(key) || model.detected.get(key);
 		if (tunnel) {
-			const sourceUri = URI.parse(`http://${tunnel.remoteHost}:${tunnel.remotePort}`);
+			const remoteHost = tunnel.remoteHost.includes(':') ? `[${tunnel.remoteHost}]` : tunnel.remoteHost;
+			const sourceUri = URI.parse(`http://${remoteHost}:${tunnel.remotePort}`);
 			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
 			if (opener) {
 				return opener.openExternalUri(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
@@ -1624,7 +1622,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	},
 	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
 }));
-const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '._open',
 	order: 1,
@@ -1777,7 +1774,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		isForwardedOrDetectedExpr)
 }));
 
-export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
+const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,

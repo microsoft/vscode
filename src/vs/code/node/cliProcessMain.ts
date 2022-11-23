@@ -24,6 +24,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
@@ -152,7 +153,7 @@ class CliMain extends Disposable {
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(productService.win32RegValueName))
+		const policyService = isWindows && productService.win32RegValueName ? this._register(new NativePolicyService(logService, productService.win32RegValueName))
 			: environmentService.policyFile ? this._register(new FilePolicyService(environmentService.policyFile, fileService, logService))
 				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
@@ -181,6 +182,7 @@ class CliMain extends Disposable {
 		// Extensions
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
@@ -243,7 +245,7 @@ class CliMain extends Disposable {
 	}
 
 	private async doRun(environmentService: INativeEnvironmentService, fileService: IFileService, userDataProfilesService: IUserDataProfilesService, instantiationService: IInstantiationService): Promise<void> {
-		const profileLocation = environmentService.args.profile ? userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile)?.extensionsResource : userDataProfilesService.defaultProfile.extensionsResource;
+		const profileLocation = (environmentService.args.profile ? userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile) ?? userDataProfilesService.defaultProfile : userDataProfilesService.defaultProfile).extensionsResource;
 
 		// Install Source
 		if (this.argv['install-source']) {

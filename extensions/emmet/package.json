@@ -74,7 +74,6 @@
             "type": "string"
           },
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetIncludeLanguages%"
         },
         "emmet.variables": {
@@ -93,13 +92,11 @@
             "type": "string"
           },
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetVariables%"
         },
         "emmet.syntaxProfiles": {
           "type": "object",
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetSyntaxProfiles%"
         },
         "emmet.excludeLanguages": {
@@ -110,7 +107,6 @@
           "default": [
             "markdown"
           ],
-          "scope": "resource",
           "markdownDescription": "%emmetExclude%"
         },
         "emmet.extensionsPath": {
@@ -137,7 +133,6 @@
         "emmet.preferences": {
           "type": "object",
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetPreferences%",
           "properties": {
             "css.intUnit": {

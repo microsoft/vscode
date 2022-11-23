@@ -6,13 +6,15 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -85,6 +87,8 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly _revivers = this._register(new DisposableMap<string>());
 
+	private readonly webviewOriginStore: ExtensionKeyedWebviewOriginStore;
+
 	constructor(
 		context: IExtHostContext,
 		private readonly _mainThreadWebviews: MainThreadWebviews,
@@ -92,10 +96,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IExtensionService extensionService: IExtensionService,
+		@IStorageService storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
+
+		this.webviewOriginStore = new ExtensionKeyedWebviewOriginStore('mainThreadWebviewPanel.origins', storageService);
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
@@ -152,9 +159,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
+		const origin = this.webviewOriginStore.getOrigin(viewType, extension.id);
 
 		const webview = this._webviewWorkbenchService.openWebview({
-			id: handle,
+			origin,
 			providedViewType: viewType,
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
@@ -253,7 +261,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					return;
 				}
 
-				const handle = webviewInput.id;
+				const handle = generateUuid();
 
 				this.addWebviewInput(handle, webviewInput, options);
 

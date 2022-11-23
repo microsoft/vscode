@@ -7,7 +7,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
@@ -24,13 +24,20 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { getFileNamesMessage, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getFileNamesMessage, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
+import { Schemas } from 'vs/base/common/network';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
 import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -38,26 +45,33 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
+import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
-import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { ContinueOnPicker, IContinueOnPicker } from 'vs/workbench/contrib/editSessions/browser/continueOnPicker';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
-registerSingleton(IContinueOnPicker, ContinueOnPicker, InstantiationType.Delayed);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
 	title: { value: localize('continue working on', "Continue Working On..."), original: 'Continue Working On...' },
 	precondition: WorkspaceFolderCountContext.notEqualsTo('0'),
 	f1: true
+};
+const openLocalFolderCommand: IAction2Options = {
+	id: '_workbench.editSessions.actions.continueEditSession.openLocalFolder',
+	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
+	precondition: IsWebContext
 };
 const showOutputChannelCommand: IAction2Options = {
 	id: 'workbench.editSessions.actions.showOutputChannel',
@@ -73,6 +87,9 @@ const queryParamName = 'editSessionId';
 
 const useEditSessionsWithContinueOn = 'workbench.editSessions.continueOn';
 export class EditSessionsContribution extends Disposable implements IWorkbenchContribution {
+
+	private continueEditSessionOptions: ContinueEditSessionItem[] = [];
+
 	private readonly shouldShowViewsContext: IContextKey<boolean>;
 
 	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
@@ -94,11 +111,14 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly editSessionIdentityService: IEditSessionIdentityService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IContinueOnPicker private readonly continueOnPicker: IContinueOnPicker,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -106,11 +126,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.registerActions();
 		this.registerViews();
+		this.registerContributedEditSessionOptions();
 
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
+		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') }));
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -128,10 +149,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload';
 
 			if (this.environmentService.editSessionId !== undefined) {
-				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
+				this.logService.info(`Resuming cloud changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
-				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
+				this.logService.info('Resuming cloud changes, reason: cloud changes enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
@@ -182,17 +203,21 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return this.accountsMenuBadgeDisposable.clear();
 		}
 
-		const badge = new NumberBadge(1, () => localize('check for pending edit sessions', 'Check for pending edit sessions'));
+		const badge = new NumberBadge(1, () => localize('check for pending cloud changes', 'Check for pending cloud changes'));
 		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: 1 });
 	}
 
 	private async autoStoreEditSession() {
 		if (this.configurationService.getValue('workbench.experimental.editSessions.autoStore') === 'onShutdown') {
+			const cancellationTokenSource = new CancellationTokenSource();
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				type: 'syncing',
-				title: localize('store edit session', 'Storing edit session...')
-			}, async () => this.storeEditSession(false));
+				title: localize('store working changes', 'Storing working changes...')
+			}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
+				cancellationTokenSource.cancel();
+				cancellationTokenSource.dispose();
+			});
 		}
 	}
 
@@ -218,6 +243,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.registerResumeLatestEditSessionAction();
 		this.registerStoreLatestEditSessionAction();
 
+		this.registerContinueInLocalFolderAction();
+
 		this.registerShowEditSessionViewAction();
 		this.registerShowEditSessionOutputChannelAction();
 	}
@@ -241,7 +268,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.showEditSessions',
-					title: { value: localize('show edit session', "Show Edit Sessions"), original: 'Show Edit Sessions' },
+					title: { value: localize('show cloud changes', "Show Cloud Changes"), original: 'Show Cloud Changes' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true
 				});
@@ -269,18 +296,40 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
-				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
+				// First ask the user to pick a destination, if necessary
+				let uri: URI | 'noDestinationUri' | undefined = workspaceUri;
+				let destination;
+				if (!uri) {
+					destination = await that.pickContinueEditSessionDestination();
+				}
+				if (!destination && !uri) {
+					return;
+				}
 
-				let uri = workspaceUri ?? await that.continueOnPicker.pick();
-				if (uri === undefined) { return; }
+				// Determine if we need to store an edit session, asking for edit session auth if necessary
+				const shouldStoreEditSession = await that.shouldContinueOnWithEditSession();
 
 				// Run the store action to get back a ref
 				let ref: string | undefined;
 				if (shouldStoreEditSession) {
-					ref = await that.storeEditSession(false);
+					const cancellationTokenSource = new CancellationTokenSource();
+					ref = await that.progressService.withProgress({
+						location: ProgressLocation.Notification,
+						cancellable: true,
+						type: 'syncing',
+						title: localize('store your working changes', 'Storing your working changes...')
+					}, async () => that.storeEditSession(false, cancellationTokenSource.token), () => {
+						cancellationTokenSource.cancel();
+						cancellationTokenSource.dispose();
+					});
 				}
 
 				// Append the ref to the URI
+				uri = destination ? await that.resolveDestination(destination) : uri;
+				if (uri === undefined) {
+					return;
+				}
+
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
@@ -295,7 +344,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					that.logService.info(`Opening ${uri.toString()}`);
 					await that.openerService.open(uri, { openExternal: true });
 				} else if (ref === undefined && shouldStoreEditSession) {
-					that.logService.warn(`Failed to store edit session when invoking ${continueWorkingOnCommand.id}.`);
+					that.logService.warn(`Failed to store working changes when invoking ${continueWorkingOnCommand.id}.`);
 				}
 			}
 		}));
@@ -307,7 +356,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resumeLatest',
-					title: { value: localize('resume latest.v2', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
+					title: { value: localize('resume latest cloud changes', "Resume Latest Changes from Cloud"), original: 'Resume Latest Changes from Cloud' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
 				});
@@ -333,16 +382,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.storeCurrent',
-					title: { value: localize('store current.v2', "Store Current Edit Session"), original: 'Store Current Edit Session' },
+					title: { value: localize('store working changes in cloud', "Store Working Changes in Cloud"), original: 'Store Working Changes in Cloud' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
 				});
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
+				const cancellationTokenSource = new CancellationTokenSource();
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
-					title: localize('storing edit session', 'Storing edit session...')
+					title: localize('storing working changes', 'Storing working changes...')
 				}, async () => {
 					type StoreEvent = {};
 					type StoreClassification = {
@@ -350,20 +400,23 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					};
 					that.telemetryService.publicLog2<StoreEvent, StoreClassification>('editSessions.store');
 
-					await that.storeEditSession(true);
+					await that.storeEditSession(true, cancellationTokenSource.token);
+				}, () => {
+					cancellationTokenSource.cancel();
+					cancellationTokenSource.dispose();
 				});
 			}
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean): Promise<void> {
 		// Edit sessions are not currently supported in empty workspaces
 		// https://github.com/microsoft/vscode/issues/159220
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return;
 		}
 
-		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
+		this.logService.info(ref !== undefined ? `Resuming changes from cloud with ref ${ref}...` : 'Resuming changes from cloud...');
 
 		if (silent && !(await this.editSessionsStorageService.initialize(false, true))) {
 			return;
@@ -372,23 +425,23 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		const data = await this.editSessionsStorageService.read(ref);
 		if (!data) {
 			if (ref === undefined && !silent) {
-				this.notificationService.info(localize('no edit session', 'There are no edit sessions to resume.'));
+				this.notificationService.info(localize('no cloud changes', 'There are no changes to resume from the cloud.'));
 			} else if (ref !== undefined) {
-				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
+				this.notificationService.warn(localize('no cloud changes for ref', 'Could not resume changes from the cloud for ID {0}.', ref));
 			}
-			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
+			this.logService.info(ref !== undefined ? `Aborting resuming changes from cloud as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
 			return;
 		}
 		const editSession = data.editSession;
 		ref = data.ref;
 
 		if (editSession.version > EditSessionSchemaVersion) {
-			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume this edit session.", this.productService.nameLong));
+			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume your working changes from the cloud.", this.productService.nameLong));
 			return;
 		}
 
 		try {
-			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, force);
 			if (changes.length === 0) {
 				return;
 			}
@@ -402,8 +455,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				const result = await this.dialogService.show(
 					Severity.Warning,
 					conflictingChanges.length > 1 ?
-						localize('resume edit session warning many', 'Resuming your edit session will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
-						localize('resume edit session warning 1', 'Resuming your edit session will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
+						localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
+						localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
 					[cancel, yes],
 					{
 						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
@@ -428,11 +481,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.logService.info(`Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
 			this.logService.error('Failed to resume edit session, reason: ', (ex as Error).toString());
-			this.notificationService.error(localize('resume failed', "Failed to resume your edit session."));
+			this.notificationService.error(localize('resume failed', "Failed to resume your working changes from the cloud."));
 		}
 	}
 
-	private async generateChanges(editSession: EditSession, ref: string) {
+	private async generateChanges(editSession: EditSession, ref: string, force = false) {
 		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 		const conflictingChanges = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
@@ -444,11 +497,34 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			if (folder.canonicalIdentity) {
 				// Look for an edit session identifier that we can use
 				for (const f of workspaceFolders) {
-					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
+					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource.token);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
+
 					if (equals(identity, folder.canonicalIdentity)) {
 						folderRoot = f;
 						break;
+					}
+
+					if (identity !== undefined) {
+						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource.token);
+						if (match === EditSessionIdentityMatch.Complete) {
+							folderRoot = f;
+							break;
+						} else if (match === EditSessionIdentityMatch.Partial &&
+							this.configurationService.getValue('workbench.experimental.editSessions.partialMatches.enabled') === true
+						) {
+							if (!force) {
+								// Surface partially matching edit session
+								this.notificationService.prompt(
+									Severity.Info,
+									localize('editSessionPartialMatch', 'You have pending working changes in the cloud for this workspace. Would you like to resume them?'),
+									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, true) }]
+								);
+							} else {
+								folderRoot = f;
+								break;
+							}
+						}
 					}
 				}
 			} else {
@@ -503,9 +579,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
+	async storeEditSession(fromStoreCommand: boolean, cancellationToken: CancellationToken): Promise<string | undefined> {
 		const folders: Folder[] = [];
 		let hasEdits = false;
+
+		// Save all saveable editors before building edit session contents
+		await this.editorService.saveAll();
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
@@ -546,15 +625,18 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			const canonicalIdentity = workspaceFolder ? await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, new CancellationTokenSource()) : undefined;
+			let canonicalIdentity = undefined;
+			if (workspaceFolder !== null && workspaceFolder !== undefined) {
+				canonicalIdentity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationToken);
+			}
 
 			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
 		}
 
 		if (!hasEdits) {
-			this.logService.info('Skipping storing edit session as there are no edits to store.');
+			this.logService.info('Skipped storing working changes in the cloud as there are no edits to store.');
 			if (fromStoreCommand) {
-				this.notificationService.info(localize('no edits to store', 'Skipped storing edit session as there are no edits to store.'));
+				this.notificationService.info(localize('no working changes to store', 'Skipped storing working changes in the cloud as there are no edits to store.'));
 			}
 			return undefined;
 		}
@@ -580,11 +662,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					case UserDataSyncErrorCode.TooLarge:
 						// Uploading a payload can fail due to server size limits
 						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('editSessions.upload.failed', { reason: 'TooLarge' });
-						this.notificationService.error(localize('payload too large', 'Your edit session exceeds the size limit and cannot be stored.'));
+						this.notificationService.error(localize('payload too large', 'Your working changes exceed the size limit and cannot be stored.'));
 						break;
 					default:
 						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('editSessions.upload.failed', { reason: 'unknown' });
-						this.notificationService.error(localize('payload failed', 'Your edit session cannot be stored.'));
+						this.notificationService.error(localize('payload failed', 'Your working changes cannot be stored.'));
 						break;
 				}
 			}
@@ -627,8 +709,161 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		return false;
 	}
+
+	//#region Continue Edit Session extension contribution point
+
+	private registerContributedEditSessionOptions() {
+		continueEditSessionExtPoint.setHandler(extensions => {
+			const continueEditSessionOptions: ContinueEditSessionItem[] = [];
+			for (const extension of extensions) {
+				if (!isProposedApiEnabled(extension.description, 'contribEditSessions')) {
+					continue;
+				}
+				if (!Array.isArray(extension.value)) {
+					continue;
+				}
+				for (const contribution of extension.value) {
+					const command = MenuRegistry.getCommand(contribution.command);
+					if (!command) {
+						return;
+					}
+
+					const icon = command.icon;
+					const title = typeof command.title === 'string' ? command.title : command.title.value;
+
+					continueEditSessionOptions.push(new ContinueEditSessionItem(
+						ThemeIcon.isThemeIcon(icon) ? `$(${icon.id}) ${title}` : title,
+						command.id,
+						command.source,
+						ContextKeyExpr.deserialize(contribution.when)
+					));
+				}
+			}
+			this.continueEditSessionOptions = continueEditSessionOptions;
+		});
+	}
+
+	private registerContinueInLocalFolderAction(): void {
+		const that = this;
+		this._register(registerAction2(class ContinueInLocalFolderAction extends Action2 {
+			constructor() {
+				super(openLocalFolderCommand);
+			}
+
+			async run(accessor: ServicesAccessor): Promise<URI | undefined> {
+				const selection = await that.fileDialogService.showOpenDialog({
+					title: localize('continueEditSession.openLocalFolder.title', 'Select a local folder to continue your edit session in'),
+					canSelectFolders: true,
+					canSelectMany: false,
+					canSelectFiles: false,
+					availableFileSystems: [Schemas.file]
+				});
+
+				return selection?.length !== 1 ? undefined : URI.from({
+					scheme: that.productService.urlProtocol,
+					authority: Schemas.file,
+					path: selection[0].path
+				});
+			}
+		}));
+	}
+
+	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
+		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
+
+		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			? this.contextService.getWorkspace().folders[0].name
+			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
+		quickPick.placeholder = localize('continueEditSessionPick.title.v2', "Select a development environment to continue working on {0} in", `'${workspaceContext}'`);
+		quickPick.items = this.createPickItems();
+
+		const command = await new Promise<string | undefined>((resolve, reject) => {
+			quickPick.onDidHide(() => resolve(undefined));
+
+			quickPick.onDidAccept((e) => {
+				const selection = quickPick.activeItems[0].command;
+				resolve(selection);
+				quickPick.hide();
+			});
+
+			quickPick.show();
+		});
+
+		quickPick.dispose();
+
+		return command;
+	}
+
+	private async resolveDestination(command: string): Promise<URI | 'noDestinationUri' | undefined> {
+		try {
+			const uri = await this.commandService.executeCommand(command);
+
+			// Some continue on commands do not return a URI
+			// to support extensions which want to be in control
+			// of how the destination is opened
+			if (uri === undefined) { return 'noDestinationUri'; }
+
+			return URI.isUri(uri) ? uri : undefined;
+		} catch (ex) {
+			return undefined;
+		}
+	}
+
+	private createPickItems(): ContinueEditSessionItem[] {
+		const items = [...this.continueEditSessionOptions].filter((option) => option.when === undefined || this.contextKeyService.contextMatchesRules(option.when));
+
+		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
+			items.push(new ContinueEditSessionItem(
+				'$(folder) ' + localize('continueEditSessionItem.openInLocalFolder.v2', 'Open in Local Folder'),
+				openLocalFolderCommand.id,
+				localize('continueEditSessionItem.builtin', 'Built-in')
+			));
+		}
+
+		return items.sort((item1, item2) => item1.label.localeCompare(item2.label));
+	}
 }
 
+class ContinueEditSessionItem implements IQuickPickItem {
+	constructor(
+		public readonly label: string,
+		public readonly command: string,
+		public readonly description?: string,
+		public readonly when?: ContextKeyExpression,
+	) { }
+}
+
+interface ICommand {
+	command: string;
+	group: string;
+	when: string;
+}
+
+const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<ICommand[]>({
+	extensionPoint: 'continueEditSession',
+	jsonSchema: {
+		description: localize('continueEditSessionExtPoint', 'Contributes options for continuing the current edit session in a different environment'),
+		type: 'array',
+		items: {
+			type: 'object',
+			properties: {
+				command: {
+					description: localize('continueEditSessionExtPoint.command', 'Identifier of the command to execute. The command must be declared in the \'commands\'-section and return a URI representing a different environment where the current edit session can be continued.'),
+					type: 'string'
+				},
+				group: {
+					description: localize('continueEditSessionExtPoint.group', 'Group into which this item belongs.'),
+					type: 'string'
+				},
+				when: {
+					description: localize('continueEditSessionExtPoint.when', 'Condition which must be true to show this item.'),
+					type: 'string'
+				}
+			},
+			required: ['command']
+		}
+	}
+});
 
 //#endregion
 
@@ -700,5 +935,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'onReload',
 			'markdownDeprecationMessage': localize('autoResumeDeprecated', "This setting is deprecated in favor of {0}.", '`#workbench.editSessions.autoResume#`')
 		},
+		'workbench.experimental.editSessions.partialMatches.enabled': {
+			'type': 'boolean',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': true,
+			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
+		}
 	}
 });

@@ -181,7 +181,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal: boolean | 'focusNoScroll' = false;
+	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 
 	constructor(
@@ -276,7 +276,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.tree.layout(height, width);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.container = container;
@@ -392,7 +392,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(explorerLabels);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
+		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, updateWidth);
 		this._register(this.renderer);
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
@@ -452,6 +452,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 		});
 		this._register(this.tree);
+		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
 
 		// Bind configuration
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
@@ -724,7 +725,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
-		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		// do no retry more than once to prevent infinite loops in cases of inconsistent model
 		if (retry === 2) {
 			return;
 		}
@@ -760,7 +761,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 
 			try {
-				if (reveal === true && this.tree.getRelativeTop(item) === null) {
+				// We must expand the nest to have it be populated in the tree
+				if (item.nestedParent) {
+					await this.tree.expand(item.nestedParent);
+				}
+
+				if ((reveal === true || reveal === 'force') && this.tree.getRelativeTop(item) === null) {
 					// Don't scroll to the item if it's already visible, or if set not to.
 					this.tree.reveal(item, 0.5);
 				}

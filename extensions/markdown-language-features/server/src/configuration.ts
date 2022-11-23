@@ -10,6 +10,10 @@ export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
 interface Settings {
 	readonly markdown: {
+		readonly occurrencesHighlight: {
+			readonly enabled: boolean;
+		};
+
 		readonly suggest: {
 			readonly paths: {
 				readonly enabled: boolean;

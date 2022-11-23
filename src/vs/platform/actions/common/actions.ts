@@ -103,6 +103,7 @@ export class MenuId {
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
+	static readonly SearchActionMenu = new MenuId('SearchActionContext');
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
@@ -127,6 +128,7 @@ export class MenuId {
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentThreadAdditionalActions = new MenuId('CommentThreadAdditionalActions');
 	static readonly CommentThreadTitleContext = new MenuId('CommentThreadTitleContext');
 	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
@@ -244,7 +246,7 @@ export interface IMenuService {
 	resetHiddenStates(menuIds: readonly MenuId[] | undefined): void;
 }
 
-export type ICommandsMap = Map<string, ICommandAction>;
+type ICommandsMap = Map<string, ICommandAction>;
 
 export interface IMenuRegistryChangeEvent {
 	has(id: MenuId): boolean;
@@ -539,13 +541,7 @@ export class SyncActionDescriptor {
 
 type OneOrN<T> = T | T[];
 
-export interface IAction2Options extends ICommandAction {
-
-	/**
-	 * Shorthand to add this command to the command palette
-	 */
-	f1?: boolean;
-
+interface IAction2CommonOptions extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
@@ -561,14 +557,42 @@ export interface IAction2Options extends ICommandAction {
 	 * showing keybindings that have no other UX.
 	 */
 	description?: ICommandHandlerDescription;
+}
+
+interface IBaseAction2Options extends IAction2CommonOptions {
 
 	/**
-	 * @deprecated workaround added for https://github.com/microsoft/vscode/issues/162004
-	 * This action doesn't do anything is just a workaround for rendering "something"
-	 * inside a specific toolbar
+	 * This type is used when an action is not going to show up in the command palette.
+	 * In that case, it's able to use a string for the `title` and `category` properties.
 	 */
-	_isFakeAction?: true;
+	f1?: false;
 }
+
+interface ICommandPaletteOptions extends IAction2CommonOptions {
+
+	/**
+	 * The title of the command that will be displayed in the command palette after the category.
+	 *  This overrides {@link ICommandAction.title} to ensure a string isn't used so that the title
+	 *  includes the localized value and the original value for users using language packs.
+	 */
+	title: ICommandActionTitle;
+
+	/**
+	 * The category of the command that will be displayed in the command palette before the title suffixed.
+	 * with a colon This overrides {@link ICommandAction.title} to ensure a string isn't used so that
+	 * the title includes the localized value and the original value for users using language packs.
+	 */
+	category?: keyof typeof Categories | ILocalizedString;
+
+	/**
+	 * Shorthand to add this command to the command palette. Note: this is not the only way to declare that
+	 * a command should be in the command palette... however, enforcing ILocalizedString in the other scenarios
+	 * is much more challenging and this gets us most of the way there.
+	 */
+	f1: true;
+}
+
+export type IAction2Options = ICommandPaletteOptions | IBaseAction2Options;
 
 export interface IAction2F1RequiredOptions {
 	title: ICommandActionTitle;

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IAudioCueService, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
 import { AudioCueLineFeatureContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueLineFeatureContribution';
-import { AudioCueService, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
-import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-registerSingleton(IAudioCueService, AudioCueService, false);
+registerSingleton(IAudioCueService, AudioCueService, InstantiationType.Delayed);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
@@ -29,27 +29,30 @@ const audioCueFeatureBase: IConfigurationPropertySchema = {
 		localize('audioCues.enabled.on', "Enable audio cue."),
 		localize('audioCues.enabled.off', "Disable audio cue.")
 	],
+	tags: ['accessibility']
 };
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'properties': {
 		'audioCues.enabled': {
 			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
+			tags: ['accessibility']
 		},
 		'audioCues.volume': {
 			'description': localize('audioCues.volume', "The volume of the audio cues in percent (0-100)."),
 			'type': 'number',
 			'minimum': 0,
 			'maximum': 100,
-			'default': 70
+			'default': 70,
+			tags: ['accessibility']
 		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
-			...audioCueFeatureBase,
+			...audioCueFeatureBase
 		},
 		'audioCues.lineHasInlineSuggestion': {
 			'description': localize('audioCues.lineHasInlineSuggestion', "Plays a sound when the active line has an inline suggestion."),
-			...audioCueFeatureBase,
+			...audioCueFeatureBase
 		},
 		'audioCues.lineHasError': {
 			'description': localize('audioCues.lineHasError', "Plays a sound when the active line has an error."),
@@ -73,7 +76,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.taskCompleted': {
-			'description': localize('audioCues.taskCompleted', "Plays a sound when a task completed."),
+			'description': localize('audioCues.taskCompleted', "Plays a sound when a task is completed."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.taskFailed': {
@@ -81,7 +84,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.terminalQuickFix': {
-			'description': localize('audioCues.terminalQuickFix', "Plays a sound when a terminal quick fixes are available"),
+			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineInserted': {
+			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode"),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineDeleted': {
+			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode"),
+			...audioCueFeatureBase,
+		},
+		'audioCues.notebookCellCompleted': {
+			'description': localize('audioCues.notebookCellCompleted', "Plays a sound when a notebook cell execution is successfully completed."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.notebookCellFailed': {
+			'description': localize('audioCues.notebookCellFailed', "Plays a sound when a notebook cell execution fails."),
 			...audioCueFeatureBase,
 		},
 	}

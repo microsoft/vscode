@@ -48,6 +48,7 @@ import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener'
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -59,14 +60,15 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { appendKeyBindingLabel } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActionsFind';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/contrib/search/browser/searchResultsView';
-import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
+import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
@@ -110,6 +112,7 @@ export class SearchView extends ViewPane {
 	private fileMatchOrFolderMatchWithResourceFocus: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
+	private folderMatchWithResourceFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 	private lastFocusState: 'input' | 'tree' = 'input';
@@ -197,6 +200,7 @@ export class SearchView extends ViewPane {
 		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
+		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -286,7 +290,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	override renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
@@ -347,6 +351,7 @@ export class SearchView extends ViewPane {
 			placeholder: nls.localize('placeholder.includes', "e.g. *.ts, src/**/include"),
 			showPlaceholderOnFocus: true,
 			history: patternIncludesHistory,
+			inputBoxStyles: defaultInputBoxStyles
 		}));
 
 		this.inputPatternIncludes.setValue(patternIncludes);
@@ -366,6 +371,7 @@ export class SearchView extends ViewPane {
 			placeholder: nls.localize('placeholder.excludes', "e.g. *.ts, src/**/exclude"),
 			showPlaceholderOnFocus: true,
 			history: patternExclusionsHistory,
+			inputBoxStyles: defaultInputBoxStyles
 		}));
 
 		this.inputPatternExcludes.setValue(patternExclusions);
@@ -443,7 +449,7 @@ export class SearchView extends ViewPane {
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
+		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, {
 			value: contentPattern,
 			replaceValue: replaceText,
 			isRegex: isRegex,
@@ -451,7 +457,9 @@ export class SearchView extends ViewPane {
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
 			replaceHistory: replaceHistory,
-			preserveCase: preserveCase
+			preserveCase: preserveCase,
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles
 		}));
 
 		if (showReplace) {
@@ -578,7 +586,7 @@ export class SearchView extends ViewPane {
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
 
-		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
+		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
 		return Iterable.map(matches, match => {
@@ -748,8 +756,8 @@ export class SearchView extends ViewPane {
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
@@ -806,6 +814,7 @@ export class SearchView extends ViewPane {
 				this.matchFocused.set(focus instanceof Match);
 				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
 				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
+				this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
 				this.lastFocusState = 'tree';
 			}
 		}));
@@ -818,6 +827,7 @@ export class SearchView extends ViewPane {
 			this.matchFocused.reset();
 			this.fileMatchOrFolderMatchFocus.reset();
 			this.fileMatchOrFolderMatchWithResourceFocus.reset();
+			this.folderMatchWithResourceFocused.reset();
 		}));
 	}
 
@@ -1320,6 +1330,14 @@ export class SearchView extends ViewPane {
 	}
 
 	searchInFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(true, folderPaths);
+	}
+
+	searchOutsideOfFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(false, folderPaths);
+	}
+
+	private _searchWithIncludeOrExclude(include: boolean, folderPaths: string[]) {
 		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
@@ -1331,7 +1349,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true);
 		}
 
-		this.inputPatternIncludes.setValue(folderPaths.join(', '));
+		(include ? this.inputPatternIncludes : this.inputPatternExcludes).setValue(folderPaths.join(', '));
 		this.searchWidget.focus(false);
 	}
 
@@ -1777,7 +1795,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const controller = editor.getControl()?.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 			const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
 			controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
 		}

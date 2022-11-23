@@ -29,6 +29,8 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 
 	readonly onDidResetWorkspaces: Event<void>;
 
+	private enabled: boolean = true;
+
 	constructor(
 		profiles: readonly UriDto<IUserDataProfile>[],
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -46,6 +48,14 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 			this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 		}));
 		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
+	}
+
+	setEnablement(enabled: boolean) {
+		this.enabled = enabled;
+	}
+
+	isEnabled(): boolean {
+		return this.enabled;
 	}
 
 	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {

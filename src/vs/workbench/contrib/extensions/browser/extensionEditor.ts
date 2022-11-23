@@ -63,13 +63,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { errorIcon, infoIcon, preReleaseIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'vs/base/common/semver/semver';
+import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class NavBar extends Disposable {
 
@@ -264,7 +264,7 @@ export class ExtensionEditor extends EditorPane {
 		return this._scopedContextKeyService.value;
 	}
 
-	createEditor(parent: HTMLElement): void {
+	protected createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
 		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
 		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
@@ -323,7 +323,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ReloadAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
@@ -442,7 +442,7 @@ export class ExtensionEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			this.render(input.extension, this.template, !!options?.preserveFocus);
+			await this.render(input.extension, this.template, !!options?.preserveFocus);
 		}
 	}
 
@@ -681,7 +681,6 @@ export class ExtensionEditor extends EditorPane {
 			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
-				id: generateUuid(),
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
@@ -1197,7 +1196,7 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('setting name', "Name")),
+					$('th', undefined, localize('setting name', "ID")),
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
@@ -1378,7 +1377,7 @@ export class ExtensionEditor extends EditorPane {
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('authentication.label', "Label")),
-					$('th', undefined, localize('authentication.id', "Id"))
+					$('th', undefined, localize('authentication.id', "ID"))
 				),
 				...authentication.map(action =>
 					$('tr', undefined,
@@ -1460,7 +1459,7 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('colors', "Colors ({0})", colors.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('colorId', "Id")),
+					$('th', undefined, localize('colorId', "ID")),
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('defaultDark', "Dark Default")),
 					$('th', undefined, localize('defaultLight', "Light Default")),
@@ -1556,9 +1555,8 @@ export class ExtensionEditor extends EditorPane {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			const kbl = new KeybindingLabel(element, OS);
+			const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
 			kbl.set(keybinding);
-			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 
@@ -1566,8 +1564,8 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('commands', "Commands ({0})", commands.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('command name', "Name")),
-					$('th', undefined, localize('description', "Description")),
+					$('th', undefined, localize('command name', "ID")),
+					$('th', undefined, localize('command title', "Title")),
 					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
 					$('th', undefined, localize('menuContexts', "Menu Contexts"))
 				),
@@ -1677,7 +1675,7 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('Notebooks', "Notebooks ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('Notebook id', "Id")),
+					$('th', undefined, localize('Notebook id', "ID")),
 					$('th', undefined, localize('Notebook name', "Name")),
 				),
 				...contrib.map(d => $('tr', undefined,

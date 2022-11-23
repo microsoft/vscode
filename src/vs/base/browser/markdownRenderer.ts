@@ -11,7 +11,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { Lazy } from 'vs/base/common/lazy';
@@ -126,7 +126,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
-			return FileAccess.asBrowserUri(uri).toString(true);
+			return FileAccess.uriToBrowserUri(uri).toString(true);
 		}
 		if (!uri) {
 			return href;
@@ -328,7 +328,7 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 }
 
 function sanitizeRenderedMarkdown(
-	options: { isTrusted?: boolean },
+	options: { isTrusted?: boolean | MarkdownStringTrustedOptions },
 	renderedMarkdown: string,
 ): TrustedHTML {
 	const { config, allowedSchemes } = getSanitizerOptions(options);
@@ -360,6 +360,7 @@ function sanitizeRenderedMarkdown(
 
 export const allowedMarkdownAttr = [
 	'align',
+	'autoplay',
 	'alt',
 	'class',
 	'controls',
@@ -378,7 +379,7 @@ export const allowedMarkdownAttr = [
 	'width',
 ];
 
-function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config; allowedSchemes: string[] } {
+function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownStringTrustedOptions }): { config: dompurify.Config; allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
 		Schemas.https,

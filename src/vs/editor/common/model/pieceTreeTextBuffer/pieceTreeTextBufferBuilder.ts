@@ -10,7 +10,7 @@ import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory }
 import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
-export class PieceTreeTextBufferFactory implements ITextBufferFactory {
+class PieceTreeTextBufferFactory implements ITextBufferFactory {
 
 	constructor(
 		private readonly _chunks: StringBuffer[],

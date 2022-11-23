@@ -618,7 +618,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
 		const notebook = context.notebookEditor.textModel.uri;
-		const executingCells = notebookExecutionStateService.getCellExecutionStatesForNotebook(notebook);
+		const executingCells = notebookExecutionStateService.getCellExecutionsForNotebook(notebook);
 		if (executingCells[0]) {
 			const cell = context.notebookEditor.getCellByHandle(executingCells[0].cellHandle);
 			if (cell) {
