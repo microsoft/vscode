@@ -493,7 +493,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToModelListeners.set(model.resource, modelListeners);
 	}
 
-	protected add(resource: URI, model: TextFileEditorModel): void {
+	add(resource: URI, model: TextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel.get(resource);
 		if (knownModel === model) {
 			return; // already cached
@@ -508,7 +508,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToDisposeListener.set(resource, model.onWillDispose(() => this.remove(resource)));
 	}
 
-	protected remove(resource: URI): void {
+	remove(resource: URI): void {
 		const removed = this.mapResourceToModel.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);

@@ -257,9 +257,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 			this.separatorContainer.style.borderTop = '1px solid ' + border;
 			this.separatorContainer.style.borderBottom = '1px solid ' + border;
 		}
-		this.separatorContainer.style.backgroundColor = options.buttonBackground ?? '';
-		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
+		const buttonBackground = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
+		this.separatorContainer.style.backgroundColor = buttonBackground ?? '';
+		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');

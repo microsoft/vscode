@@ -272,7 +272,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
 		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
 		override async find(query: string, options: INotebookSearchOptions): Promise<CellFindMatchWithIndex[]> {
-			const findMatches = viewModel.find(query, options).filter(match => match.matches.length > 0);
+			const findMatches = viewModel.find(query, options).filter(match => match.length > 0);
 			return findMatches;
 		}
 		override deltaCellDecorations() { return []; }

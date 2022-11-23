@@ -195,13 +195,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	override getTooltip() {
+	protected override getTooltip() {
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -222,7 +222,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		return title;
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._menuItemAction) {
 				if (this._menuItemAction.alt) {
@@ -382,7 +382,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) });
 		this._defaultAction.actionRunner = new class extends ActionRunner {
-			override async runAction(action: IAction, context?: unknown): Promise<void> {
+			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);
 			}
 		}();

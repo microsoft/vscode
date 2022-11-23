@@ -13,7 +13,6 @@ import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
@@ -188,7 +187,6 @@ suite('TestSynchronizer - Auto Sync', () => {
 		await client.setUp();
 		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
 		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 	});
 
 	teardown(() => disposableStore.clear());
@@ -496,7 +494,6 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await client.setUp();
 		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
 		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 	});
 
 	teardown(() => disposableStore.clear());
@@ -1073,6 +1070,28 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	}));
 
+	test('remote is accepted if last sync state does not exists in server', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp();
+		const synchronizer2: TestSynchroniser = disposableStore.add(client2.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client2.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		synchronizer2.syncBarrier.open();
+		const manifest = await client2.getResourceManifest();
+		const expectedContent = manifest![testObject.resource];
+		await synchronizer2.sync(manifest);
+
+		await fileService.del(testObject.getLastSyncResource());
+		await testObject.sync(await client.getResourceManifest());
+
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+	}));
+
 });
 
 suite('TestSynchronizer - Last Sync Data', () => {
@@ -1086,7 +1105,6 @@ suite('TestSynchronizer - Last Sync Data', () => {
 		await client.setUp();
 		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
 		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 	});
 
 	teardown(() => disposableStore.clear());
