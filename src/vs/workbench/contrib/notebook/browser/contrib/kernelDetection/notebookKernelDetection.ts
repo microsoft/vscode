@@ -68,13 +68,30 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 				}
 			}));
 
-			this._register(this._extensionService.onDidChangeExtensionsStatus(() => {
-				for (const [notebookType, task] of this._detectionMap) {
-					if (this._extensionService.activationEventIsDone(`onNotebook:${notebookType}`)) {
-						task.dispose();
+			let timer: any = null;
+
+			this._localDisposableStore.add(this._extensionService.onDidChangeExtensionsStatus(() => {
+				if (timer) {
+					clearTimeout(timer);
+				}
+
+				// activation state might not be updated yet, postpone to next frame
+				timer = setTimeout(() => {
+					for (const [notebookType, task] of this._detectionMap) {
+						if (this._extensionService.activationEventIsDone(`onNotebook:${notebookType}`)) {
+							task.dispose();
+						}
+					}
+				});
+			}));
+
+			this._localDisposableStore.add({
+				dispose: () => {
+					if (timer) {
+						clearTimeout(timer);
 					}
 				}
-			}));
+			});
 		}
 	}
 }
