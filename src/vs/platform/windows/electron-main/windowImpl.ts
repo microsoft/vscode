@@ -30,7 +30,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
@@ -47,9 +47,9 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Promises } from 'vs/base/node/pfs';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
+import { getMachineId } from 'vs/base/node/id';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -785,15 +785,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				appenders,
 				sendErrorTelemetry: false,
 				commonProperties: (async () => {
-					let machineId: string | undefined = undefined;
-					try {
-						const storageContents = await Promises.readFile(this.environmentMainService.stateResource.fsPath);
-						machineId = JSON.parse(storageContents.toString())[machineIdKey];
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							this.logService.error(error);
-						}
-					}
+					const machineId = await getMachineId();
 
 					return resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath);
 				})(),
@@ -812,7 +804,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				reason: string | undefined;
 				code: number | undefined;
 			};
-			telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
+			await telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
 		}
 
 		// Inform user
@@ -829,7 +821,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}, this._win);
 
 		// Ensure to await flush telemetry
-		await Promise.all(appenders.map(a => a.flush()));
+		await Promise.all(appenders.map(appender => appender.flush()));
 
 		// Exit
 		await this.destroyWindow(false, false);
