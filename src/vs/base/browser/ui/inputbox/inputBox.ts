@@ -265,6 +265,14 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public get step(): string {
+		return this.input.step;
+	}
+
+	public set step(newValue: string) {
+		this.input.step = newValue;
+	}
+
 	public get height(): number {
 		return typeof this.cachedHeight === 'number' ? this.cachedHeight : dom.getTotalHeight(this.element);
 	}
