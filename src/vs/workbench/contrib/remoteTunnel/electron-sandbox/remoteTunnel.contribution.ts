@@ -19,7 +19,6 @@ import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget 
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IOutputService, registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -37,6 +36,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { join } from 'vs/base/common/path';
+import { ITunnelApplicationConfig } from 'vs/base/common/product';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote Tunnels',
@@ -80,7 +80,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private readonly connectionStateContext: IContextKey<CONTEXT_KEY_STATES>;
 
-	private readonly serverConfiguration: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+	private readonly serverConfiguration: ITunnelApplicationConfig;
 
 	#authenticationSessionId: string | undefined;
 	private connectionInfo: ConnectionInfo | undefined;
@@ -115,7 +115,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		const serverConfiguration = productService.tunnelApplicationConfig;
 		if (!serverConfiguration || !productService.tunnelApplicationName) {
 			this.logger.error('Missing \'tunnelApplicationConfig\' or \'tunnelApplicationName\' in product.json. Remote tunneling is not available.');
-			this.serverConfiguration = { authenticationProviders: {} };
+			this.serverConfiguration = { authenticationProviders: {}, editorWebUrl: '', extension: { extensionId: '', friendlyName: '' } };
 			return;
 		}
 		this.serverConfiguration = serverConfiguration;
@@ -422,16 +422,23 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const connectionInfo = await that.startTunnel(false);
 				if (connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(connectionInfo);
+					const remoteExtension = that.serverConfiguration.extension;
 					await notificationService.notify({
 						severity: Severity.Info,
-						message: localize({ key: 'progress.turnOn.final', comment: ['{0} will be a host name, {1} will the link address to the web UI. [label](command:commandId) is a markdown lionk. Only translate label, never change the format'] },
-							"Remote tunnel access is enabled for [{0}](command:{4}). To access from a different machine, open [{1}]({2}) or use the Remote - Tunnels extension. Use the Account menu to [configure](command:{3}) or [turn off](command:{5}).",
-							connectionInfo.hostName, connectionInfo.domain, linkToOpen, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
+						message:
+							localize(
+								{
+									key: 'progress.turnOn.final',
+									comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extesnion name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+								},
+								"Remote tunnel access is enabled for [{0}](command:{4}). To access from a different machine, open [{1}]({2}) or use the {6} extension. Use the Account menu to [configure](command:{3}) or [turn off](command:{5}).",
+								connectionInfo.hostName, connectionInfo.domain, linkToOpen, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName
+							),
 						actions: {
 							primary: [
 								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen)),
 								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
-									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['ms-vscode.remote-server']);
+									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
 								})
 							]
 						}
@@ -440,7 +447,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					await notificationService.notify({
 						severity: Severity.Info,
 						message: localize('progress.turnOn.failed',
-							"Unable to turn on the remote tunnel access. Check the Remote Tunnel log for details."),
+							"Unable to turn on the remote tunnel access. Check the Remote Tunnel Service log for details."),
 					});
 					await commandService.executeCommand(RemoteTunnelCommandIds.showLog);
 				}
@@ -622,7 +629,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			items.push({ id: RemoteTunnelCommandIds.learnMore, label: RemoteTunnelCommandLabels.learnMore });
 			if (this.connectionInfo && account) {
 				quickPick.title = localize(
-					{ key: 'manage.title.on', comment: ['{0} will be a user account name, {1} the provider name (e.g. Github), {2} is the machine name'] },
+					{ key: 'manage.title.on', comment: ['{0} will be a user account name, {1} the provider name (e.g. Github), {2} is the host name'] },
 					'Remote Machine Access enabled for {0}({1}) as {2}', account.label, account.description, this.connectionInfo.hostName);
 				items.push({ id: RemoteTunnelCommandIds.copyToClipboard, label: RemoteTunnelCommandLabels.copyToClipboard, description: this.connectionInfo.domain });
 			} else {
