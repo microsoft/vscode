@@ -191,7 +191,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			}
 			const m = message.match(/^\s*Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
-				const info: ConnectionInfo = { link: m[1], domain: m[2], extensionId: 'ms-vscode.remote-server', hostName: m[4] };
+				const info: ConnectionInfo = { link: m[1], domain: m[2], hostName: m[4] };
 				this.setTunnelStatus(TunnelStates.connected(info));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();
