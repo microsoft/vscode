@@ -1371,6 +1371,12 @@ export interface FoldingRange {
 	 * {@link FoldingRangeKind} for an enumeration of standardized kinds.
 	 */
 	kind?: FoldingRangeKind;
+
+	/**
+	 * The text to be shown instead of the folded area.
+	 * Will be shown at the end of the start line.
+	 */
+	collapsedText?: string;
 }
 export class FoldingRangeKind {
 	/**

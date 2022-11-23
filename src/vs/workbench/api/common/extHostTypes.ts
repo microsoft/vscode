@@ -2978,10 +2978,13 @@ export class FoldingRange {
 
 	kind?: FoldingRangeKind;
 
-	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+	collapsedText?: string;
+
+	constructor(start: number, end: number, kind?: FoldingRangeKind, collapsedText?: string) {
 		this.start = start;
 		this.end = end;
 		this.kind = kind;
+		this.collapsedText = collapsedText;
 	}
 }
 

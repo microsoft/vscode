@@ -24,6 +24,7 @@ export interface FoldRange {
 	startLineNumber: number;
 	endLineNumber: number;
 	type: string | undefined;
+	collapsedText: string | undefined;
 	isCollapsed: boolean;
 	source: FoldSource;
 }
@@ -67,8 +68,9 @@ export class FoldingRegions {
 
 	private _parentsComputed: boolean;
 	private readonly _types: Array<string | undefined> | undefined;
+	private readonly _collapsedTexts: Array<string | undefined> | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>) {
+	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>, collapsedTexts?: Array<string | undefined>) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
@@ -78,6 +80,7 @@ export class FoldingRegions {
 		this._userDefinedStates = new BitField(startIndexes.length);
 		this._recoveredStates = new BitField(startIndexes.length);
 		this._types = types;
+		this._collapsedTexts = collapsedTexts;
 		this._parentsComputed = false;
 	}
 
@@ -124,6 +127,10 @@ export class FoldingRegions {
 
 	public hasTypes() {
 		return !!this._types;
+	}
+
+	public getCollapsedText(index: number): string | undefined {
+		return this._collapsedTexts ? this._collapsedTexts[index] : undefined;
 	}
 
 	public isCollapsed(index: number): boolean {
@@ -250,6 +257,7 @@ export class FoldingRegions {
 			startLineNumber: this._startIndexes[index] & MAX_LINE_NUMBER,
 			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
 			type: this._types ? this._types[index] : undefined,
+			collapsedText: this._collapsedTexts ? this._collapsedTexts[index] : undefined,
 			isCollapsed: this.isCollapsed(index),
 			source: this.getSource(index)
 		};
@@ -261,6 +269,8 @@ export class FoldingRegions {
 		const endIndexes = new Uint32Array(rangesLength);
 		let types: Array<string | undefined> | undefined = [];
 		let gotTypes = false;
+		let collapsedTexts: Array<string | undefined> | undefined = [];
+		let gotCollapsedTexts = false;
 		for (let i = 0; i < rangesLength; i++) {
 			const range = ranges[i];
 			startIndexes[i] = range.startLineNumber;
@@ -269,11 +279,18 @@ export class FoldingRegions {
 			if (range.type) {
 				gotTypes = true;
 			}
+			collapsedTexts.push(range.collapsedText);
+			if (range.collapsedText) {
+				gotCollapsedTexts = true;
+			}
 		}
 		if (!gotTypes) {
 			types = undefined;
 		}
-		const regions = new FoldingRegions(startIndexes, endIndexes, types);
+		if (!gotCollapsedTexts) {
+			collapsedTexts = undefined;
+		}
+		const regions = new FoldingRegions(startIndexes, endIndexes, types, collapsedTexts);
 		for (let i = 0; i < rangesLength; i++) {
 			if (ranges[i].isCollapsed) {
 				regions.setCollapsed(i, true);

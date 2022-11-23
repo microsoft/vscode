@@ -5188,13 +5188,18 @@ declare module 'vscode' {
 		kind?: FoldingRangeKind;
 
 		/**
+		 * The text to be shown instead of the folded area.
+		 */
+		collapsedText?: string;
+
+		/**
 		 * Creates a new folding range.
 		 *
 		 * @param start The start line of the folded range.
 		 * @param end The end line of the folded range.
 		 * @param kind The kind of the folding range.
 		 */
-		constructor(start: number, end: number, kind?: FoldingRangeKind);
+		constructor(start: number, end: number, kind?: FoldingRangeKind, collapsedText?: string);
 	}
 
 	/**

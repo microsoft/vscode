@@ -1376,7 +1376,7 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): languages.FoldingRange {
-		const range: languages.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		const range: languages.FoldingRange = { start: r.start + 1, end: r.end + 1, collapsedText: r.collapsedText };
 		if (r.kind) {
 			range.kind = FoldingRangeKind.from(r.kind);
 		}

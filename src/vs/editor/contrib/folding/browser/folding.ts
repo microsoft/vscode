@@ -1112,6 +1112,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 						startLineNumber: selection.startLineNumber,
 						endLineNumber: endLineNumber,
 						type: undefined,
+						collapsedText: undefined,
 						isCollapsed: true,
 						source: FoldSource.userDefined
 					});
