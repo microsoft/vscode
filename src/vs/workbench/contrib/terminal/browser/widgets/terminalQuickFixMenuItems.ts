@@ -21,10 +21,12 @@ export class TerminalQuickFix implements IActionItem {
 	type: string;
 	disabled?: boolean;
 	title?: string;
-	constructor(action: IAction, type: string, title?: string, disabled?: boolean) {
+	source: string;
+	constructor(action: IAction, type: string, source: string, title?: string, disabled?: boolean) {
 		this.action = action;
 		this.disabled = disabled;
 		this.title = title;
+		this.source = source;
 		this.type = type;
 	}
 }

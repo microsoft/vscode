@@ -13,9 +13,10 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -86,6 +87,20 @@ export interface ITerminalProfileService {
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
 
+export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
+export interface ITerminalQuickFixService {
+	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
+	onDidUnregisterProvider: Event<string>;
+	readonly _serviceBrand: undefined;
+	providers: Map<string, ITerminalQuickFixProvider>;
+	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable;
+	registerCommandSelector(selector: ITerminalCommandSelector): void;
+}
+
+export interface ITerminalQuickFixProviderSelector {
+	selector: ITerminalCommandSelector;
+	provider: ITerminalQuickFixProvider;
+}
 export interface ITerminalProfileProvider {
 	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
@@ -347,7 +362,7 @@ export interface ITerminalCommand {
 	markProperties?: IMarkProperties;
 	hasOutput(): boolean;
 	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 }
 
 export interface INavigationMode {
@@ -722,14 +737,13 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
 				items: {
 					type: 'object',
-					required: ['id', 'commandLineMatcher', 'outputMatcher'],
+					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
 					defaultSnippets: [{
 						body: {
 							id: '$1',
 							commandLineMatcher: '$2',
 							outputMatcher: '$3',
-							commandToRun: '$4',
-							linkToOpen: '$5'
+							exitStatus: '$4'
 						}
 					}],
 					properties: {
@@ -764,13 +778,9 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 								}
 							}
 						},
-						commandToRun: {
-							description: 'The command to run in the terminal for this match. Refer to a group found in the outputMatcher via ${group:group_name}. When provided, will take precedence over linkToOpen.',
-							type: 'string'
-						},
-						linkToOpen: {
-							description: 'The link to open for this match. Refer to a group found in the outputMatcher via ${group:group_name}. If a commandToRun is provided, this will be ignored.',
-							type: 'string'
+						exitStatus: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "True if the exit code is non-zero"),
+							type: 'boolean',
 						}
 					},
 				}

@@ -16,7 +16,11 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
-
+function Set-Serialized {
+	param ([string] $toSerialize)
+	$toSerialize = $toSerialize.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
+	return $toSerialize
+}
 
 function Global:Prompt() {
 	$FakeCode = [int]!$global:?
@@ -39,7 +43,7 @@ function Global:Prompt() {
 			} else {
 				$CommandLine = ""
 			}
-			$Result += $CommandLine.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
+			$Result += Set-Serialized($CommandLine)
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
@@ -53,7 +57,9 @@ function Global:Prompt() {
 	# OSC 633 ; <Property>=<Value> ST
 	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"$([char]0x1b)]633;P;Cwd=$($pwd.ProviderPath)`a"}
 	# Before running the original prompt, put $? back to what it was:
-	if ($FakeCode -ne 0) { Write-Error "failure" -ea ignore }
+	if ($FakeCode -ne 0) {
+		Write-Error "failure" -ea ignore
+	}
 	# Run the original prompt
 	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
@@ -85,10 +91,12 @@ function Set-MappedKeyHandler {
 		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
 	}
 }
+
 function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 }
+
 Set-MappedKeyHandlers
