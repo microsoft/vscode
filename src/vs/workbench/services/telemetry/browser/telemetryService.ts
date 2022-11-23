@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservableValue } from 'vs/base/common/observableValue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILoggerService } from 'vs/platform/log/common/log';
@@ -83,7 +82,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get telemetryLevel(): IObservableValue<TelemetryLevel> {
+	get telemetryLevel(): TelemetryLevel {
 		return this.impl.telemetryLevel;
 	}
 

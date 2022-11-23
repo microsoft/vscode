@@ -5,7 +5,6 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
-import { staticObservableValue } from 'vs/base/common/observableValue';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -42,7 +41,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
+	telemetryLevel = TelemetryLevel.NONE;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
