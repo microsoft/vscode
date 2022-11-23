@@ -14,12 +14,12 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo, ILegacySerializedBackupWorkspaces } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { createEmptyWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
+import { IStateService } from 'vs/platform/state/node/state';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -43,7 +43,7 @@ export class BackupMainService implements IBackupMainService {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateService private readonly stateMainService: IStateService
 	) {
 	}
 

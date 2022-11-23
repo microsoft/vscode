@@ -67,7 +67,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
@@ -109,6 +108,7 @@ import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/e
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { IStateService } from 'vs/platform/state/node/state';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -127,7 +127,7 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -565,11 +565,11 @@ export class CodeApplication extends Disposable {
 
 		// We cache the machineId for faster lookups on startup
 		// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
-		let machineId = this.stateMainService.getItem<string>(machineIdKey);
+		let machineId = this.stateService.getItem<string>(machineIdKey);
 		if (!machineId || (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead')) {
 			machineId = await getMachineId();
 
-			this.stateMainService.setItem(machineIdKey, machineId);
+			this.stateService.setItem(machineIdKey, machineId);
 		}
 
 		return machineId;
@@ -675,7 +675,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateMainService);
+		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
 
 		// Workspaces

@@ -14,10 +14,10 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IStateService } from 'vs/platform/state/node/state';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -226,7 +226,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
@@ -236,11 +236,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private resolveRestarted(): void {
-		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+		this._wasRestarted = !!this.stateService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 
 		if (this._wasRestarted) {
 			// remove the marker right after if found
-			this.stateMainService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+			this.stateService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 		}
 	}
 
@@ -338,7 +338,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Then, always make sure at the end
 			// the state service is flushed.
 			try {
-				await this.stateMainService.close();
+				await this.stateService.close();
 			} catch (error) {
 				this.logService.error(error);
 			}
@@ -554,7 +554,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Remember if we are about to restart
 		if (willRestart) {
-			this.stateMainService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
+			this.stateService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
 		}
 
 		this.pendingQuitPromise = new Promise(resolve => {

@@ -14,8 +14,8 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { StateService } from 'vs/platform/state/node/stateService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -32,7 +32,7 @@ suite('UserDataProfileMainService', () => {
 
 	const disposables = new DisposableStore();
 	let testObject: UserDataProfilesMainService;
-	let environmentService: TestEnvironmentService, stateService: StateMainService;
+	let environmentService: TestEnvironmentService, stateService: StateService;
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -41,7 +41,7 @@ suite('UserDataProfileMainService', () => {
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, fileSystemProvider));
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
-		stateService = new StateMainService(environmentService, logService, fileService);
+		stateService = new StateService(environmentService, logService, fileService);
 
 		testObject = new UserDataProfilesMainService(stateService, new UriIdentityService(fileService), environmentService, fileService, logService);
 		await stateService.init();

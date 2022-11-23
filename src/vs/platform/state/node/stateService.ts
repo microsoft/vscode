@@ -167,4 +167,20 @@ export class StateService implements IStateService {
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
+
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
+		this.fileStorage.setItem(key, data);
+	}
+
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void {
+		this.fileStorage.setItems(items);
+	}
+
+	removeItem(key: string): void {
+		this.fileStorage.removeItem(key);
+	}
+
+	close(): Promise<void> {
+		return this.fileStorage.close();
+	}
 }

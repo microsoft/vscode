@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/window/common/window';
@@ -70,7 +70,7 @@ export class Menubar {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
@@ -100,7 +100,7 @@ export class Menubar {
 	}
 
 	private restoreCachedMenubarData() {
-		const menubarData = this.stateMainService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
 		if (menubarData) {
 			if (menubarData.menus) {
 				this.menubarMenus = menubarData.menus;
@@ -197,7 +197,7 @@ export class Menubar {
 		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateMainService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}

@@ -15,7 +15,7 @@ import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfil
 export class UserDataProfilesService extends BaseUserDataProfilesService implements IUserDataProfilesService {
 
 	constructor(
-		@IStateService private readonly stateService: IStateService,
+		@IStateService protected readonly stateService: IStateService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,

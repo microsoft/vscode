@@ -57,8 +57,6 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
@@ -69,6 +67,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { StateService } from 'vs/platform/state/node/stateService';
+import { IStateService } from 'vs/platform/state/node/state';
 
 /**
  * The main VS Code entry point.
@@ -145,7 +145,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService, UserDataProfilesMainService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService, IProductService, UserDataProfilesMainService] {
 		const services = new ServiceCollection();
 		const disposables = new DisposableStore();
 		process.once('exit', () => disposables.dispose());
@@ -180,11 +180,11 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService));
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
-		services.set(IStateMainService, stateMainService);
+		const stateService = new StateService(environmentMainService, logService, fileService);
+		services.set(IStateService, stateService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, uriIdentityService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Policy
@@ -215,7 +215,7 @@ class CodeMain {
 		// Protocol (instantiated early and not using sync descriptor for security reasons)
 		services.set(IProtocolMainService, new ProtocolMainService(environmentMainService, userDataProfilesMainService, logService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService, productService, userDataProfilesMainService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -235,7 +235,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService, productService: IProductService): Promise<void> {
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateService: StateService, productService: IProductService): Promise<void> {
 		await Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -250,7 +250,7 @@ class CodeMain {
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
-			stateMainService.init(),
+			stateService.init(),
 
 			// Configuration service
 			configurationService.initialize()
