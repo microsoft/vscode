@@ -97,7 +97,7 @@
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center.hide {
-	display: none;
+	visibility: hidden;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item>.action-label {
