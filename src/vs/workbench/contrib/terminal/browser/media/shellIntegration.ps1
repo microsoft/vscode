@@ -38,11 +38,9 @@ function Global:Prompt() {
 			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 			# to only be composed of _printable_ characters as per the spec.
-			if ($LastHistoryEntry.CommandLine)
-			{
+			if ($LastHistoryEntry.CommandLine) {
 				$CommandLine = $LastHistoryEntry.CommandLine
-			} else
-			{
+			} else {
 				$CommandLine = ""
 			}
 			$Result += Set-Serialized($CommandLine)
