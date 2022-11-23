@@ -98,7 +98,7 @@ export const DEBUG_SCHEME = 'debug';
 export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 	default: 'openOnFirstSessionStart',
-	description: nls.localize('internalConsoleOptions', "Controls when the internal debug console should open.")
+	description: nls.localize('internalConsoleOptions', "Controls when the internal Debug Console should open.")
 };
 
 // raw
@@ -600,7 +600,18 @@ export interface IDebugModel extends ITreeElement {
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
+
+	/**
+	 * Returns list of all exception breakpoints.
+	 */
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
+
+	/**
+	 * Returns list of exception breakpoints for the given session
+	 * @param sessionId Session id. If falsy, returns the breakpoints from the last set fallback session.
+	 */
+	getExceptionBreakpointsForSession(sessionId?: string): ReadonlyArray<IExceptionBreakpoint>;
+
 	getInstructionBreakpoints(): ReadonlyArray<IInstructionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
@@ -1054,7 +1065,7 @@ export interface IDebugService {
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
+	setExceptionBreakpointsForSession(session: IDebugSession, data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
 
 	/**
 	 * Sends all breakpoints to the passed session.

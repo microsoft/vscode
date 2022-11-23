@@ -185,7 +185,7 @@ class SourceAddMissingImports extends SourceAction {
 
 class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
-	private static kindProviders = [
+	private static readonly kindProviders = [
 		SourceFixAll,
 		SourceRemoveUnused,
 		SourceAddMissingImports,

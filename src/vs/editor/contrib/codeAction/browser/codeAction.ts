@@ -33,9 +33,6 @@ export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
 
-export const acceptSelectedCodeActionCommand = 'acceptSelectedCodeAction';
-export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
-
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
@@ -271,7 +268,7 @@ export async function applyCodeAction(
 			label: item.action.title,
 			quotableLabel: item.action.title,
 			code: 'undoredo.codeAction',
-			respectAutoSaveConfig: true,
+			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
 		});
 	}

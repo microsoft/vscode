@@ -2697,14 +2697,7 @@ export class CommandCenter {
 		if (!HEAD) {
 			return;
 		} else if (!HEAD.upstream) {
-			const branchName = HEAD.name;
-			const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName ?? '');
-			const yes = l10n.t('OK');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick === yes) {
-				await this.publish(repository);
-			}
+			this._push(repository, { pushType: PushType.Push });
 			return;
 		}
 
@@ -3024,6 +3017,7 @@ export class CommandCenter {
 		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
 			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			{ modal: true },
 			yes
 		);
 		if (result !== yes) {
@@ -3048,7 +3042,7 @@ export class CommandCenter {
 			l10n.t('Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.') :
 			l10n.t('Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.', stashes.length);
 
-		const result = await window.showWarningMessage(question, yes);
+		const result = await window.showWarningMessage(question, { modal: true }, yes);
 		if (result !== yes) {
 			return;
 		}

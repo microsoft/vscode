@@ -31,7 +31,7 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser
 import { DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 
@@ -161,7 +161,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 				const dt = dom.append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = dom.append(dl, $('dd'));
-				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...getKeybindingLabelStyles() });
+				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
 				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
 			});
 		};

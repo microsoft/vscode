@@ -76,7 +76,6 @@ export class ReleaseNotesManager {
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
 				{
-					id: generateUuid(),
 					options: {
 						tryRestoreScrollPosition: true,
 						enableFindWidget: true,

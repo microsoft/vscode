@@ -74,8 +74,10 @@ suite('NativeExtensionsScanerService Test', () => {
 			extensionsPath: userExtensionsLocation.fsPath,
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
-		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, logService));
-		instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
+		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, userDataProfilesService, uriIdentityService, logService));
 		await fileService.createFolder(systemExtensionsLocation);
 		await fileService.createFolder(userExtensionsLocation);
 	});

@@ -21,7 +21,7 @@ import { IAction, Separator } from 'vs/base/common/actions';
 class CreateFromCurrentProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createFromCurrentProfile';
 	static readonly TITLE = {
-		value: localize('save profile as', "Create from Current Settings Profile..."),
+		value: localize('save profile as', "Create from Current Profile..."),
 		original: 'Create from Current Profile...'
 	};
 	constructor() {
@@ -41,10 +41,10 @@ class CreateFromCurrentProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
-			title: localize('save profile as', "Create from Current Settings Profile..."),
+			title: localize('save profile as', "Create from Current Profile..."),
 			validateInput: async (value: string) => {
 				if (userDataProfilesService.profiles.some(p => p.name === value)) {
-					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+					return localize('profileExists', "Profile with name {0} already exists.", value);
 				}
 				return undefined;
 			}
@@ -63,8 +63,8 @@ registerAction2(CreateFromCurrentProfileAction);
 class CreateEmptyProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createEmptyProfile';
 	static readonly TITLE = {
-		value: localize('create empty profile', "Create an Empty Settings Profile..."),
-		original: 'Create an Empty Settings Profile...'
+		value: localize('create empty profile', "Create an Empty Profile..."),
+		original: 'Create an Empty Profile...'
 	};
 	constructor() {
 		super({
@@ -86,7 +86,7 @@ class CreateEmptyProfileAction extends Action2 {
 			title: localize('create and enter empty profile', "Create an Empty Profile..."),
 			validateInput: async (value: string) => {
 				if (userDataProfilesService.profiles.some(p => p.name === value)) {
-					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+					return localize('profileExists', "Profile with name {0} already exists.", value);
 				}
 				return undefined;
 			}
@@ -141,7 +141,7 @@ registerAction2(class CreateProfileAction extends Action2 {
 			}, {
 				id: CreateTransientProfileAction.ID,
 				label: CreateTransientProfileAction.TITLE.value,
-			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY.value) });
+			}], { hideInput: true, canPickMany: false, title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value) });
 		if (pick?.id) {
 			return commandService.executeCommand(pick.id);
 		}
@@ -151,8 +151,8 @@ registerAction2(class CreateProfileAction extends Action2 {
 class CreateTransientProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createTemporaryProfile';
 	static readonly TITLE = {
-		value: localize('create temporary profile', "Create a Temporary Settings Profile"),
-		original: 'Create a Temporary Settings Profile'
+		value: localize('create temporary profile', "Create a Temporary Profile"),
+		original: 'Create a Temporary Profile'
 	};
 	constructor() {
 		super({
@@ -211,10 +211,10 @@ export class RenameProfileAction extends Action2 {
 
 		const name = await quickInputService.input({
 			value: profile.name,
-			title: localize('select settings profile to rename', 'Rename {0}', profile.name),
+			title: localize('select profile to rename', 'Rename {0}', profile.name),
 			validateInput: async (value: string) => {
 				if (profile!.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
-					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+					return localize('profileExists', "Profile with name {0} already exists.", value);
 				}
 				return undefined;
 			}
@@ -240,8 +240,8 @@ export class RenameProfileAction extends Action2 {
 				profile
 			})),
 			{
-				title: localize('rename specific settings profile', "Rename Settings Profile..."),
-				placeHolder: localize('pick profile to rename', "Select Settings Profile to Rename"),
+				title: localize('rename specific profile', "Rename Profile..."),
+				placeHolder: localize('pick profile to rename', "Select Profile to Rename"),
 			});
 		return pick?.profile;
 	}
@@ -287,8 +287,8 @@ registerAction2(class DeleteProfileAction extends Action2 {
 					profile
 				})),
 				{
-					title: localize('delete specific settings profile', "Delete Settings Profile..."),
-					placeHolder: localize('pick profile to delete', "Select Settings Profiles to Delete"),
+					title: localize('delete specific profile', "Delete Profile..."),
+					placeHolder: localize('pick profile to delete', "Select Profiles to Delete"),
 					canPickMany: true
 				});
 			if (picks) {
@@ -302,7 +302,7 @@ registerAction2(class DeleteProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class ManageSettingsProfileAction extends Action2 {
+registerAction2(class ManageProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_PROFILES_ACTION_ID,
@@ -370,7 +370,7 @@ registerAction2(class SwitchProfileAction extends Action2 {
 				label: `${profile.name}${profile.id === userDataProfileService.currentProfile.id ? ` $(${Codicon.check.id})` : ''}`,
 				profile
 			}));
-			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
+			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Profile") });
 			if (pick) {
 				await userDataProfileManagementService.switchProfile(pick.profile);
 			}
@@ -385,7 +385,7 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.cleanupProfiles',
 			title: {
-				value: localize('cleanup profile', "Cleanup Settings Profiles"),
+				value: localize('cleanup profile', "Cleanup Profiles"),
 				original: 'Cleanup Profiles'
 			},
 			category: Categories.Developer,
@@ -404,8 +404,8 @@ registerAction2(class ResetWorkspacesAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.resetWorkspaces',
 			title: {
-				value: localize('reset workspaces', "Reset Workspace Settings Profiles Associations"),
-				original: 'Reset Workspace Settings Profiles Associations'
+				value: localize('reset workspaces', "Reset Workspace Profiles Associations"),
+				original: 'Reset Workspace Profiles Associations'
 			},
 			category: Categories.Developer,
 			f1: true,
