@@ -251,6 +251,33 @@ suite('ExtHost Testing', () => {
 			]);
 		});
 
+		test('replaces on uri change', () => {
+			single.expand(single.root.id, Infinity);
+			single.collectDiff();
+
+			const oldA = single.root.children.get('id-a') as TestItemImpl;
+			const uri = single.root.children.get('id-a')!.uri?.with({ path: '/different' });
+			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', uri);
+			newA.children.replace([...oldA.children].map(([_, item]) => item));
+			single.root.children.replace([...single.root.children].map(([id, i]) => id === 'id-a' ? newA : i));
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				{ op: TestDiffOpType.Remove, itemId: new TestId(['ctrlId', 'id-a']).toString() },
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: { ...convert.TestItem.from(newA) } }
+				},
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(newA.children.get('id-aa') as TestItemImpl) }
+				},
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(newA.children.get('id-ab') as TestItemImpl) }
+				},
+			]);
+		});
+
 		test('treats in-place replacement as mutation', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
