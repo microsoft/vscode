@@ -48,8 +48,10 @@ export class ExtensionsResource implements IProfileResource {
 
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		return this.withProfileScopedServices(profile, async (extensionEnablementService) => {
-			const profileExtensions: IProfileExtension[] = await this.getProfileExtensions(content);
-			const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
+			const [profileExtensions, installedExtensions] = await Promise.all([
+				this.getProfileExtensions(content),
+				this.extensionManagementService.getInstalled(undefined, profile.extensionsResource)
+			]) as [IProfileExtension[]];
 			const extensionsToEnableOrDisable: { extension: ILocalExtension; enable: boolean }[] = [];
 			const extensionsToInstall: IProfileExtension[] = [];
 			for (const e of profileExtensions) {
