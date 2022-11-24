@@ -94,7 +94,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
@@ -228,15 +228,12 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
 
-		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
-
 		// App Icon (Native Windows/Linux and Web)
-		if (!isMacintosh || isWeb) {
+		if (!isMacintosh && !isWeb) {
 			this.appIcon = prepend(this.rootContainer, $('a.window-appicon'));
 
 			// Web-only home indicator and menu
@@ -253,6 +250,9 @@ export class TitlebarPart extends Part implements ITitleService {
 				}
 			}
 		}
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Menubar: install a custom menu bar depending on configuration
 		// and when not in activity bar
@@ -285,7 +285,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
 			this._register(addDisposableListener(this.rootContainer, event, e => {
-				if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
+				if (e.type === EventType.CONTEXT_MENU || (e.target === this.title && e.metaKey)) {
 					EventHelper.stop(e);
 					this.onContextMenu(e, e.target === this.title ? MenuId.TitleBarTitleContext : MenuId.TitleBarContext);
 				}

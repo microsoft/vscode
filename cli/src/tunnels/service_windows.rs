@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use async_trait::async_trait;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use lazy_static::lazy_static;
-use std::{ffi::OsString, sync::Mutex, thread, time::Duration};
+use std::{ffi::OsString, path::PathBuf, sync::Mutex, thread, time::Duration};
 use tokio::sync::mpsc;
 use windows_service::{
 	define_windows_service,
@@ -20,7 +21,8 @@ use windows_service::{
 
 use crate::{
 	commands::tunnels::ShutdownSignal,
-	util::errors::{wrap, AnyError, WindowsNeedsElevation},
+	constants::QUALITYLESS_PRODUCT_NAME,
+	util::errors::{wrap, wrapdbg, AnyError, WindowsNeedsElevation},
 };
 use crate::{
 	log::{self, FileLogSink},
@@ -28,38 +30,47 @@ use crate::{
 };
 
 use super::service::{
-	ServiceContainer, ServiceManager as CliServiceManager, SERVICE_LOG_FILE_NAME,
+	tail_log_file, ServiceContainer, ServiceManager as CliServiceManager, SERVICE_LOG_FILE_NAME,
 };
 
 pub struct WindowsService {
 	log: log::Logger,
+	log_file: PathBuf,
 }
 
 const SERVICE_NAME: &str = "code_tunnel";
 const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
 impl WindowsService {
-	pub fn new(log: log::Logger) -> Self {
-		Self { log }
+	pub fn new(log: log::Logger, paths: &LauncherPaths) -> Self {
+		Self {
+			log,
+			log_file: paths.service_log_file(),
+		}
 	}
 }
 
+#[async_trait]
 impl CliServiceManager for WindowsService {
-	fn register(&self, exe: std::path::PathBuf, args: &[&str]) -> Result<(), AnyError> {
+	async fn register(&self, exe: std::path::PathBuf, args: &[&str]) -> Result<(), AnyError> {
 		let service_manager = ServiceManager::local_computer(
 			None::<&str>,
 			ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE,
 		)
 		.map_err(|e| WindowsNeedsElevation(format!("error getting service manager: {}", e)))?;
 
+		let mut args = args.iter().map(OsString::from).collect::<Vec<OsString>>();
+		args.push(OsString::from("--log-to-file"));
+		args.push(self.log_file.as_os_str().to_os_string());
+
 		let mut service_info = ServiceInfo {
 			name: OsString::from(SERVICE_NAME),
-			display_name: OsString::from("VS Code Tunnel"),
+			display_name: OsString::from(format!("{} Tunnel", QUALITYLESS_PRODUCT_NAME)),
 			service_type: SERVICE_TYPE,
 			start_type: ServiceStartType::AutoStart,
 			error_control: ServiceErrorControl::Normal,
 			executable_path: exe,
-			launch_arguments: args.iter().map(OsString::from).collect(),
+			launch_arguments: args,
 			dependencies: vec![],
 			account_name: None,
 			account_password: None,
@@ -72,7 +83,7 @@ impl CliServiceManager for WindowsService {
 		let service = if let Ok(service) = existing_service {
 			service
 				.change_config(&service_info)
-				.map_err(|e| wrap(e, "error updating existing service"))?;
+				.map_err(|e| wrapdbg(e, "error updating existing service"))?;
 			service
 		} else {
 			loop {
@@ -110,16 +121,20 @@ impl CliServiceManager for WindowsService {
 		if status == ServiceState::Stopped {
 			service
 				.start::<&str>(&[])
-				.map_err(|e| wrap(e, "error starting service"))?;
+				.map_err(|e| wrapdbg(e, "error starting service"))?;
 		}
 
 		info!(self.log, "Tunnel service successfully started");
 		Ok(())
 	}
 
+	async fn show_logs(&self) -> Result<(), AnyError> {
+		tail_log_file(&self.log_file).await
+	}
+
 	#[allow(unused_must_use)] // triggers incorrectly on `define_windows_service!`
-	fn run(
-		&self,
+	async fn run(
+		self,
 		launcher_paths: LauncherPaths,
 		handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError> {
@@ -130,7 +145,7 @@ impl CliServiceManager for WindowsService {
 			Ok(sink) => self.log.tee(sink),
 			Err(e) => {
 				warning!(self.log, "Failed to create service log file: {}", e);
-				self.log.clone()
+				self.log
 			}
 		};
 
@@ -149,7 +164,7 @@ impl CliServiceManager for WindowsService {
 			.map_err(|e| wrap(e, "error starting service dispatcher").into())
 	}
 
-	fn unregister(&self) -> Result<(), AnyError> {
+	async fn unregister(&self) -> Result<(), AnyError> {
 		let service_manager =
 			ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
 				.map_err(|e| wrap(e, "error getting service manager"))?;
@@ -170,12 +185,12 @@ impl CliServiceManager for WindowsService {
 
 		let service_status = service
 			.query_status()
-			.map_err(|e| wrap(e, "error getting service status"))?;
+			.map_err(|e| wrapdbg(e, "error getting service status"))?;
 
 		if service_status.current_state != ServiceState::Stopped {
 			service
 				.stop()
-				.map_err(|e| wrap(e, "error getting stopping service"))?;
+				.map_err(|e| wrapdbg(e, "error getting stopping service"))?;
 
 			while let Ok(ServiceState::Stopped) = service.query_status().map(|s| s.current_state) {
 				info!(self.log, "Polling for service to stop...");
@@ -185,7 +200,7 @@ impl CliServiceManager for WindowsService {
 
 		service
 			.delete()
-			.map_err(|e| wrap(e, "error deleting service"))?;
+			.map_err(|e| wrapdbg(e, "error deleting service"))?;
 
 		Ok(())
 	}
@@ -206,7 +221,7 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 	let mut service = SERVICE_IMPL.lock().unwrap().take().unwrap();
 
 	// Create a channel to be able to poll a stop event from the service worker loop.
-	let (shutdown_tx, shutdown_rx) = mpsc::channel::<ShutdownSignal>(5);
+	let (shutdown_tx, shutdown_rx) = mpsc::unbounded_channel::<ShutdownSignal>();
 	let mut shutdown_tx = Some(shutdown_tx);
 
 	// Define system service event handler that will be receiving service events.
@@ -214,7 +229,9 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 		match control_event {
 			ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
 			ServiceControl::Stop => {
-				shutdown_tx.take().and_then(|tx| tx.blocking_send(ShutdownSignal::ServiceStopped).ok());
+				shutdown_tx
+					.take()
+					.and_then(|tx| tx.send(ShutdownSignal::ServiceStopped).ok());
 				ServiceControlHandlerResult::NoError
 			}
 			_ => ServiceControlHandlerResult::NotImplemented,
@@ -236,6 +253,13 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 			process_id: None,
 		})
 		.map_err(|e| wrap(e, "error marking service as running"))?;
+
+	info!(service.log, "Starting service loop...");
+
+	let panic_log = service.log.clone();
+	std::panic::set_hook(Box::new(move |p| {
+		error!(panic_log, "Service panic: {:?}", p);
+	}));
 
 	let result = tokio::runtime::Builder::new_multi_thread()
 		.enable_all()

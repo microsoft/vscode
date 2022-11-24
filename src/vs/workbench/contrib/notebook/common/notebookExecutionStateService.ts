@@ -25,14 +25,6 @@ export interface ICellExecutionComplete {
 	lastRunSuccess?: boolean;
 }
 
-export interface ICellExecutionEntry {
-	notebook: URI;
-	cellHandle: number;
-	state: NotebookCellExecutionState;
-	didPause: boolean;
-	isPaused: boolean;
-}
-
 export interface ICellExecutionStateChangedEvent {
 	notebook: URI;
 	cellHandle: number;

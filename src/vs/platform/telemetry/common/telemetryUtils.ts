@@ -5,7 +5,6 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
-import { staticObservableValue } from 'vs/base/common/observableValue';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,6 +13,15 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+
+/**
+ * A special class used to denoting a telemetry value which should not be clean.
+ * This is because that value is "Trusted" not to contain identifiable information such as paths.
+ * NOTE: This is used as an API type as well, and should not be changed.
+ */
+export class TrustedTelemetryValue<T> {
+	constructor(public readonly value: T) { }
+}
 
 export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -33,7 +41,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
+	telemetryLevel = TelemetryLevel.NONE;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
@@ -113,7 +121,35 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If it's OSS and telemetry isn't disabled via the CLI we will allow it for logging only purposes
+	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
+		return true;
+	}
 	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
+}
+
+/**
+ * Checks to see if we're in logging only mode to debug telemetry.
+ * This is if telemetry is enabled and we're in OSS, but no telemetry key is provided so it's not being sent just logged.
+ * @param productService
+ * @param environmentService
+ * @returns True if telemetry is actually disabled and we're only logging for debug purposes
+ */
+export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// Logging only mode is only for OSS
+	if (environmentService.isBuilt) {
+		return false;
+	}
+
+	if (environmentService.disableTelemetry) {
+		return false;
+	}
+
+	if (productService.enableTelemetry && productService.aiConfig?.ariaKey) {
+		return false;
+	}
+
+	return true;
 }
 
 /**
@@ -287,6 +323,11 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
+	// Fast check to see if it is a file path to avoid doing unnecessary heavy regex work
+	if (!stack || (!stack.includes('/') && !stack.includes('\\'))) {
+		return stack;
+	}
+
 	let updatedStack = stack;
 
 	const cleanUpIndexes: [number, number][] = [];
@@ -366,9 +407,16 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
  */
 export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]): Record<string, any> {
 	return cloneAndChange(data, value => {
+
+		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
+		if (value instanceof TrustedTelemetryValue) {
+			return value.value;
+		}
+
 		// We only know how to clean strings
 		if (typeof value === 'string') {
-			let updatedProperty = value;
+			let updatedProperty = value.replaceAll('%20', ' ');
+
 			// First we anonymize any possible file paths
 			updatedProperty = anonymizeFilePaths(updatedProperty, cleanUpPatterns);
 

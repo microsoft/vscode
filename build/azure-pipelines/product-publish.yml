@@ -7,8 +7,12 @@ steps:
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
+      KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
+
+  # allow-any-unicode-next-line
+  - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
+    displayName: Add build tag
 
   - script: |
       set -e

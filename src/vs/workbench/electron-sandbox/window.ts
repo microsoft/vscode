@@ -319,10 +319,10 @@ export class NativeWindow extends Disposable {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
-			this.updateDocumentEdited(gotDirty);
+			this.updateDocumentEdited(gotDirty ? true : undefined);
 		}));
 
-		this.updateDocumentEdited();
+		this.updateDocumentEdited(undefined);
 
 		// Detect minimize / maximize
 		this._register(Event.any(
@@ -511,11 +511,18 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
-		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
-			this.isDocumentedEdited = isDirty;
+	private updateDocumentEdited(documentEdited: true | undefined): void {
+		let setDocumentEdited: boolean;
+		if (typeof documentEdited === 'boolean') {
+			setDocumentEdited = documentEdited;
+		} else {
+			setDocumentEdited = this.workingCopyService.hasDirty;
+		}
 
-			this.nativeHostService.setDocumentEdited(isDirty);
+		if ((!this.isDocumentedEdited && setDocumentEdited) || (this.isDocumentedEdited && !setDocumentEdited)) {
+			this.isDocumentedEdited = setDocumentEdited;
+
+			this.nativeHostService.setDocumentEdited(setDocumentEdited);
 		}
 	}
 
@@ -640,7 +647,7 @@ export class NativeWindow extends Disposable {
 	private async handleWarnings(): Promise<void> {
 
 		// Check for cyclic dependencies
-		if (require.hasDependencyCycle()) {
+		if (typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
 			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog

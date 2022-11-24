@@ -13,7 +13,7 @@ import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataResourceManifest, IUserDataSyncConfiguration, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
@@ -34,6 +34,9 @@ class TestSynchroniser extends AbstractSynchroniser {
 
 	private cancelled: boolean = false;
 	readonly localResource = joinPath(this.environmentService.userRoamingDataHome, 'testResource.json');
+
+	getMachineId(): Promise<string> { return this.currentMachineIdPromise; }
+	getLastSyncResource(): URI { return this.lastSyncResource; }
 
 	protected override getLatestRemoteUserData(manifest: IUserDataResourceManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
 		if (this.failWhenGettingLatestRemoteUserData) {
@@ -169,7 +172,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 	}
 
 	hasLocalData(): Promise<boolean> { throw new Error('not implemented'); }
-	getAssociatedResources(): Promise<{ resource: URI; comparableResource: URI }[]> { throw new Error('not implemented'); }
+	async resolveContent(uri: URI): Promise<string | null> { return null; }
 }
 
 suite('TestSynchronizer - Auto Sync', () => {
@@ -184,7 +187,6 @@ suite('TestSynchronizer - Auto Sync', () => {
 		await client.setUp();
 		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
 		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 	});
 
 	teardown(() => disposableStore.clear());
@@ -492,7 +494,6 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await client.setUp();
 		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
 		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 	});
 
 	teardown(() => disposableStore.clear());
@@ -1069,6 +1070,273 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	}));
 
+	test('remote is accepted if last sync state does not exists in server', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp();
+		const synchronizer2: TestSynchroniser = disposableStore.add(client2.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client2.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		synchronizer2.syncBarrier.open();
+		const manifest = await client2.getResourceManifest();
+		const expectedContent = manifest![testObject.resource];
+		await synchronizer2.sync(manifest);
+
+		await fileService.del(testObject.getLastSyncResource());
+		await testObject.sync(await client.getResourceManifest());
+
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+	}));
+
+});
+
+suite('TestSynchronizer - Last Sync Data', () => {
+	const disposableStore = new DisposableStore();
+	const server = new UserDataSyncTestServer();
+	let client: UserDataSyncClient;
+	let userDataSyncStoreService: IUserDataSyncStoreService;
+
+	setup(async () => {
+		client = disposableStore.add(new UserDataSyncClient(server));
+		await client.setUp();
+		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
+		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
+	});
+
+	teardown(() => disposableStore.clear());
+
+	test('last sync data is null when not synced before', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.strictEqual(actual, null);
+	}));
+
+	test('last sync data is set after sync', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		const machineId = await testObject.getMachineId();
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({ ref: '1' }));
+		assert.deepStrictEqual(JSON.parse((await fileService.readFile(testObject.getLastSyncResource())).value.toString()), { ref: '1', syncData: { version: 1, machineId, content: '0' } });
+		assert.deepStrictEqual(actual, {
+			ref: '1',
+			syncData: {
+				content: '0',
+				machineId,
+				version: 1
+			},
+		});
+	}));
+
+	test('last sync data is read from server after sync if last sync resource is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		const machineId = await testObject.getMachineId();
+		await fileService.del(testObject.getLastSyncResource());
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({ ref: '1' }));
+		assert.deepStrictEqual(actual, {
+			ref: '1',
+			syncData: {
+				content: '0',
+				machineId,
+				version: 1
+			},
+		});
+	}));
+
+	test('last sync data is read from server after sync and sync data is invalid', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		const machineId = await testObject.getMachineId();
+		await fileService.writeFile(testObject.getLastSyncResource(), VSBuffer.fromString(JSON.stringify({
+			ref: '1',
+			version: 1,
+			content: JSON.stringify({
+				content: '0',
+				machineId,
+				version: 1
+			}),
+			additionalData: {
+				foo: 'bar'
+			}
+		})));
+		server.reset();
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({ ref: '1' }));
+		assert.deepStrictEqual(actual, {
+			ref: '1',
+			syncData: {
+				content: '0',
+				machineId,
+				version: 1
+			},
+		});
+		assert.deepStrictEqual(server.requests, [{ headers: {}, type: 'GET', url: 'http://host:3000/v1/resource/settings/1' }]);
+	}));
+
+	test('last sync data is read from server after sync and stored sync data is tampered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		const machineId = await testObject.getMachineId();
+		await fileService.writeFile(testObject.getLastSyncResource(), VSBuffer.fromString(JSON.stringify({
+			ref: '2',
+			syncData: {
+				content: '0',
+				machineId,
+				version: 1
+			}
+		})));
+		server.reset();
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({ ref: '1' }));
+		assert.deepStrictEqual(actual, {
+			ref: '1',
+			syncData: {
+				content: '0',
+				machineId,
+				version: 1
+			}
+		});
+		assert.deepStrictEqual(server.requests, [{ headers: {}, type: 'GET', url: 'http://host:3000/v1/resource/settings/1' }]);
+	}));
+
+	test('reading last sync data: no requests are made to server when sync data is invalid', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		const machineId = await testObject.getMachineId();
+		await fileService.writeFile(testObject.getLastSyncResource(), VSBuffer.fromString(JSON.stringify({
+			ref: '1',
+			version: 1,
+			content: JSON.stringify({
+				content: '0',
+				machineId,
+				version: 1
+			}),
+			additionalData: {
+				foo: 'bar'
+			}
+		})));
+		await testObject.getLastSyncUserData();
+		server.reset();
+
+		await testObject.getLastSyncUserData();
+		assert.deepStrictEqual(server.requests, []);
+	}));
+
+	test('reading last sync data: no requests are made to server when sync data is null', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		server.reset();
+		await fileService.writeFile(testObject.getLastSyncResource(), VSBuffer.fromString(JSON.stringify({
+			ref: '1',
+			syncData: null,
+		})));
+		await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(server.requests, []);
+	}));
+
+	test('last sync data is null after sync if last sync state is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		storageService.remove('settings.lastSyncUserData', StorageScope.APPLICATION);
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.strictEqual(actual, null);
+	}));
+
+	test('last sync data is null after sync if last sync content is deleted everywhere', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const fileService = client.instantiationService.get(IFileService);
+		const userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.getResourceManifest());
+		await fileService.del(testObject.getLastSyncResource());
+		await userDataSyncStoreService.deleteResource(testObject.syncResource.syncResource, null);
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({ ref: '1' }));
+		assert.strictEqual(actual, null);
+	}));
+
+	test('last sync data is migrated', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = client.instantiationService.get(IStorageService);
+		const fileService = client.instantiationService.get(IFileService);
+		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
+		const machineId = await testObject.getMachineId();
+		await fileService.writeFile(testObject.getLastSyncResource(), VSBuffer.fromString(JSON.stringify({
+			ref: '1',
+			version: 1,
+			content: JSON.stringify({
+				content: '0',
+				machineId,
+				version: 1
+			}),
+			additionalData: {
+				foo: 'bar'
+			}
+		})));
+
+		const actual = await testObject.getLastSyncUserData();
+
+		assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({
+			ref: '1',
+			version: 1,
+			additionalData: {
+				foo: 'bar'
+			}
+		}));
+		assert.deepStrictEqual(actual, {
+			ref: '1',
+			version: 1,
+			syncData: {
+				content: '0',
+				machineId,
+				version: 1
+			},
+			additionalData: {
+				foo: 'bar'
+			}
+		});
+	}));
 });
 
 function assertConflicts(actual: IBaseResourcePreview[], expected: URI[]) {

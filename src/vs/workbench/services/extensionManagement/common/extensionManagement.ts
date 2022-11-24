@@ -43,7 +43,7 @@ export interface IExtensionManagementServerService {
 	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
 
-export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
+export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server: IExtensionManagementServer };
@@ -65,7 +65,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
-	installWebExtension(location: URI): Promise<ILocalExtension>;
+	installFromLocation(location: URI): Promise<ILocalExtension>;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null;
@@ -167,15 +167,15 @@ export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(profileLocation: URI | undefined, options?: ScanOptions): Promise<IScannedExtension[]>;
+	scanUserExtensions(profileLocation: URI, options?: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, profileLocation: URI | undefined): Promise<IScannedExtension | null>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, profileLocation: URI): Promise<IScannedExtension | null>;
 
-	addExtension(location: URI, metadata: Metadata, profileLocation: URI | undefined): Promise<IScannedExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata: Metadata, profileLocation: URI | undefined): Promise<IScannedExtension>;
-	removeExtension(extension: IScannedExtension, profileLocation: URI | undefined): Promise<void>;
+	addExtension(location: URI, metadata: Metadata, profileLocation: URI): Promise<IScannedExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata: Metadata, profileLocation: URI): Promise<IScannedExtension>;
+	removeExtension(extension: IScannedExtension, profileLocation: URI): Promise<void>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void>;
 
-	scanMetadata(extensionLocation: URI, profileLocation: URI | undefined): Promise<Metadata | undefined>;
+	scanMetadata(extensionLocation: URI, profileLocation: URI): Promise<Metadata | undefined>;
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }

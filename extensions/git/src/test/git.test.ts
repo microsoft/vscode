@@ -197,74 +197,6 @@ suite('git', () => {
 		});
 	});
 
-	suite('parseGitCommit', () => {
-		test('single parent commit', function () {
-			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-8e5a374372b8393906c7e380dbb09349c5385554
-main,branch
-This is a commit message.\x00`;
-
-			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
-				hash: '52c293a05038d865604c2284aa8698bd087915a1',
-				message: 'This is a commit message.',
-				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
-				authorDate: new Date(1580811030000),
-				authorName: 'John Doe',
-				authorEmail: 'john.doe@mail.com',
-				commitDate: new Date(1580811031000),
-				refNames: ['main', 'branch'],
-			}]);
-		});
-
-		test('multiple parent commits', function () {
-			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
-main
-This is a commit message.\x00`;
-
-			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
-				hash: '52c293a05038d865604c2284aa8698bd087915a1',
-				message: 'This is a commit message.',
-				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
-				authorDate: new Date(1580811030000),
-				authorName: 'John Doe',
-				authorEmail: 'john.doe@mail.com',
-				commitDate: new Date(1580811031000),
-				refNames: ['main'],
-			}]);
-		});
-
-		test('no parent commits', function () {
-			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
-John Doe
-john.doe@mail.com
-1580811030
-1580811031
-
-main
-This is a commit message.\x00`;
-
-			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
-				hash: '52c293a05038d865604c2284aa8698bd087915a1',
-				message: 'This is a commit message.',
-				parents: [],
-				authorDate: new Date(1580811030000),
-				authorName: 'John Doe',
-				authorEmail: 'john.doe@mail.com',
-				commitDate: new Date(1580811031000),
-				refNames: ['main'],
-			}]);
-		});
-	});
-
 	suite('parseGitRemotes', () => {
 		test('empty', () => {
 			assert.deepStrictEqual(parseGitRemotes(''), []);
@@ -345,6 +277,74 @@ This is a commit message.\x00`;
 `;
 
 			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
+	});
+
+	suite('parseGitCommit', () => {
+		test('single parent commit', function () {
+			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
+john.doe@mail.com
+1580811030
+1580811031
+8e5a374372b8393906c7e380dbb09349c5385554
+main,branch
+This is a commit message.\x00`;
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+			}]);
+		});
+
+		test('multiple parent commits', function () {
+			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
+john.doe@mail.com
+1580811030
+1580811031
+8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
+main
+This is a commit message.\x00`;
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main'],
+			}]);
+		});
+
+		test('no parent commits', function () {
+			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
+john.doe@mail.com
+1580811030
+1580811031
+
+main
+This is a commit message.\x00`;
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.',
+				parents: [],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main'],
+			}]);
 		});
 	});
 

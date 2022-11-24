@@ -69,7 +69,7 @@ export class MarkupCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.templateData.cellParts.renderCell(this.viewCell);
+		this.templateData.cellParts.scheduleRenderCell(this.viewCell);
 
 		this._register(toDisposable(() => {
 			this.templateData.cellParts.unrenderCell(this.viewCell);

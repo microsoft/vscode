@@ -5,14 +5,14 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+import { FindMatch, ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { CellFindMatchModel, FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { IActiveNotebookEditor, ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -260,6 +260,32 @@ suite('Notebook Find', () => {
 				await found2;
 				assert.strictEqual(model.currentMatch, -1);
 				assert.strictEqual(model.findMatches.length, 0);
+			});
+	});
+
+	test('CellFindMatchModel', async function () {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['print(1)', 'typescript', CellKind.Code, [], {}],
+			],
+			async (editor) => {
+				const mdCell = editor.cellAt(0);
+				const mdModel = new CellFindMatchModel(mdCell, 0, [], []);
+				assert.strictEqual(mdModel.length, 0);
+
+				mdModel.contentMatches.push(new FindMatch(new Range(1, 1, 1, 2), []));
+				assert.strictEqual(mdModel.length, 1);
+				mdModel.webviewMatches.push({
+					index: 0
+				}, {
+					index: 1
+				});
+
+				assert.strictEqual(mdModel.length, 3);
+				assert.strictEqual(mdModel.getMatch(0), mdModel.contentMatches[0]);
+				assert.strictEqual(mdModel.getMatch(1), mdModel.webviewMatches[0]);
+				assert.strictEqual(mdModel.getMatch(2), mdModel.webviewMatches[1]);
 			});
 	});
 });

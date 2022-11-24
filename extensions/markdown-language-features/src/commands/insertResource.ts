@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
+import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
 import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/dropIntoEditor';
 import { coalesce } from '../util/arrays';
 import { Schemes } from '../util/schemes';
 
-const localize = nls.loadMessageBundle();
 
 
 export class InsertLinkFromWorkspace implements Command {
@@ -24,10 +23,10 @@ export class InsertLinkFromWorkspace implements Command {
 
 		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
-			canSelectFolders: true,
+			canSelectFolders: false,
 			canSelectMany: true,
-			openLabel: localize('insertLink.openLabel', "Insert link"),
-			title: localize('insertLink.title', "Insert link"),
+			openLabel: vscode.l10n.t("Insert link"),
+			title: vscode.l10n.t("Insert link"),
 			defaultUri: getDefaultUri(activeEditor.document),
 		});
 
@@ -49,10 +48,10 @@ export class InsertImageFromWorkspace implements Command {
 			canSelectFolders: false,
 			canSelectMany: true,
 			filters: {
-				[localize('insertImage.imagesLabel', "Images")]: Array.from(imageFileExtensions)
+				[vscode.l10n.t("Images")]: Array.from(imageFileExtensions)
 			},
-			openLabel: localize('insertImage.openLabel', "Insert image"),
-			title: localize('insertImage.title', "Insert image"),
+			openLabel: vscode.l10n.t("Insert image"),
+			title: vscode.l10n.t("Insert image"),
 			defaultUri: getDefaultUri(activeEditor.document),
 		});
 
@@ -65,7 +64,7 @@ function getDefaultUri(document: vscode.TextDocument) {
 	if (docUri.scheme === Schemes.untitled) {
 		return vscode.workspace.workspaceFolders?.[0]?.uri;
 	}
-	return docUri;
+	return Utils.dirname(docUri);
 }
 
 async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsImage: boolean): Promise<void> {
@@ -84,6 +83,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vs
 			insertAsImage: insertAsImage,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
+			separator: insertAsImage ? '\n' : ' ',
 		});
 
 		return snippet ? new vscode.SnippetTextEdit(selection, snippet) : undefined;

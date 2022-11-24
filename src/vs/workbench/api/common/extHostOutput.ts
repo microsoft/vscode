@@ -20,7 +20,6 @@ import { isString } from 'vs/base/common/types';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOutputChannel {
 
@@ -38,11 +37,12 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 		readonly extension: IExtensionDescription,
 	) {
 		super();
+		this.setLevel(logger.getLevel());
 		this._register(logger.onDidChangeLogLevel(level => this.setLevel(level)));
 	}
 
 	get logLevel(): LogLevel {
-		return this.logger.getLevel();
+		return this.getLevel();
 	}
 
 	appendLine(value: string): void {
@@ -51,10 +51,6 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 
 	append(value: string): void {
 		this.info(value);
-		if (this.visible) {
-			this.logger.flush();
-			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
-		}
 	}
 
 	clear(): void {
@@ -84,6 +80,10 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 	protected log(level: LogLevel, message: string): void {
 		this.offset += VSBuffer.fromString(message).byteLength;
 		log(this.logger, level, message);
+		if (this.visible) {
+			this.logger.flush();
+			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
+		}
 	}
 
 	override dispose(): void {
@@ -144,20 +144,21 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
 		const log = typeof options === 'object' && options.log;
-		if (log) {
-			checkProposedApiEnabled(extension, 'extensionLog');
-		}
 		const languageId = isString(options) ? options : undefined;
 		if (isString(languageId) && !languageId.trim()) {
 			throw new Error('illegal argument `languageId`. must not be empty');
 		}
-		const logLevel = this.getDefaultLogLevel(extension);
+		let logLevel: LogLevel | undefined;
+		const logLevelValue = this.initData.environment.extensionLogLevel?.find(([identifier]) => ExtensionIdentifier.equals(extension.identifier, identifier))?.[1];
+		if (logLevelValue) {
+			logLevel = parseLogLevel(logLevelValue);
+		}
 		const extHostOutputChannel = log ? this.doCreateLogOutputChannel(name, logLevel, extension) : this.doCreateOutputChannel(name, languageId, extension);
 		extHostOutputChannel.then(channel => {
 			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
 		});
-		return log ? this.createExtHostLogOutputChannel(name, logLevel, <Promise<ExtHostOutputChannel>>extHostOutputChannel) : this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannel);
+		return log ? this.createExtHostLogOutputChannel(name, logLevel ?? this.logService.getLevel(), <Promise<ExtHostOutputChannel>>extHostOutputChannel) : this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannel);
 	}
 
 	private async doCreateOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
@@ -171,21 +172,12 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return new ExtHostOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
-	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel, extension: IExtensionDescription): Promise<ExtHostLogOutputChannel> {
+	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel | undefined, extension: IExtensionDescription): Promise<ExtHostLogOutputChannel> {
 		const extensionLogDir = await this.createExtensionLogDirectory(extension);
 		const file = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDir, `${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		const logger = this.loggerService.createLogger(file, { name }, logLevel);
 		const id = await this.proxy.$register(name, file, true, undefined, extension.identifier.value);
 		return new ExtHostLogOutputChannel(id, name, logger, this.proxy, extension);
-	}
-
-	private getDefaultLogLevel(extension: IExtensionDescription): LogLevel {
-		let logLevel: LogLevel | undefined;
-		const logLevelValue = this.initData.environment.extensionLogLevel?.find(([identifier]) => ExtensionIdentifier.equals(extension.identifier, identifier))?.[1];
-		if (logLevelValue) {
-			logLevel = parseLogLevel(logLevelValue);
-		}
-		return logLevel ?? this.logService.getLevel();
 	}
 
 	private createExtensionLogDirectory(extension: IExtensionDescription): Thenable<URI> {

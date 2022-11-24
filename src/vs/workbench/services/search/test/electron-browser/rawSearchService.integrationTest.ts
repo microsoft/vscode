@@ -140,11 +140,11 @@ flakySuite('RawSearchService', () => {
 			let promise: CancelablePromise<ISerializedSearchSuccess | void>;
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-				onFirstListenerAdd: () => {
+				onWillAddFirstListener: () => {
 					promise = createCancelablePromise(token => service.doFileSearchWithEngine(Engine, config, p => emitter.fire(p), token, batchSize)
 						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: err })));
 				},
-				onLastListenerRemove: () => {
+				onDidRemoveLastListener: () => {
 					promise.cancel();
 				}
 			});

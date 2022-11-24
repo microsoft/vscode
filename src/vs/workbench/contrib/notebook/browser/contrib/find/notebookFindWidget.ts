@@ -21,7 +21,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
@@ -70,7 +69,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 }
 
-export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
+class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
@@ -81,22 +80,17 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		_notebookEditor: INotebookEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		super(contextViewService, contextKeyService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
-		this.updateTheme(themeService.getColorTheme());
-		this._register(themeService.onDidColorThemeChange(() => {
-			this.updateTheme(themeService.getColorTheme());
-		}));
 
 		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
@@ -115,7 +109,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			}
 
 			const matches = this._findModel.findMatches;
-			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.modelMatchCount < match.matches.length) === undefined);
+			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.webviewMatches.length > 0) === undefined);
 
 			if (e.filters) {
 				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
@@ -206,13 +200,9 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		const cellFindMatches = this._findModel.findMatches;
 		const replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
-			const findMatches = cellFindMatch.matches;
-			findMatches.forEach((findMatch, index) => {
-				if (index < cellFindMatch.modelMatchCount) {
-					const match = findMatch as FindMatch;
-					const matches = match.matches;
-					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
-				}
+			cellFindMatch.contentMatches.forEach(match => {
+				const matches = match.matches;
+				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
 			});
 		});
 
@@ -337,7 +327,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		}
 	}
 
-	override _updateMatchesCount(): void {
+	protected override _updateMatchesCount(): void {
 		if (!this._findModel || !this._findModel.findMatches) {
 			return;
 		}

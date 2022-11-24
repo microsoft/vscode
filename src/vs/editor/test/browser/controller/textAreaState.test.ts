@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
-export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
+class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 	public _value: string;
 	public _selectionStart: number;
