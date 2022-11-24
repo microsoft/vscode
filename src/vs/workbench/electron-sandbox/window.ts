@@ -662,8 +662,7 @@ export class NativeWindow extends Disposable {
 
 		// Integrity / Root warning
 		(async () => {
-			const isAdmin = await this.nativeHostService.isAdmin();
-			const { isPure } = await this.integrityService.isPure();
+			const [isAdmin, { isPure }] = await Promise.all([this.nativeHostService.isAdmin(), this.integrityService.isPure()]);
 
 			// Update to title
 			this.titleService.updateProperties({ isPure, isAdmin });

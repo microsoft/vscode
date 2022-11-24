@@ -268,24 +268,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					return;
 				}
 
-				if (profileTemplate.settings) {
-					await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
-				}
-				if (profileTemplate.keybindings) {
-					await this.instantiationService.createInstance(KeybindingsResource).apply(profileTemplate.keybindings, profile);
-				}
-				if (profileTemplate.tasks) {
-					await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
-				}
-				if (profileTemplate.snippets) {
-					await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
-				}
-				if (profileTemplate.globalState) {
-					await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
-				}
-				if (profileTemplate.extensions) {
-					await this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile);
-				}
+				await Promise.allSettled(
+					[
+						profileTemplate.settings && this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile),
+						profileTemplate.keybindings && this.instantiationService.createInstance(KeybindingsResource).apply(profileTemplate.keybindings, profile),
+						profileTemplate.tasks && this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile),
+						profileTemplate.snippets && this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile),
+						profileTemplate.globalState && this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile),
+						profileTemplate.extensions && this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile),
+					]
+				)
 				await this.userDataProfileManagementService.switchProfile(profile);
 
 				this.notificationService.info(localize('imported profile', "Profile '{0}' is imported successfully.", profile.name));
