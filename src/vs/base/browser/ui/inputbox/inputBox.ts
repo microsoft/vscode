@@ -176,6 +176,8 @@ export class InputBox extends Widget {
 			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
 		} else {
 			this.input.type = this.options.type || 'text';
+			// prevent password autofill for irrelavant input types
+			this.input.name = this.options.type || 'text';
 			this.input.setAttribute('wrap', 'off');
 		}
 

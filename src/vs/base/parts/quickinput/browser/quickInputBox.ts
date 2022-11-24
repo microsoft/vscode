@@ -88,6 +88,8 @@ export class QuickInputBox extends Disposable {
 
 	set password(password: boolean) {
 		this.findInput.inputBox.inputElement.type = password ? 'password' : 'text';
+		// prevent browser from prompting autofill password on web
+		this.findInput.inputBox.inputElement.name = password ? 'password' : 'text';
 	}
 
 	set enabled(enabled: boolean) {
