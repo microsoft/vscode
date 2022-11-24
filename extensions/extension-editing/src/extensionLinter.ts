@@ -148,7 +148,7 @@ export class ExtensionLinter {
 						}
 					}
 					const activationEventsNode = findNodeAtLocation(tree, ['activationEvents']);
-					if (Array.isArray(activationEventsNode) && activationEventsNode.children) {
+					if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
 						for (const activationEventNode of activationEventsNode.children) {
 							const activationEvent = getNodeValue(activationEventNode);
 							for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {

@@ -237,6 +237,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	 */
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
+	/* Following features are enabled from the runtime.
+	 * `AutoDisableAccessibility` - https://github.com/microsoft/vscode/issues/162331#issue-1390744354
+	 */
+	app.commandLine.appendSwitch('enable-features', 'AutoDisableAccessibility');
+
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {

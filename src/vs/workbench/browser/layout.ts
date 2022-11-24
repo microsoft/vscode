@@ -1073,6 +1073,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
 			return !this.state.runtime.fullscreen;
@@ -1080,11 +1085,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// non-fullscreen native must show the title bar
 		if (isNative && !this.state.runtime.fullscreen) {
-			return true;
-		}
-
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
 			return true;
 		}
 

@@ -115,6 +115,7 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	label: strictEqualComparator,
 	description: strictEqualComparator,
 	error: strictEqualComparator,
+	sortText: strictEqualComparator,
 	tags: (a, b) => {
 		if (a.length !== b.length) {
 			return false;
@@ -128,9 +129,11 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	},
 };
 
+const diffableEntries = Object.entries(diffableProps) as readonly [keyof ITestItem, (a: any, b: any) => boolean][];
+
 const diffTestItems = (a: ITestItem, b: ITestItem) => {
 	let output: Record<string, unknown> | undefined;
-	for (const [key, cmp] of Object.entries(diffableProps) as [keyof ITestItem, (a: any, b: any) => boolean][]) {
+	for (const [key, cmp] of diffableEntries) {
 		if (!cmp(a[key], b[key])) {
 			if (output) {
 				output[key] = b[key];
@@ -334,7 +337,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 	}
 
-	private upsertItem(actual: T, parent: CollectionItem<T> | undefined) {
+	private upsertItem(actual: T, parent: CollectionItem<T> | undefined): void {
 		const fullId = TestId.fromExtHostTestItem(actual, this.root.id, parent?.actual);
 
 		// If this test item exists elsewhere in the tree already (exists at an
@@ -377,6 +380,12 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 
 		// Case 3: upsert of an existing item by ID, with a new instance
+		if (internal.actual.uri?.toString() !== actual.uri?.toString()) {
+			// If the item has a new URI, re-insert it; we don't support updating
+			// URIs on existing test items.
+			this.removeItem(fullId.toString());
+			return this.upsertItem(actual, parent);
+		}
 		const oldChildren = this.options.getChildren(internal.actual);
 		const oldActual = internal.actual;
 		const update = diffTestItems(this.options.toITestItem(oldActual), this.options.toITestItem(actual));
