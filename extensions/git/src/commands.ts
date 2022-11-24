@@ -3182,6 +3182,16 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.api.getUnsafeRepositories')
+	getUnsafeRepositories(): string {
+		return Array.from(this.model.unsafeRepositories.values()).join(', ');
+	}
+
+	@command('git.addSafeDirectoryAndOpenRepository')
+	async addSafeDirectoryAndOpenRepository(): Promise<void> {
+		await this.model.addSafeDirectoryAndOpenRepository();
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;

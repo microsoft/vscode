@@ -136,6 +136,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private _unsafeRepositories = new UnsafeRepositorySet();
+	get unsafeRepositories(): Set<string> {
+		return this._unsafeRepositories;
+	}
 
 	private disposables: Disposable[] = [];
 
@@ -425,30 +428,33 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'$/m.exec(ex.stderr);
 			if (match && match.length === 2) {
 				const unsafeRepositoryPath = match[1];
+				this._unsafeRepositories.add(unsafeRepositoryPath);
 
-				if (!this._unsafeRepositories.has(unsafeRepositoryPath)) {
-					this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
+				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
-					// Notification
-					const openRepository = l10n.t('Open Repository');
-					const learnMore = l10n.t('Learn More');
+				// if (!this._unsafeRepositories.has(unsafeRepositoryPath)) {
+				// 	this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
-					window.showErrorMessage(l10n.t('The git repository at "{0}" has been detected as potentially unsafe as the folder is owned by someone else other than the current user. Do you want to open the repository?', unsafeRepositoryPath), openRepository, learnMore)
-						.then(async choice => {
-							if (choice === openRepository) {
-								// Mark as Safe
-								await this.git.addSafeDirectory(unsafeRepositoryPath);
-								this._unsafeRepositories.delete(unsafeRepositoryPath);
+				// 	// Notification
+				// 	const openRepository = l10n.t('Open Repository');
+				// 	const learnMore = l10n.t('Learn More');
 
-								this.openRepository(unsafeRepositoryPath);
-							} else if (choice === learnMore) {
-								// Learn More
-								commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
-							}
-						});
+				// 	window.showErrorMessage(l10n.t('The git repository at "{0}" has been detected as potentially unsafe as the folder is owned by someone else other than the current user. Do you want to open the repository?', unsafeRepositoryPath), openRepository, learnMore)
+				// 		.then(async choice => {
+				// 			if (choice === openRepository) {
+				// 				// Mark as Safe
+				// 				await this.git.addSafeDirectory(unsafeRepositoryPath);
+				// 				this._unsafeRepositories.delete(unsafeRepositoryPath);
 
-					this._unsafeRepositories.add(unsafeRepositoryPath);
-				}
+				// 				this.openRepository(unsafeRepositoryPath);
+				// 			} else if (choice === learnMore) {
+				// 				// Learn More
+				// 				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
+				// 			}
+				// 		});
+
+				// 	this._unsafeRepositories.add(unsafeRepositoryPath);
+				// }
 
 				return;
 			}
@@ -732,6 +738,26 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	async addSafeDirectoryAndOpenRepository() {
+		const unsafeRepositories: string[] = [];
+
+		if (this._unsafeRepositories.size === 1) {
+			// One unsafe repository
+			unsafeRepositories.push(this._unsafeRepositories.values().next().value);
+		} else {
+			// Multiple unsafe repositories
+		}
+
+		for (const unsafeRepository of unsafeRepositories) {
+			// Mark as Safe
+			await this.git.addSafeDirectory(unsafeRepository);
+
+			// Open Repository
+			await this.openRepository(unsafeRepository);
+			this._unsafeRepositories.delete(unsafeRepository);
+		}
 	}
 
 	dispose(): void {

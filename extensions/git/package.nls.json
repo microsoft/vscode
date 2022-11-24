@@ -102,6 +102,8 @@
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
+	"command.api.getUnsafeRepositories": "Get Unsafe Repositories",
+	"command.api.addSafeDirectoryAndOpenRepository": "Add Safe Directory and Open Repository",
 	"command.git.acceptMerge": "Complete Merge",
 	"command.git.openMergeEditor": "Resolve in Merge Editor",
 	"command.git.runGitMerge": "Compute Conflicts With Git",
@@ -322,11 +324,20 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.dircoverRepositories": {
-		"message": "Discovering repositories..."
+	"view.workbench.scm.scanFolderForRepositories": {
+		"message": "Scanning folder for git repositories..."
+	},
+	"view.workbench.scm.scanWorkspaceForRepositories": {
+		"message": "Scanning workspace for git repositories..."
 	},
 	"view.workbench.scm.unsafeRepository": {
-		"message": "One or more repositories have been detected as potentially unsafe as they are owned by someone else other than the current user.\nPlease review your notifications to take the appropriate action for each repository that was detected potentially unsafe.\n[Learn More](https://aka.ms/vscode-scm)"
+		"message": "The git repository at \"${command:git.api.getUnsafeRepositories}\" has been detected as potentially unsafe as the folder is owned by someone else other than the current user.\nDo you want to open the repository?\n[Open Repository](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
+		"comment": [
+			"{Locked='](command:git.api.getUnsafeRepositories'}",
+			"{Locked='](command:git.addSafeDirectoryAndOpenRepository'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
 	},
 	"view.workbench.cloneRepository": {
 		"message": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')",

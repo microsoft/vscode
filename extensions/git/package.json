@@ -623,6 +623,16 @@
         "title": "%command.git.runGitMergeDiff3%",
         "category": "Git",
         "enablement": "isMergeEditor"
+      },
+      {
+        "command": "git.api.getUnsafeRepositories",
+        "title": "%command.api.getUnsafeRepositories%",
+        "category": "Git"
+      },
+      {
+        "command": "git.api.addSafeDirectoryAndOpenRepository",
+        "title": "%command.api.addSafeDirectoryAndOpenRepository%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1046,6 +1056,14 @@
         {
           "command": "git.api.getRemoteSources",
           "when": "false"
+        },
+        {
+          "command": "git.api.getUnsafeRepositories",
+          "when": "false"
+        },
+        {
+          "command": "git.api.addSafeDirectoryAndOpenRepository",
+          "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
         },
         {
           "command": "git.openMergeEditor",
@@ -2710,8 +2728,13 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.dircoverRepositories%",
-        "when": "config.git.enabled && !git.missing && workbenchState != empty && workspaceFolderCount != 0 && git.state != initialized"
+        "contents": "%view.workbench.scm.scanFolderForRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && workspaceFolderCount != 0 && git.state != initialized"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.scanWorkspaceForRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && git.state != initialized"
       },
       {
         "view": "scm",
