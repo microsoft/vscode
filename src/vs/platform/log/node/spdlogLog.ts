@@ -47,6 +47,7 @@ function log(logger: spdlog.Logger, level: LogLevel, message: string): void {
 		case LogLevel.Info: logger.info(message); break;
 		case LogLevel.Warning: logger.warn(message); break;
 		case LogLevel.Error: logger.error(message); break;
+		case LogLevel.Off: /* do nothing */ break;
 		default: throw new Error(`Invalid log level ${level}`);
 	}
 }
