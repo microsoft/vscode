@@ -349,11 +349,6 @@ class TestRunTracker extends Disposable {
 	constructor(private readonly dto: TestRunDto, private readonly proxy: MainThreadTestingShape, parentToken?: CancellationToken) {
 		super();
 		this.cts = this._register(new CancellationTokenSource(parentToken));
-		this._register(this.cts.token.onCancellationRequested(() => {
-			for (const { run } of this.tasks.values()) {
-				run.end();
-			}
-		}));
 	}
 
 	public getCoverage(taskId: string) {
