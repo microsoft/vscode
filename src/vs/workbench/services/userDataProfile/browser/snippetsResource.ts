@@ -14,7 +14,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ISnippetsContent {
 	snippets: IStringDictionary<string>;
@@ -80,10 +80,11 @@ export class SnippetsResource implements IProfileResource {
 
 export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 
+	readonly type = ProfileResourceType.Snippets;
 	readonly handle = this.profile.snippetsHome.toString();
 	readonly label = { label: localize('snippets', "Snippets") };
 	readonly collapsibleState = TreeItemCollapsibleState.Collapsed;
-	checkbox: ITreeItemCheckboxState | undefined = { isChecked: true };
+	checkbox: ITreeItemCheckboxState = { isChecked: true };
 
 	private readonly excludedSnippets = new ResourceSet();
 

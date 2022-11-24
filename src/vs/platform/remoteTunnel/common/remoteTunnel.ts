@@ -7,8 +7,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 
 export interface IRemoteTunnelAccount {
-	readonly authenticationProviderId: string;
+	readonly providerId: string;
 	readonly token: string;
+	readonly accountLabel: string;
 }
 
 export const IRemoteTunnelService = createDecorator<IRemoteTunnelService>('IRemoteTunnelService');
@@ -22,7 +23,7 @@ export interface IRemoteTunnelService {
 
 	getAccount(): Promise<IRemoteTunnelAccount | undefined>;
 	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
-	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<void>;
+	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<TunnelStatus>;
 
 }
 
@@ -55,7 +56,6 @@ export interface ConnectionInfo {
 	link: string;
 	domain: string;
 	hostName: string;
-	extensionId: string;
 }
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';

@@ -63,6 +63,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = DOM.$;
 
@@ -1078,11 +1079,22 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 			? editLanguageSettingLabel
 			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
 
-		template.elementDisposables.add(DOM.addDisposableListener(template.button, DOM.EventType.CLICK, () => {
+		const onClickOrKeydown = (e: UIEvent) => {
 			if (isLanguageTagSetting) {
 				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
+			}
+			e.preventDefault();
+			e.stopPropagation();
+		};
+		template.elementDisposables.add(DOM.addDisposableListener(template.button, DOM.EventType.CLICK, (e) => {
+			onClickOrKeydown(e);
+		}));
+		template.elementDisposables.add(DOM.addDisposableListener(template.button, DOM.EventType.KEY_DOWN, (e) => {
+			const ev = new StandardKeyboardEvent(e);
+			if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+				onClickOrKeydown(e);
 			}
 		}));
 
@@ -1746,6 +1758,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {

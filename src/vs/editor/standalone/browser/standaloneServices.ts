@@ -84,7 +84,6 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
@@ -691,7 +690,7 @@ class StandaloneResourcePropertiesService implements ITextResourcePropertiesServ
 class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	public telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
+	public telemetryLevel = TelemetryLevel.NONE;
 	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
