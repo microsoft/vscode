@@ -1436,7 +1436,10 @@ export class Repository implements Disposable {
 				});
 
 				await this.repository.clean(toClean);
-				await this.repository.checkout('', toCheckout);
+				// checkout will cause git error in a newly created repository
+				if (toCheckout.length) {
+					await this.repository.checkout('', toCheckout);
+				}
 				await this.repository.updateSubmodules(submodulesToUpdate);
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
