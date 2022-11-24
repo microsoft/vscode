@@ -133,10 +133,7 @@ export interface IProductConfiguration {
 	readonly serverDataFolderName?: string;
 
 	readonly tunnelApplicationName?: string;
-	readonly tunnelApplicationConfig?: {
-		authenticationProviders: IStringDictionary<{ scopes: string[] }>;
-		editorWebUrl: string;
-	};
+	readonly tunnelApplicationConfig?: ITunnelApplicationConfig;
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
@@ -167,6 +164,12 @@ export interface IProductConfiguration {
 
 	// experimental
 	readonly enableSyncingProfiles?: boolean;
+}
+
+export interface ITunnelApplicationConfig {
+	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
+	editorWebUrl: string;
+	extension: IRemoteExtensionTip;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };

@@ -7,7 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -559,7 +560,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
 				timestamp: e.timestamp,
-				markProperties: e.markProperties
+				markProperties: e.markProperties,
+				aliases: e.aliases
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -647,7 +649,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined {
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -657,6 +659,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
 	const lines: string[] = [];
+	let match: RegExpMatchArray | null | undefined;
 	if (outputMatcher.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
 			let wrappedLineStart = i;
@@ -669,9 +672,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length > linesToCheck) {
 				lines.pop();
 			}
-			const match = lines.join('\n').match(matcher);
-			if (match) {
-				return match;
+			if (!match) {
+				match = lines.join('\n').match(matcher);
+				if (!outputMatcher.multipleMatches && match) {
+					return { regexMatch: match };
+				}
 			}
 		}
 	} else {
@@ -686,16 +691,61 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length === linesToCheck) {
 				lines.shift();
 			}
-			if (outputMatcher) {
-				const match = lines.join('\n').match(matcher);
-				if (match) {
-					return match;
+			if (!match) {
+				match = lines.join('\n').match(matcher);
+				if (!outputMatcher.multipleMatches && match) {
+					return { regexMatch: match };
 				}
 			}
 		}
 	}
-	return undefined;
+	return match ? { regexMatch: match, outputLines: lines } : undefined;
 }
+
+export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, cols: number, outputMatcher?: ITerminalOutputMatcher): string[] | undefined {
+	if (!outputMatcher) {
+		return undefined;
+	}
+	const executedMarker = command.executedMarker;
+	const endMarker = command.endMarker;
+	if (!executedMarker || !endMarker) {
+		throw new Error('No marker for command');
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
+
+	const linesToCheck = outputMatcher.length;
+	const lines: string[] = [];
+	if (outputMatcher.anchor === 'bottom') {
+		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
+			let wrappedLineStart = i;
+			const wrappedLineEnd = i;
+			while (wrappedLineStart >= startLine && buffer.getLine(wrappedLineStart)?.isWrapped) {
+				wrappedLineStart--;
+			}
+			i = wrappedLineStart;
+			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (lines.length > linesToCheck) {
+				lines.pop();
+			}
+		}
+	} else {
+		for (let i = startLine + (outputMatcher.offset || 0); i < endLine; i++) {
+			const wrappedLineStart = i;
+			let wrappedLineEnd = i;
+			while (wrappedLineEnd + 1 < endLine && buffer.getLine(wrappedLineEnd + 1)?.isWrapped) {
+				wrappedLineEnd++;
+			}
+			i = wrappedLineEnd;
+			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (lines.length === linesToCheck) {
+				lines.shift();
+			}
+		}
+	}
+	return lines;
+}
+
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is
