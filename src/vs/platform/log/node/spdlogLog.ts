@@ -21,7 +21,7 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 	// Do not crash if spdlog cannot be loaded
 	try {
 		const _spdlog = await import('spdlog');
-		_spdlog.setFlushOn(LogLevel.Trace);
+		_spdlog.setFlushOn(SpdLogLevel.Trace);
 		const logger = await _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
 		if (donotUseFormatters) {
 			logger.clearFormatters();
