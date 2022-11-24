@@ -13,6 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
+import { StringSHA1 } from 'vs/base/common/hash';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	original: 'Cloud Changes',
@@ -99,4 +100,10 @@ export function decodeEditSessionFileContent(version: number, content: string): 
 		default:
 			throw new Error('Upgrade to a newer version to decode this content.');
 	}
+}
+
+export function hashedEditSessionId(editSessionId: string) {
+	const sha1 = new StringSHA1();
+	sha1.update(editSessionId);
+	return sha1.digest();
 }
