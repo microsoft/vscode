@@ -143,13 +143,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		if (this.environmentService.editSessionId !== undefined) {
 			this.logService.info(`Resuming cloud changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
-			await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
+			await this.progressService.withProgress(resumingProgressOptions, async () => await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined));
 		} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
 			this.logService.info('Resuming cloud changes, reason: cloud changes enabled...');
 			// Attempt to resume edit session based on edit workspace identifier
 			// Note: at this point if the user is not signed into edit sessions,
 			// we don't want them to be prompted to sign in and should just return early
-			await this.resumeEditSession(undefined, true);
+			await this.progressService.withProgress(resumingProgressOptions, async () => await this.resumeEditSession(undefined, true));
 		} else if (shouldAutoResumeOnReload) {
 			// The application has previously launched via a protocol URL Continue On flow
 			const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
@@ -160,7 +160,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// attempt a resume if we are in a pending state and the user just signed in
 				const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
 					disposable.dispose();
-					this.resumeEditSession(undefined, true);
+					await this.progressService.withProgress(resumingProgressOptions, async () => await this.resumeEditSession(undefined, true));
 					this.storageService.remove(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION);
 					this.environmentService.continueOn = undefined;
 				});
@@ -174,7 +174,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.editSessionsStorageService.initialize(true);
 				if (this.editSessionsStorageService.isSignedIn) {
-					await this.resumeEditSession(undefined, true);
+					await this.progressService.withProgress(resumingProgressOptions, async () => await this.resumeEditSession(undefined, true));
 				} else {
 					handlePendingEditSessions();
 				}
@@ -413,96 +413,94 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean): Promise<void> {
-		return this.progressService.withProgress(resumingProgressOptions, async () => {
-			// Edit sessions are not currently supported in empty workspaces
-			// https://github.com/microsoft/vscode/issues/159220
-			if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		// Edit sessions are not currently supported in empty workspaces
+		// https://github.com/microsoft/vscode/issues/159220
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+
+		this.logService.info(ref !== undefined ? `Resuming changes from cloud with ref ${ref}...` : 'Resuming changes from cloud...');
+
+		if (silent && !(await this.editSessionsStorageService.initialize(false, true))) {
+			return;
+		}
+
+		type ResumeEvent = { outcome: string; hashedId?: string };
+		type ResumeClassification = {
+			owner: 'joyceerhl'; comment: 'Reporting when an edit session is resumed from an edit session identifier.';
+			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The outcome of resuming the edit session.' };
+			hashedId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The hash of the stored edit session id, for correlating success of stores and resumes.' };
+		};
+		this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
+
+		performance.mark('code/willResumeEditSessionFromIdentifier');
+
+		const data = await this.editSessionsStorageService.read(ref);
+		if (!data) {
+			if (ref === undefined && !silent) {
+				this.notificationService.info(localize('no cloud changes', 'There are no changes to resume from the cloud.'));
+			} else if (ref !== undefined) {
+				this.notificationService.warn(localize('no cloud changes for ref', 'Could not resume changes from the cloud for ID {0}.', ref));
+			}
+			this.logService.info(ref !== undefined ? `Aborting resuming changes from cloud as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
+			return;
+		}
+		const editSession = data.editSession;
+		ref = data.ref;
+
+		if (editSession.version > EditSessionSchemaVersion) {
+			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume your working changes from the cloud.", this.productService.nameLong));
+			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume.outcome', { hashedId: hashedEditSessionId(ref), outcome: 'clientUpdateNeeded' });
+			return;
+		}
+
+		try {
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, force);
+			if (changes.length === 0) {
 				return;
 			}
 
-			this.logService.info(ref !== undefined ? `Resuming changes from cloud with ref ${ref}...` : 'Resuming changes from cloud...');
+			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
+			if (conflictingChanges.length > 0) {
+				const yes = localize('resume edit session yes', 'Yes');
+				const cancel = localize('resume edit session cancel', 'Cancel');
+				// Allow to show edit sessions
 
-			if (silent && !(await this.editSessionsStorageService.initialize(false, true))) {
-				return;
-			}
+				const result = await this.dialogService.show(
+					Severity.Warning,
+					conflictingChanges.length > 1 ?
+						localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
+						localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
+					[cancel, yes],
+					{
+						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
+						cancelId: 0
+					});
 
-			type ResumeEvent = { outcome: string; hashedId?: string };
-			type ResumeClassification = {
-				owner: 'joyceerhl'; comment: 'Reporting when an edit session is resumed from an edit session identifier.';
-				outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The outcome of resuming the edit session.' };
-				hashedId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The hash of the stored edit session id, for correlating success of stores and resumes.' };
-			};
-			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
-
-			performance.mark('code/willResumeEditSessionFromIdentifier');
-
-			const data = await this.editSessionsStorageService.read(ref);
-			if (!data) {
-				if (ref === undefined && !silent) {
-					this.notificationService.info(localize('no cloud changes', 'There are no changes to resume from the cloud.'));
-				} else if (ref !== undefined) {
-					this.notificationService.warn(localize('no cloud changes for ref', 'Could not resume changes from the cloud for ID {0}.', ref));
-				}
-				this.logService.info(ref !== undefined ? `Aborting resuming changes from cloud as no edit session content is available to be applied from ref ${ref}.` : `Aborting resuming edit session as no edit session content is available to be applied`);
-				return;
-			}
-			const editSession = data.editSession;
-			ref = data.ref;
-
-			if (editSession.version > EditSessionSchemaVersion) {
-				this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume your working changes from the cloud.", this.productService.nameLong));
-				this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume.outcome', { hashedId: hashedEditSessionId(ref), outcome: 'clientUpdateNeeded' });
-				return;
-			}
-
-			try {
-				const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, force);
-				if (changes.length === 0) {
+				if (result.choice === 0) {
 					return;
 				}
-
-				// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
-				if (conflictingChanges.length > 0) {
-					const yes = localize('resume edit session yes', 'Yes');
-					const cancel = localize('resume edit session cancel', 'Cancel');
-					// Allow to show edit sessions
-
-					const result = await this.dialogService.show(
-						Severity.Warning,
-						conflictingChanges.length > 1 ?
-							localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
-							localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
-						[cancel, yes],
-						{
-							detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
-							cancelId: 0
-						});
-
-					if (result.choice === 0) {
-						return;
-					}
-				}
-
-				for (const { uri, type, contents } of changes) {
-					if (type === ChangeType.Addition) {
-						await this.fileService.writeFile(uri, decodeEditSessionFileContent(editSession.version, contents!));
-					} else if (type === ChangeType.Deletion && await this.fileService.exists(uri)) {
-						await this.fileService.del(uri);
-					}
-				}
-
-				this.logService.info(`Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
-				await this.editSessionsStorageService.delete(ref);
-				this.logService.info(`Deleted edit session with ref ${ref}.`);
-
-				this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume.outcome', { hashedId: hashedEditSessionId(ref), outcome: 'resumeSucceeded' });
-			} catch (ex) {
-				this.logService.error('Failed to resume edit session, reason: ', (ex as Error).toString());
-				this.notificationService.error(localize('resume failed', "Failed to resume your working changes from the cloud."));
 			}
 
-			performance.mark('code/didResumeEditSessionFromIdentifier');
-		});
+			for (const { uri, type, contents } of changes) {
+				if (type === ChangeType.Addition) {
+					await this.fileService.writeFile(uri, decodeEditSessionFileContent(editSession.version, contents!));
+				} else if (type === ChangeType.Deletion && await this.fileService.exists(uri)) {
+					await this.fileService.del(uri);
+				}
+			}
+
+			this.logService.info(`Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
+			await this.editSessionsStorageService.delete(ref);
+			this.logService.info(`Deleted edit session with ref ${ref}.`);
+
+			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume.outcome', { hashedId: hashedEditSessionId(ref), outcome: 'resumeSucceeded' });
+		} catch (ex) {
+			this.logService.error('Failed to resume edit session, reason: ', (ex as Error).toString());
+			this.notificationService.error(localize('resume failed', "Failed to resume your working changes from the cloud."));
+		}
+
+		performance.mark('code/didResumeEditSessionFromIdentifier');
 	}
 
 	private async generateChanges(editSession: EditSession, ref: string, force = false) {
