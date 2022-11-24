@@ -27,8 +27,8 @@ import { SettingsResource, SettingsResourceTreeItem } from 'vs/workbench/service
 import { KeybindingsResource, KeybindingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
 import { SnippetsResource, SnippetsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/snippetsResource';
 import { TasksResource, TasksResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/tasksResource';
-import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceImportTreeItem } from 'vs/workbench/services/userDataProfile/browser/globalStateResource';
+import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem, ExtensionsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
+import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceImportTreeItem, GlobalStateResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/globalStateResource';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -736,9 +736,9 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 				tasks = await root.getContent();
 			} else if (root instanceof SnippetsResourceTreeItem) {
 				snippets = await root.getContent();
-			} else if (root instanceof ExtensionsResourceExportTreeItem) {
+			} else if (root instanceof ExtensionsResourceTreeItem) {
 				extensions = await root.getContent();
-			} else if (root instanceof GlobalStateResourceExportTreeItem) {
+			} else if (root instanceof GlobalStateResourceTreeItem) {
 				globalState = await root.getContent();
 			}
 		}
