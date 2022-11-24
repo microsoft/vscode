@@ -128,7 +128,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				// bin = /usr/share/code-insiders/bin
 				binParentLocation = dirname(dirname(this.environmentService.appRoot));
 			}
-			this._tunnelCommand = join(binParentLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''} `);
+			this._tunnelCommand = join(binParentLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 		}
 		return this._tunnelCommand;
 	}
