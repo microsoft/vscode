@@ -433,7 +433,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 					const openRepository = l10n.t('Open Repository');
 					const learnMore = l10n.t('Learn More');
 
-					window.showWarningMessage(l10n.t('The git repository at "{0}" has been detected as potentially unsafe as it\'s owned by someone else other than the current user. Do you want to open the repository?', unsafeRepositoryPath), openRepository, learnMore)
+					window.showErrorMessage(l10n.t('The git repository at "{0}" has been detected as potentially unsafe as the folder is owned by someone else other than the current user. Do you want to open the repository?', unsafeRepositoryPath), openRepository, learnMore)
 						.then(async choice => {
 							if (choice === openRepository) {
 								// Mark as Safe
