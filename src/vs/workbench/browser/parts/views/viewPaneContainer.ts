@@ -136,7 +136,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.updateStyles();
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 
 		// Overlay drop background
 		this.overlay.style.backgroundColor = this.getColor(this.location === ViewContainerLocation.Panel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND) || '';

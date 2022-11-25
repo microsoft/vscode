@@ -175,7 +175,7 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		const extensionsList = append(container, $('.extensions-list'));
@@ -1352,7 +1352,7 @@ export class SearchMarketplaceExtensionsView extends ExtensionsListView {
 export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 	private readonly recommendedExtensionsQuery = '@recommended:all';
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
@@ -1377,7 +1377,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 export class RecommendedExtensionsView extends ExtensionsListView {
 	private readonly recommendedExtensionsQuery = '@recommended';
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
@@ -1393,7 +1393,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView implements IWorkspaceRecommendedExtensionsView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.show(this.recommendedExtensionsQuery)));

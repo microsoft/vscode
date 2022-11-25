@@ -2454,17 +2454,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const scrollbarArrowSize = scrollbar.arrowSize;
 		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize;
 
-		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
 		const showFoldingDecoration = options.get(EditorOption.showFoldingControls) !== 'never';
 
-		let lineDecorationsWidth: number;
-		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
-			const multiple = parseFloat(rawLineDecorationsWidth.substr(0, rawLineDecorationsWidth.length - 2));
-			lineDecorationsWidth = EditorIntOption.clampedInt(multiple * typicalHalfwidthCharacterWidth, 0, 0, 1000);
-		} else {
-			lineDecorationsWidth = EditorIntOption.clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
-		}
+		let lineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		if (folding && showFoldingDecoration) {
 			lineDecorationsWidth += 16;
 		}
@@ -2803,6 +2796,35 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding)
 		};
+	}
+}
+
+//#endregion
+
+//#region lineDecorationsWidth
+
+class EditorLineDecorationsWidth extends BaseEditorOption<EditorOption.lineDecorationsWidth, number | string, number> {
+
+	constructor() {
+		super(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10);
+	}
+
+	public validate(input: any): number {
+		if (typeof input === 'string' && /^\d+(\.\d+)?ch$/.test(input)) {
+			const multiple = parseFloat(input.substring(0, input.length - 2));
+			return -multiple; // negative numbers signal a multiple
+		} else {
+			return EditorIntOption.clampedInt(input, this.defaultValue, 0, 1000);
+		}
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		if (value < 0) {
+			// negative numbers signal a multiple
+			return EditorIntOption.clampedInt(-value * env.fontInfo.typicalHalfwidthCharacterWidth, this.defaultValue, 0, 1000);
+		} else {
+			return value;
+		}
 	}
 }
 
@@ -5151,7 +5173,7 @@ export const EditorOptions = {
 		{ description: nls.localize('letterSpacing', "Controls the letter spacing in pixels.") }
 	)),
 	lightbulb: register(new EditorLightbulb()),
-	lineDecorationsWidth: register(new SimpleEditorOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10 as number | string)),
+	lineDecorationsWidth: register(new EditorLineDecorationsWidth()),
 	lineHeight: register(new EditorLineHeight()),
 	lineNumbers: register(new EditorRenderLineNumbersOption()),
 	lineNumbersMinChars: register(new EditorIntOption(

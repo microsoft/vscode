@@ -4760,7 +4760,7 @@ declare namespace monaco.editor {
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, Readonly<Required<IEditorLightbulbOptions>>>;
-		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, string | number>;
+		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, number>;
 		lineHeight: IEditorOption<EditorOption.lineHeight, number>;
 		lineNumbers: IEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions>;
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;

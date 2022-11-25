@@ -36,7 +36,6 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -90,7 +89,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IProductService protected readonly productService: IProductService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -230,12 +228,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
-
-		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh && !isWeb) {
@@ -255,6 +250,9 @@ export class TitlebarPart extends Part implements ITitleService {
 				}
 			}
 		}
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Menubar: install a custom menu bar depending on configuration
 		// and when not in activity bar

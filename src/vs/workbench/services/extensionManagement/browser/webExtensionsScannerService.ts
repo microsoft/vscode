@@ -18,10 +18,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMetadata, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
-import { isString } from 'vs/base/common/types';
+import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
@@ -66,6 +66,7 @@ interface IStoredWebExtension {
 	readonly packageNLSUri?: UriComponents;
 	readonly packageNLSUris?: IStringDictionary<UriComponents>;
 	readonly fallbackPackageNLSUri?: UriComponents;
+	readonly defaultManifestTranslations?: ITranslations | null;
 	readonly metadata?: Metadata;
 }
 
@@ -81,6 +82,7 @@ interface IWebExtension {
 	packageNLSUris?: Map<string, URI>;
 	bundleNLSUris?: Map<string, URI>;
 	fallbackPackageNLSUri?: URI;
+	defaultManifestTranslations?: ITranslations | null;
 	metadata?: Metadata;
 }
 
@@ -329,6 +331,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (!this._updateCustomBuiltinExtensionsCachePromise) {
 			this._updateCustomBuiltinExtensionsCachePromise = (async () => {
 				this.logService.info('Updating additional builtin extensions cache');
+				const cached = await this.getCustomBuiltinExtensionsFromCache();
 				const webExtensions: IWebExtension[] = [];
 				const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
 				if (extensions.length) {
@@ -339,7 +342,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					}
 					await Promise.all([...galleryExtensionsMap.values()].map(async gallery => {
 						try {
-							webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
+							const webExtension = cached.find(e => areSameExtensions(e.identifier, gallery.identifier) && e.version === gallery.version)
+								?? await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true });
+							webExtensions.push(webExtension);
 						} catch (error) {
 							this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 						}
@@ -611,6 +616,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				fallbackPackageNLSUri = undefined;
 			}
 		}
+		const defaultManifestTranslations: ITranslations | null | undefined = fallbackPackageNLSUri ? await this.getTranslations(fallbackPackageNLSUri) : null;
 
 		if (bundleNLSUris === undefined && manifest.browser) {
 			const englishStringsUri = joinPath(
@@ -637,6 +643,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			packageNLSUris,
 			bundleNLSUris,
 			fallbackPackageNLSUri: fallbackPackageNLSUri ? fallbackPackageNLSUri : undefined,
+			defaultManifestTranslations,
 			metadata,
 		};
 	}
@@ -666,10 +673,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		ImplicitActivationEvents.updateManifest(manifest);
 
 		const packageNLSUri = webExtension.packageNLSUris?.get(Language.value().toLowerCase());
-		if (packageNLSUri || webExtension.fallbackPackageNLSUri) {
-			manifest = packageNLSUri
-				? await this.translateManifest(manifest, packageNLSUri, webExtension.fallbackPackageNLSUri)
-				: await this.translateManifest(manifest, webExtension.fallbackPackageNLSUri!);
+		const fallbackPackageNLS = webExtension.defaultManifestTranslations ?? webExtension.fallbackPackageNLSUri;
+
+		if (packageNLSUri) {
+			manifest = await this.translateManifest(manifest, packageNLSUri, fallbackPackageNLS);
+		} else if (fallbackPackageNLS) {
+			manifest = await this.translateManifest(manifest, fallbackPackageNLS);
 		}
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
@@ -716,12 +725,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return [];
 	}
 
-	private async translateManifest(manifest: IExtensionManifest, nlsURL: URI, fallbackNlsURL?: URI): Promise<IExtensionManifest> {
+	private async translateManifest(manifest: IExtensionManifest, nlsURL: ITranslations | URI, fallbackNLS?: ITranslations | URI): Promise<IExtensionManifest> {
 		try {
-			const content = await this.extensionResourceLoaderService.readExtensionResource(nlsURL);
-			const fallbackContent = fallbackNlsURL ? await this.extensionResourceLoaderService.readExtensionResource(fallbackNlsURL) : undefined;
-			if (content) {
-				manifest = localizeManifest(manifest, JSON.parse(content), fallbackContent ? JSON.parse(fallbackContent) : undefined);
+			const translations = URI.isUri(nlsURL) ? await this.getTranslations(nlsURL) : nlsURL;
+			const fallbackTranslations = URI.isUri(fallbackNLS) ? await this.getTranslations(fallbackNLS) : fallbackNLS;
+			if (translations) {
+				manifest = localizeManifest(manifest, translations, fallbackTranslations);
 			}
 		} catch (error) { /* ignore */ }
 		return manifest;
@@ -754,6 +763,16 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const url = joinPath(location, 'package.json');
 		const content = await this.extensionResourceLoaderService.readExtensionResource(url);
 		return JSON.parse(content);
+	}
+
+	private async getTranslations(nlsUrl: URI): Promise<ITranslations | undefined> {
+		try {
+			const content = await this.extensionResourceLoaderService.readExtensionResource(nlsUrl);
+			return JSON.parse(content);
+		} catch (error) {
+			this.logService.error(`Error while fetching translations of an extension`, nlsUrl.toString(), getErrorMessage(error));
+		}
+		return undefined;
 	}
 
 	private async readInstalledExtensions(profileLocation: URI): Promise<IWebExtension[]> {
@@ -814,6 +833,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						changelogUri: URI.revive(e.changelogUri),
 						packageNLSUris,
 						fallbackPackageNLSUri: URI.revive(e.fallbackPackageNLSUri),
+						defaultManifestTranslations: e.defaultManifestTranslations,
 						packageNLSUri: URI.revive(e.packageNLSUri),
 						metadata: e.metadata,
 					});
@@ -852,6 +872,20 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					this.logService.error(`Error while updating manifest of an extension in ${file.toString()}`, webExtension.identifier.id, getErrorMessage(error));
 				}
 			}
+			if (isUndefined(webExtension.defaultManifestTranslations)) {
+				if (webExtension.fallbackPackageNLSUri) {
+					try {
+						const content = await this.extensionResourceLoaderService.readExtensionResource(webExtension.fallbackPackageNLSUri);
+						webExtension.defaultManifestTranslations = JSON.parse(content);
+						update = true;
+					} catch (error) {
+						this.logService.error(`Error while fetching default manifest translations of an extension`, webExtension.identifier.id, getErrorMessage(error));
+					}
+				} else {
+					update = true;
+					webExtension.defaultManifestTranslations = null;
+				}
+			}
 			return webExtension;
 		}));
 		if (update) {
@@ -877,6 +911,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			readmeUri: e.readmeUri?.toJSON(),
 			changelogUri: e.changelogUri?.toJSON(),
 			packageNLSUris: toStringDictionary(e.packageNLSUris),
+			defaultManifestTranslations: e.defaultManifestTranslations,
 			fallbackPackageNLSUri: e.fallbackPackageNLSUri?.toJSON(),
 			metadata: e.metadata
 		}));
