@@ -774,8 +774,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this.queryLocal().then(() => {
 			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
-				this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+				if (!this._store.isDisposed) {
+					this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
+					this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+				}
 			});
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
@@ -1238,7 +1240,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			if (installed.isBuiltin && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
-				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier 
+				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
