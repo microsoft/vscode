@@ -128,7 +128,7 @@ export interface ILoggerService {
 	getLogLevel(resource: URI): LogLevel | undefined;
 }
 
-export abstract class AbstractLogger extends Disposable {
+export abstract class AbstractLogger extends Disposable implements ILogger {
 
 	private level: LogLevel = DEFAULT_LOG_LEVEL;
 	private readonly _onDidChangeLogLevel: Emitter<LogLevel> = this._register(new Emitter<LogLevel>());
@@ -149,6 +149,12 @@ export abstract class AbstractLogger extends Disposable {
 		return this.level !== LogLevel.Off && this.level <= level;
 	}
 
+	abstract trace(message: string, ...args: any[]): void;
+	abstract debug(message: string, ...args: any[]): void;
+	abstract info(message: string, ...args: any[]): void;
+	abstract warn(message: string, ...args: any[]): void;
+	abstract error(message: string | Error, ...args: any[]): void;
+	abstract flush(): void;
 }
 
 export abstract class AbstractMessageLogger extends AbstractLogger implements ILogger {
