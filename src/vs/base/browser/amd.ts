@@ -18,6 +18,7 @@ class DefineCall {
 class AMDModuleImporter {
 	public static INSTANCE = new AMDModuleImporter();
 
+	private readonly _isWebWorker = (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope');
 	private readonly _defineCalls: DefineCall[] = [];
 	private _initialized = false;
 	private _amdPolicy: Pick<TrustedTypePolicy<{
@@ -50,19 +51,27 @@ class AMDModuleImporter {
 
 		(<any>globalThis).define.amd = true;
 
-		this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-			createScriptURL(value) {
-				if (value.startsWith(window.location.origin)) {
+		if (!this._isWebWorker) {
+			this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
+				}
+			});
+		} else {
+			this._amdPolicy = (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value: string) {
 					return value;
 				}
-				throw new Error(`Invalid script url: ${value}`);
-			}
-		});
+			});
+		}
 	}
 
 	public async load<T>(scriptSrc: string): Promise<T> {
 		this._initialize();
-		const defineCall = await this.loadScript(scriptSrc);
+		const defineCall = await (!this._isWebWorker ? this._rendererLoadScript(scriptSrc) : this._workerLoadScript(scriptSrc));
 		if (!defineCall) {
 			throw new Error(`Did not receive a define call from script ${scriptSrc}`);
 		}
@@ -77,7 +86,7 @@ class AMDModuleImporter {
 		}
 	}
 
-	private loadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+	private _rendererLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		return new Promise<DefineCall | undefined>((resolve, reject) => {
 			const scriptElement = document.createElement('script');
 			scriptElement.setAttribute('async', 'async');
@@ -107,6 +116,20 @@ class AMDModuleImporter {
 			document.getElementsByTagName('head')[0].appendChild(scriptElement);
 		});
 	}
+
+	private _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		return new Promise<DefineCall | undefined>((resolve, reject) => {
+			try {
+				if (this._amdPolicy) {
+					scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
+				}
+				importScripts(scriptSrc);
+				resolve(this._defineCalls.pop());
+			} catch (err) {
+				reject(err);
+			}
+		});
+	}
 }
 
 const cache = new Map<string, Promise<any>>();
@@ -120,10 +143,16 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 		if (cache.has(nodeModulePath)) {
 			return cache.get(nodeModulePath)!;
 		}
-		const useASAR = (isBuilt && !platform.isWeb);
-		const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
-		const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
-		const scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
+		let scriptSrc: string;
+		if (nodeModuleName.startsWith('vscode-file://')) {
+			// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
+			scriptSrc = nodeModuleName;
+		} else {
+			const useASAR = (isBuilt && !platform.isWeb);
+			const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
+			const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
+			scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
+		}
 		const result = AMDModuleImporter.INSTANCE.load<T>(scriptSrc);
 		cache.set(nodeModulePath, result);
 		return result;
