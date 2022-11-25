@@ -7,10 +7,6 @@
 
 declare global {
 
-	/**
-	 * Holds the file root for resources.
-	 */
-	var _VSCODE_FILE_ROOT: string;
 
 	/**
 	 * @deprecated node modules that are in used in a context that
