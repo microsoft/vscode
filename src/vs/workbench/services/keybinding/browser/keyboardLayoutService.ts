@@ -441,8 +441,14 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 		super();
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
+		// ESM-comment-begin
+		const mod = 'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform;
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const mod = './keyboardLayouts/layout.contribution.' + platform + '.js';
+		// ESM-uncomment-end
 
-		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
+		import(mod).then((m) => {
 			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
 			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;

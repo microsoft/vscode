@@ -277,9 +277,15 @@ class FileAccessImpl {
 		}
 
 		if (globalThis._VSCODE_FILE_ROOT) {
-			const rootPath = globalThis._VSCODE_FILE_ROOT;
-			const modulePath = path.join(rootPath, uriOrModule);
-			return URI.parse(modulePath);
+			const rootUriOrPath = globalThis._VSCODE_FILE_ROOT;
+
+			if (/^\w[\w\d+.-]*:\/\//.test(rootUriOrPath)) {
+				return URI.joinPath(URI.parse(rootUriOrPath, true), uriOrModule);
+
+			} else {
+				const modulePath = path.join(rootUriOrPath, uriOrModule);
+				return URI.parse(modulePath);
+			}
 		}
 
 		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));

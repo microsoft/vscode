@@ -29,6 +29,13 @@ import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+
 const textMimeType = {
 	'.html': 'text/html',
 	'.js': 'text/javascript',
@@ -290,7 +297,10 @@ export class WebClientServer {
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html').fsPath;
+		const filePath = !isESM
+			? FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html').fsPath
+			: FileAccess.asFileUri('vs/code/browser/workbench/workbench-esm.html').fsPath;
+
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
 			id: generateUuid(),
 			providerId: 'github',

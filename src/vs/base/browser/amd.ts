@@ -144,7 +144,8 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 			return cache.get(nodeModulePath)!;
 		}
 		let scriptSrc: string;
-		if (nodeModuleName.startsWith('vscode-file://')) {
+		if (/^\w[\w\d+.-]*:\/\//.test(nodeModuleName)) {
+			// looks like a URL
 			// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
 			scriptSrc = nodeModuleName;
 		} else {
