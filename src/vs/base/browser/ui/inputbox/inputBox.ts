@@ -265,6 +265,14 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public get step(): string {
+		return this.input.step;
+	}
+
+	public set step(newValue: string) {
+		this.input.step = newValue;
+	}
+
 	public get height(): number {
 		return typeof this.cachedHeight === 'number' ? this.cachedHeight : dom.getTotalHeight(this.element);
 	}
@@ -369,7 +377,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
+		this.element.style.borderColor = styles.border || 'transparent';
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -543,10 +551,10 @@ export class InputBox extends Widget {
 		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
-		if (border) {
-			this.element.style.border = '1px solid ' + border;
-		}
-
+		// there's always a border, even if the color is not set.
+		this.element.style.borderColor = border || 'transparent';
+		this.element.style.borderWidth = '1px';
+		this.element.style.borderStyle = 'solid';
 	}
 
 	public layout(): void {

@@ -11,6 +11,13 @@
 // when this file is bundled with other files.
 const nodeRequire = require;
 
+// VSCODE_GLOBALS: node_modules
+globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
+
+// VSCODE_GLOBALS: package/product.json
+globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
+
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 const performance = require('./vs/base/common/performance');

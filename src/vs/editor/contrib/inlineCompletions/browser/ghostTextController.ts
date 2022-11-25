@@ -92,6 +92,10 @@ export class GhostTextController extends Disposable {
 		this.activeModel?.triggerInlineCompletion();
 	}
 
+	public commitPartially(): void {
+		this.activeModel?.commitInlineCompletionPartially();
+	}
+
 	public commit(): void {
 		this.activeModel?.commitInlineCompletion();
 	}
@@ -248,5 +252,23 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
 		controller?.trigger();
+	}
+}
+
+export class AcceptNextWordOfInlineCompletion extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.acceptNextWord',
+			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
+			alias: 'Accept Next Word Of Inline Suggestion',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = GhostTextController.get(editor);
+		if (controller) {
+			controller.commitPartially();
+		}
 	}
 }

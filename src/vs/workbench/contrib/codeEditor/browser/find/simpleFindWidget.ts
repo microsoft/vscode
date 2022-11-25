@@ -193,9 +193,9 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
+	public abstract find(previous: boolean): void;
+	public abstract findFirst(): void;
 	protected abstract _onInputChanged(): boolean;
-	protected abstract find(previous: boolean): void;
-	protected abstract findFirst(): void;
 	protected abstract _onFocusTrackerFocus(): void;
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;

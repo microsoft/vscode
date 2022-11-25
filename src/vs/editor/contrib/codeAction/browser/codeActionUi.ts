@@ -5,6 +5,7 @@
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -12,20 +13,29 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IActionShowOptions, IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
+import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenuItems';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { localize } from 'vs/nls';
+import { IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
-import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenuItems';
+
+export interface IActionShowOptions {
+	readonly includeDisabledActions?: boolean;
+	readonly fromLightbulb?: boolean;
+}
 
 export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	#disposed = false;
+
+	private _showDisabled = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -36,14 +46,14 @@ export class CodeActionUi extends Disposable {
 		},
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
-
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: this.shouldShowHeaders() })));
+			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
 
@@ -112,7 +122,7 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this.showCodeActionList(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false, showHeaders: this.shouldShowHeaders() });
+			this.showCodeActionList(actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false });
 		} else {
 			// auto magically triggered
 			if (this._actionWidgetService.isVisible) {
@@ -152,9 +162,14 @@ export class CodeActionUi extends Disposable {
 		return undefined;
 	}
 
-	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 		const editorDom = this._editor.getDomNode();
 		if (!editorDom) {
+			return;
+		}
+
+		const actionsToShow = options.includeDisabledActions && (this._showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
+		if (!actionsToShow.length) {
 			return;
 		}
 
@@ -169,14 +184,14 @@ export class CodeActionUi extends Disposable {
 				this._editor?.focus();
 			}
 		};
+
 		this._actionWidgetService.show(
 			'codeActionWidget',
-			toMenuItems,
+			toMenuItems(actionsToShow, this._shouldShowHeaders()),
 			delegate,
-			actions,
 			anchor,
 			editorDom,
-			{ ...options, showHeaders: this.shouldShowHeaders() });
+			this._getActionBarActions(actions, at, options));
 	}
 
 	private toCoords(position: IPosition): IAnchor {
@@ -196,8 +211,49 @@ export class CodeActionUi extends Disposable {
 		return { x, y };
 	}
 
-	private shouldShowHeaders(): boolean {
+	private _shouldShowHeaders(): boolean {
 		const model = this._editor?.getModel();
 		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', { resource: model?.uri });
+	}
+
+	private _getActionBarActions(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): IAction[] {
+		if (options.fromLightbulb) {
+			return [];
+		}
+
+		const resultActions = actions.documentation.map((command): IAction => ({
+			id: command.id,
+			label: command.title,
+			tooltip: command.tooltip ?? '',
+			class: undefined,
+			enabled: true,
+			run: () => this._commandService.executeCommand(command.id, ...(command.commandArguments ?? [])),
+		}));
+
+		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {
+			resultActions.push(this._showDisabled ? {
+				id: 'hideMoreActions',
+				label: localize('hideMoreActions', 'Hide Disabled'),
+				enabled: true,
+				tooltip: '',
+				class: undefined,
+				run: () => {
+					this._showDisabled = false;
+					return this.showCodeActionList(actions, at, options);
+				}
+			} : {
+				id: 'showMoreActions',
+				label: localize('showMoreActions', 'Show Disabled'),
+				enabled: true,
+				tooltip: '',
+				class: undefined,
+				run: () => {
+					this._showDisabled = true;
+					return this.showCodeActionList(actions, at, options);
+				}
+			});
+		}
+
+		return resultActions;
 	}
 }

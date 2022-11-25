@@ -140,7 +140,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private createScopeOverridesIndicator(): SettingIndicator {
 		// Don't add .setting-indicator class here, because it gets conditionally added later.
 		const otherOverridesElement = $('span.setting-item-overrides');
-		otherOverridesElement.tabIndex = 0;
 		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
 		return {
 			element: otherOverridesElement,
@@ -238,6 +237,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
+		this.scopeOverridesIndicator.element.tabIndex = 0;
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
@@ -295,17 +295,25 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
-				this.scopeOverridesIndicator.disposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e) => {
-						const [scope, language] = overriddenScope.split(':');
-						onDidClickOverrideElement.fire({
-							settingKey: element.setting.key,
-							scope: scope as ScopeString,
-							language
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
+				const onClickOrKeydown = (e: UIEvent) => {
+					const [scope, language] = overriddenScope.split(':');
+					onDidClickOverrideElement.fire({
+						settingKey: element.setting.key,
+						scope: scope as ScopeString,
+						language
+					});
+					e.preventDefault();
+					e.stopPropagation();
+				};
+				this.scopeOverridesIndicator.disposables.add(DOM.addDisposableListener(view, DOM.EventType.CLICK, (e) => {
+					onClickOrKeydown(e);
+				}));
+				this.scopeOverridesIndicator.disposables.add(DOM.addDisposableListener(view, DOM.EventType.KEY_DOWN, (e) => {
+					const ev = new StandardKeyboardEvent(e);
+					if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+						onClickOrKeydown(e);
+					}
+				}));
 			} else {
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.add('setting-indicator');

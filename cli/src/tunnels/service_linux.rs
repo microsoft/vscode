@@ -64,7 +64,7 @@ impl SystemdService {
 	}
 
 	fn service_name_string() -> String {
-		format!("{}-tunnel.service", &*APPLICATION_NAME)
+		format!("{}-tunnel.service", APPLICATION_NAME)
 	}
 }
 
@@ -186,7 +186,7 @@ fn write_systemd_service_file(
       [Install]\n\
       WantedBy=multi-user.target\n\
     ",
-		&*PRODUCT_NAME_LONG,
+		PRODUCT_NAME_LONG,
 		exe.into_os_string().to_string_lossy(),
 		args.join("\" \"")
 	)?;
