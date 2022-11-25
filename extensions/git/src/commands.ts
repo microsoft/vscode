@@ -3277,10 +3277,12 @@ export class CommandCenter {
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
 						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
 						message = l10n.t('There were merge conflicts while applying the stash.');
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						type = 'warning';
 						options.modal = false;
 						break;
