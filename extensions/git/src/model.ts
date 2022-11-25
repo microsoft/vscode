@@ -175,6 +175,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
+		// Show unsafe repositories notification if we cannot use a welcome view
+		if (this.repositories.length > 0 && this._unsafeRepositories.size > 0) {
+			await this.showUnsafeRepositoryNotification();
+		}
+
 		/* __GDPR__
 			"git.repositoryInitialScan" : {
 				"owner": "lszomoru",
@@ -785,6 +790,26 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			// Open Repository
 			await this.openRepository(unsafeRepository);
 			this._unsafeRepositories.delete(unsafeRepository);
+		}
+	}
+
+	private async showUnsafeRepositoryNotification(): Promise<void> {
+		const unsafeRepositoryPaths = Array.from(this._unsafeRepositories.values()).sort().map(m => `"${m}"`).join(', ');
+
+		const message = this._unsafeRepositories.size === 1 ?
+			l10n.t('The git repository in the following folder has been detected as potentially unsafe as the folder is owned by someone else other than the current user: {0}. Do you want to open the repository?', unsafeRepositoryPaths) :
+			l10n.t('The git repositories in the following folders have been detected as potentially unsafe as the folder is owned by someone else other than the current user: {0}. Do you want to open the repositories?', unsafeRepositoryPaths);
+
+		const openRepository = this._unsafeRepositories.size === 1 ? l10n.t('Open Repository') : l10n.t('Open Repositories');
+		const learnMore = l10n.t('Learn More');
+
+		const choice = await window.showErrorMessage(message, openRepository, learnMore);
+		if (choice === openRepository) {
+			// Open Repository
+			await this.addSafeDirectoryAndOpenRepository();
+		} else if (choice === learnMore) {
+			// Learn More
+			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
 		}
 	}
 
