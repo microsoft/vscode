@@ -5,11 +5,19 @@
 
 // @ts-check
 
-const perf = require('./vs/base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../product.json');
 const readline = require('readline');
 const http = require('http');
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+const requireExtension = (isESM ? '.cjs' : '');
+const perf = require(`./vs/base/common/performance${requireExtension}`);
 
 perf.mark('code/server/start');
 // @ts-ignore

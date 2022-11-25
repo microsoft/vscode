@@ -6,8 +6,7 @@
 import * as fs from 'fs';
 import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-
-import * as lp from 'vs/base/node/languagePacks';
+import type * as lp from 'vs/base/node/languagePacks';
 import product from 'vs/platform/product/common/product';
 
 const metaData = path.join(FileAccess.asFileUri('').fsPath, 'nls.metadata.json');
@@ -26,7 +25,17 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
-			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
+
+			// ESM-comment-begin
+			const isESM = false;
+			// ESM-comment-end
+			// ESM-uncomment-begin
+			// const isESM = true;
+			// ESM-uncomment-end
+
+			const { getNLSConfiguration } = <typeof import('vs/base/node/languagePacks')>require(`../../base/node/languagePacks.${isESM ? 'esm' : 'cjs'}}}`);
+
+			result = getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
 				if (InternalNLSConfiguration.is(value)) {
 					value._languagePackSupport = true;
 				}
