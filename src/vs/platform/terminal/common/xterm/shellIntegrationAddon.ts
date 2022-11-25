@@ -353,7 +353,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const { key, value } = parseKeyValueAssignment(args[0]);
+				const deserialized = args.length ? deserializeMessage(args[0]) : '';
+				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
 				}
@@ -402,6 +403,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.
+				// Note that unlike `VSCodeOscPt.Property`, iTerm2 does not interpret backslash or hex-escape sequences.
+				// See: https://github.com/gnachman/iTerm2/blob/bb0882332cec5196e4de4a4225978d746e935279/sources/VT100Terminal.m#L2089-L2105
 				const { key, value } = parseKeyValueAssignment(command);
 
 				if (value === undefined) {
@@ -523,14 +526,13 @@ export function deserializeMessage(message: string): string {
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
-	const deserialized = deserializeMessage(message);
-	const separatorIndex = deserialized.indexOf('=');
+	const separatorIndex = message.indexOf('=');
 	if (separatorIndex === -1) {
-		return { key: deserialized, value: undefined }; // No '=' was found.
+		return { key: message, value: undefined }; // No '=' was found.
 	}
 	return {
-		key: deserialized.substring(0, separatorIndex),
-		value: deserialized.substring(1 + separatorIndex)
+		key: message.substring(0, separatorIndex),
+		value: message.substring(1 + separatorIndex)
 	};
 }
 

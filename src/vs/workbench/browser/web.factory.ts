@@ -13,8 +13,6 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { LogLevel } from 'vs/platform/log/common/log';
 
 let created = false;
@@ -133,11 +131,6 @@ export namespace env {
 
 		return workbench.env.openUri(target);
 	}
-
-	/**
-	 * {@linkcode IWorkbench.env IWorkbench.env.telemetryLevel}
-	 */
-	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> = workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
 export namespace window {

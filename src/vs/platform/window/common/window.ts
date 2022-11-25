@@ -14,7 +14,6 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -164,7 +163,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export function useWindowControlsOverlay(configurationService: IConfigurationService, productService: IProductService): boolean {
+export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (!isWindows || isWeb) {
 		return false; // only supported on a desktop Windows instance
 	}
@@ -178,9 +177,8 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return configuredUseWindowControlsOverlay;
 	}
 
-	// Default to true for Insider and Exploration to match with
-	// app.getPreferredSystemLanguages() only being available on those builds.
-	return productService.quality === 'insider' || productService.quality === 'exploration';
+	// Default to true.
+	return true;
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {

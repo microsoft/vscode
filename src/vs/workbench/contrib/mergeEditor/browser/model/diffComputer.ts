@@ -63,13 +63,13 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 		);
 
 		assertFn(() => {
-			return changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
+			return changes.length === 0 || (changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
 				checkAdjacentItems(changes,
 					(m1, m2) => m2.inputRange.startLineNumber - m1.inputRange.endLineNumberExclusive === m2.outputRange.startLineNumber - m1.outputRange.endLineNumberExclusive &&
 						// There has to be an unchanged line in between (otherwise both diffs should have been joined)
 						m1.inputRange.endLineNumberExclusive < m2.inputRange.startLineNumber &&
 						m1.outputRange.endLineNumberExclusive < m2.outputRange.startLineNumber,
-				);
+				));
 		});
 
 		return {

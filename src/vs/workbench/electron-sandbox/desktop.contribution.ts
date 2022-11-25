@@ -207,7 +207,7 @@ import product from 'vs/platform/product/common/product';
 			},
 			'window.experimental.windowControlsOverlay.enabled': {
 				'type': 'boolean',
-				'default': product.quality === 'insider' || product.quality === 'exploration', // switch back to true when app.getLocale() isn't used anymore.
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
 				'included': isWindows
@@ -244,6 +244,7 @@ import product from 'vs/platform/product/common/product';
 				type: 'boolean',
 				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
 				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				tags: product.quality === 'stable' ? ['experimental'] : undefined,
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			},

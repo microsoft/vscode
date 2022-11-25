@@ -15,6 +15,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ITreeItem, ITreeItemCheckboxState, ITreeItemLabel } from 'vs/workbench/common/views';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -69,7 +70,7 @@ export const IUserDataProfileImportExportService = createDecorator<IUserDataProf
 export interface IUserDataProfileImportExportService {
 	readonly _serviceBrand: undefined;
 
-	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): void;
+	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
 	unregisterProfileContentHandler(id: string): void;
 
 	exportProfile(): Promise<void>;
@@ -105,7 +106,6 @@ export interface IProfileResourceChildTreeItem extends ITreeItem {
 
 export interface IUserDataProfileContentHandler {
 	readonly name: string;
-	readonly description?: string;
 	readonly extensionId?: string;
 	saveProfile(name: string, content: string, token: CancellationToken): Promise<URI | null>;
 	readProfile(uri: URI, token: CancellationToken): Promise<string | null>;

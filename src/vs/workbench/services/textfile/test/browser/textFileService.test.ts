@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -26,13 +26,13 @@ suite('Files - TextFileService', () => {
 
 	teardown(() => {
 		model?.dispose();
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).dispose();
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).dispose();
 		disposables.dispose();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
 
@@ -54,7 +54,7 @@ suite('Files - TextFileService', () => {
 
 	test('save - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
 		model.textEditorModel!.setValue('foo');
@@ -67,7 +67,7 @@ suite('Files - TextFileService', () => {
 
 	test('saveAll - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
 		model.textEditorModel!.setValue('foo');
@@ -80,7 +80,7 @@ suite('Files - TextFileService', () => {
 
 	test('saveAs - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.resolve();
@@ -94,7 +94,7 @@ suite('Files - TextFileService', () => {
 
 	test('revert - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.resolve();
@@ -107,7 +107,7 @@ suite('Files - TextFileService', () => {
 
 	test('create does not overwrite existing model', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
 		model!.textEditorModel!.setValue('foo');

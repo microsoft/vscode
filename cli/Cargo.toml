@@ -48,6 +48,10 @@ async-trait = "0.1"
 log = "0.4"
 const_format = "0.2"
 
+[build-dependencies]
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
+
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.5"
 winreg = "0.10"

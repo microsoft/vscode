@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -11,14 +10,15 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -189,6 +189,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	refreshActiveGroup(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
+
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
@@ -457,7 +458,7 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	quickFix: ITerminalQuickFix | undefined;
+	quickFix: ITerminalQuickFixAddon | undefined;
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 
@@ -952,30 +953,6 @@ export interface ITerminalInstance {
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 }
 
-export interface ITerminalQuickFixOptions {
-	id: string;
-	commandLineMatcher: string | RegExp;
-	outputMatcher?: ITerminalOutputMatcher;
-	getQuickFixes: TerminalQuickFixCallback;
-	exitStatus?: boolean;
-	source: string;
-}
-export type TerminalQuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type TerminalQuickFixAction = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
-export type TerminalQuickFixCallback = (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => TerminalQuickFixAction[] | TerminalQuickFixAction | undefined;
-
-export interface ITerminalQuickFixCommandAction {
-	type: 'command';
-	id: string;
-	command: string;
-	// TODO: Should this depend on whether alt is held?
-	addNewLine: boolean;
-}
-export interface ITerminalQuickFixOpenerAction {
-	type: 'opener';
-	id: string;
-	uri: URI;
-}
 
 export interface IXtermTerminal {
 	/**

@@ -162,6 +162,9 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 					} else {
 						this.changes.updated(existing);
 					}
+					if (patch.item?.sortText || (patch.item?.label && !existing.sortText)) {
+						this.changes.sortKeyUpdated(existing);
+					}
 					break;
 				}
 

@@ -623,6 +623,16 @@
         "title": "%command.git.runGitMergeDiff3%",
         "category": "Git",
         "enablement": "isMergeEditor"
+      },
+      {
+        "command": "git.addSafeDirectoryAndOpenRepository",
+        "title": "%command.addSafeDirectoryAndOpenRepository%",
+        "category": "Git"
+      },
+      {
+        "command": "git.api.getUnsafeRepositories",
+        "title": "%command.api.getUnsafeRepositories%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1048,8 +1058,16 @@
           "when": "false"
         },
         {
+          "command": "git.api.getUnsafeRepositories",
+          "when": "false"
+        },
+        {
           "command": "git.openMergeEditor",
           "when": "false"
+        },
+        {
+          "command": "git.addSafeDirectoryAndOpenRepository",
+          "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -2697,30 +2715,48 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && !git.missing && workbenchState == empty",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder && remoteName != 'codespaces'",
+        "contents": "%view.workbench.scm.emptyWorkspace%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
+        "group": "2_open@1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.scanFolderForRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && workspaceFolderCount != 0 && git.state != initialized"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.scanWorkspaceForRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && git.state != initialized"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.folder%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && remoteName != 'codespaces'",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0",
-        "enablement": "git.state == initialized",
-        "group": "2_open@1"
+        "contents": "%view.workbench.scm.unsafeRepository%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.unsafeRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount > 1"
       },
       {
         "view": "explorer",

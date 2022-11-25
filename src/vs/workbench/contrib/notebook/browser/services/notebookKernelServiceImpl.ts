@@ -327,7 +327,8 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 					const sourceAction = new SourceAction(action, notebook, isPrimary);
 					const stateChangeListener = sourceAction.onDidChangeState(() => {
 						this._onDidChangeSourceActions.fire({
-							notebook: notebook.uri
+							notebook: notebook.uri,
+							viewType: notebook.viewType,
 						});
 					});
 					sourceActions.push([sourceAction, stateChangeListener]);
@@ -335,7 +336,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			});
 			info.actions = sourceActions;
 			this._kernelSources.set(id, info);
-			this._onDidChangeSourceActions.fire({ notebook: notebook.uri });
+			this._onDidChangeSourceActions.fire({ notebook: notebook.uri, viewType: notebook.viewType });
 		};
 
 		this._register(sourceMenu.onDidChange(() => {
@@ -372,6 +373,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
 		providers.push(provider);
 		this._kernelSourceActionProviders.set(viewType, providers);
+		this._onDidChangeSourceActions.fire({ viewType: viewType });
 
 		return toDisposable(() => {
 			const providers = this._kernelSourceActionProviders.get(viewType) ?? [];

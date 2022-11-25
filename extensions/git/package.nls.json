@@ -99,9 +99,11 @@
 	"command.timelineCopyCommitMessage": "Copy Commit Message",
 	"command.timelineSelectForCompare": "Select for Compare",
 	"command.timelineCompareWithSelected": "Compare with Selected",
+	"command.addSafeDirectoryAndOpenRepository": "Mark Repository as Safe and Open",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
+	"command.api.getUnsafeRepositories": "Get Unsafe Repositories",
 	"command.git.acceptMerge": "Complete Merge",
 	"command.git.openMergeEditor": "Resolve in Merge Editor",
 	"command.git.runGitMerge": "Compute Conflicts With Git",
@@ -318,6 +320,30 @@
 		"message": "The workspace currently open doesn't have any folders containing git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:workbench.action.addRootFolder'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.scanFolderForRepositories": {
+		"message": "Scanning folder for git repositories..."
+	},
+	"view.workbench.scm.scanWorkspaceForRepositories": {
+		"message": "Scanning workspace for git repositories..."
+	},
+	"view.workbench.scm.unsafeRepository": {
+		"message": "The git repository in the following folder has been detected as potentially unsafe as the folder is owned by someone else other than the current user: ${command:git.api.getUnsafeRepositories}.\nDo you want to open the repository?\n[Open Repository](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
+		"comment": [
+			"{Locked='](command:git.api.getUnsafeRepositories'}",
+			"{Locked='](command:git.addSafeDirectoryAndOpenRepository'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.unsafeRepositories": {
+		"message": "The git repositories in the following folders have been detected as potentially unsafe as the folder is owned by someone else other than the current user: ${command:git.api.getUnsafeRepositories}.\nDo you want to open the repositories?\n[Open Repositories](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
+		"comment": [
+			"{Locked='](command:git.api.getUnsafeRepositories'}",
+			"{Locked='](command:git.addSafeDirectoryAndOpenRepository'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
