@@ -206,6 +206,14 @@ class ViewDescriptorsState extends Disposable {
 			}
 			if (changedStates.length) {
 				this._onDidChangeStoredState.fire(changedStates);
+				// Update the in memory state after firing the event
+				// so that the views can update their state accordingly
+				for (const changedState of changedStates) {
+					const state = this.get(changedState.id);
+					if (state) {
+						state.visibleGlobal = changedState.visible;
+					}
+				}
 			}
 		}
 	}
