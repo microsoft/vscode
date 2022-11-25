@@ -76,7 +76,6 @@ export interface IProductConfiguration {
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
 		readonly nlsBaseUrl: string;
 	};
 
