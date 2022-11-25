@@ -101,7 +101,7 @@ export class Workbench extends Layout {
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 
-		if (typeof (<any>window).require.config === 'function') {
+		if (typeof (<any>window).require?.config === 'function') {
 			(<any>window).require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {
