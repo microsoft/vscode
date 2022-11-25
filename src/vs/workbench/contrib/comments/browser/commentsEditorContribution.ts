@@ -12,7 +12,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
@@ -1084,7 +1084,7 @@ export class PreviousCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ID, CommentController);
+registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
 
