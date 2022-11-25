@@ -8,5 +8,5 @@ import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverT
 import { InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 
-registerEditorContribution(InlayHintsController.ID, InlayHintsController, EditorContributionInstantiation.Idle);
+registerEditorContribution(InlayHintsController.ID, InlayHintsController, EditorContributionInstantiation.AfterFirstRender);
 HoverParticipantRegistry.register(InlayHintsHover);

@@ -37,4 +37,4 @@ export class StandaloneReferencesController extends ReferencesController {
 	}
 }
 
-registerEditorContribution(ReferencesController.ID, StandaloneReferencesController, EditorContributionInstantiation.Idle);
+registerEditorContribution(ReferencesController.ID, StandaloneReferencesController, EditorContributionInstantiation.Lazy);

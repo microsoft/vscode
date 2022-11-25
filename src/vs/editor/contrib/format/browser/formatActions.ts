@@ -282,8 +282,8 @@ class FormatSelectionAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FormatOnType.ID, FormatOnType, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor typing event
-registerEditorContribution(FormatOnPaste.ID, FormatOnPaste, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor paste event
+registerEditorContribution(FormatOnType.ID, FormatOnType, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorContribution(FormatOnPaste.ID, FormatOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(FormatDocumentAction);
 registerEditorAction(FormatSelectionAction);
 

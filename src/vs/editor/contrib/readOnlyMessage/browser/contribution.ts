@@ -33,4 +33,4 @@ export class ReadOnlyMessageController extends Disposable implements IEditorCont
 	}
 }
 
-registerEditorContribution(ReadOnlyMessageController.ID, ReadOnlyMessageController, EditorContributionInstantiation.Eager); // eager because it needs to listen to an editor event
+registerEditorContribution(ReadOnlyMessageController.ID, ReadOnlyMessageController, EditorContributionInstantiation.BeforeFirstInteraction);

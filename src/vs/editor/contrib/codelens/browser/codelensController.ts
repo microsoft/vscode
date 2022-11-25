@@ -444,7 +444,7 @@ export class CodeLensContribution implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(CodeLensContribution.ID, CodeLensContribution, EditorContributionInstantiation.Idle);
+registerEditorContribution(CodeLensContribution.ID, CodeLensContribution, EditorContributionInstantiation.AfterFirstRender);
 
 registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 

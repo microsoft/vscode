@@ -213,4 +213,4 @@ registerAction2(class StopReadHints extends EditorAction2 {
 	}
 });
 
-registerEditorContribution(InlayHintsAccessibility.ID, InlayHintsAccessibility, EditorContributionInstantiation.Idle);
+registerEditorContribution(InlayHintsAccessibility.ID, InlayHintsAccessibility, EditorContributionInstantiation.Lazy);

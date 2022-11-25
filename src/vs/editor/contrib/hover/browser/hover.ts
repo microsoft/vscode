@@ -315,7 +315,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse events
+registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);

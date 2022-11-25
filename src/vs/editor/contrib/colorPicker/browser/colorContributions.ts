@@ -60,5 +60,5 @@ export class ColorContribution extends Disposable implements IEditorContribution
 	}
 }
 
-registerEditorContribution(ColorContribution.ID, ColorContribution, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse events
+registerEditorContribution(ColorContribution.ID, ColorContribution, EditorContributionInstantiation.BeforeFirstInteraction);
 HoverParticipantRegistry.register(ColorHoverParticipant);

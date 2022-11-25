@@ -32,4 +32,4 @@ class LongLinesHelper extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(LongLinesHelper.ID, LongLinesHelper, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse events
+registerEditorContribution(LongLinesHelper.ID, LongLinesHelper, EditorContributionInstantiation.BeforeFirstInteraction);

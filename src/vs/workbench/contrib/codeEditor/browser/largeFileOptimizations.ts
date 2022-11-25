@@ -64,4 +64,4 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 	}
 }
 
-registerEditorContribution(LargeFileOptimizationsWarner.ID, LargeFileOptimizationsWarner, EditorContributionInstantiation.Idle);
+registerEditorContribution(LargeFileOptimizationsWarner.ID, LargeFileOptimizationsWarner, EditorContributionInstantiation.AfterFirstRender);

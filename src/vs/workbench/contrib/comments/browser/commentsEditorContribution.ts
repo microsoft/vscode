@@ -1084,7 +1084,7 @@ export class PreviousCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ID, CommentController, EditorContributionInstantiation.Idle);
+registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
 

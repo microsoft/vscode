@@ -315,4 +315,4 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 }
 
-registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse events
+registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution, EditorContributionInstantiation.BeforeFirstInteraction);

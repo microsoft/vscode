@@ -1170,8 +1170,8 @@ export class FocusPreviousCursor extends EditorAction {
 	}
 }
 
-registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController, EditorContributionInstantiation.Idle);
-registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter, EditorContributionInstantiation.Idle);
+registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter, EditorContributionInstantiation.AfterFirstRender);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

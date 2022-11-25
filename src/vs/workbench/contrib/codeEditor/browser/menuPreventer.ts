@@ -57,4 +57,4 @@ export class MenuPreventer extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(MenuPreventer.ID, MenuPreventer, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse / keyboard events
+registerEditorContribution(MenuPreventer.ID, MenuPreventer, EditorContributionInstantiation.BeforeFirstInteraction);

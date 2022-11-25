@@ -467,5 +467,5 @@ registerModelAndPositionCommand('_executeLinkedEditingProvider', (_accessor, mod
 	return getLinkedEditingRanges(linkedEditingRangeProvider, model, position, CancellationToken.None);
 });
 
-registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution, EditorContributionInstantiation.Idle);
+registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(LinkedEditingAction);

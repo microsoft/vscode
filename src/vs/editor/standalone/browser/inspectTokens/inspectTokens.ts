@@ -329,7 +329,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectTokensController.ID, InspectTokensController, EditorContributionInstantiation.Idle);
+registerEditorContribution(InspectTokensController.ID, InspectTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectTokens);
 
 registerThemingParticipant((theme, collector) => {

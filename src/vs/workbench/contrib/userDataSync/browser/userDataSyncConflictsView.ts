@@ -324,4 +324,4 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 	}
 }
 
-registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution, EditorContributionInstantiation.Idle);
+registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution, EditorContributionInstantiation.AfterFirstRender);

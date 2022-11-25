@@ -383,5 +383,5 @@ function isInterestingEditorModel(editor: ICodeEditor, userDataProfileService: I
 	return isEqual(model.uri, userDataProfileService.currentProfile.keybindingsResource);
 }
 
-registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController, EditorContributionInstantiation.Idle);
+registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorCommand(new DefineKeybindingCommand());

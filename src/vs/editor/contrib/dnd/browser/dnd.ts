@@ -239,4 +239,4 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 }
 
-registerEditorContribution(DragAndDropController.ID, DragAndDropController, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse events
+registerEditorContribution(DragAndDropController.ID, DragAndDropController, EditorContributionInstantiation.BeforeFirstInteraction);

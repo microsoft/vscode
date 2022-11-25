@@ -402,5 +402,5 @@ class ShowContextMenu extends EditorAction {
 	}
 }
 
-registerEditorContribution(ContextMenuController.ID, ContextMenuController, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor mouse / keyboard events
+registerEditorContribution(ContextMenuController.ID, ContextMenuController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowContextMenu);

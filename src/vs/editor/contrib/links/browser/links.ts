@@ -421,5 +421,5 @@ class OpenLinkAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(LinkDetector.ID, LinkDetector, EditorContributionInstantiation.Idle);
+registerEditorContribution(LinkDetector.ID, LinkDetector, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(OpenLinkAction);

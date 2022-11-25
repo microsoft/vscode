@@ -1490,4 +1490,4 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	}
 }
 
-registerEditorContribution(DirtyDiffController.ID, DirtyDiffController, EditorContributionInstantiation.Idle);
+registerEditorContribution(DirtyDiffController.ID, DirtyDiffController, EditorContributionInstantiation.AfterFirstRender);

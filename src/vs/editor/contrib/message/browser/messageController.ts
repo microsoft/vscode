@@ -188,4 +188,4 @@ class MessageWidget implements IContentWidget {
 
 }
 
-registerEditorContribution(MessageController.ID, MessageController, EditorContributionInstantiation.Idle);
+registerEditorContribution(MessageController.ID, MessageController, EditorContributionInstantiation.Lazy);

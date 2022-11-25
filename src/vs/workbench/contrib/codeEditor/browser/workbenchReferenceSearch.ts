@@ -37,4 +37,4 @@ export class WorkbenchReferencesController extends ReferencesController {
 	}
 }
 
-registerEditorContribution(ReferencesController.ID, WorkbenchReferencesController, EditorContributionInstantiation.Idle);
+registerEditorContribution(ReferencesController.ID, WorkbenchReferencesController, EditorContributionInstantiation.Lazy);

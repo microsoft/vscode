@@ -277,7 +277,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	}
 }
 
-registerEditorContribution(MarkerController.ID, MarkerController, EditorContributionInstantiation.Idle);
+registerEditorContribution(MarkerController.ID, MarkerController, EditorContributionInstantiation.Lazy);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
 registerEditorAction(NextMarkerInFilesAction);
