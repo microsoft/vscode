@@ -51,7 +51,7 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 	async saveProfile(name: string, content: string): Promise<vscode.Uri | null> {
 		const octokit = await this.getOctokit();
 		const result = await octokit.gists.create({
-			public: true,
+			public: false,
 			files: {
 				[name]: {
 					content
