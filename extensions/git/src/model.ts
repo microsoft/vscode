@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, QuickPickItemKind, QuickInputButtons } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Operation, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -748,6 +748,34 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			unsafeRepositories.push(this._unsafeRepositories.values().next().value);
 		} else {
 			// Multiple unsafe repositories
+			const allRepositoriesLabel = l10n.t('All Repositories');
+			const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+			const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this._unsafeRepositories.values()).sort().map(r => ({ label: `$(repo) ${r}` }));
+
+			const quickpick = window.createQuickPick();
+			quickpick.title = l10n.t('Mark Repository as Safe and Open');
+			quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
+			quickpick.items = [...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+			quickpick.show();
+			const repositoryItem = await new Promise<string | undefined>(
+				resolve => {
+					quickpick.onDidAccept(() => resolve(quickpick.activeItems[0].label));
+					quickpick.onDidHide(() => resolve(undefined));
+				});
+			quickpick.hide();
+
+			if (!repositoryItem) {
+				return;
+			}
+
+			if (repositoryItem === allRepositoriesLabel) {
+				// All Repositories
+				unsafeRepositories.push(...this._unsafeRepositories.values());
+			} else {
+				// One Repository
+				unsafeRepositories.push(repositoryItem);
+			}
 		}
 
 		for (const unsafeRepository of unsafeRepositories) {

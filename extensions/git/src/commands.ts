@@ -3184,7 +3184,8 @@ export class CommandCenter {
 
 	@command('git.api.getUnsafeRepositories')
 	getUnsafeRepositories(): string {
-		return Array.from(this.model.unsafeRepositories.values()).join(', ');
+		const repositories = Array.from(this.model.unsafeRepositories.values());
+		return repositories.sort().map(m => `"${m}"`).join(', ');
 	}
 
 	@command('git.addSafeDirectoryAndOpenRepository')

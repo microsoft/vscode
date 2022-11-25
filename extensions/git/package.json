@@ -625,13 +625,13 @@
         "enablement": "isMergeEditor"
       },
       {
-        "command": "git.api.getUnsafeRepositories",
-        "title": "%command.api.getUnsafeRepositories%",
+        "command": "git.addSafeDirectoryAndOpenRepository",
+        "title": "%command.addSafeDirectoryAndOpenRepository%",
         "category": "Git"
       },
       {
-        "command": "git.api.addSafeDirectoryAndOpenRepository",
-        "title": "%command.api.addSafeDirectoryAndOpenRepository%",
+        "command": "git.api.getUnsafeRepositories",
+        "title": "%command.api.getUnsafeRepositories%",
         "category": "Git"
       }
     ],
@@ -1062,12 +1062,12 @@
           "when": "false"
         },
         {
-          "command": "git.api.addSafeDirectoryAndOpenRepository",
-          "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
-        },
-        {
           "command": "git.openMergeEditor",
           "when": "false"
+        },
+        {
+          "command": "git.addSafeDirectoryAndOpenRepository",
+          "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -2751,7 +2751,12 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.unsafeRepository%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount != 0"
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.unsafeRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount > 1"
       },
       {
         "view": "explorer",
