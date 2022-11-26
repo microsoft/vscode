@@ -709,7 +709,7 @@ interface GitConfigSection {
 }
 
 class GitConfigParser {
-	private static readonly _lineSeparator = /\r?\n/g;
+	private static readonly _lineSeparator = /\r?\n/;
 
 	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
 	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
@@ -723,13 +723,8 @@ class GitConfigParser {
 			config.sections.push(section);
 		};
 
-		let position = 0;
-		let match: RegExpExecArray | null = null;
-
-		while (match = GitConfigParser._lineSeparator.exec(raw)) {
-			const line = raw.substring(position, match.index);
-			position = match.index + match[0].length;
-
+		for (const line of raw.split(GitConfigParser._lineSeparator)) {
+			// Section
 			const sectionMatch = line.match(GitConfigParser._sectionRegex);
 			if (sectionMatch?.length === 3) {
 				addSection(section);
@@ -738,7 +733,7 @@ class GitConfigParser {
 				continue;
 			}
 
-			// Properties
+			// Property
 			const propertyMatch = line.match(GitConfigParser._propertyRegex);
 			if (propertyMatch?.length === 3 && !Object.keys(section.properties).includes(propertyMatch[1])) {
 				section.properties[propertyMatch[1]] = propertyMatch[2];
