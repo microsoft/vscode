@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as utils from '../utils';
 import * as vscode from 'vscode';
+import * as utils from '../utils';
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook Editor', function () {
 
