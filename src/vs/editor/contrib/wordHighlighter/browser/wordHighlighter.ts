@@ -12,7 +12,7 @@ import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/err
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -654,7 +654,7 @@ class TriggerWordHighlightAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContribution);
+registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContribution, EditorContributionInstantiation.Eager); // eager because it uses `saveViewState`/`restoreViewState`
 registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 registerEditorAction(TriggerWordHighlightAction);

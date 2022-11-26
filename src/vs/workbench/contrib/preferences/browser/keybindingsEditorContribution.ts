@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution, ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, ServicesAccessor, registerEditorCommand, EditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
@@ -383,5 +383,5 @@ function isInterestingEditorModel(editor: ICodeEditor, userDataProfileService: I
 	return isEqual(model.uri, userDataProfileService.currentProfile.keybindingsResource);
 }
 
-registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController);
+registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorCommand(new DefineKeybindingCommand());

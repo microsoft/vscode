@@ -684,6 +684,11 @@ export class Git {
 			}
 		}
 	}
+
+	async addSafeDirectory(repositoryPath: string): Promise<void> {
+		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
+		return;
+	}
 }
 
 export interface Commit {
@@ -1759,6 +1764,25 @@ export class Repository {
 		}
 	}
 
+	async fetchTags(options: { remote: string; tags: string[]; force?: boolean }): Promise<void> {
+		const args = ['fetch'];
+		const spawnOptions: SpawnOptions = {
+			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+		};
+
+		args.push(options.remote);
+
+		for (const tag of options.tags) {
+			args.push(`refs/tags/${tag}:refs/tags/${tag}`);
+		}
+
+		if (options.force) {
+			args.push('--force');
+		}
+
+		await this.exec(args, spawnOptions);
+	}
+
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
 		const args = ['pull'];
 
@@ -1798,6 +1822,8 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.CantLockRef;
 			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+			} else if (/! \[rejected\].*\(would clobber existing tag\)/m.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.TagConflict;
 			}
 
 			throw err;

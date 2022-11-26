@@ -16,7 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorContribution, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, registerEditorContribution, registerEditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -312,7 +312,7 @@ class ShowAccessibilityHelpAction extends Action2 {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController, EditorContributionInstantiation.Lazy);
 registerAction2(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);

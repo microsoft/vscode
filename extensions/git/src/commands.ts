@@ -3182,6 +3182,17 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.api.getUnsafeRepositories')
+	getUnsafeRepositories(): string {
+		const repositories = Array.from(this.model.unsafeRepositories.values());
+		return repositories.sort().map(m => `"${m}"`).join(', ');
+	}
+
+	@command('git.addSafeDirectoryAndOpenRepository')
+	async addSafeDirectoryAndOpenRepository(): Promise<void> {
+		await this.model.addSafeDirectoryAndOpenRepository();
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -3266,10 +3277,12 @@ export class CommandCenter {
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
 						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
 						message = l10n.t('There were merge conflicts while applying the stash.');
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						type = 'warning';
 						options.modal = false;
 						break;
