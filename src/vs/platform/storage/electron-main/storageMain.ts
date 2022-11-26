@@ -58,6 +58,12 @@ export interface IStorageMain extends IDisposable {
 	readonly whenInit: Promise<void>;
 
 	/**
+	 * Allows to figure out if the storage has been initialized
+	 * without errors.
+	 */
+	readonly isInit: boolean;
+
+	/**
 	 * Provides access to the `IStorage` implementation which will be
 	 * in-memory for as long as the storage has not been initialized.
 	 */
@@ -121,6 +127,9 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly whenInitPromise = new DeferredPromise<void>();
 	readonly whenInit = this.whenInitPromise.p;
 
+	private _isInit = false;
+	get isInit(): boolean { return this._isInit; }
+
 	private state = StorageState.None;
 
 	constructor(
@@ -168,7 +177,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					// Update state
 					this.state = StorageState.Initialized;
 
-					// Mark init promise as completed
+					// Mark init state and promise as completed
+					this._isInit = true;
 					this.whenInitPromise.complete();
 				}
 			})();
@@ -227,7 +237,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	private async logSlowClose(watch: StopWatch) {
 		if (!this.path) {
-			return;
+			return; // in-memory storage
 		}
 
 		try {

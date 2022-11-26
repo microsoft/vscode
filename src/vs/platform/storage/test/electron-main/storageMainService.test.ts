@@ -54,6 +54,12 @@ suite('StorageMainService', function () {
 	}
 
 	async function testStorage(storage: IStorageMain, scope: StorageScope): Promise<void> {
+		strictEqual(storage.isInit, false);
+
+		let isInit = false;
+		storage.whenInit.then(() => {
+			isInit = true;
+		});
 
 		// Telemetry: added after init unless workspace/profile scoped
 		if (scope === StorageScope.APPLICATION) {
@@ -64,6 +70,9 @@ suite('StorageMainService', function () {
 		} else {
 			await storage.init();
 		}
+
+		strictEqual(storage.isInit, true);
+		strictEqual(isInit, true);
 
 		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
 		const storageChangeListener = storage.onDidChangeStorage(e => {

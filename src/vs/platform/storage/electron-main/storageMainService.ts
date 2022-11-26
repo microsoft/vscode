@@ -270,7 +270,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		for (const storage of [this.applicationStorage, ...this.mapProfileToStorage.values(), ...this.mapWorkspaceToStorage.values()]) {
 			if (!storage.path) {
-				continue;
+				continue; // in-memory storage or not initialized yet
 			}
 
 			if (this.uriIdentityService.extUri.isEqualOrParent(URI.file(storage.path), pathUri)) {
