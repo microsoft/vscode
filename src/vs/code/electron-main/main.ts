@@ -47,7 +47,6 @@ import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecyc
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -117,6 +116,7 @@ class CodeMain {
 				const logService = accessor.get(ILogService);
 				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const fileService = accessor.get(IFileService);
+				const loggerService = accessor.get(ILoggerService);
 
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
@@ -129,7 +129,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, false, bufferLogService.getLevel());
+				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { name: 'main' });
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(evt => {
@@ -177,7 +177,7 @@ class CodeMain {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Logger
-		services.set(ILoggerService, new LoggerService(logService, fileService));
+		services.set(ILoggerService, new LoggerService(logService));
 
 		// State
 		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
@@ -188,7 +188,7 @@ class CodeMain {
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(productService.win32RegValueName))
+		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(logService, productService.win32RegValueName))
 			: environmentMainService.policyFile ? disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService))
 				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
@@ -273,7 +273,7 @@ class CodeMain {
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
-			// indicates a second instance of Code is running)
+			// indicates another instance of VS Code is running)
 			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -293,7 +293,7 @@ class CodeMain {
 				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
 					if (error.code === 'EPERM') {
 						this.showStartupWarningDialog(
-							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", productService.nameShort),
+							localize('secondInstanceAdmin', "Another instance of {0} is already running as administrator.", productService.nameShort),
 							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
 							productService.nameLong
 						);
@@ -318,7 +318,7 @@ class CodeMain {
 
 			// Tests from CLI require to be the only instance currently
 			if (environmentMainService.extensionTestsLocationURI && !environmentMainService.debugExtensionHost.break) {
-				const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
+				const msg = `Running extension tests from the command line is currently only supported if no other instance of ${productService.nameShort} is running.`;
 				logService.error(msg);
 				client.dispose();
 
@@ -377,7 +377,7 @@ class CodeMain {
 
 		// Print --status usage info
 		if (environmentMainService.args.status) {
-			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
+			logService.warn(`Warning: The --status argument can only be used if ${productService.nameShort} is already running. Please run it again after {0} has started.`);
 
 			throw new ExpectedError('Terminating...');
 		}
@@ -468,7 +468,7 @@ class CodeMain {
 		// is closed and then exit the waiting process.
 		//
 		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if Code was started from CLI.
+		// added as argument. This can happen if VS Code was started from CLI.
 
 		if (args.wait && !args.waitMarkerFilePath) {
 			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);

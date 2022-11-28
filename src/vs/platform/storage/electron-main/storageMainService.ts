@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -13,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
+import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -22,6 +23,11 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
+
+export interface IProfileStorageChangeEvent extends IStorageChangeEvent {
+	readonly storage: IStorageMain;
+	readonly profile: IUserDataProfile;
+}
 
 export interface IStorageMainService {
 
@@ -34,7 +40,12 @@ export interface IStorageMainService {
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       Rather use `IApplicationStorageMainService` for that purpose.
 	 */
-	applicationStorage: IStorageMain;
+	readonly applicationStorage: IStorageMain;
+
+	/**
+	 * Emitted whenever data is updated or deleted in profile scoped storage.
+	 */
+	readonly onDidChangeProfileStorage: Event<IProfileStorageChangeEvent>;
 
 	/**
 	 * Provides access to the profile storage shared across all windows
@@ -66,6 +77,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	declare readonly _serviceBrand: undefined;
 
 	private shutdownReason: ShutdownReason | undefined = undefined;
+
+	private readonly _onDidChangeProfileStorage = this._register(new Emitter<IProfileStorageChangeEvent>());
+	readonly onDidChangeProfileStorage = this._onDidChangeProfileStorage.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -181,10 +195,17 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			profileStorage = this.createProfileStorage(profile);
 			this.mapProfileToStorage.set(profile.id, profileStorage);
 
+			const listener = this._register(profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorage.fire({
+				...e,
+				storage: profileStorage!,
+				profile
+			})));
+
 			once(profileStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
 				this.mapProfileToStorage.delete(profile.id);
+				listener.dispose();
 			});
 		}
 
@@ -358,5 +379,9 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 
 	protected switchToWorkspace(): never {
 		throw new Error('Switching storage workspace is unsupported from main process');
+	}
+
+	hasScope(): never {
+		throw new Error('Main process is never profile or workspace scoped');
 	}
 }

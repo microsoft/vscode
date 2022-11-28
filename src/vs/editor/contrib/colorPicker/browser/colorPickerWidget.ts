@@ -15,7 +15,7 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPic
 import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -40,7 +40,7 @@ export class ColorPickerHeader extends Disposable {
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
-		this._register(registerThemingParticipant((theme, collector) => {
+		this._register(themeService.onDidColorThemeChange(theme => {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
 

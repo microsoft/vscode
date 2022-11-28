@@ -672,7 +672,7 @@ export class FileDownload {
 			try {
 				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
-				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
+				bufferOrUri = FileAccess.uriToBrowserUri(stat.resource);
 			}
 
 			if (!cts.token.isCancellationRequested) {

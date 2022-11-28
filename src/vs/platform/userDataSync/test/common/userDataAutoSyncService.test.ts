@@ -149,6 +149,8 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 				// Machines
 				{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
+				// Profiles
+				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Settings
 				{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },

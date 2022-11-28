@@ -280,6 +280,26 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('substitute one env variable as array and a configuration variable', async () => {
+		const configurationService = new TestConfigurationService({
+			editor: {
+				fontFamily: ['foo']
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 'bar'
+				}
+			}
+		});
+
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		if (platform.isWindows) {
+			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
+		} else {
+			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
+		}
+	});
+
 	test('substitute many env variable and a configuration variable', async () => {
 		const configurationService = new TestConfigurationService({
 			editor: {

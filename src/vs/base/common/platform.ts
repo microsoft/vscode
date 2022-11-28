@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
 
-const LANGUAGE_DEFAULT = 'en';
+export const LANGUAGE_DEFAULT = 'en';
 
 let _isWindows = false;
 let _isMacintosh = false;
@@ -53,6 +53,9 @@ declare const process: INodeProcess;
 declare const global: unknown;
 declare const self: unknown;
 
+/**
+ * @deprecated use `globalThis` instead
+ */
 export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 let nodeProcess: INodeProcess | undefined = undefined;

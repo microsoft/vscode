@@ -6,11 +6,11 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, registerDiffEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IDiffEditorContribution, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -93,28 +93,35 @@ class ToggleWordWrapAction extends EditorAction {
 		writeTransientState(model, newState, codeEditorService);
 
 		// if we are in a diff editor, update the other editor (if possible)
-		if (editor.getOption(EditorOption.inDiffEditor)) {
-			// this editor belongs to a diff editor
-			for (const diffEditor of codeEditorService.listDiffEditors()) {
-				const originalEditor = diffEditor.getOriginalEditor();
-				const modifiedEditor = diffEditor.getModifiedEditor();
-				if (originalEditor === editor) {
-					if (canToggleWordWrap(codeEditorService, modifiedEditor)) {
-						writeTransientState(modifiedEditor.getModel(), newState, codeEditorService);
-						diffEditor.updateOptions({});
-					}
-					break;
-				}
-				if (modifiedEditor === editor) {
-					if (canToggleWordWrap(codeEditorService, originalEditor)) {
-						writeTransientState(originalEditor.getModel(), newState, codeEditorService);
-						diffEditor.updateOptions({});
-					}
-					break;
-				}
+		const diffEditor = findDiffEditorContainingCodeEditor(editor, codeEditorService);
+		if (diffEditor) {
+			const originalEditor = diffEditor.getOriginalEditor();
+			const modifiedEditor = diffEditor.getModifiedEditor();
+			const otherEditor = (originalEditor === editor ? modifiedEditor : originalEditor);
+			if (canToggleWordWrap(codeEditorService, otherEditor)) {
+				writeTransientState(otherEditor.getModel(), newState, codeEditorService);
+				diffEditor.updateOptions({});
 			}
 		}
 	}
+}
+
+/**
+ * If `editor` is the original or modified editor of a diff editor, it returns it.
+ * It returns null otherwise.
+ */
+function findDiffEditorContainingCodeEditor(editor: ICodeEditor, codeEditorService: ICodeEditorService): IDiffEditor | null {
+	if (!editor.getOption(EditorOption.inDiffEditor)) {
+		return null;
+	}
+	for (const diffEditor of codeEditorService.listDiffEditors()) {
+		const originalEditor = diffEditor.getOriginalEditor();
+		const modifiedEditor = diffEditor.getModifiedEditor();
+		if (originalEditor === editor || modifiedEditor === editor) {
+			return diffEditor;
+		}
+	}
+	return null;
 }
 
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
@@ -178,6 +185,43 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		this._editor.updateOptions({
 			wordWrapOverride2: wordWrapOverride2
 		});
+	}
+}
+
+class DiffToggleWordWrapController extends Disposable implements IDiffEditorContribution {
+
+	public static readonly ID = 'diffeditor.contrib.toggleWordWrapController';
+
+	constructor(
+		private readonly _diffEditor: IDiffEditor,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+	) {
+		super();
+
+		this._register(this._diffEditor.onDidChangeModel(() => {
+			this._ensureSyncedWordWrapToggle();
+		}));
+	}
+
+	private _ensureSyncedWordWrapToggle(): void {
+		const originalEditor = this._diffEditor.getOriginalEditor();
+		const modifiedEditor = this._diffEditor.getModifiedEditor();
+
+		if (!originalEditor.hasModel() || !modifiedEditor.hasModel()) {
+			return;
+		}
+
+		const originalTransientState = readTransientState(originalEditor.getModel(), this._codeEditorService);
+		const modifiedTransientState = readTransientState(modifiedEditor.getModel(), this._codeEditorService);
+
+		if (originalTransientState && !modifiedTransientState && canToggleWordWrap(this._codeEditorService, originalEditor)) {
+			writeTransientState(modifiedEditor.getModel(), originalTransientState, this._codeEditorService);
+			this._diffEditor.updateOptions({});
+		}
+		if (!originalTransientState && modifiedTransientState && canToggleWordWrap(this._codeEditorService, modifiedEditor)) {
+			writeTransientState(originalEditor.getModel(), modifiedTransientState, this._codeEditorService);
+			this._diffEditor.updateOptions({});
+		}
 	}
 }
 
@@ -269,10 +313,10 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, 'EditorWordWrapContextKeyTracker', LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, LifecyclePhase.Ready);
 
-registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController);
-
+registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController, EditorContributionInstantiation.Eager); // eager because it needs to change the editor word wrap configuration
+registerDiffEditorContribution(DiffToggleWordWrapController.ID, DiffToggleWordWrapController);
 registerEditorAction(ToggleWordWrapAction);
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -306,12 +350,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 // View menu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "&&Word Wrap"),
 		toggled: EDITOR_WORD_WRAP,
 		precondition: CAN_TOGGLE_WORD_WRAP
 	},
-	order: 1
+	order: 1,
+	group: '5_editor'
 });

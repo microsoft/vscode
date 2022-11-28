@@ -35,9 +35,13 @@ export function activate(context: vscode.ExtensionContext) {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			custom: false
+			custom: false,
+			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
 		}
-	}));
+	} as vscode.NotebookDocumentContentOptions));
 
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
@@ -81,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(notebookImagePasteSetup());
 
-	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
+	const enabled = vscode.workspace.getConfiguration('ipynb').get('pasteImagesAsAttachments.enabled', false);
 	if (enabled) {
 		const cleaner = new AttachmentCleaner();
 		context.subscriptions.push(cleaner);

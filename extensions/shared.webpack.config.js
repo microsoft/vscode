@@ -47,13 +47,20 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 							'sourceMap': true,
 						}
 					}
-				}]
+				}, {
+					loader: path.resolve(__dirname, 'mangle-loader.js'),
+					options: {
+						configFile: path.join(extConfig.context, 'tsconfig.json')
+					},
+				},]
 			}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
+			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
+			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
+			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
 		},
 		output: {
 			// all output goes into `dist`.
@@ -113,15 +120,6 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [
-					// TODO: bring this back once vscode-nls-dev supports browser
-					// {
-					// 	// vscode-nls-dev loader:
-					// 	// * rewrite nls-calls
-					// 	loader: 'vscode-nls-dev/lib/webpack-loader',
-					// 	options: {
-					// 		base: path.join(extConfig.context, 'src')
-					// 	}
-					// },
 					{
 						// configure TypeScript loader:
 						// * enable sources maps for end-to-end source maps
@@ -130,16 +128,25 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 							compilerOptions: {
 								'sourceMap': true,
 							},
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
+							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
+							onlyCompileBundledFiles: true,
 						}
-					}]
+					},
+					{
+						loader: path.resolve(__dirname, 'mangle-loader.js'),
+						options: {
+							configFile: path.join(extConfig.context, additionalOptions?.configFile ?? 'tsconfig.json')
+						},
+					},
+				]
 			}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
-			'vscode-nls-web-data': 'commonjs vscode-nls-web-data', // ignored because this is injected by the webworker extension host
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
+			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
+			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
+			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
 		},
 		performance: {
 			hints: false

@@ -197,6 +197,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this.session?.commitCurrentCompletion();
 	}
 
+	public commitCurrentSuggestionPartially(): void {
+		this.session?.commitCurrentCompletionNextWord();
+	}
+
 	public showNext(): void {
 		this.session?.showNextInlineCompletion();
 	}
@@ -494,6 +498,54 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		this._register(disposable);
 	}
 
+	public commitCurrentCompletionNextWord(): void {
+		const ghostText = this.ghostText;
+		if (!ghostText) {
+			return;
+		}
+		const completion = this.currentCompletion;
+		if (!completion) {
+			return;
+		}
+		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
+			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
+			this.commit(completion);
+			return;
+		}
+
+		if (ghostText.parts.length === 0) {
+			return;
+		}
+		const firstPart = ghostText.parts[0];
+		const position = new Position(ghostText.lineNumber, firstPart.column);
+
+		const line = firstPart.lines[0];
+		const langId = this.editor.getModel()!.getLanguageIdAtPosition(ghostText.lineNumber, 1);
+		const config = this.languageConfigurationService.getLanguageConfiguration(langId);
+		const m = line.match(config.wordDefinition);
+		let acceptUntilIndexExclusive = 0;
+		if (m && m.index !== undefined) {
+			if (m.index === 0) {
+				acceptUntilIndexExclusive = m[0].length;
+			} else {
+				acceptUntilIndexExclusive = m.index;
+			}
+		} else {
+			acceptUntilIndexExclusive = line.length;
+		}
+
+		const partialText = line.substring(0, acceptUntilIndexExclusive);
+
+		this.editor.pushUndoStop();
+		this.editor.executeEdits(
+			'inlineSuggestion.accept',
+			[
+				EditOperation.replace(Range.fromPositions(position), partialText),
+			]
+		);
+		this.editor.setPosition(position.delta(0, partialText.length));
+	}
+
 	public commitCurrentCompletion(): void {
 		const ghostText = this.ghostText;
 		if (!ghostText) {
@@ -512,6 +564,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// otherwise command args might get disposed.
 		const cache = this.cache.clearAndLeak();
 
+		this.editor.pushUndoStop();
 		if (completion.snippetInfo) {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
@@ -521,7 +574,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				]
 			);
 			this.editor.setPosition(completion.snippetInfo.range.getStartPosition());
-			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet);
+			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
@@ -734,8 +787,26 @@ export async function provideInlineCompletions(
 
 				snippetInfo = undefined;
 			} else if ('snippet' in item.insertText) {
+				const preBracketCompletionLength = item.insertText.snippet.length;
+
+				if (languageConfigurationService && item.completeBracketPairs) {
+					item.insertText.snippet = closeBrackets(
+						item.insertText.snippet,
+						range.getStartPosition(),
+						model,
+						languageConfigurationService
+					);
+
+					// Modify range depending on if brackets are added or removed
+					const diff = item.insertText.snippet.length - preBracketCompletionLength;
+					if (diff !== 0) {
+						range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+					}
+				}
+
 				const snippet = new SnippetParser().parse(item.insertText.snippet);
 				insertText = snippet.toString();
+
 				snippetInfo = {
 					snippet: item.insertText.snippet,
 					range: range

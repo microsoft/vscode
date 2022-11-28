@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
-import { StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { InMemoryUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
@@ -23,17 +23,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
-}
-
-class TestUserDataProfilesService extends UserDataProfilesService {
-
-	private storedProfiles: StoredUserDataProfile[] = [];
-	protected override getStoredProfiles(): StoredUserDataProfile[] { return this.storedProfiles; }
-	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void { this.storedProfiles = storedProfiles; }
-
-	private storedProfileAssociations: StoredProfileAssociations = {};
-	protected override getStoredProfileAssociations(): StoredProfileAssociations { return this.storedProfileAssociations; }
-	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void { this.storedProfileAssociations = storedProfileAssociations; }
 }
 
 suite('UserDataProfileService (Common)', () => {
@@ -50,7 +39,7 @@ suite('UserDataProfileService (Common)', () => {
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, fileSystemProvider));
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
-		testObject = new TestUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
+		testObject = new InMemoryUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
 		testObject.setEnablement(true);
 	});
 
@@ -65,13 +54,12 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(testObject.defaultProfile.settingsResource.toString(), joinPath(environmentService.userRoamingDataHome, 'settings.json').toString());
 		assert.strictEqual(testObject.defaultProfile.snippetsHome.toString(), joinPath(environmentService.userRoamingDataHome, 'snippets').toString());
 		assert.strictEqual(testObject.defaultProfile.tasksResource.toString(), joinPath(environmentService.userRoamingDataHome, 'tasks.json').toString());
-		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
+		assert.strictEqual(testObject.defaultProfile.extensionsResource.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
 	});
 
 	test('profiles always include default profile', () => {
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
-		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 	test('create profile with id', async () => {
@@ -85,7 +73,7 @@ suite('UserDataProfileService (Common)', () => {
 	});
 
 	test('create profile with id, name and transient', async () => {
-		const profile = await testObject.createProfile('id', 'name', undefined, true);
+		const profile = await testObject.createProfile('id', 'name', { transient: true });
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(profile.id, 'id');
 		assert.deepStrictEqual(profile.name, 'name');
@@ -97,7 +85,7 @@ suite('UserDataProfileService (Common)', () => {
 		const profile1 = await testObject.createTransientProfile();
 		const profile2 = await testObject.createTransientProfile();
 		const profile3 = await testObject.createTransientProfile();
-		const profile4 = await testObject.createProfile('id', 'name', undefined, true);
+		const profile4 = await testObject.createProfile('id', 'name', { transient: true });
 
 		assert.deepStrictEqual(testObject.profiles.length, 5);
 		assert.deepStrictEqual(profile1.name, 'Temp 1');
@@ -127,7 +115,6 @@ suite('UserDataProfileService (Common)', () => {
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
-		assert.deepStrictEqual(testObject.profiles[0].extensionsResource?.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
 	});
 
 	test('profiles include default profile with extension resource undefined when transiet prrofile is removed', async () => {
@@ -136,12 +123,11 @@ suite('UserDataProfileService (Common)', () => {
 
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
-		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 	test('update named profile', async () => {
 		const profile = await testObject.createNamedProfile('name');
-		await testObject.updateProfile(profile, 'name changed');
+		await testObject.updateProfile(profile, { name: 'name changed' });
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[1].name, 'name changed');
@@ -151,7 +137,7 @@ suite('UserDataProfileService (Common)', () => {
 
 	test('persist transient profile', async () => {
 		const profile = await testObject.createTransientProfile();
-		await testObject.updateProfile(profile, 'saved', undefined, false);
+		await testObject.updateProfile(profile, { name: 'saved', transient: false });
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[1].name, 'saved');
@@ -160,8 +146,8 @@ suite('UserDataProfileService (Common)', () => {
 	});
 
 	test('persist transient profile (2)', async () => {
-		const profile = await testObject.createProfile('id', 'name', undefined, true);
-		await testObject.updateProfile(profile, 'saved', undefined, false);
+		const profile = await testObject.createProfile('id', 'name', { transient: true });
+		await testObject.updateProfile(profile, { name: 'saved', transient: false });
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[1].name, 'saved');
@@ -171,11 +157,24 @@ suite('UserDataProfileService (Common)', () => {
 
 	test('save transient profile', async () => {
 		const profile = await testObject.createTransientProfile();
-		await testObject.updateProfile(profile, 'saved');
+		await testObject.updateProfile(profile, { name: 'saved' });
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[1].name, 'saved');
 		assert.deepStrictEqual(!!testObject.profiles[1].isTransient, true);
+		assert.deepStrictEqual(testObject.profiles[1].id, profile.id);
+	});
+
+	test('short name', async () => {
+		const profile = await testObject.createNamedProfile('name', { shortName: 'short' });
+		assert.strictEqual(profile.shortName, 'short');
+
+		await testObject.updateProfile(profile, { shortName: 'short changed' });
+
+		assert.deepStrictEqual(testObject.profiles.length, 2);
+		assert.deepStrictEqual(testObject.profiles[1].name, 'name');
+		assert.deepStrictEqual(testObject.profiles[1].shortName, 'short changed');
+		assert.deepStrictEqual(!!testObject.profiles[1].isTransient, false);
 		assert.deepStrictEqual(testObject.profiles[1].id, profile.id);
 	});
 

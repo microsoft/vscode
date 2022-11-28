@@ -43,7 +43,7 @@ declare namespace monaco {
 #include(vs/base/common/uri): URI, UriComponents
 #include(vs/base/common/keyCodes): KeyCode
 #include(vs/editor/common/services/editorBaseApi): KeyMod
-#include(vs/base/common/htmlContent): IMarkdownString
+#include(vs/base/common/htmlContent): IMarkdownString, MarkdownStringTrustedOptions
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
 #include(vs/editor/common/editorCommon): IScrollEvent
@@ -73,6 +73,8 @@ export interface ICommandHandler {
 #include(vs/editor/common/core/wordHelper): IWordAtPosition
 #includeAll(vs/editor/common/model): IScrollEvent
 #include(vs/editor/common/diff/smartLinesDiffComputer): IChange, ICharChange, ILineChange
+#include(vs/editor/common/diff/documentDiffProvider): IDocumentDiffProvider, IDocumentDiffProviderOptions, IDocumentDiff
+#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, LineRange, RangeMapping
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):

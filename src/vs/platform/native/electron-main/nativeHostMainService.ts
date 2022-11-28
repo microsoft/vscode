@@ -41,6 +41,9 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -59,6 +62,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
@@ -771,12 +775,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this.stateMainService.setItem('window.experimental.useSandbox', true);
+		} else {
+			this.stateMainService.removeItem('window.experimental.useSandbox');
+		}
+	}
+
 	async toggleSharedProcessWindow(): Promise<void> {
 		return this.sharedProcess.toggle();
 	}
 
 	//#endregion
 
+	// #region Performance
+
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
+		const win = this.windowById(windowId);
+		if (!win || !win.win) {
+			throw new Error();
+		}
+		const profiler = new WindowProfiler(win.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
+	}
+
+	// #endregion
 
 	//#region Registry (windows)
 

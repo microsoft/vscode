@@ -36,6 +36,7 @@ import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/p
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -129,6 +130,7 @@ export interface IExtensionsScannerService {
 
 	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
 	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
+	initializeDefaultProfileExtensions(): Promise<void>;
 }
 
 export abstract class AbstractExtensionsScannerService extends Disposable implements IExtensionsScannerService {
@@ -156,6 +158,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		@ILogService protected readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -190,8 +193,9 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	async scanUserExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]> {
-		this.logService.trace('Started scanning user extensions');
-		const extensionsScannerInput = await this.createExtensionScannerInput(scanOptions.profileLocation ?? this.userExtensionsLocation, !!scanOptions.profileLocation, ExtensionType.User, !scanOptions.includeUninstalled, scanOptions.language);
+		const location = scanOptions.profileLocation ?? this.userExtensionsLocation;
+		this.logService.trace('Started scanning user extensions', location);
+		const extensionsScannerInput = await this.createExtensionScannerInput(location, !!scanOptions.profileLocation, ExtensionType.User, !scanOptions.includeUninstalled, scanOptions.language);
 		const extensionsScanner = scanOptions.useCache && !extensionsScannerInput.devMode && extensionsScannerInput.excludeObsolete ? this.userExtensionsCachedScanner : this.extensionsScanner;
 		let extensions = await extensionsScanner.scanExtensions(extensionsScannerInput);
 		extensions = await this.applyScanOptions(extensions, ExtensionType.User, scanOptions, true);
@@ -255,6 +259,42 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+	}
+
+	private _initializeDefaultProfileExtensionsPromise: Promise<void> | undefined = undefined;
+	initializeDefaultProfileExtensions(): Promise<void> {
+		if (!this._initializeDefaultProfileExtensionsPromise) {
+			this._initializeDefaultProfileExtensionsPromise = (async () => {
+				try {
+					const initMarker = this.uriIdentityService.extUri.joinPath(this.userExtensionsLocation, '.init-default-profile-extensions');
+					if (await this.fileService.exists(initMarker)) {
+						return;
+					}
+					if (
+						// current default profile extensions location
+						!(await this.fileService.exists(this.userDataProfilesService.defaultProfile.extensionsResource))
+						// old default profile extensions location
+						&& !(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json')))
+					) {
+						this.logService.info('Started initializing default profile extensions in extensions installation folder.', this.userExtensionsLocation.toString());
+						const userExtensions = await this.scanUserExtensions({ includeInvalid: true });
+						await this.extensionsProfileScannerService.addExtensionsToProfile(userExtensions.map(e => [e, e.metadata]), this.userDataProfilesService.defaultProfile.extensionsResource);
+						this.logService.info('Completed initializing default profile extensions in extensions installation folder.', this.userExtensionsLocation.toString());
+					}
+					try {
+						await this.fileService.createFile(initMarker, VSBuffer.fromString(''));
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							this.logService.warn('Failed to create default profile extensions initialize marker in extensions installation folder.', this.userExtensionsLocation.toString(), getErrorMessage(error));
+						}
+					}
+				} catch (error) {
+					this.logService.error(error);
+					throw error;
+				}
+			})();
+		}
+		return this._initializeDefaultProfileExtensionsPromise;
 	}
 
 	private async applyScanOptions(extensions: IRelaxedScannedExtension[], type: ExtensionType | 'development', scanOptions: ScanOptions, pickLatest: boolean): Promise<IRelaxedScannedExtension[]> {
@@ -353,7 +393,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		this.logService.trace('Started scanning dev system extensions');
 		const builtinExtensionControl = checkControlFile ? await this.getBuiltInExtensionControl() : {};
 		const devSystemExtensionsLocations: URI[] = [];
-		const devSystemExtensionsLocation = URI.file(path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions')));
+		const devSystemExtensionsLocation = URI.file(path.normalize(path.join(FileAccess.asFileUri('').fsPath, '..', '.build', 'builtInExtensions')));
 		for (const extension of devSystemExtensionsList) {
 			const controlState = builtinExtensionControl[extension.name] || 'marketplace';
 			switch (controlState) {
@@ -384,7 +424,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	private async createExtensionScannerInput(location: URI, profile: boolean, type: ExtensionType, excludeObsolete: boolean, language: string | undefined, validate: boolean = true): Promise<ExtensionScannerInput> {
 		const translations = await this.getTranslations(language ?? platform.language);
 		const mtime = await this.getMtime(location);
-		const applicationExtensionsLocation = profile ? this.userDataProfilesService.defaultProfile.extensionsResource : undefined;
+		const applicationExtensionsLocation = profile && !this.uriIdentityService.extUri.isEqual(location, this.userDataProfilesService.defaultProfile.extensionsResource) ? this.userDataProfilesService.defaultProfile.extensionsResource : undefined;
 		const applicationExtensionsLocationMtime = applicationExtensionsLocation ? await this.getMtime(applicationExtensionsLocation) : undefined;
 		return new ExtensionScannerInput(
 			location,
@@ -575,6 +615,7 @@ class ExtensionsScanner extends Disposable {
 				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
+				ImplicitActivationEvents.updateManifest(manifest);
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
 				const extension = {
 					type,
@@ -899,6 +940,7 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 		logService: ILogService,
 		environmentService: IEnvironmentService,
 		productService: IProductService,
+		uriIdentityService: IUriIdentityService,
 		instantiationService: IInstantiationService,
 	) {
 		super(
@@ -906,7 +948,7 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 			userExtensionsLocation,
 			joinPath(userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(userDataPath, MANIFEST_CACHE_FOLDER),
-			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, instantiationService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
 		this.translationsPromise = (async () => {
 			if (platform.translationsConfigFile) {
 				try {

@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -146,8 +147,14 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandObject: ITerminalCommand | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
+	/**
+	 * Whether a command is currently being input. If the a command is current not being input or
+	 * the state cannot reliably be detected the fallback of undefined will be used.
+	 */
+	readonly hasInput: boolean | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly onCommandExecuted: Event<void>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
@@ -214,7 +221,9 @@ export interface ITerminalCommand {
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
+	aliases?: string[][];
 	getOutput(): string | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
 }
 

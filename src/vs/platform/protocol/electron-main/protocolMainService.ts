@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { extname, normalize } from 'vs/base/common/path';
+import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -96,7 +96,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
-			if (path.endsWith('/workbench.html')) {
+			if (basename(path) === 'workbench.html' || basename(path) === 'workbench-dev.html') {
 				headers = COI.CoopAndCoep;
 			} else {
 				headers = COI.getHeadersFromQuery(request.url);
@@ -127,7 +127,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// 2.) Use `FileAccess.asFileUri` to convert back from a
 		//     `vscode-file:` URI to a `file:` URI.
-		const unnormalizedFileUri = FileAccess.asFileUri(requestUri);
+		const unnormalizedFileUri = FileAccess.uriToFileUri(requestUri);
 
 		// 3.) Strip anything from the URI that could result in
 		//     relative paths (such as "..") by using `normalize`
