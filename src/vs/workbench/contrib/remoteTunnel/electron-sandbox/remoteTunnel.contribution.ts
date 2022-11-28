@@ -172,7 +172,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private async recommendRemoteExtensionIfNeeded() {
 		const remoteExtension = this.serverConfiguration.extension;
 		const shouldRecommend = async () => {
-
 			if (this.storageService.getBoolean(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, StorageScope.APPLICATION)) {
 				return false;
 			}
@@ -192,7 +191,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		const recommed = async () => {
 			const usedOnHost = await shouldRecommend();
 			if (!usedOnHost) {
-				return;
+				return false;
 			}
 			this.notificationService.notify({
 				severity: Severity.Info,
@@ -202,7 +201,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							key: 'recommend.remoteExtension',
 							comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 						},
-						"Host {0} has started remote tunnel access and is accessible through the {1} extension.",
+						"'{0}' has turned on remote access. The {1} extension can be used to connect to it.",
 						usedOnHost, remoteExtension.friendlyName
 					),
 				actions: {
@@ -216,12 +215,16 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					]
 				}
 			});
+			return true;
 		};
 		if (await shouldRecommend()) {
-			const storageListener = this.storageService.onDidChangeValue(e => {
+			const storageListener = this.storageService.onDidChangeValue(async e => {
 				if (e.key === REMOTE_TUNNEL_USED_STORAGE_KEY) {
-					recommed();
-					storageListener.dispose();
+					const success = await recommed();
+					if (success) {
+						storageListener.dispose();
+					}
+
 				}
 			});
 		}
@@ -734,7 +737,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_HOST_NAME]: {
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.MACHINE,
 			pattern: '^[\\w-]*$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name can only consist of letters, numbers, underscore and minus."),
 			maxLength: 20,
