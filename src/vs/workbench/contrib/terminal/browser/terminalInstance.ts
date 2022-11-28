@@ -460,6 +460,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._container) {
 				this._container.appendChild(findWidget.getDomNode());
 			}
+			if (this._lastLayoutDimensions) {
+				findWidget.layout(this._lastLayoutDimensions.width);
+			}
 			return findWidget;
 		});
 
