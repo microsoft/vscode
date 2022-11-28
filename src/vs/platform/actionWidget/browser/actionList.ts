@@ -133,7 +133,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 			if (this._supportsPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply", actionTitle);
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
 			}
 		} else {
 			data.container.title = '';
@@ -178,7 +178,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, resolver, this._keybindingService), new HeaderRenderer()], {
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, resolver, this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -195,7 +195,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getRole: () => 'option',
 				getWidgetRole: () => user
 			},
-		});
+		}));
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
