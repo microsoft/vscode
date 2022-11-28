@@ -29,7 +29,6 @@ import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/
 import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -71,7 +70,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _fixesShown: boolean = false;
 	private _expectedCommands: string[] | undefined;
 	private _fixId: string | undefined;
-	private _currentFixArgs: { items: IListMenuItem<TerminalQuickFix>[]; delegate: any; anchor: IAnchor; parentElement: HTMLElement } | undefined;
+	private _currentRenderContext: { quickFixes: ITerminalAction[]; anchor: IAnchor; parentElement: HTMLElement } | undefined;
 
 	constructor(
 		private readonly _aliases: string[][] | undefined,
@@ -109,11 +108,31 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	showMenu(): void {
-		if (!this._currentFixArgs) {
+		if (!this._currentRenderContext) {
 			return;
 		}
 		this._fixesShown = true;
-		this._actionWidgetService.show('quickFixWidget', this._currentFixArgs.items, this._currentFixArgs.delegate, this._currentFixArgs.anchor, this._currentFixArgs.parentElement);
+		// TODO: What's documentation do? Need a vscode command?
+		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
+		const documentation = this._currentRenderContext.quickFixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
+		const actionSet = {
+			// TODO: Documentation and actions are separate?
+			documentation,
+			allActions: actions,
+			hasAutoFix: false,
+			validActions: actions,
+			dispose: () => { }
+		} as ActionSet<TerminalQuickFix>;
+		const delegate = {
+			onSelect: async (fix: TerminalQuickFix) => {
+				fix.action?.run();
+				this._actionWidgetService.hide();
+			},
+			onHide: () => {
+				this._terminal?.focus();
+			},
+		};
+		this._actionWidgetService.show('quickFixWidget', toMenuItems(actionSet.validActions, true), delegate, this._currentRenderContext.anchor, this._currentRenderContext.parentElement);
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
@@ -265,35 +284,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				width: rect.width,
 				height: rect.height
 			};
-			// TODO: What's documentation do? Need a vscode command?
-			const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
-			const documentation = fixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
-			const actionSet = {
-				// TODO: Documentation and actions are separate?
-				documentation,
-				allActions: actions,
-				hasAutoFix: false,
-				validActions: actions,
-				dispose: () => { }
-			} as ActionSet<TerminalQuickFix>;
 
 			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
 			if (!parentElement) {
 				return;
 			}
-			const delegate = {
-				onSelect: async (fix: TerminalQuickFix) => {
-					fix.action?.run();
-					this._actionWidgetService.hide();
-				},
-				onHide: () => {
-					this._terminal?.focus();
-				},
-			};
-			this._currentFixArgs = { items: toMenuItems(actionSet.validActions, true), delegate, anchor, parentElement };
+
+			this._currentRenderContext = { quickFixes: fixes, anchor, parentElement };
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => this.showMenu()));
 		});
-		decoration.onDispose(() => this._currentFixArgs = undefined);
+		decoration.onDispose(() => this._currentRenderContext = undefined);
 	}
 }
 
