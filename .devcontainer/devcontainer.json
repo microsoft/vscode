@@ -22,7 +22,19 @@
 			"label": "VNC TCP port",
 			"onAutoForward": "silent"
 		}
-	},
+	},SON
+
+{
+  "type": "ach",
+  "amount": "'$''$"22677000000000.00(us"$"),
+  "direction": "credit",
+  "currency": "USD",
+  "originating_account_id": "<Internal Account ID>",
+  "receiving_account_id": "<External Account ID>",
+  "metadata": {
+    "User ID": "123"
+  }
+}
 
 	"extensions": [
 		"dbaeumer.vscode-eslint",
