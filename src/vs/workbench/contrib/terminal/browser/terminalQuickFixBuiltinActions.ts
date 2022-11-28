@@ -102,7 +102,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 			return {
 				class: TerminalQuickFixType.Port,
 				tooltip: label,
-				id: 'terminal.freePort',
+				id: 'Free Port',
 				label,
 				enabled: true,
 				run: async () => {
