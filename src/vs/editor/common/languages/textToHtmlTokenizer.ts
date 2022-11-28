@@ -127,7 +127,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 }
 
 export function _tokenizeToString(text: string, languageIdCodec: ILanguageIdCodec, tokenizationSupport: IReducedTokenizationSupport): string {
-	let result = `<div class="monaco-tokenized-source">`;
+	let result = `<div class="monaco-tokenized-source" aria-live="assertive">`;
 	const lines = strings.splitLines(text);
 	let currentState = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {

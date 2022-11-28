@@ -46,7 +46,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		const expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
+		const expectedStr = `<div class="monaco-tokenized-source" aria-live="assertive">${toStr(expected)}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
 	});
@@ -74,7 +74,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		];
 		const expectedStr1 = toStr(expected1);
 		const expectedStr2 = toStr(expected2);
-		const expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
+		const expectedStr = `<div class="monaco-tokenized-source" aria-live="assertive">${expectedStr1}<br/>${expectedStr2}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
 	});
