@@ -80,6 +80,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 	get templateId(): string { return 'action'; }
 
 	constructor(
+		private readonly _supportsPreview: boolean,
 		private readonly _keybindingResolver: IActionKeybindingResolver | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
@@ -129,7 +130,11 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+			if (this._supportsPreview) {
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+			} else {
+				data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply", actionTitle);
+			}
 		} else {
 			data.container.title = '';
 		}
@@ -157,6 +162,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 	private readonly _allMenuItems: IListMenuItem<IActionItem>[];
 
 	constructor(
+		preview: boolean,
 		user: string,
 		items: IListMenuItem<T>[],
 		private readonly _delegate: IRenderDelegate,
@@ -172,7 +178,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			getHeight: element => element.kind === 'header' ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
+		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, resolver, this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: true,
 			accessibilityProvider: {
 				getAriaLabel: element => {
