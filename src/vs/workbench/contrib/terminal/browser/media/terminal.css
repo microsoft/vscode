@@ -450,22 +450,22 @@
 	top: 50%;
 }
 
-.terminal-command-decoration:not(.default):hover {
+.monaco-workbench .terminal .terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
 	border-radius: 5px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
-.terminal-command-decoration {
+.monaco-workbench .terminal .terminal-command-decoration {
 	color: var(--vscode-terminalCommandDecoration-successBackground);
 }
-.terminal-command-decoration.error {
+.monaco-workbench .terminal .terminal-command-decoration.error {
 	color: var(--vscode-terminalCommandDecoration-errorBackground);
 }
-.terminal-command-decoration.default {
+.monaco-workbench .terminal .terminal-command-decoration.default {
 	pointer-events: none;
 	color: var(--vscode-terminalCommandDecoration-defaultBackground);
 }
-.terminal-command-decoration.quick-fix {
+.monaco-workbench .terminal .terminal-command-decoration.quick-fix {
 	color: var(--vscode-editorLightBulb-foreground) !important;
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }

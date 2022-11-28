@@ -295,17 +295,25 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
-				this.scopeOverridesIndicator.disposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e) => {
-						const [scope, language] = overriddenScope.split(':');
-						onDidClickOverrideElement.fire({
-							settingKey: element.setting.key,
-							scope: scope as ScopeString,
-							language
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
+				const onClickOrKeydown = (e: UIEvent) => {
+					const [scope, language] = overriddenScope.split(':');
+					onDidClickOverrideElement.fire({
+						settingKey: element.setting.key,
+						scope: scope as ScopeString,
+						language
+					});
+					e.preventDefault();
+					e.stopPropagation();
+				};
+				this.scopeOverridesIndicator.disposables.add(DOM.addDisposableListener(view, DOM.EventType.CLICK, (e) => {
+					onClickOrKeydown(e);
+				}));
+				this.scopeOverridesIndicator.disposables.add(DOM.addDisposableListener(view, DOM.EventType.KEY_DOWN, (e) => {
+					const ev = new StandardKeyboardEvent(e);
+					if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+						onClickOrKeydown(e);
+					}
+				}));
 			} else {
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.add('setting-indicator');

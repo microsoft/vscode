@@ -277,7 +277,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
+		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, productService, logService));
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));

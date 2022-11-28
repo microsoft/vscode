@@ -17,7 +17,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType, isObject } from 'vs/base/common/types';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -726,7 +726,7 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(SuggestController.ID, SuggestController);
+registerEditorContribution(SuggestController.ID, SuggestController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerSuggestAction);
 
 const weight = KeybindingWeight.EditorContrib + 90;

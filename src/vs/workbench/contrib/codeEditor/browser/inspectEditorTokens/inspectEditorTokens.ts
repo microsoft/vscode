@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -668,7 +668,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController);
+registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectEditorTokens);
 
 registerThemingParticipant((theme, collector) => {
