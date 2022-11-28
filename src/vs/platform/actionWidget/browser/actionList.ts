@@ -162,8 +162,8 @@ export class ActionList<T extends IActionItem> extends Disposable {
 	private readonly _allMenuItems: IListMenuItem<IActionItem>[];
 
 	constructor(
-		preview: boolean,
 		user: string,
+		preview: boolean,
 		items: IListMenuItem<T>[],
 		private readonly _delegate: IRenderDelegate,
 		resolver: IActionKeybindingResolver | undefined,
