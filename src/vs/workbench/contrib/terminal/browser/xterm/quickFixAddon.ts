@@ -33,10 +33,12 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	quickFixId: string;
+	ranQuickFix: boolean;
 };
 type QuickFixClassification = {
 	owner: 'meganrogge';
 	quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
+	ranQuickFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the quick fix was run' };
 	comment: 'Terminal quick fixes';
 };
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
@@ -64,6 +66,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _decoration: IDecoration | undefined;
 
 	private _currentRenderContext: { quickFixes: ITerminalAction[]; anchor: IAnchor; parentElement: HTMLElement } | undefined;
+
+	private _lastQuickFixId: string | undefined;
 
 	constructor(
 		private readonly _aliases: string[][] | undefined,
@@ -104,6 +108,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!this._currentRenderContext) {
 			return;
 		}
+
 		// TODO: What's documentation do? Need a vscode command?
 		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
 		const documentation = this._currentRenderContext.quickFixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
@@ -117,15 +122,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		} as ActionSet<TerminalQuickFix>;
 		const delegate = {
 			onSelect: async (fix: TerminalQuickFix) => {
-				this._logService.debug(quickFixTelemetryTitle, {
-					quickFixId: fix.action.id
-				});
-				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-					quickFixId: fix.action.id
-				});
 				fix.action?.run();
 				this._actionWidgetService.hide();
-				this._disposeQuickFix();
+				this._disposeQuickFix(fix.action.id, true);
 			},
 			onHide: () => {
 				this._terminal?.focus();
@@ -182,8 +181,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!terminal) {
 			return;
 		}
-		if (command.command !== '') {
-			this._disposeQuickFix();
+		if (command.command !== '' && this._lastQuickFixId) {
+			this._disposeQuickFix(this._lastQuickFixId, false);
 		}
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
 			const id = selector.id;
@@ -201,12 +200,22 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 
 		this._quickFixes = result;
+		this._lastQuickFixId = this._quickFixes[0].id;
 	}
 
-	private _disposeQuickFix(): void {
+	private _disposeQuickFix(id: string, ranQuickFix: boolean): void {
+		this._logService.debug(quickFixTelemetryTitle, {
+			quickFixId: id,
+			ranQuickFix
+		});
+		this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+			quickFixId: id,
+			ranQuickFix
+		});
 		this._decoration?.dispose();
 		this._decoration = undefined;
 		this._quickFixes = undefined;
+		this._lastQuickFixId = undefined;
 	}
 
 	/**
