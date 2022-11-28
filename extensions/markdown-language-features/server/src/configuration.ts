@@ -8,7 +8,7 @@ import { Disposable } from './util/dispose';
 
 export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
-interface Settings {
+export interface Settings {
 	readonly markdown: {
 		readonly occurrencesHighlight: {
 			readonly enabled: boolean;
