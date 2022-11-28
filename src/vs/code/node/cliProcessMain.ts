@@ -51,7 +51,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
@@ -60,6 +60,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
 
 class CliMain extends Disposable {
 
@@ -205,8 +206,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						const storageContents = await Promises.readFile(environmentService.stateResource.fsPath);
-						machineId = JSON.parse(storageContents.toString())[machineIdKey];
+						machineId = await resolveMachineId(stateService);
 					} catch (error) {
 						if (error.code !== 'ENOENT') {
 							logService.error(error);

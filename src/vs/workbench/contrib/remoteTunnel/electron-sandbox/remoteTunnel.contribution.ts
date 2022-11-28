@@ -51,6 +51,9 @@ export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STAT
 
 const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
 
+const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
+const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
+
 type ExistingSessionItem = { session: AuthenticationSession; providerId: string; label: string; description: string };
 type IAuthenticationProvider = { id: string; scopes: string[] };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -103,6 +106,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 
@@ -148,6 +152,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		registerLogChannel(LOG_CHANNEL_ID, localize('remoteTunnelLog', "Remote Tunnel Service"), remoteTunnelServiceLogResource, fileService, logService);
 
 		this.initialize();
+
+		this.recommendRemoteExtensionIfNeeded();
 	}
 
 	private get existingSessionId() {
@@ -162,6 +168,68 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			this.storageService.store(SESSION_ID_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
+
+	private async recommendRemoteExtensionIfNeeded() {
+		const remoteExtension = this.serverConfiguration.extension;
+		const shouldRecommend = async () => {
+			if (this.storageService.getBoolean(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, StorageScope.APPLICATION)) {
+				return false;
+			}
+			if (await this.extensionService.getExtension(remoteExtension.extensionId)) {
+				return false;
+			}
+			const usedOnHost = this.storageService.get(REMOTE_TUNNEL_USED_STORAGE_KEY, StorageScope.APPLICATION);
+			if (!usedOnHost) {
+				return false;
+			}
+			const currentHostName = await this.remoteTunnelService.getHostName();
+			if (!currentHostName || currentHostName === usedOnHost) {
+				return false;
+			}
+			return usedOnHost;
+		};
+		const recommed = async () => {
+			const usedOnHost = await shouldRecommend();
+			if (!usedOnHost) {
+				return false;
+			}
+			this.notificationService.notify({
+				severity: Severity.Info,
+				message:
+					localize(
+						{
+							key: 'recommend.remoteExtension',
+							comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+						},
+						"'{0}' has turned on remote access. The {1} extension can be used to connect to it.",
+						usedOnHost, remoteExtension.friendlyName
+					),
+				actions: {
+					primary: [
+						new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
+							return this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+						}),
+						new Action('doNotShowAgain', localize('action.doNotShowAgain', "Do not show again"), undefined, true, () => {
+							this.storageService.store(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+						}),
+					]
+				}
+			});
+			return true;
+		};
+		if (await shouldRecommend()) {
+			const storageListener = this.storageService.onDidChangeValue(async e => {
+				if (e.key === REMOTE_TUNNEL_USED_STORAGE_KEY) {
+					const success = await recommed();
+					if (success) {
+						storageListener.dispose();
+					}
+
+				}
+			});
+		}
+	}
+
 
 	private async initialize(): Promise<void> {
 		const status = await this.remoteTunnelService.getTunnelStatus();
@@ -418,6 +486,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const notificationService = accessor.get(INotificationService);
 				const clipboardService = accessor.get(IClipboardService);
 				const commandService = accessor.get(ICommandService);
+				const storageService = accessor.get(IStorageService);
 
 				const connectionInfo = await that.startTunnel(false);
 				if (connectionInfo) {
@@ -443,6 +512,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							]
 						}
 					});
+					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, connectionInfo.hostName, StorageScope.APPLICATION, StorageTarget.USER);
 				} else {
 					await notificationService.notify({
 						severity: Severity.Info,
@@ -667,7 +737,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_HOST_NAME]: {
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.MACHINE,
 			pattern: '^[\\w-]*$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name can only consist of letters, numbers, underscore and minus."),
 			maxLength: 20,

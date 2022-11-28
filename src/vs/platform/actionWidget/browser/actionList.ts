@@ -175,11 +175,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
-			getHeight: element => element.kind === 'header' ? this._headerLineHeight : this._actionLineHeight,
+			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
 		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, resolver, this._keybindingService), new HeaderRenderer()], {
-			keyboardSupport: true,
+			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === 'action') {

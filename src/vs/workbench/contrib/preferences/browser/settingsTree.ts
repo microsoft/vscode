@@ -1389,7 +1389,7 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 		return this.renderTemplateWithWidget(common, widget);
 	}
 
-	override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+	protected override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
 		if (template.context) {
 			super.onDidChangeObject(template, e);
 
@@ -2096,7 +2096,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Filtered "new extensions" button
 		if (element instanceof SettingsTreeNewExtensionsElement) {
-			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.filterToCategory) {
+			if (this.viewState.tagFilters?.size || this.viewState.filterToCategory) {
 				return false;
 			}
 		}
