@@ -3581,7 +3581,7 @@ declare namespace monaco.editor {
 		/**
 		 * The font family
 		 */
-		fontFamily?: string | string[];
+		fontFamily?: string;
 		/**
 		 * The font weight
 		 */

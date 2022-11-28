@@ -30,7 +30,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
@@ -49,6 +49,7 @@ import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry
 import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
+import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -782,11 +783,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const { installSourcePath } = this.environmentMainService;
+			const machineId = await resolveMachineId(this.stateMainService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, this.stateMainService.getItem<string>(machineIdKey), isInternal, installSourcePath),
+				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
 				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
 			};
 

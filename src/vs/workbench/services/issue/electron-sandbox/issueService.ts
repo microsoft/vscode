@@ -47,7 +47,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
 				const { manifest } = extension;
 				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+				const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
 				const isBuiltin = extension.type === ExtensionType.System;
 				return {
 					name: manifest.name,
