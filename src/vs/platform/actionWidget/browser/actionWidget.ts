@@ -61,7 +61,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	async show(user: string, preview: boolean, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], resolver?: IActionKeybindingResolver): Promise<void> {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
-		const list = this._instantiationService.createInstance(ActionList, preview, user, items, delegate, resolver);
+		const list = this._instantiationService.createInstance(ActionList, user, preview, items, delegate, resolver);
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
