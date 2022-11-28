@@ -309,6 +309,9 @@ export class InstantiationService implements IInstantiationService {
 				set(_target: T, p: PropertyKey, value: any): boolean {
 					idle.value[p] = value;
 					return true;
+				},
+				getPrototypeOf(_target: T) {
+					return ctor.prototype;
 				}
 			});
 		}
