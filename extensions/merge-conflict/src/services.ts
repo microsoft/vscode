@@ -19,7 +19,7 @@ export default class ServiceWrapper implements vscode.Disposable {
 	private telemetryReporter: TelemetryReporter;
 
 	constructor(private context: vscode.ExtensionContext) {
-		const { aiKey } = require('../package.json') as { aiKey: string };
+		const { aiKey } = context.extension.packageJSON as { aiKey: string };
 		this.telemetryReporter = new TelemetryReporter(aiKey);
 		context.subscriptions.push(this.telemetryReporter);
 	}
