@@ -12,7 +12,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
@@ -399,6 +399,7 @@ export class CommentController implements IEditorContribution {
 				this.registerEditorListeners();
 				this.beginCompute();
 			} else {
+				this.tryUpdateReservedSpace();
 				this.clearEditorListeners();
 				this._commentingRangeDecorator.update(this.editor, []);
 				this._commentThreadRangeDecorator.update(this.editor, []);
@@ -949,13 +950,13 @@ export class CommentController implements IEditorContribution {
 			return hasRanges || (info.threads.length > 0);
 		});
 
-		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved) {
+		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
 			this._workspaceHasCommenting.set(true);
 			this._commentingRangeSpaceReserved = true;
 			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
 			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
 			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
-		} else if (!hasCommentsOrRanges && this._commentingRangeSpaceReserved) {
+		} else if ((!hasCommentsOrRanges || !this.commentService.isCommentingEnabled) && this._commentingRangeSpaceReserved) {
 			this._commentingRangeSpaceReserved = false;
 			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
 			const newOptions = this.getWithoutCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
@@ -1083,7 +1084,7 @@ export class PreviousCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ID, CommentController);
+registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
 

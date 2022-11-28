@@ -690,6 +690,11 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 					}
 				}
 			}));
+
+			disposables.add(quickPick.onDidHide(() => {
+				quickPick.dispose();
+				resolve(false);
+			}));
 			this._calculdateKernelSources(editor).then(quickPickItems => {
 				quickPick.items = quickPickItems;
 				if (quickPick.items.length > 0) {

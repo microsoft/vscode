@@ -232,9 +232,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
 
-		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
-
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh && !isWeb) {
 			this.appIcon = prepend(this.rootContainer, $('a.window-appicon'));
@@ -253,6 +250,9 @@ export class TitlebarPart extends Part implements ITitleService {
 				}
 			}
 		}
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Menubar: install a custom menu bar depending on configuration
 		// and when not in activity bar

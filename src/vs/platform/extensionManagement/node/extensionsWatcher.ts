@@ -180,7 +180,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	private async uninstallExtensionsNotInProfiles(): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		if (toUninstall.length) {
 			await this.extensionManagementService.markAsUninstalled(...toUninstall);
 		}

@@ -31,7 +31,7 @@ import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 type UserDataSyncConflictResource = IUserDataSyncResource & IResourcePreview;
@@ -324,4 +324,4 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 	}
 }
 
-registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
+registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution, EditorContributionInstantiation.AfterFirstRender);
