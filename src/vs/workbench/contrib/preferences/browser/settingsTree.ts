@@ -1389,7 +1389,7 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 		return this.renderTemplateWithWidget(common, widget);
 	}
 
-	override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+	protected override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
 		if (template.context) {
 			super.onDidChangeObject(template, e);
 
