@@ -133,7 +133,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 				"mergeMarkers.documentWithConflictMarkersOpened" : {
 					"owner": "hediet",
 					"comment": "Used to determine how many documents with conflicts are opened.",
-					"conflictCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of conflict counts" },
+					"conflictCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of conflict counts" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('mergeMarkers.documentWithConflictMarkersOpened', {}, {
