@@ -17,7 +17,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -39,6 +39,10 @@ export class ExtensionsResource implements IProfileResource {
 
 	async getContent(profile: IUserDataProfile, exclude?: string[]): Promise<string> {
 		const extensions = await this.getLocalExtensions(profile);
+		return this.toContent(extensions, exclude);
+	}
+
+	toContent(extensions: IProfileExtension[], exclude?: string[]): string {
 		return JSON.stringify(exclude?.length ? extensions.filter(e => !exclude.includes(e.identifier.id.toLowerCase())) : extensions);
 	}
 
@@ -140,22 +144,18 @@ export class ExtensionsResource implements IProfileResource {
 	}
 }
 
-export class ExtensionsResourceExportTreeItem implements IProfileResourceTreeItem {
+export abstract class ExtensionsResourceTreeItem implements IProfileResourceTreeItem {
 
-	readonly handle = this.profile.extensionsResource.toString();
+	readonly type = ProfileResourceType.Extensions;
+	readonly handle = ProfileResourceType.Extensions;
 	readonly label = { label: localize('extensions', "Extensions") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
 	checkbox: ITreeItemCheckboxState = { isChecked: true };
 
-	private readonly excludedExtensions = new Set<string>();
-
-	constructor(
-		private readonly profile: IUserDataProfile,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
+	protected readonly excludedExtensions = new Set<string>();
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
-		const extensions = await this.instantiationService.createInstance(ExtensionsResource).getLocalExtensions(this.profile);
+		const extensions = await this.getExtensions();
 		const that = this;
 		return extensions.map<IProfileResourceChildTreeItem>(e => ({
 			handle: e.identifier.id.toLowerCase(),
@@ -182,8 +182,26 @@ export class ExtensionsResourceExportTreeItem implements IProfileResourceTreeIte
 	}
 
 	async hasContent(): Promise<boolean> {
-		const extensions = await this.instantiationService.createInstance(ExtensionsResource).getLocalExtensions(this.profile);
+		const extensions = await this.getExtensions();
 		return extensions.length > 0;
+	}
+
+	abstract getContent(): Promise<string>;
+	protected abstract getExtensions(): Promise<IProfileExtension[]>;
+
+}
+
+export class ExtensionsResourceExportTreeItem extends ExtensionsResourceTreeItem {
+
+	constructor(
+		private readonly profile: IUserDataProfile,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	protected getExtensions(): Promise<IProfileExtension[]> {
+		return this.instantiationService.createInstance(ExtensionsResource).getLocalExtensions(this.profile);
 	}
 
 	async getContent(): Promise<string> {
@@ -192,38 +210,23 @@ export class ExtensionsResourceExportTreeItem implements IProfileResourceTreeIte
 
 }
 
-export class ExtensionsResourceImportTreeItem implements IProfileResourceTreeItem {
-
-	readonly handle = 'extensions';
-	readonly label = { label: localize('extensions', "Extensions") };
-	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
+export class ExtensionsResourceImportTreeItem extends ExtensionsResourceTreeItem {
 
 	constructor(
 		private readonly content: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
-
-	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
-		const extensions = await this.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(this.content);
-		return extensions.map<IProfileResourceChildTreeItem>(e => ({
-			handle: e.identifier.id.toLowerCase(),
-			parent: this,
-			label: { label: e.displayName || e.identifier.id },
-			description: e.disabled ? localize('disabled', "Disabled") : undefined,
-			collapsibleState: TreeItemCollapsibleState.None,
-			command: {
-				id: 'extension.open',
-				title: '',
-				arguments: [e.identifier.id, undefined, true]
-			}
-		}));
+	) {
+		super();
 	}
 
-	async hasContent(): Promise<boolean> {
-		const extensions = await this.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(this.content);
-		return extensions.length > 0;
+	protected getExtensions(): Promise<IProfileExtension[]> {
+		return this.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(this.content);
+	}
+
+	async getContent(): Promise<string> {
+		const extensionsResource = this.instantiationService.createInstance(ExtensionsResource);
+		const extensions = await extensionsResource.getProfileExtensions(this.content);
+		return extensionsResource.toContent(extensions, [...this.excludedExtensions.values()]);
 	}
 
 }
-
-

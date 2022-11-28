@@ -5,12 +5,12 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
-import { staticObservableValue } from 'vs/base/common/observableValue';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
@@ -42,7 +42,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
+	telemetryLevel = TelemetryLevel.NONE;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
@@ -228,20 +228,14 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 	};
 }
 
-const telemetryAllowedAuthorities: readonly string[] = ['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunneling', 'codespaces'];
+const telemetryAllowedAuthorities = new Set(['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunnel', 'codespaces']);
 
 export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
-
-	for (const authority of telemetryAllowedAuthorities) {
-		if (remoteAuthority.startsWith(`${authority}+`)) {
-			return authority;
-		}
-	}
-
-	return 'other';
+	const remoteName = getRemoteName(remoteAuthority);
+	return telemetryAllowedAuthorities.has(remoteName) ? remoteName : 'other';
 }
 
 function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
@@ -416,7 +410,8 @@ export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]):
 
 		// We only know how to clean strings
 		if (typeof value === 'string') {
-			let updatedProperty = value;
+			let updatedProperty = value.replaceAll('%20', ' ');
+
 			// First we anonymize any possible file paths
 			updatedProperty = anonymizeFilePaths(updatedProperty, cleanUpPatterns);
 

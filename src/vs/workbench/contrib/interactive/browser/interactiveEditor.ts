@@ -648,7 +648,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value!.focus();
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
 			this.#groupListener.clear();

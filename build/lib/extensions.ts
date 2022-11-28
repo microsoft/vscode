@@ -76,7 +76,7 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 			delete data.dependencies;
 			delete data.devDependencies;
 			if (data.main) {
-				data.main = data.main.replace('/out/', /dist/);
+				data.main = data.main.replace('/out/', '/dist/');
 			}
 			return data;
 		});

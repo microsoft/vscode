@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -38,16 +37,6 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 
 	public readonly onDidChange = this.onDidChangeEmitter.event;
-
-	// This delay fixes a suggest widget issue when typing "." immediately restarts the suggestion session.
-	private readonly setInactiveDelayed = this._register(new RunOnceScheduler(() => {
-		if (!this.isSuggestWidgetVisible) {
-			if (this._isActive) {
-				this._isActive = false;
-				this.onDidChangeEmitter.fire();
-			}
-		}
-	}, 100));
 
 	/**
 	 * Returns undefined if the suggest widget is not active.
@@ -126,8 +115,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 				}));
 				this._register(suggestController.widget.value.onDidHide(() => {
 					this.isSuggestWidgetVisible = false;
-					this.setInactiveDelayed.schedule();
-					this.update(this._isActive);
+					this.update(false);
 				}));
 				this._register(suggestController.widget.value.onDidFocus(() => {
 					this.isSuggestWidgetVisible = true;

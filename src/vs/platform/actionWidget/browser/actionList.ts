@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -29,6 +30,7 @@ export interface IListMenuItem<T extends IActionItem> {
 	group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
 	disabled?: boolean;
 	label?: string;
+	description?: string;
 }
 
 interface IActionMenuTemplateData {
@@ -131,6 +133,11 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		} else {
 			data.container.title = '';
 		}
+		if (element.description) {
+			const label = new HighlightedLabel(dom.append(data.container, dom.$('span.label-description')));
+			label.element.classList.add('action-list-description');
+			label.set(element.description);
+		}
 	}
 
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
@@ -162,11 +169,15 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
-			getHeight: element => element.kind === 'header' ? this._headerLineHeight : this._actionLineHeight,
+			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
-			keyboardSupport: true,
+
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
+			new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService),
+			new HeaderRenderer()
+		], {
+			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === 'action') {
@@ -182,7 +193,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getRole: () => 'option',
 				getWidgetRole: () => user
 			},
-		});
+		}));
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));

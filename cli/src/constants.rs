@@ -17,12 +17,19 @@ pub const CONTROL_PORT: u16 = 31545;
 ///  1 - Initial protocol version
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
-pub const PROTOCOL_VERSION: u32 = 2;
+///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
+pub const PROTOCOL_VERSION: u32 = 3;
+
+/// Prefix for the tunnel tag that includes the version.
+pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";
+/// Tag for the current protocol version, which is included in dev tunnels.
+pub const PROTOCOL_VERSION_TAG: &str = concatcp!("protocolv", PROTOCOL_VERSION);
 
 pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VERSION");
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
 pub const VSCODE_CLI_AI_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI_AI_ENDPOINT");
 pub const VSCODE_CLI_QUALITY: Option<&'static str> = option_env!("VSCODE_CLI_QUALITY");
+pub const DOCUMENTATION_URL: Option<&'static str> = option_env!("VSCODE_CLI_DOCUMENTATION_URL");
 pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMMIT");
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
@@ -42,11 +49,11 @@ pub const PRODUCT_NAME_LONG: &str = match option_env!("VSCODE_CLI_NAME_LONG") {
 };
 
 /// Name of the application without quality information.
-pub const QUALITYLESS_PRODUCT_NAME: &str =
-	match option_env!("VSCODE_CLI_QUALITYLESS_PRODUCT_NAME") {
-		Some(n) => n,
-		None => "Code",
-	};
+pub const QUALITYLESS_PRODUCT_NAME: &str = match option_env!("VSCODE_CLI_QUALITYLESS_PRODUCT_NAME")
+{
+	Some(n) => n,
+	None => "Code",
+};
 
 /// Name of the application without quality information.
 pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " Server");

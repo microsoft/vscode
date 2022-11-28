@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export interface IActivationEventsGenerator<T> {
-	(contribution: T, result: { push(item: string): void }): void;
+	(contributions: T[], result: { push(item: string): void }): void;
 }
 
 export class ImplicitActivationEventsImpl {

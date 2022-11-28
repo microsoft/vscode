@@ -62,8 +62,8 @@ export class GettingStartedDetailsRenderer {
 					}
 					.theme-picker-row {
 						display: flex;
-						gap: 32px;
 						justify-content: center;
+						gap: 32px;
 					}
 					checklist {
 						display: flex;

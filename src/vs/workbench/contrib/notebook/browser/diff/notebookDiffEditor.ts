@@ -890,7 +890,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return undefined;
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 	}
 
