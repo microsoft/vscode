@@ -177,7 +177,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService),
 			new HeaderRenderer()
 		], {
-			keyboardSupport: true,
+			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === 'action') {
