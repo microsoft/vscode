@@ -33,12 +33,10 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
 	quickFixId: string;
-	ranQuickFixCommand?: boolean;
 };
 type QuickFixClassification = {
 	owner: 'meganrogge';
 	quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
-	ranQuickFixCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
 	comment: 'Terminal quick fixes';
 };
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
@@ -120,12 +118,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const delegate = {
 			onSelect: async (fix: TerminalQuickFix) => {
 				this._logService.debug(quickFixTelemetryTitle, {
-					quickFixId: fix.action.id,
-					ranQuickFixCommand: true
+					quickFixId: fix.action.id
 				});
 				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-					quickFixId: fix.action.id,
-					ranQuickFixCommand: true
+					quickFixId: fix.action.id
 				});
 				fix.action?.run();
 				this._actionWidgetService.hide();
