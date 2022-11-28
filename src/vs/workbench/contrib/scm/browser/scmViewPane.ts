@@ -1932,7 +1932,7 @@ class SCMInputWidget {
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
-			lineDecorationsWidth: 4,
+			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
 			fontSize: fontSize,
