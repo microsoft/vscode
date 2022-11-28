@@ -28,6 +28,8 @@ import { TerminalQuickFix, TerminalQuickFixType, toMenuItems } from 'vs/workbenc
 import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -45,6 +47,7 @@ type QuickFixClassification = {
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
 
 export interface ITerminalQuickFixAddon {
+	showMenu(): void;
 	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 	/**
  * Registers a listener on onCommandFinished scoped to a particular command or regular
@@ -68,6 +71,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _fixesShown: boolean = false;
 	private _expectedCommands: string[] | undefined;
 	private _fixId: string | undefined;
+	private _currentFixArgs: { items: IListMenuItem<TerminalQuickFix>[]; delegate: any; anchor: IAnchor; parentElement: HTMLElement } | undefined;
 
 	constructor(
 		private readonly _aliases: string[][] | undefined,
@@ -105,8 +109,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	showMenu(): void {
+		if (!this._currentFixArgs) {
+			return;
+		}
 		this._fixesShown = true;
-		this._decoration?.element?.click();
+		this._actionWidgetService.show('quickFixWidget', this._currentFixArgs.items, this._currentFixArgs.delegate, this._currentFixArgs.anchor, this._currentFixArgs.parentElement);
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
@@ -251,42 +258,42 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			e.classList.add(...quickFixSelectors);
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
-			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-				const rect = e.getBoundingClientRect();
-				const anchor = {
-					x: rect.x,
-					y: rect.y,
-					width: rect.width,
-					height: rect.height
-				};
-				// TODO: What's documentation do? Need a vscode command?
-				const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
-				const documentation = fixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
-				const actionSet = {
-					// TODO: Documentation and actions are separate?
-					documentation,
-					allActions: actions,
-					hasAutoFix: false,
-					validActions: actions,
-					dispose: () => { }
-				} as ActionSet<TerminalQuickFix>;
+			const rect = e.getBoundingClientRect();
+			const anchor = {
+				x: rect.x,
+				y: rect.y,
+				width: rect.width,
+				height: rect.height
+			};
+			// TODO: What's documentation do? Need a vscode command?
+			const actions = fixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
+			const documentation = fixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
+			const actionSet = {
+				// TODO: Documentation and actions are separate?
+				documentation,
+				allActions: actions,
+				hasAutoFix: false,
+				validActions: actions,
+				dispose: () => { }
+			} as ActionSet<TerminalQuickFix>;
 
-				const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
-				if (!parentElement) {
-					return;
-				}
-				const delegate = {
-					onSelect: async (fix: TerminalQuickFix) => {
-						fix.action?.run();
-						this._actionWidgetService.hide();
-					},
-					onHide: () => {
-						this._terminal?.focus();
-					},
-				};
-				this._actionWidgetService.show('quickFixWidget', toMenuItems(actionSet.validActions, true), delegate, anchor, parentElement);
-			}));
+			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
+			if (!parentElement) {
+				return;
+			}
+			const delegate = {
+				onSelect: async (fix: TerminalQuickFix) => {
+					fix.action?.run();
+					this._actionWidgetService.hide();
+				},
+				onHide: () => {
+					this._terminal?.focus();
+				},
+			};
+			this._currentFixArgs = { items: toMenuItems(actionSet.validActions, true), delegate, anchor, parentElement };
+			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => this.showMenu()));
 		});
+		decoration.onDispose(() => this._currentFixArgs = undefined);
 	}
 }
 

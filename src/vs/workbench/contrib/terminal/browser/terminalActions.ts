@@ -2207,6 +2207,23 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ShowQuickFixes,
+				title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
+				category,
+				precondition: TerminalContextKeys.focus,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Period,
+					weight: KeybindingWeight.EditorContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ShowTextureAtlas,
 				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
 				f1: true,
