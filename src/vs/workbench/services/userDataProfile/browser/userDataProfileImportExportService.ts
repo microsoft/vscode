@@ -244,22 +244,25 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 
 				const title = localize('import profile preview', "Import");
-				let importProfile = await this.selectProfileResources(
-					userDataProfileImportState,
-					localize('import title', "{0}: {1} ({2})", PROFILES_CATEGORY.value, title, profileTemplate.name),
-					localize('import description', "Chose what to import")
-				);
 
-				if (importProfile === undefined) {
-					return;
-				}
+				if (!userDataProfileImportState.isEmpty()) {
+					let importProfile = await this.selectProfileResources(
+						userDataProfileImportState,
+						localize('import title', "{0}: {1} ({2})", PROFILES_CATEGORY.value, title, profileTemplate.name),
+						localize('import description', "Chose what to import")
+					);
 
-				if (!importProfile) {
-					importProfile = await this.showProfilePreviewView(`workbench.views.profiles.import.preview`, title, userDataProfileImportState);
-				}
+					if (importProfile === undefined) {
+						return;
+					}
 
-				if (!importProfile) {
-					return;
+					if (!importProfile) {
+						importProfile = await this.showProfilePreviewView(`workbench.views.profiles.import.preview`, title, userDataProfileImportState);
+					}
+
+					if (!importProfile) {
+						return;
+					}
 				}
 
 				profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
@@ -940,6 +943,10 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 		inMemoryProvider.setReadOnly(true);
 
 		return roots;
+	}
+
+	isEmpty(): boolean {
+		return !(this.profile.settings || this.profile.keybindings || this.profile.tasks || this.profile.snippets || this.profile.globalState || this.profile.extensions);
 	}
 
 	async getProfileTemplateToImport(): Promise<IUserDataProfileTemplate> {
