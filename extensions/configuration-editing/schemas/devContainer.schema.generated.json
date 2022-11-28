@@ -459,6 +459,27 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"type": [
+								"boolean",
+								"string",
+								"object"
+							],
+							"pattern": "^optional$",
+							"properties": {
+								"cores": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required cores."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								}
+							},
+							"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
 						}
 					},
 					"additionalProperties": false
@@ -1135,6 +1156,27 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"type": [
+								"boolean",
+								"string",
+								"object"
+							],
+							"pattern": "^optional$",
+							"properties": {
+								"cores": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required cores."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								}
+							},
+							"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
 						}
 					},
 					"additionalProperties": false
@@ -1777,6 +1819,27 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"type": [
+								"boolean",
+								"string",
+								"object"
+							],
+							"pattern": "^optional$",
+							"properties": {
+								"cores": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required cores."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								}
+							},
+							"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
 						}
 					},
 					"additionalProperties": false
@@ -2411,6 +2474,27 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"type": [
+								"boolean",
+								"string",
+								"object"
+							],
+							"pattern": "^optional$",
+							"properties": {
+								"cores": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required cores."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								}
+							},
+							"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
 						}
 					},
 					"additionalProperties": false
@@ -3010,6 +3094,27 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"type": [
+								"boolean",
+								"string",
+								"object"
+							],
+							"pattern": "^optional$",
+							"properties": {
+								"cores": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required cores."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								}
+							},
+							"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
 						}
 					},
 					"additionalProperties": false
