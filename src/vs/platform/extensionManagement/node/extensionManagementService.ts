@@ -613,7 +613,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.beforeRemovingExtension(await this.toLocalExtension(latest));
 			}
 		}));
-		const toRemove = extensions.filter(e => uninstalled[ExtensionKey.create(e).toString()]);
+		const toRemove = extensions.filter(e => e.metadata /* Installed by VS Code */ && uninstalled[ExtensionKey.create(e).toString()]);
 		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 
