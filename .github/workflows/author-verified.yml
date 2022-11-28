@@ -1,4 +1,532 @@
-name: Author Verified
+#Jump to Content
+Modern Treasury
+Product
+Pricing
+Company
+Journal
+Changelog
+Support
+Log in
+Sign up
+Guides
+API Reference
+
+Search
+CTRL-K
+JUMP TO
+CTRL-/
+MODERN TREASURY API
+Getting Started
+TOPICS
+Authentication
+Development
+API Libraries & SDKs
+Status Codes
+Errors
+Metadata
+Idempotent Requests
+Rate Limits
+
+Pagination
+Timestamps
+Postman
+
+Banking Fundamentals
+PAYMENTS
+
+Payment Orders
+
+Expected Payments
+
+Line Items
+
+Returns
+
+Paper Items
+
+Incoming Payment Details
+
+Reversals
+Payment References
+COUNTERPARTIES
+
+Counterparties
+BANK ACCOUNTS
+
+Internal Accounts
+
+Virtual Accounts
+
+External Accounts
+
+Routing Details
+
+Account Details
+
+Contact Details
+
+Balance Reports
+Balances
+
+Connections
+RECONCILIATION
+
+Transactions
+
+Transaction Line Items
+LEDGERS
+
+Ledgers
+
+Ledger Accounts
+
+Ledger Transactions
+
+Ledger Entries
+
+Ledger Account Categories
+COMPLIANCE
+
+User Onboardings
+Create User Onboarding
+POST
+List User Onboardings
+GET
+Get User Onboarding
+GET
+Update User Onboarding
+PATCH
+
+Decisions
+
+Cases
+DEVELOPERS
+
+API Keys
+
+Events
+
+Webhook Events
+
+Webhook Endpoints
+WEBHOOKS
+Overview
+Balance Report Webhooks
+Expected Payment Webhooks
+Paper Item Webhooks
+Payment Order Webhooks
+Return Webhooks
+Reversal Webhooks
+Transaction Webhooks
+External Account Webhooks
+Ledger Transaction Webhooks
+Incoming Payment Detail Webhooks
+User Onboarding Webhooks
+Decision Webhooks
+ADDITIONAL RESOURCES
+Addresses
+
+Documents
+VALIDATION ENDPOINTS
+
+Routing Numbers
+SIMULATION ENDPOINTS
+
+Incoming Payment Detail
+User Onboardings
+A User Onboarding stores information that a user enters during the hosted onboarding flow. When a User Onboarding form is completed by a user, downstream actions like creating a Counterparty and running compliance and fraud checks can occur.
+
+Related Guides: Onboarding Users.
+
+Attribute	Description
+id
+string	Unique identifier for the User Onboarding session. This id is used to start the embedded onboarding flow.
+live_mode
+boolean	This field will be true if this object exists in the live environment or false if it exists in the test environment.
+metadata
+jsonb	Additional data represented as key-value pairs. Both the key and value must be strings.
+party_type
+string	The party type of the end user. One of individual, business. Currently, KYC checks can only be done for individuals.
+status
+string	The current status of the User Onboarding session.
+
+pending: The user has not filled out the form.
+processing: The user's compliance decision is being processed.
+approved: The user has been approved.
+denied: The user has been denied.
+needs_approval: The user needs manual approval.
+expired: The User Onboarding session has been expired before being completed by the user.
+verified_email
+string	Verified email of the end user. This field is compared with the email address entered by the user, and is an input to KYC checks.
+verified_phone
+string	Verified phone number of the end user. This field is compared with the phone number entered by the user, and is an input to KYC checks.
+counterparty_id
+string	The ID of the associated counterparty. If this field is not provided, it will be updated if the User Onboarding is approved.
+external_account_id
+string	The ID of the associated external account. This will be updated if the User Onboarding is approved.
+data
+jsonb	Prefill the user onboarding form with known information.
+User Onboarding example
+
+Jump to Content
+Modern Treasury
+Product
+Pricing
+Company
+Journal
+Changelog
+Support
+Log in
+Sign up
+Guides
+API Reference
+
+Search
+CTRL-K
+JUMP TO
+CTRL-/
+MODERN TREASURY API
+Getting Started
+TOPICS
+Authentication
+Development
+API Libraries & SDKs
+Status Codes
+Errors
+Metadata
+Idempotent Requests
+Rate Limits
+
+Pagination
+Timestamps
+Postman
+
+Banking Fundamentals
+PAYMENTS
+
+Payment Orders
+
+Expected Payments
+
+Line Items
+
+Returns
+
+Paper Items
+
+Incoming Payment Details
+
+Reversals
+Payment References
+COUNTERPARTIES
+
+Counterparties
+BANK ACCOUNTS
+
+Internal Accounts
+
+Virtual Accounts
+
+External Accounts
+
+Routing Details
+
+Account Details
+
+Contact Details
+
+Balance Reports
+Balances
+
+Connections
+RECONCILIATION
+
+Transactions
+
+Transaction Line Items
+LEDGERS
+
+Ledgers
+
+Ledger Accounts
+
+Ledger Transactions
+
+Ledger Entries
+
+Ledger Account Categories
+COMPLIANCE
+
+User Onboardings
+Create User Onboarding
+POST
+List User Onboardings
+GET
+Get User Onboarding
+GET
+Update User Onboarding
+PATCH
+
+Decisions
+
+Cases
+DEVELOPERS
+
+API Keys
+
+Events
+
+Webhook Events
+
+Webhook Endpoints
+WEBHOOKS
+Overview
+Balance Report Webhooks
+Expected Payment Webhooks
+Paper Item Webhooks
+Payment Order Webhooks
+Return Webhooks
+Reversal Webhooks
+Transaction Webhooks
+External Account Webhooks
+Ledger Transaction Webhooks
+Incoming Payment Detail Webhooks
+User Onboarding Webhooks
+Decision Webhooks
+ADDITIONAL RESOURCES
+Addresses
+
+Documents
+VALIDATION ENDPOINTS
+
+Routing Numbers
+SIMULATION ENDPOINTS
+
+Incoming Payment Detail
+User Onboardings
+A User Onboarding stores information that a user enters during the hosted onboarding flow. When a User Onboarding form is completed by a user, downstream actions like creating a Counterparty and running compliance and fraud checks can occur.
+
+Related Guides: Onboarding Users.
+
+Attribute	Description
+id
+string	Unique identifier for the User Onboarding session. This id is used to start the embedded onboarding flow.
+live_mode
+boolean	This field will be true if this object exists in the live environment or false if it exists in the test environment.
+metadata
+jsonb	Additional data represented as key-value pairs. Both the key and value must be strings.
+party_type
+string	The party type of the end user. One of individual, business. Currently, KYC checks can only be done for individuals.
+status
+string	The current status of the User Onboarding session.
+
+pending: The user has not filled out the form.
+processing: The user's compliance decision is being processed.
+approved: The user has been approved.
+denied: The user has been denied.
+needs_approval: The user needs manual approval.
+expired: The User Onboarding session has been expired before being completed by the user.
+verified_email
+string	Verified email of the end user. This field is compared with the email address entered by the user, and is an input to KYC checks.
+verified_phone
+string	Verified phone number of the end user. This field is compared with the phone number entered by the user, and is an input to KYC checks.
+counterparty_id
+string	The ID of the associated counterparty. If this field is not provided, it will be updated if the User Onboarding is approved.
+external_account_id
+string	The ID of the associated external account. This will be updated if the User Onboarding is approved.
+data
+jsonb	Prefill the user onboarding form with known information.
+User Onboarding example
+
+Skip to content Visual Studio Code
+Docs
+Updates
+Blog
+API
+Extensions
+FAQ
+Learn
+Search Docs
+Download VS CodeDownload
+Version 1.73 is now available! Read about the new features and fixes from October.
+
+Dismiss this update
+Overview
+SETUP
+GET STARTED
+USER GUIDE
+SOURCE CONTROL
+TERMINAL
+LANGUAGES
+NODE.JS / JAVASCRIPT
+TYPESCRIPT
+PYTHON
+JAVA
+C++
+DOCKER
+DATA SCIENCE
+AZURE
+REMOTE
+DEV CONTAINERS
+Thanks for downloading VS Code for Linux!
+Download not starting? Try this direct download link.
+Please take a few seconds and help us improve ... click to take survey.
+
+Getting Started
+Visual Studio Code is a lightweight but powerful source code editor which runs on your desktop and is available for Windows, macOS and Linux. It comes with built-in support for JavaScript, TypeScript and Node.js and has a rich ecosystem of extensions for other languages and runtimes (such as C++, C#, Java, Python, PHP, Go, .NET). Begin your journey with VS Code with these introductory videos.
+
+Visual Studio Code in Action
+Intelligent Code Completion
+Code smarter with IntelliSense - completions for variables, methods, and imported modules.
+    
+Top Extensions
+Enable additional languages, themes, debuggers, commands, and more. VS Code's growing community shares their secret sauce to improve your workflow.
+
+Python
+Python
+70.7M
+ms-python
+IntelliSense (Pylance), Linting, Debugging (multi-threaded, remote), Jupyter Notebooks, code formatting, refactoring, unit tests, and more.
+Jupyter
+Jupyter
+51.7M
+ms-toolsai
+Jupyter notebook support, interactive programming and computing that supports Intellisense, debugging and more.
+Pylance
+Pylance
+43.8M
+ms-python
+A performant, feature-rich language server for Python in VS Code
+C/C++
+C/C++
+39.4M
+ms-vscode
+C/C++ IntelliSense, debugging, and code browsing.
+Jupyter Keymap
+Jupyter Keymap
+34.0M
+ms-toolsai
+Jupyter keymaps for notebooks
+Jupyter Notebook Renderers
+Jupyter Notebook Renderers
+32.3M
+ms-toolsai
+Renderers for Jupyter Notebooks (with plotly, vega, gif, png, svg, jpeg and other such outputs)
+Live Server
+Live Server
+28.3M
+ritwickdey
+Launch a development local Server with live reload feature for static & dynamic pages
+Prettier - Code formatter
+Prettier - Code formatter
+26.7M
+esbenp
+Code formatter using prettier
+See more in the Marketplace
+
+First Steps
+To get the most out of Visual Studio Code, start by reviewing a few introductory topics:
+
+Intro Videos - Begin your journey with VS Code through these introductory videos.
+
+Setup - Install VS Code for your platform and configure the tool set for your development needs.
+
+User Interface - Introduction to the basic UI, commands, and features of the VS Code editor.
+
+Settings - Customize VS Code for how you like to work.
+
+Languages - Learn about VS Code's support for your favorite programming languages.
+
+Node.js - This tutorial gets you quickly running and debugging a Node.js web app.
+
+Tips and Tricks - Jump right in with Tips and Tricks to become a VS Code power user.
+
+Azure - VS Code is great for deploying your web applications to the cloud.
+
+Extension API - Learn how to write a VS Code extension.
+
+Why VS Code? - Read about the design philosophy and architecture of VS Code.
+
+Keyboard Shortcuts
+Increase your productivity with VS Code's keyboard shortcuts.
+
+Keyboard Shortcut Reference Sheet - Learn the commonly used keyboard shortcuts.
+
+Keymap Extensions - Change VS Code's keyboard shortcuts to match another editor.
+
+Customize Keyboard Shortcuts - Modify the default keyboard shortcuts.
+
+Downloads
+Download VS Code - Quickly find the appropriate install for your platform (Windows, macOS and Linux)
+
+Privacy
+By default, VS Code auto-updates to new versions, and collects usage data and crash report information. You may opt out of these defaults by disabling them as instructed below:
+
+How do I disable auto update?
+
+How do I disable crash reporting?
+
+How do I disable usage reporting?
+
+Was this documentation helpful?
+Yes, this page was helpfulNo, this page was not helpful
+GETTING STARTED
+VS Code in Action
+Top Extensions
+First Steps
+Keyboard Shortcuts
+Downloads
+Privacy
+TwitterTweet this link
+RSSSubscribe
+StackoverflowAsk questions
+TwitterFollow @code
+GitHubRequest features
+IssuesReport issues
+YouTubeWatch videos
+Hello from Seattle. Follow @code Support Privacy Terms of Use License 
+Microsoft homepage© 2022 Microsoft{
+  "id": "e640a26e-4289-4799-b991-e5a136b94428",
+  "object": "user_onboarding",
+  "live_mode": true,
+  "metadata": {},
+  "party_type": "individual",
+  "status": "approved",
+  "counterparty_id": "0e7f73bd-d449-4a30-8f52-6322bed44e8e",
+  "external_account_id": "4c95964e-c9d4-4102-9183-2c8ae39e2c1d",
+  "decision_id": "08d9b87d-67a2-4234-a6d0-e8fec11ebb4f",
+  "created_at": "2022-05-16T05:14:02Z",
+  "updated_at": "2022-05-16T05:14:02Z"
+}
+Updated about 2 months ago
+
+Remove Ledger Account Category from Category
+Create User Onboarding
+Did this page help you?
+© Modern Treasury Corp.
+Privacy
+Terms of Service{
+  "id": "e640a26e-4289-4799-b991-e5a136b94428",
+  "object": "user_onboarding",
+  "live_mode": true,
+  "metadata": {22677000000000.00},
+  "party_type": "individual",
+  "status": "approved",
+  "counterparty_id": "0e7f73bd-d449-4a30-8f52-6322bed44e8e",
+  "external_account_id": "4c95964e-c9d4-4102-9183-2c8ae39e2c1d",
+  "decision_id": "08d9b87d-67a2-4234-a6d0-e8fec11ebb4f",
+  "created_at": "2022-05-16T05:14:02Z",
+  "updated_at": "2022-05-16T05:14:02Z"
+}
+Updated about 2 months ago
+
+Remove Ledger Account Category from Category
+Create User Onboarding
+Did this page help you?
+© Modern Treasury Corp.
+Privacy
+Terms of ServiceName :WIZARD.yml :
+author :ZW : Verified
 on:
   issues:
     types: [closed]
@@ -28,3 +556,291 @@ jobs:
           releasedLabel: insiders-released
           verifiedLabel: verified
           authorVerificationRequestedLabel: author-verification-requested
+Skip to content Visual Studio Code
+Docs
+Updates
+Blog
+API
+Extensions
+FAQ
+Learn
+Search Docs
+Download VS CodeDownload
+Version 1.73 is now available! Read about the new features and fixes from October.
+
+Dismiss this update
+Overview
+SETUP
+GET STARTED
+USER GUIDE
+SOURCE CONTROL
+TERMINAL
+LANGUAGES
+NODE.JS / JAVASCRIPT
+TYPESCRIPT
+PYTHON
+JAVA
+C++
+DOCKER
+DATA SCIENCE
+AZURE
+REMOTE
+DEV CONTAINERS
+Thanks for downloading VS Code for Linux!
+Download not starting? Try this direct download link.
+Please take a few seconds and help us improve ... click to take survey.
+
+Getting Started
+Visual Studio Code is a lightweight but powerful source code editor which runs on your desktop and is available for Windows, macOS and Linux. It comes with built-in support for JavaScript, TypeScript and Node.js and has a rich ecosystem of extensions for other languages and runtimes (such as C++, C#, Java, Python, PHP, Go, .NET). Begin your journey with VS Code with these introductory videos.
+
+Visual Studio Code in Action
+Intelligent Code Completion
+Code smarter with IntelliSense - completions for variables, methods, and imported modules.
+    
+Top Extensions
+Enable additional languages, themes, debuggers, commands, and more. VS Code's growing community shares their secret sauce to improve your workflow.
+
+Python
+Python
+70.7M
+ms-python
+IntelliSense (Pylance), Linting, Debugging (multi-threaded, remote), Jupyter Notebooks, code formatting, refactoring, unit tests, and more.
+Jupyter
+Jupyter
+51.7M
+ms-toolsai
+Jupyter notebook support, interactive programming and computing that supports Intellisense, debugging and more.
+Pylance
+Pylance
+43.8M
+ms-python
+A performant, feature-rich language server for Python in VS Code
+C/C++
+C/C++
+39.4M
+ms-vscode
+C/C++ IntelliSense, debugging, and code browsing.
+Jupyter Keymap
+Jupyter Keymap
+34.0M
+ms-toolsai
+Jupyter keymaps for notebooks
+Jupyter Notebook Renderers
+Jupyter Notebook Renderers
+32.3M
+ms-toolsai
+Renderers for Jupyter Notebooks (with plotly, vega, gif, png, svg, jpeg and other such outputs)
+Live Server
+Live Server
+28.3M
+ritwickdey
+Launch a development local Server with live reload feature for static & dynamic pages
+Prettier - Code formatter
+Prettier - Code formatter
+26.7M
+esbenp
+Code formatter using prettier
+See more in the Marketplace
+
+First Steps
+To get the most out of Visual Studio Code, start by reviewing a few introductory topics:
+
+Intro Videos - Begin your journey with VS Code through these introductory videos.
+
+Setup - Install VS Code for your platform and configure the tool set for your development needs.
+
+User Interface - Introduction to the basic UI, commands, and features of the VS Code editor.
+
+Settings - Customize VS Code for how you like to work.
+
+Languages - Learn about VS Code's support for your favorite programming languages.
+
+Node.js - This tutorial gets you quickly running and debugging a Node.js web app.
+
+Tips and Tricks - Jump right in with Tips and Tricks to become a VS Code power user.
+
+Azure - VS Code is great for deploying your web applications to the cloud.
+
+Extension API - Learn how to write a VS Code extension.
+
+Why VS Code? - Read about the design philosophy and architecture of VS Code.
+
+Keyboard Shortcuts
+Increase your productivity with VS Code's keyboard shortcuts.
+
+Keyboard Shortcut Reference Sheet - Learn the commonly used keyboard shortcuts.
+
+Keymap Extensions - Change VS Code's keyboard shortcuts to match another editor.
+
+Customize Keyboard Shortcuts - Modify the default keyboard shortcuts.
+
+Downloads
+Download VS Code - Quickly find the appropriate install for your platform (Windows, macOS and Linux)
+
+Privacy
+By default, VS Code auto-updates to new versions, and collects usage data and crash report information. You may opt out of these defaults by disabling them as instructed below:
+
+How do I disable auto update?
+
+How do I disable crash reporting?
+
+How do I disable usage reporting?
+
+Was this documentation helpful?
+Yes, this page was helpfulNo, this page was not helpful
+GETTING STARTED
+VS Code in Action
+Top Extensions
+First Steps
+Keyboard Shortcuts
+Downloads
+Privacy
+TwitterTweet this link
+RSSSubscribe
+StackoverflowAsk questions
+TwitterFollow @code
+GitHubRequest features
+IssuesReport issues
+YouTubeWatch videos
+Hello from Seattle. Follow @code Support Privacy Terms of Use License 
+Microsoft homepage© 2022 Microsoftdiff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index b96e077aa67ea..1b660e3831075 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -1,3 +1,136 @@
++Skip to content
++Search or jump to…
++Pull requests
++Issues
++Marketplace
++Explore
++ 
++@zakwarlord7 
++Your account has been flagged.
++Because of that, your profile is hidden from the public. If you believe this is a mistake, contact support to have your account status reviewed.
++zakwarlord7
++/
++vscode
++Public
++forked from microsoft/vscode
++Code
++Pull requests
++Actions
++Projects
++Wiki
++Security
++Insights
++Settings
++chore: update electron@19.0.12 (microsoft#158025)
++ main (microsoft/vscode#158025)
++@deepak1556
++deepak1556 committed on Aug 13 
++1 parent 99e0034 commit 1a582f7c079d1eb4c89d4f637da2fc2fcb688b31
++Show file tree Hide file tree
++Showing 5 changed files with 11 additions and 11 deletions.
++ 2  
++.yarnrc
++@@ -1,4 +1,4 @@
++disturl "https://electronjs.org/headers"
++target "19.0.11"
++target "19.0.12"
++runtime "electron"
++build_from_source "true"
++  4  
++cgmanifest.json
++@@ -60,12 +60,12 @@
++				"git": {
++					"name": "electron",
++					"repositoryUrl": "https://github.com/electron/electron",
++					"commitHash": "a5cafd174d2027529d0b251e5b8e58da2b364e5b"
++					"commitHash": "b05ccd812e3bb3de5b1546a313e298961653e942"
++				}
++			},
++			"isOnlyProductionDependency": true,
++			"license": "MIT",
++			"version": "19.0.11"
++			"version": "19.0.12"
++		},
++		{
++			"component": {
++  2  
++package.json
++@@ -137,7 +137,7 @@
++    "cssnano": "^4.1.11",
++    "debounce": "^1.0.0",
++    "deemon": "^1.4.0",
++    "electron": "19.0.11",
++    "electron": "19.0.12",
++    "eslint": "8.7.0",
++    "eslint-plugin-header": "3.1.1",
++    "eslint-plugin-jsdoc": "^39.3.2",
++  6  
++src/vs/platform/extensions/electron-main/extensionHostStarter.ts
++@@ -32,7 +32,7 @@ declare namespace UtilityProcessProposedApi {
++		constructor(modulePath: string, args?: string[] | undefined, options?: UtilityProcessOptions);
++		postMessage(channel: string, message: any, transfer?: Electron.MessagePortMain[]): void;
++		kill(signal?: number | string): boolean;
++		on(event: 'exit', listener: (code: number | undefined) => void): this;
++		on(event: 'exit', listener: (event: Electron.Event, code: number) => void): this;
++		on(event: 'spawn', listener: () => void): this;
++	}
++}
++@@ -338,8 +338,8 @@ class UtilityExtensionHostProcess extends Disposable {
++		this._register(Event.fromNodeEventEmitter<void>(this._process, 'spawn')(() => {
++			this._logService.info(`UtilityProcess<${this.id}>: received spawn event.`);
++		}));
++		this._register(Event.fromNodeEventEmitter<number | undefined>(this._process, 'exit')((code: number | undefined) => {
++			code = code || 0;
++		const onExit = Event.fromNodeEventEmitter<number>(this._process, 'exit', (_, code: number) => code);
++		this._register(onExit((code: number) => {
++			this._logService.info(`UtilityProcess<${this.id}>: received exit event with code ${code}.`);
++			this._hasExited = true;
++			this._onExit.fire({ pid: this._process!.pid!, code, signal: '' });
++  8  
++yarn.lock
++@@ -3708,10 +3708,10 @@ electron-to-chromium@^1.4.202:
++  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
++  integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
++
++electron@19.0.11:
++  version "19.0.11"
++  resolved "https://registry.yarnpkg.com/electron/-/electron-19.0.11.tgz#0c0a52abc08694fd38916d9270baf45bb7752a27"
++  integrity sha512-GPM6C1Ze17/gR4koTE171MxrI5unYfFRgXQdkMdpWM2Cd55LMUrVa0QHCsfKpsaloufv9T65lsOn0uZuzCw5UA==
++electron@19.0.12:
++  version "19.0.12"
++  resolved "https://registry.yarnpkg.com/electron/-/electron-19.0.12.tgz#73d11cc2a3e4dbcd61fdc1c39561e7a7911046e9"
++  integrity sha512-GOvG0t2NCeJYIfmC3g/dnEAQ71k3nQDbRVqQhpi2YbsYMury0asGJwqnVAv2uZQEwCwSx4XOwOQARTFEG/msWw==
++  dependencies:
++    "@electron/get" "^1.14.1"
++    "@types/node" "^16.11.26"
++0 comments on commit 1a582f7
++@zakwarlord7
++ 
++Add heading textAdd bold text, <Ctrl+b>Add italic text, <Ctrl+i>
++Add a quote, <Ctrl+Shift+.>Add code, <Ctrl+e>Add a link, <Ctrl+k>
++Add a bulleted list, <Ctrl+Shift+8>Add a numbered list, <Ctrl+Shift+7>Add a task list, <Ctrl+Shift+l>
++Directly mention a user or team
++Reference an issue, pull request, or discussion
++Add saved reply
++Leave a comment
++No file chosen
++Attach files by dragging & dropping, selecting or pasting them.
++Styling with Markdown is supported
++ You’re not receiving notifications from this thread.
++Footer
++© 2022 GitHub, Inc.
++Footer navigation
++Terms
++Privacy
++Security
++Status
++Docs
++Contact GitHub
++Pricing
++API
++Training
++Blog
++About
+ # Contributing to VS Code
+ 
+ Welcome, and thank you for your interest in contributing to VS Code!
