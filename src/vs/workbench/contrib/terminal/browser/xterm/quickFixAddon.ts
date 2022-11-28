@@ -29,6 +29,7 @@ import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/
 import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { URI } from 'vs/base/common/uri';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -382,7 +383,17 @@ export async function getQuickFixesForCommand(
 									class: quickFix.type,
 									enabled: true,
 									run: () => {
-										openerService.open(fix.uri.path);
+										let uri: URI | undefined;
+										if (URI.isUri(fix.uri)) {
+											uri = fix.uri;
+										} else if (typeof fix.uri === 'string') {
+											uri = URI.parse(fix.uri);
+										}
+
+										if (!uri) {
+											return;
+										}
+										openerService.open(uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
 										onDidRunQuickFixEmitter.fire(id);
