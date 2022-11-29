@@ -9,7 +9,7 @@ import { resolveMachineId as resolveNodeMachineId } from 'vs/platform/telemetry/
 
 export async function resolveMachineId(stateService: IStateMainService) {
 	// Call the node layers implementation to avoid code duplication
-	const machineId = resolveNodeMachineId(stateService);
+	const machineId = await resolveNodeMachineId(stateService);
 	stateService.setItem(machineIdKey, machineId);
 	return machineId;
 }
