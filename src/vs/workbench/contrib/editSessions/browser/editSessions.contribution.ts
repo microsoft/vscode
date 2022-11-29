@@ -980,7 +980,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': 'off',
-			'markdownDescription': localize('autoStore.v2', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
+			'markdownDescription': localize('autoStoreWorkingChanges', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
 		},
 		'workbench.cloudChanges.autoResume': {
 			enum: ['onReload', 'off'],
@@ -991,7 +991,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'string',
 			'tags': ['usesOnlineServices'],
 			'default': 'onReload',
-			'markdownDescription': localize('autoResume.v2', "Controls whether to automatically resume available working changes stored in the cloud for the current workspace."),
+			'markdownDescription': localize('autoResumeWorkingChanges', "Controls whether to automatically resume available working changes stored in the cloud for the current workspace."),
 		},
 		'workbench.cloudChanges.continueOn': {
 			enum: ['prompt', 'off'],
@@ -1002,7 +1002,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			tags: ['usesOnlineServices'],
 			default: 'prompt',
-			markdownDescription: localize('continueOn.v2', 'Controls whether to prompt the user to store working changes in the cloud when using Continue Working On.')
+			markdownDescription: localize('continueOnCloudChanges', 'Controls whether to prompt the user to store working changes in the cloud when using Continue Working On.')
 		},
 		'workbench.experimental.editSessions.autoStore': {
 			markdownDeprecationMessage: localize('editSessionsAutoStoreDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.cloudChanges.autoStore#`')
@@ -1017,7 +1017,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': false,
-			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
+			'markdownDescription': localize('cloudChangesPartialMatchesEnabled', "Controls whether to surface cloud changes which partially match the current session.")
 		},
 		'workbench.experimental.editSessions.partialMatches.enabled': {
 			markdownDeprecationMessage: localize('editSessionsPartialMatchesDeprecation', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.cloudChanges.partialMatches.enabled#`')
