@@ -127,7 +127,7 @@ export function getShellIntegrationInjection(
 
 	// Windows
 	if (isWindows) {
-		if (shell === 'pwsh.exe') {
+		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
 			} else if (arePwshLoginArgs(originalArgs)) {

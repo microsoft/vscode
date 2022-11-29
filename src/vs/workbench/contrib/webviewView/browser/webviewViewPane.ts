@@ -122,7 +122,7 @@ export class WebviewViewPane extends ViewPane {
 		this._webview.value?.focus();
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._container = container;

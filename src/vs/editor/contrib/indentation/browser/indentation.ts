@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -720,7 +720,7 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 }
 
-registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(IndentationToSpacesAction);
 registerEditorAction(IndentationToTabsAction);
 registerEditorAction(IndentUsingTabs);

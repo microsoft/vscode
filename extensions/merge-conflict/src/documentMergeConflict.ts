@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as interfaces from './interfaces';
 import * as vscode from 'vscode';
+import type TelemetryReporter from '@vscode/extension-telemetry';
 
 export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict {
 
@@ -13,7 +14,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	public commonAncestors: interfaces.IMergeRegion[];
 	public splitter: vscode.Range;
 
-	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor) {
+	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor, private readonly telemetryReporter: TelemetryReporter) {
 		this.range = descriptor.range;
 		this.current = descriptor.current;
 		this.incoming = descriptor.incoming;
@@ -22,6 +23,25 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	}
 
 	public commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean> {
+		function commitTypeToString(type: interfaces.CommitType): string {
+			switch (type) {
+				case interfaces.CommitType.Current:
+					return 'current';
+				case interfaces.CommitType.Incoming:
+					return 'incoming';
+				case interfaces.CommitType.Both:
+					return 'both';
+			}
+		}
+
+		/* __GDPR__
+			"mergeMarkers.accept" : {
+				"owner": "hediet",
+				"comment": "Used to understand how the inline merge editor experience is used.",
+				"resolution": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates how the merge conflict was resolved by the user" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('mergeMarkers.accept', { resolution: commitTypeToString(type) });
 
 		if (edit) {
 

@@ -140,6 +140,9 @@ export class MergeEditorModel extends EditorModel {
 				} else if (range.input2Diffs.length === 0) {
 					newState = ModifiedBaseRangeState.base.withInputValue(1, true);
 					handled = true;
+				} else if (range.isEqualChange) {
+					newState = ModifiedBaseRangeState.base.withInputValue(1, true);
+					handled = true;
 				} else {
 					newState = ModifiedBaseRangeState.base;
 					handled = false;
@@ -182,6 +185,8 @@ export class MergeEditorModel extends EditorModel {
 			if (baseRange.input1Diffs.length === 0) {
 				appendLinesToResult(input2Lines, baseRange.input2Range);
 			} else if (baseRange.input2Diffs.length === 0) {
+				appendLinesToResult(input1Lines, baseRange.input1Range);
+			} else if (baseRange.isEqualChange) {
 				appendLinesToResult(input1Lines, baseRange.input1Range);
 			} else {
 				appendLinesToResult(baseLines, baseRange.baseRange);

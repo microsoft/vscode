@@ -104,6 +104,13 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 				}
 			}
 		}
+	},
+	activationEventsGenerator: (languageContributions, result) => {
+		for (const languageContribution of languageContributions) {
+			if (languageContribution.id) {
+				result.push(`onLanguage:${languageContribution.id}`);
+			}
+		}
 	}
 });
 

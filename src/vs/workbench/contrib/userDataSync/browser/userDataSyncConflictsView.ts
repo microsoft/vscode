@@ -31,7 +31,7 @@ import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 type UserDataSyncConflictResource = IUserDataSyncResource & IResourcePreview;
@@ -197,7 +197,13 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 				input1: { resource: conflictToOpen.remoteResource, label: localize('Theirs', 'Theirs'), description: remoteResourceName },
 				input2: { resource: conflictToOpen.localResource, label: localize('Yours', 'Yours'), description: localResourceName },
 				base: { resource: conflictToOpen.baseResource },
-				result: { resource: conflictToOpen.previewResource }
+				result: { resource: conflictToOpen.previewResource },
+				options: {
+					preserveFocus: true,
+					revealIfVisible: true,
+					pinned: true,
+					override: DEFAULT_EDITOR_ASSOCIATION.id
+				}
 			});
 			return;
 		}
@@ -324,4 +330,4 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 	}
 }
 
-registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
+registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution, EditorContributionInstantiation.AfterFirstRender);
