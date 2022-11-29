@@ -126,6 +126,20 @@ export class CenteredViewLayout implements IDisposable {
 		}
 	}
 
+	setFixedWidth(option: boolean) {
+		this.centeredLayoutFixedWidth = option;
+		if (!!this.splitView) {
+			if (this.centeredLayoutFixedWidth) {
+				this.state.targetWidth = this.splitView.getViewSize(1);
+			}
+			else {
+				this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
+				this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
+			}
+			this.resizeSplitViews();
+		}
+	}
+
 	isActive(): boolean {
 		return !!this.splitView;
 	}
