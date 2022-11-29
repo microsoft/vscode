@@ -468,13 +468,13 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& propertyNode.separator
 				&& offset >= propertyNode.separatorToken.end
 				&& offset <= propertyNode.terminatorToken.start
-				&& abbreviation.indexOf(':') === -1) {
+				&& !abbreviation.includes(':')) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& offset >= propertyNode.separatorToken.end
-				&& abbreviation.indexOf(':') === -1) {
+				&& !abbreviation.includes(':')) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
