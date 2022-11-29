@@ -233,7 +233,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			const profiles = [];
 			if (this.enabled) {
 				for (const storedProfile of this.getStoredProfiles()) {
-					if (!storedProfile.name || !isString(storedProfile.name) || storedProfile.location) {
+					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
 					}
