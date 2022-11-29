@@ -16,7 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorContribution, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, registerEditorContribution, registerEditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -216,7 +216,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				}
 				break;
 			case 'on':
-				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
+				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this via the command `Toggle Screen Reader Accessibility Mode` or by editing the setting `editor.accessibilitySupport`");
 				break;
 			case 'off':
 				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader.");
@@ -312,7 +312,7 @@ class ShowAccessibilityHelpAction extends Action2 {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController, EditorContributionInstantiation.Lazy);
 registerAction2(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
@@ -327,3 +327,22 @@ registerEditorCommand(new AccessibilityHelpCommand({
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+class ToggleScreenReaderMode extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleScreenReaderAccessibilityMode',
+			title: { value: nls.localize('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"), original: 'Toggle Screen Reader Accessibility Mode' },
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const value = configurationService.getValue('editor.accessibilitySupport');
+		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on');
+	}
+}
+
+registerAction2(ToggleScreenReaderMode);

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { FindInput, IFindInputOptions, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { IReplaceInputStyles, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
+import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -18,9 +18,8 @@ import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IColorTheme, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,7 +35,8 @@ import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contr
 import { isSafari } from 'vs/base/common/platform';
 import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -144,7 +144,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }
@@ -154,6 +154,7 @@ class NotebookFindInput extends FindInput {
 	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;
 	private _filtersAction: IAction;
+	private _toggleStyles: IToggleStyles;
 
 	constructor(
 		readonly filters: NotebookFindFilters,
@@ -165,6 +166,8 @@ class NotebookFindInput extends FindInput {
 		options: IFindInputOptions
 	) {
 		super(parent, contextViewProvider, options);
+
+		this._toggleStyles = options.toggleStyles;
 
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
@@ -225,12 +228,12 @@ class NotebookFindInput extends FindInput {
 		this.applyStyles();
 	}
 
-	override applyStyles(): void {
-		super.applyStyles();
+	private applyStyles(): void {
+		const toggleStyles = this._toggleStyles;
 
-		this._filterButtonContainer.style.borderColor = this._filterChecked && this.inputActiveOptionBorder ? this.inputActiveOptionBorder.toString() : '';
-		this._filterButtonContainer.style.color = this._filterChecked && this.inputActiveOptionForeground ? this.inputActiveOptionForeground.toString() : 'inherit';
-		this._filterButtonContainer.style.backgroundColor = this._filterChecked && this.inputActiveOptionBackground ? this.inputActiveOptionBackground.toString() : '';
+		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
+		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
+		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -299,7 +302,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
 		const progressContainer = dom.$('.find-replace-progress');
-		this._progressBar = new ProgressBar(progressContainer, getProgressBarStyles());
+		this._progressBar = new ProgressBar(progressContainer, defaultProgressBarStyles);
 		this._domNode.appendChild(progressContainer);
 
 		const isInteractiveWindow = contextKeyService.getContextKeyValue('notebookType') === 'interactive';
@@ -351,7 +354,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 					}
 				},
 				flexibleWidth: true,
-				showCommonFindToggles: true
+				showCommonFindToggles: true,
+				inputBoxStyles: defaultInputBoxStyles,
+				toggleStyles: defaultToggleStyles
 			}
 		));
 
@@ -452,7 +457,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: []
+			history: [],
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles
 		}, contextKeyService, false));
 		this._innerReplaceDomNode.appendChild(this._replaceInput.domNode);
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
@@ -579,45 +586,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public get focusTracker(): dom.IFocusTracker {
 		return this._focusTracker;
-	}
-
-	public updateTheme(theme: IColorTheme): void {
-		const inputStyles: IFindInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
-		};
-		this._findInput.style(inputStyles);
-		const replaceStyles: IReplaceInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
-		};
-		this._replaceInput.style(replaceStyles);
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {

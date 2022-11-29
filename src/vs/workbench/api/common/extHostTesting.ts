@@ -727,7 +727,7 @@ interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
 	depth: number;
 }
 
-class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
+class MirroredChangeCollector implements IncrementalChangeCollector<MirroredCollectionTestItem> {
 	private readonly added = new Set<MirroredCollectionTestItem>();
 	private readonly updated = new Set<MirroredCollectionTestItem>();
 	private readonly removed = new Set<MirroredCollectionTestItem>();
@@ -739,20 +739,19 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	}
 
 	constructor(private readonly emitter: Emitter<vscode.TestsChangeEvent>) {
-		super();
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
-	public override add(node: MirroredCollectionTestItem): void {
+	public add(node: MirroredCollectionTestItem): void {
 		this.added.add(node);
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
-	public override update(node: MirroredCollectionTestItem): void {
+	public update(node: MirroredCollectionTestItem): void {
 		Object.assign(node.revived, Convert.TestItem.toPlain(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
@@ -760,9 +759,9 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
-	public override remove(node: MirroredCollectionTestItem): void {
+	public remove(node: MirroredCollectionTestItem): void {
 		if (this.added.has(node)) {
 			this.added.delete(node);
 			return;
@@ -780,7 +779,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
 	public getChangeEvent(): vscode.TestsChangeEvent {
 		const { added, updated, removed } = this;
@@ -791,7 +790,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		};
 	}
 
-	public override complete() {
+	public complete() {
 		if (!this.isEmpty) {
 			this.emitter.fire(this.getChangeEvent());
 		}

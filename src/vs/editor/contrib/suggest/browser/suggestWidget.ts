@@ -573,9 +573,7 @@ export class SuggestWidget implements IDisposable {
 
 	focusSelected(): void {
 		const selection = this._list.getSelection();
-		if (selection.length !== 1) {
-			this._list.setFocus([0]);
-		} else {
+		if (selection.length === 1) {
 			this._list.setFocus([selection[0]]);
 		}
 	}

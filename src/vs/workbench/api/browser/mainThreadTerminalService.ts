@@ -16,12 +16,15 @@ import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupSe
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -36,6 +39,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -50,6 +54,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
@@ -243,6 +248,60 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._profileProviders.delete(id);
 	}
 
+	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
+		this._quickFixProviders.set(id, this._terminalQuickFixService.registerQuickFixProvider(id,
+			{
+				provideTerminalQuickFixes: async (terminalCommand: ITerminalCommand, lines: string[], option: ITerminalQuickFixOptions, token: CancellationToken) => {
+					if (token.isCancellationRequested) {
+						return;
+					}
+					if (option.outputMatcher?.length && option.outputMatcher.length > 40) {
+						option.outputMatcher.length = 40;
+						this._logService.warn('Cannot exceed output matcher length of 40');
+					}
+					const commandLineMatch = terminalCommand.command.match(option.commandLineMatcher);
+					if (!commandLineMatch) {
+						return;
+					}
+					const outputMatcher = option.outputMatcher;
+					let outputMatch;
+					if (outputMatcher) {
+						outputMatch = getOutputMatchForLines(lines, outputMatcher);
+					}
+					if (!outputMatch) {
+						return;
+					}
+					const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
+
+					if (matchResult) {
+						const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
+						if (result && Array.isArray(result)) {
+							return result.map(r => {
+								return {
+									id,
+									source: extensionId,
+									...r
+								};
+							});
+						} else if (result) {
+							return {
+								id,
+								source: extensionId,
+								...result
+							};
+						}
+					}
+					return;
+				}
+			})
+		);
+	}
+
+	public $unregisterQuickFixProvider(id: string): void {
+		this._quickFixProviders.get(id)?.dispose();
+		this._quickFixProviders.delete(id);
+	}
+
 	private _onActiveTerminalChanged(terminalId: number | null): void {
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
@@ -403,4 +462,9 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 			activate: () => proxy.$activateLink(instance.instanceId, dto.id)
 		}));
 	}
+}
+
+export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
+	const match: RegExpMatchArray | null | undefined = lines.join('\n').match(outputMatcher.lineMatcher);
+	return match ? { regexMatch: match, outputLines: outputMatcher.multipleMatches ? lines : undefined } : undefined;
 }

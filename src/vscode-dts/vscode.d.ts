@@ -2066,7 +2066,9 @@ declare module 'vscode' {
 	export class RelativePattern {
 
 		/**
-		 * A base file path to which this pattern will be matched against relatively.
+		 * A base file path to which this pattern will be matched against relatively. The
+		 * file path must be absolute, should not have any trailing path separators and
+		 * not include any relative segments (`.` or `..`).
 		 */
 		baseUri: Uri;
 
@@ -11823,7 +11825,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be deleted.
 	 *
 	 * To make modifications to the workspace before the files are deleted,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillDeleteEvent {
@@ -11883,7 +11885,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be renamed.
 	 *
 	 * To make modifications to the workspace before the files are renamed,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {

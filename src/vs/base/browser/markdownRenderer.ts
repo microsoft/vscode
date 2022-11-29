@@ -7,6 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -14,6 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
@@ -158,15 +160,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
-			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
-				return;
-			}
-
-			let target: HTMLElement | null = mouseEvent.target;
+		const _activateLink = function (event: StandardMouseEvent | StandardKeyboardEvent): void {
+			let target: HTMLElement | null = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
 				if (!target || target.tagName !== 'A') {
@@ -179,13 +174,29 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 					if (markdown.baseUri) {
 						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 					}
-					options.actionHandler!.callback(href, mouseEvent);
+					options.actionHandler!.callback(href, event);
 				}
 			} catch (err) {
 				onUnexpectedError(err);
 			} finally {
-				mouseEvent.preventDefault();
+				event.preventDefault();
 			}
+		};
+		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
+		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
+		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
+				return;
+			}
+			_activateLink(mouseEvent);
+		}));
+		options.actionHandler.disposables.add(DOM.addDisposableListener(element, 'keydown', (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
+				return;
+			}
+			_activateLink(keyboardEvent);
 		}));
 	}
 

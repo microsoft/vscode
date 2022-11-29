@@ -13,7 +13,9 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onProfile",
+    "onProfile:github"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -27,7 +29,8 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions"
+    "contribEditSessions",
+    "profileContentHandlers"
   ],
   "contributes": {
     "commands": [
@@ -115,12 +118,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount == 0"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount == 0"
       }
     ],
     "markdown.previewStyles": [

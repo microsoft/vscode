@@ -9,7 +9,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorState } from 'vs/editor/common/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
@@ -900,6 +900,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				this._update();
 			}));
 		}
+		this.updateSoon.schedule();
 	}
 
 	private _update(): void {
@@ -1169,8 +1170,8 @@ export class FocusPreviousCursor extends EditorAction {
 	}
 }
 
-registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
+registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter, EditorContributionInstantiation.AfterFirstRender);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

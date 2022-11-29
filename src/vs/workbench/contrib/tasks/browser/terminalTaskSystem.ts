@@ -29,7 +29,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
@@ -1335,9 +1335,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
 				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-				if (this._logService.getLevel() <= LogLevel.Trace) {
-					this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
-				}
+				this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
 				if (!task) {
 					continue;
 				}

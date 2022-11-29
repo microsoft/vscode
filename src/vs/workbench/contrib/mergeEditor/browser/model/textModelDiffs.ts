@@ -13,6 +13,7 @@ import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRa
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { IMergeDiffComputer } from './diffComputer';
 import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class TextModelDiffs extends Disposable {
 	private recomputeCount = 0;
@@ -120,7 +121,7 @@ export class TextModelDiffs extends Disposable {
 		}
 	}
 
-	public removeDiffs(diffToRemoves: DetailedLineRangeMapping[], transaction: ITransaction | undefined): void {
+	public removeDiffs(diffToRemoves: DetailedLineRangeMapping[], transaction: ITransaction | undefined, group?: UndoRedoGroup): void {
 		this.ensureUpToDate();
 
 		diffToRemoves.sort(compareBy((d) => d.inputRange.startLineNumber, numberComparator));
@@ -137,7 +138,8 @@ export class TextModelDiffs extends Disposable {
 			}
 
 			this.barrier.runExclusivelyOrThrow(() => {
-				diffToRemove.getReverseLineEdit().apply(this.textModel);
+				const edits = diffToRemove.getReverseLineEdit().toEdits(this.textModel.getLineCount());
+				this.textModel.pushEditOperations(null, edits, () => null, group);
 			});
 
 			diffs = diffs.map((d) =>
@@ -153,7 +155,7 @@ export class TextModelDiffs extends Disposable {
 	/**
 	 * Edit must be conflict free.
 	 */
-	public applyEditRelativeToOriginal(edit: LineRangeEdit, transaction: ITransaction | undefined): void {
+	public applyEditRelativeToOriginal(edit: LineRangeEdit, transaction: ITransaction | undefined, group?: UndoRedoGroup): void {
 		this.ensureUpToDate();
 
 		const editMapping = new DetailedLineRangeMapping(
@@ -191,7 +193,8 @@ export class TextModelDiffs extends Disposable {
 		}
 
 		this.barrier.runExclusivelyOrThrow(() => {
-			new LineRangeEdit(edit.range.delta(delta), edit.newLines).apply(this.textModel);
+			const edits = new LineRangeEdit(edit.range.delta(delta), edit.newLines).toEdits(this.textModel.getLineCount());
+			this.textModel.pushEditOperations(null, edits, () => null, group);
 		});
 		this._diffs.set(newDiffs, transaction, TextModelDiffChangeReason.other);
 	}

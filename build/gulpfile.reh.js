@@ -378,7 +378,8 @@ function tweakProductForServerWeb(product) {
 						// TODO: we cannot inline `product.json` because
 						// it is being changed during build time at a later
 						// point in time (such as `checksums`)
-						'../product.json'
+						'../product.json',
+						'../package.json'
 					]
 				}
 			}

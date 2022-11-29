@@ -3017,6 +3017,7 @@ export class CommandCenter {
 		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
 			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			{ modal: true },
 			yes
 		);
 		if (result !== yes) {
@@ -3041,7 +3042,7 @@ export class CommandCenter {
 			l10n.t('Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.') :
 			l10n.t('Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.', stashes.length);
 
-		const result = await window.showWarningMessage(question, yes);
+		const result = await window.showWarningMessage(question, { modal: true }, yes);
 		if (result !== yes) {
 			return;
 		}
@@ -3181,6 +3182,17 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.api.getUnsafeRepositories')
+	getUnsafeRepositories(): string {
+		const repositories = Array.from(this.model.unsafeRepositories.values());
+		return repositories.sort().map(m => `"${m}"`).join(', ');
+	}
+
+	@command('git.addSafeDirectoryAndOpenRepository')
+	async addSafeDirectoryAndOpenRepository(): Promise<void> {
+		await this.model.addSafeDirectoryAndOpenRepository();
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -3265,10 +3277,12 @@ export class CommandCenter {
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
 						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
 						message = l10n.t('There were merge conflicts while applying the stash.');
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						type = 'warning';
 						options.modal = false;
 						break;
