@@ -7,26 +7,17 @@
 const webpack = require('webpack');
 const { Mangler } = require('../build/lib/mangleTypeScript');
 
-/**
- * Map of project paths to mangled file contents
- *
- * @type {Map<string, Map<string, string>>}
- */
-const mangleMap = new Map();
-
+let map;
 /**
  * @param {string} projectPath
  */
 function getMangledFileContents(projectPath) {
-	let entry = mangleMap.get(projectPath);
-	if (!entry) {
-		console.log(`Mangling ${projectPath}`);
+	if (!map) {
 		const ts2tsMangler = new Mangler(projectPath, console.log);
-		entry = ts2tsMangler.computeNewFileContents();
-		mangleMap.set(projectPath, entry);
+		map = ts2tsMangler.computeNewFileContents();
 	}
 
-	return entry;
+	return map;
 }
 
 /**
