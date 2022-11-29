@@ -204,6 +204,9 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			this.dropdownMenuActionViewItem.render(this.element);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
+				if (menuActionsProvider.getActions().length === 0) {
+					return;
+				}
 				const event = new StandardKeyboardEvent(e);
 				let handled: boolean = false;
 				if (this.dropdownMenuActionViewItem?.isFocused() && event.equals(KeyCode.LeftArrow)) {
