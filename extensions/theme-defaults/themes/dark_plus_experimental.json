@@ -138,7 +138,6 @@
 		"titleBar.border": "#ffffff15",
 		"titleBar.inactiveBackground": "#202020",
 		"titleBar.inactiveForeground": "#8b949e",
-		"tree.indentGuidesStroke": "#21262d",
 		"welcomePage.tileBackground": "#ffffff0f",
 	},
 }
