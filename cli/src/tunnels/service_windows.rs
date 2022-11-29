@@ -6,7 +6,7 @@
 use async_trait::async_trait;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use lazy_static::lazy_static;
-use std::{ffi::OsString, path::PathBuf, sync::Mutex, thread, time::Duration};
+use std::{env, ffi::OsString, path::PathBuf, sync::Mutex, thread, time::Duration};
 use tokio::sync::mpsc;
 use windows_service::{
 	define_windows_service,
@@ -88,7 +88,7 @@ impl CliServiceManager for WindowsService {
 		} else {
 			loop {
 				let (username, password) = prompt_credentials()?;
-				service_info.account_name = Some(format!(".\\{}", username).into());
+				service_info.account_name = Some(username.into());
 				service_info.account_password = Some(password.into());
 
 				match service_manager.create_service(
@@ -102,7 +102,7 @@ impl CliServiceManager for WindowsService {
 							"Invalid username or password, please try again..."
 						);
 					}
-					Err(e) => return Err(wrap(e, "error registering service").into()),
+					Err(e) => return Err(wrapdbg(e, "error registering service").into()),
 				}
 			}
 		};
@@ -161,13 +161,13 @@ impl CliServiceManager for WindowsService {
 		define_windows_service!(ffi_service_main, service_main);
 
 		service_dispatcher::start(SERVICE_NAME, ffi_service_main)
-			.map_err(|e| wrap(e, "error starting service dispatcher").into())
+			.map_err(|e| wrapdbg(e, "error starting service dispatcher").into())
 	}
 
 	async fn unregister(&self) -> Result<(), AnyError> {
 		let service_manager =
 			ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
-				.map_err(|e| wrap(e, "error getting service manager"))?;
+				.map_err(|e| wrapdbg(e, "error getting service manager"))?;
 
 		let service = service_manager.open_service(
 			SERVICE_NAME,
@@ -239,7 +239,7 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 	};
 
 	let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)
-		.map_err(|e| wrap(e, "error registering service event handler"))?;
+		.map_err(|e| wrapdbg(e, "error registering service event handler"))?;
 
 	// Tell the system that service is running
 	status_handle
@@ -252,7 +252,7 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 			wait_hint: Duration::default(),
 			process_id: None,
 		})
-		.map_err(|e| wrap(e, "error marking service as running"))?;
+		.map_err(|e| wrapdbg(e, "error marking service as running"))?;
 
 	info!(service.log, "Starting service loop...");
 
@@ -281,7 +281,7 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 			wait_hint: Duration::default(),
 			process_id: None,
 		})
-		.map_err(|e| wrap(e, "error marking service as stopped"))?;
+		.map_err(|e| wrapdbg(e, "error marking service as stopped"))?;
 
 	result
 }
@@ -289,13 +289,22 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 fn prompt_credentials() -> Result<(String, String), AnyError> {
 	println!("Running a Windows service under your user requires your username and password.");
 	println!("These are sent to the Windows Service Manager and are not stored by VS Code.");
+	println!();
+	println!("Your password is usually the same as the one for your Microsoft account.");
 
-	let username: String = Input::with_theme(&ColorfulTheme::default())
-		.with_prompt("Windows username:")
+	let theme = ColorfulTheme::default();
+	let mut username_prompt = Input::with_theme(&theme);
+	username_prompt.with_prompt("Windows domain and username:");
+	if let (Ok(username), Ok(domain)) = (env::var("USERNAME"), env::var("USERDOMAIN")) {
+		println!("Only change the domain and username if you know they should be different.");
+		username_prompt.default(format!(r"{}\{}", domain, username));
+	}
+
+	let username: String = username_prompt
 		.interact_text()
 		.map_err(|e| wrap(e, "Failed to read username"))?;
 
-	let password = Password::with_theme(&ColorfulTheme::default())
+	let password = Password::with_theme(&theme)
 		.with_prompt("Windows password:")
 		.interact()
 		.map_err(|e| wrap(e, "Failed to read password"))?;
