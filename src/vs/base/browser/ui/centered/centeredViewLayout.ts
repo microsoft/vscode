@@ -6,20 +6,27 @@
 import { $ } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
-import { ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { DistributeSizing, ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CenteredViewState {
+	/**
+	 * maximum width of the center split view in px
+	 */
+	targetWidth: number;
 	leftMarginRatio: number;
 	rightMarginRatio: number;
 }
 
-const GOLDEN_RATIO = {
+const defaultState: CenteredViewState = {
+	targetWidth: 900,
 	leftMarginRatio: 0.1909,
-	rightMarginRatio: 0.1909
+	rightMarginRatio: 0.1909,
 };
+
+const initialSizing: DistributeSizing = { type: 'distribute' };
 
 function createEmptyView(background: Color | undefined): ISplitViewView<{ top: number; left: number }> {
 	const element = $('.centered-layout-margin');
@@ -44,6 +51,7 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView<{
 		get minimumSize() { return view.minimumWidth; },
 		onDidChange: Event.map(view.onDidChange, e => e && e.width),
 		layout: (size, offset, ctx) => view.layout(size, getHeight(), ctx?.top ?? 0, (ctx?.left ?? 0) + offset)
+		// layout: (size, offset) => view.layout(size, getHeight(), 0, offset)
 	};
 }
 
@@ -57,11 +65,15 @@ export class CenteredViewLayout implements IDisposable {
 	private width: number = 0;
 	private height: number = 0;
 	private style!: ICenteredViewStyles;
-	private didLayout = false;
 	private emptyViews: ISplitViewView<{ top: number; left: number }>[] | undefined;
 	private readonly splitViewDisposables = new DisposableStore();
+	private centeredLayoutFixedWidth = true;
 
-	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = { leftMarginRatio: GOLDEN_RATIO.leftMarginRatio, rightMarginRatio: GOLDEN_RATIO.rightMarginRatio }) {
+	constructor(
+		private container: HTMLElement,
+		private view: IView,
+		public state: CenteredViewState = { ...defaultState }
+	) {
 		this.container.appendChild(this.view.element);
 		// Make sure to hide the split view overflow like sashes #52892
 		this.container.style.overflow = 'hidden';
@@ -91,21 +103,27 @@ export class CenteredViewLayout implements IDisposable {
 		this.height = height;
 		if (this.splitView) {
 			this.splitView.layout(width);
-			if (!this.didLayout) {
-				this.resizeMargins();
-			}
+			this.resizeSplitViews();
 		} else {
 			this.view.layout(width, height, top, left);
 		}
-		this.didLayout = true;
 	}
 
-	private resizeMargins(): void {
+	private resizeSplitViews(): void {
 		if (!this.splitView) {
 			return;
 		}
-		this.splitView.resizeView(0, this.state.leftMarginRatio * this.width);
-		this.splitView.resizeView(2, this.state.rightMarginRatio * this.width);
+		if (this.centeredLayoutFixedWidth) {
+
+			const centerViewWidth = Math.min(this.width, this.state.targetWidth);
+			const marginWidthFloat = (this.width - centerViewWidth) / 2;
+			this.splitView.resizeView(0, Math.floor(marginWidthFloat));
+			this.splitView.resizeView(1, centerViewWidth);
+			this.splitView.resizeView(2, Math.ceil(marginWidthFloat));
+		} else {
+			this.splitView.resizeView(0, this.state.leftMarginRatio * this.width);
+			this.splitView.resizeView(2, this.state.rightMarginRatio * this.width);
+		}
 	}
 
 	isActive(): boolean {
@@ -138,22 +156,35 @@ export class CenteredViewLayout implements IDisposable {
 
 			this.splitViewDisposables.add(this.splitView.onDidSashChange(() => {
 				if (this.splitView) {
-					this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
-					this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
+					if (this.centeredLayoutFixedWidth) {
+						this.state.targetWidth = this.splitView.getViewSize(1);
+					}
+					else {
+						this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
+						this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
+					}
 				}
 			}));
 			this.splitViewDisposables.add(this.splitView.onDidSashReset(() => {
-				this.state.leftMarginRatio = GOLDEN_RATIO.leftMarginRatio;
-				this.state.rightMarginRatio = GOLDEN_RATIO.rightMarginRatio;
-				this.resizeMargins();
+				this.state = { ...defaultState };
+				this.resizeSplitViews();
 			}));
 
 			this.splitView.layout(this.width);
-			this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
 			const backgroundColor = this.style ? this.style.background : undefined;
 			this.emptyViews = [createEmptyView(backgroundColor), createEmptyView(backgroundColor)];
-			this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
-			this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
+
+			if (this.centeredLayoutFixedWidth) {
+				this.splitView.addView(this.emptyViews[0], initialSizing);
+				this.splitView.addView(toSplitViewView(this.view, () => this.height), initialSizing);
+				this.splitView.addView(this.emptyViews[1], initialSizing);
+			} else {
+				this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
+				this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
+				this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
+			}
+
+			this.resizeSplitViews();
 		} else {
 			if (this.splitView) {
 				this.container.removeChild(this.splitView.el);
@@ -168,7 +199,12 @@ export class CenteredViewLayout implements IDisposable {
 	}
 
 	isDefault(state: CenteredViewState): boolean {
-		return state.leftMarginRatio === GOLDEN_RATIO.leftMarginRatio && state.rightMarginRatio === GOLDEN_RATIO.rightMarginRatio;
+		if (this.centeredLayoutFixedWidth) {
+			return state.targetWidth === defaultState.targetWidth;
+		} else {
+			return state.leftMarginRatio === defaultState.leftMarginRatio
+				&& state.rightMarginRatio === defaultState.rightMarginRatio;
+		}
 	}
 
 	dispose(): void {
