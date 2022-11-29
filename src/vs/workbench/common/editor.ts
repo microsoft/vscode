@@ -1076,6 +1076,7 @@ interface IEditorPartConfiguration {
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	centeredLayoutFixedWidth?: boolean;
 	limit?: {
 		enabled?: boolean;
 		excludeDirty?: boolean;
