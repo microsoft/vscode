@@ -97,7 +97,7 @@ class ViewWelcomeController {
 
 		return Promise.all(visibleItems.map(async (v) => {
 			return {
-				content: await this.configurationResolverService.resolveWithInteractionReplace(workspaceFolder, v.descriptor.content),
+				content: workspaceFolder ? await this.configurationResolverService.resolveWithInteractionReplace(workspaceFolder, v.descriptor.content) : v.descriptor.content,
 				when: v.descriptor.when,
 				group: v.descriptor.group,
 				order: v.descriptor.order,
