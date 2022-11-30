@@ -980,7 +980,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': 'off',
-			'markdownDescription': localize('autoStoreWorkingChanges', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
+			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
 		},
 		'workbench.cloudChanges.autoResume': {
 			enum: ['onReload', 'off'],
