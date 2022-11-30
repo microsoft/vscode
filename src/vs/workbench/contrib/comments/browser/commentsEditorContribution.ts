@@ -15,7 +15,7 @@ import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiff
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
