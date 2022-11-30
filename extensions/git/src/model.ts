@@ -432,7 +432,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			// Handle unsafe repository
 			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'$/m.exec(ex.stderr);
 			if (match && match.length === 2) {
-				const unsafeRepositoryPath = match[1];
+				const unsafeRepositoryPath = path.normalize(match[1]);
 				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
 				// If the unsafe repository is opened after the initial repository scan, and we cannot use the welcome view
