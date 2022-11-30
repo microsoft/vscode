@@ -971,73 +971,56 @@ workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, Lifecy
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	'properties': {
-		'workbench.experimental.editSessions.autoStore': {
+		'workbench.experimental.cloudChanges.autoStore': {
 			enum: ['onShutdown', 'off'],
 			enumDescriptions: [
-				localize('autoStore.onShutdown', "Automatically store current edit session on window close."),
-				localize('autoStore.off', "Never attempt to automatically store an edit session.")
+				localize('autoStoreWorkingChanges.onShutdown', "Automatically store current working changes in the cloud on window close."),
+				localize('autoStoreWorkingChanges.off', "Never attempt to automatically store working changes in the cloud.")
 			],
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': 'off',
-			'markdownDescription': localize('autoStore', "Controls whether to automatically store an available edit session for the current workspace."),
+			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
 		},
-		'workbench.editSessions.autoResume': {
+		'workbench.cloudChanges.autoResume': {
 			enum: ['onReload', 'off'],
 			enumDescriptions: [
-				localize('autoResume.onReload', "Automatically resume available edit session on window reload."),
-				localize('autoResume.off', "Never attempt to resume an edit session.")
+				localize('autoResumeWorkingChanges.onReload', "Automatically resume available working changes from the cloud on window reload."),
+				localize('autoResumeWorkingChanges.off', "Never attempt to resume working changes from the cloud.")
 			],
 			'type': 'string',
 			'tags': ['usesOnlineServices'],
 			'default': 'onReload',
-			'markdownDescription': localize('autoResume', "Controls whether to automatically resume an available edit session for the current workspace."),
+			'markdownDescription': localize('autoResumeWorkingChanges', "Controls whether to automatically resume available working changes stored in the cloud for the current workspace."),
 		},
-		'workbench.editSessions.continueOn': {
+		'workbench.cloudChanges.continueOn': {
 			enum: ['prompt', 'off'],
 			enumDescriptions: [
-				localize('continueOn.promptForAuth', 'Prompt the user to sign in to store edit sessions with Continue Working On.'),
-				localize('continueOn.off', 'Do not use edit sessions with Continue Working On unless the user has already turned on edit sessions.')
+				localize('continueOnCloudChanges.promptForAuth', 'Prompt the user to sign in to store working changes in the cloud with Continue Working On.'),
+				localize('continueOnCloudChanges.off', 'Do not store working changes in the cloud with Continue Working On unless the user has already turned on Cloud Changes.')
 			],
 			type: 'string',
 			tags: ['usesOnlineServices'],
 			default: 'prompt',
-			markdownDescription: localize('continueOn', 'Controls whether to prompt the user to store edit sessions when using Continue Working On.')
+			markdownDescription: localize('continueOnCloudChanges', 'Controls whether to prompt the user to store working changes in the cloud when using Continue Working On.')
 		},
-		'workbench.experimental.editSessions.continueOn': {
-			enum: ['prompt', 'off'],
-			enumDescriptions: [
-				localize('continueOn.promptForAuth', 'Prompt the user to sign in to store edit sessions with Continue Working On.'),
-				localize('continueOn.off', 'Do not use edit sessions with Continue Working On unless the user has already turned on edit sessions.')
-			],
-			type: 'string',
-			tags: ['experimental', 'usesOnlineServices'],
-			default: 'prompt',
-			markdownDeprecationMessage: localize('continueOnDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.continueOn#`'),
-			markdownDescription: localize('continueOn', 'Controls whether to prompt the user to store edit sessions when using Continue Working On.')
+		'workbench.experimental.editSessions.autoStore': {
+			markdownDeprecationMessage: localize('editSessionsAutoStoreDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.cloudChanges.autoStore#`')
 		},
-		'workbench.experimental.editSessions.enabled': {
+		'workbench.editSessions.autoResume': {
+			markdownDeprecationMessage: localize('editSessionsAutoResumeDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.cloudChanges.autoResume#`')
+		},
+		'workbench.editSessions.continueOn': {
+			markdownDeprecationMessage: localize('editSessionsContinueOnDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.cloudChanges.continueOn#`')
+		},
+		'workbench.experimental.cloudChanges.partialMatches.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': true,
-			'markdownDeprecationMessage': localize('editSessionsEnabledDeprecated', "This setting is deprecated as Edit Sessions are no longer experimental. Please see {0} and {1} for configuring behavior related to Edit Sessions.", '`#workbench.editSessions.autoResume#`', '`#workbench.editSessions.continueOn#`')
-		},
-		'workbench.experimental.editSessions.autoResume': {
-			enum: ['onReload', 'off'],
-			enumDescriptions: [
-				localize('autoResume.onReload', "Automatically resume available edit session on window reload."),
-				localize('autoResume.off', "Never attempt to resume an edit session.")
-			],
-			'type': 'string',
-			'tags': ['experimental', 'usesOnlineServices'],
-			'default': 'onReload',
-			'markdownDeprecationMessage': localize('autoResumeDeprecated', "This setting is deprecated in favor of {0}.", '`#workbench.editSessions.autoResume#`')
+			'default': false,
+			'markdownDescription': localize('cloudChangesPartialMatchesEnabled', "Controls whether to surface cloud changes which partially match the current session.")
 		},
 		'workbench.experimental.editSessions.partialMatches.enabled': {
-			'type': 'boolean',
-			'tags': ['experimental', 'usesOnlineServices'],
-			'default': true,
-			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
+			markdownDeprecationMessage: localize('editSessionsPartialMatchesDeprecation', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.cloudChanges.partialMatches.enabled#`')
 		}
 	}
 });
