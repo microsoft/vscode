@@ -109,7 +109,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		}
 
 		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeScreenReaderOptimized.fire(this._accessibilitySupport === 2);
+		this._onDidChangeScreenReaderOptimized.fire(this._accessibilitySupport === AccessibilitySupport.Enabled);
 	}
 
 	alert(message: string): void {
