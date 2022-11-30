@@ -36,7 +36,7 @@ suite('NotebookProviderInfoStore', function () {
 			instantiationService.createInstance(EditorResolverService),
 			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() {
-				override onDidChangeScreenReaderOptimized: Event<boolean> = Event.None;
+				override onDidChangeScreenReaderOptimized: Event<void> = Event.None;
 			},
 			instantiationService,
 			new class extends mock<IFileService>() {

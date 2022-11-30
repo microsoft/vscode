@@ -17,7 +17,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	private _accessibilityModeEnabledContext: IContextKey<boolean>;
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;
-	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<boolean>();
+	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
 
 	protected _configMotionReduced: 'auto' | 'on' | 'off';
 	protected _systemMotionReduced: boolean;
@@ -35,7 +35,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				updateContextKey();
-				this._onDidChangeScreenReaderOptimized.fire(this._configurationService.getValue('editor.accessibilitySupport'));
+				this._onDidChangeScreenReaderOptimized.fire();
 			}
 			if (e.affectsConfiguration('workbench.reduceMotion')) {
 				this._configMotionReduced = this._configurationService.getValue('workbench.reduceMotion');
@@ -77,7 +77,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
 	}
 
-	get onDidChangeScreenReaderOptimized(): Event<boolean> {
+	get onDidChangeScreenReaderOptimized(): Event<void> {
 		return this._onDidChangeScreenReaderOptimized.event;
 	}
 
@@ -109,7 +109,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		}
 
 		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeScreenReaderOptimized.fire(this._accessibilitySupport === AccessibilitySupport.Enabled);
+		this._onDidChangeScreenReaderOptimized.fire();
 	}
 
 	alert(message: string): void {

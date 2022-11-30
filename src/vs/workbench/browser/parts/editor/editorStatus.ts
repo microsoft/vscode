@@ -336,7 +336,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized((accessibilitySupportEnabled) => this.onScreenReaderModeChange(undefined, accessibilitySupportEnabled)));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.onScreenReaderModeChange(undefined, this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
@@ -810,7 +810,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 
 			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
-		} else if (!!accessiblitySupportEnabled) {
+		} else if (accessiblitySupportEnabled !== undefined) {
 			screenReaderMode = accessiblitySupportEnabled;
 		}
 

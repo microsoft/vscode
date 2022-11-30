@@ -12,7 +12,7 @@ export const IAccessibilityService = createDecorator<IAccessibilityService>('acc
 export interface IAccessibilityService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeScreenReaderOptimized: Event<boolean>;
+	readonly onDidChangeScreenReaderOptimized: Event<void>;
 	readonly onDidChangeReducedMotion: Event<void>;
 
 	alwaysUnderlineAccessKeys(): Promise<boolean>;
