@@ -488,9 +488,19 @@ export class KernelPickerFlatStrategy extends KernelPickerStrategyBase {
 	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService, scopedContextKeyService?: IContextKeyService) {
 		const detectionTasks = notebookKernelService.getKernelDetectionTasks(notebook);
 		if (detectionTasks.length) {
+			const info = notebookKernelService.getMatchingKernel(notebook);
 			action.enabled = true;
-			action.label = localize('kernels.detecting', "Detecting Kernels");
 			action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
+
+			if (info.selected) {
+				action.label = info.selected.label;
+				const kernelInfo = info.selected.description ?? info.selected.detail;
+				action.tooltip = kernelInfo
+					? localize('kernels.selectedKernelAndKernelDetectionRunning', "Selected Kernel: {0} (Kernel Detection Tasks Running)", kernelInfo)
+					: localize('kernels.detecting', "Detecting Kernels");
+			} else {
+				action.label = localize('kernels.detecting', "Detecting Kernels");
+			}
 			return;
 		}
 
@@ -820,9 +830,19 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService) {
 		const detectionTasks = notebookKernelService.getKernelDetectionTasks(notebook);
 		if (detectionTasks.length) {
+			const info = notebookKernelService.getMatchingKernel(notebook);
 			action.enabled = true;
-			action.label = localize('kernels.detecting', "Detecting Kernels");
 			action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
+
+			if (info.selected) {
+				action.label = info.selected.label;
+				const kernelInfo = info.selected.description ?? info.selected.detail;
+				action.tooltip = kernelInfo
+					? localize('kernels.selectedKernelAndKernelDetectionRunning', "Selected Kernel: {0} (Kernel Detection Tasks Running)", kernelInfo)
+					: localize('kernels.detecting', "Detecting Kernels");
+			} else {
+				action.label = localize('kernels.detecting', "Detecting Kernels");
+			}
 			return;
 		}
 
