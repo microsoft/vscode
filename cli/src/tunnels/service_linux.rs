@@ -7,6 +7,7 @@ use std::{
 	fs::File,
 	io::{self, Write},
 	path::PathBuf,
+	process::Command,
 };
 
 use async_trait::async_trait;
@@ -63,7 +64,7 @@ impl SystemdService {
 	}
 
 	fn service_name_string() -> String {
-		format!("{}-tunnel.service", &*APPLICATION_NAME)
+		format!("{}-tunnel.service", APPLICATION_NAME)
 	}
 }
 
@@ -91,6 +92,19 @@ impl ServiceManager for SystemdService {
 
 		info!(self.log, "Successfully registered service...");
 
+		// note: enablement is implicit in recent systemd version, but required for older systems
+		// https://github.com/microsoft/vscode/issues/167489#issuecomment-1331222826
+		proxy
+			.enable_unit_files(
+				vec![SystemdService::service_name_string()],
+				/* 'runtime only'= */ false,
+				/* replace existing = */ true,
+			)
+			.await
+			.map_err(|e| wrap(e, "error enabling unit files for service"))?;
+
+		info!(self.log, "Successfully enabled unit files...");
+
 		proxy
 			.start_unit(SystemdService::service_name_string(), "replace".to_string())
 			.await
@@ -106,13 +120,36 @@ impl ServiceManager for SystemdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let (tx, rx) = mpsc::channel::<ShutdownSignal>(1);
+		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
 		tokio::spawn(async move {
 			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).await.ok();
+			tx.send(ShutdownSignal::CtrlC).ok();
 		});
 
 		handle.run_service(self.log, launcher_paths, rx).await
+	}
+
+	async fn show_logs(&self) -> Result<(), AnyError> {
+		// show the systemctl status header...
+		Command::new("systemctl")
+			.args([
+				"--user",
+				"status",
+				"-n",
+				"0",
+				&SystemdService::service_name_string(),
+			])
+			.status()
+			.map(|s| s.code().unwrap_or(1))
+			.map_err(|e| wrap(e, "error running systemctl"))?;
+
+		// then follow log files
+		Command::new("journalctl")
+			.args(["--user", "-f", "-u", &SystemdService::service_name_string()])
+			.status()
+			.map(|s| s.code().unwrap_or(1))
+			.map_err(|e| wrap(e, "error running journalctl"))?;
+		Ok(())
 	}
 
 	async fn unregister(&self) -> Result<(), crate::util::errors::AnyError> {
@@ -162,7 +199,7 @@ fn write_systemd_service_file(
       [Install]\n\
       WantedBy=multi-user.target\n\
     ",
-		&*PRODUCT_NAME_LONG,
+		PRODUCT_NAME_LONG,
 		exe.into_os_string().to_string_lossy(),
 		args.join("\" \"")
 	)?;

@@ -111,7 +111,7 @@ function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKey
 		return true;
 	}
 
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions');
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
 	if (allowQuickSuggestions !== undefined) {
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
@@ -128,7 +128,7 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		return true;
 	}
 
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters');
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
 	if (allowQuickSuggestions !== undefined) {
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
@@ -669,7 +669,14 @@ export class SuggestModel implements IDisposable {
 
 			if (this._completionModel.items.length === 0) {
 
-				if (LineContext.shouldAutoTrigger(this._editor) && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
+				const shouldAutoTrigger = LineContext.shouldAutoTrigger(this._editor);
+				if (!this._context) {
+					// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
+					// suggestions to be cancelled, which causes `this._context` to be undefined
+					this.cancel();
+				}
+
+				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
 					// retrigger when heading into a new word
 					this.trigger({ auto: this._context.auto, shy: false }, true);
 					return;

@@ -27,11 +27,13 @@ export async function resolveMarketplaceHeaders(version: string,
 	};
 
 	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
-		const uuid = await getServiceMachineId(environmentService, fileService, storageService);
+		const serviceMachineId = await getServiceMachineId(environmentService, fileService, storageService);
 		const { machineId } = await telemetryService.getTelemetryInfo();
-		headers['X-Market-User-Id'] = uuid;
+		headers['X-Market-User-Id'] = serviceMachineId;
 		// Send machineId as VSCode-SessionId so we can correlate telemetry events across different services
-		headers['VSCode-SessionId'] = machineId;
+		// machineId can be undefined sometimes (eg: when launching from CLI), so send serviceMachineId instead otherwise
+		// Marketplace will reject the request if there is no VSCode-SessionId header
+		headers['VSCode-SessionId'] = machineId || serviceMachineId;
 	}
 
 	return headers;

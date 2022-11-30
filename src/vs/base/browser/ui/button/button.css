@@ -69,6 +69,11 @@
 
 .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
 	border-left-width: 0 !important;
+	border-radius: 0 2px 2px 0;
+}
+
+.monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: 2px 0 0 2px;
 }
 
 .monaco-description-button {

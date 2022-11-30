@@ -319,7 +319,7 @@ export class RenameAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(RenameController.ID, RenameController, EditorContributionInstantiation.Idle);
+registerEditorContribution(RenameController.ID, RenameController, EditorContributionInstantiation.Lazy);
 registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);

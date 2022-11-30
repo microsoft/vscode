@@ -162,7 +162,6 @@ export abstract class Composite extends Component implements IComposite {
 		super.updateStyles();
 	}
 
-
 	/**
 	 *
 	 * @returns the action runner for this composite

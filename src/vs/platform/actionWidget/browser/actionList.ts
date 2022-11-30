@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -29,6 +30,7 @@ export interface IListMenuItem<T extends IActionItem> {
 	group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
 	disabled?: boolean;
 	label?: string;
+	description?: string;
 }
 
 interface IActionMenuTemplateData {
@@ -78,6 +80,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 	get templateId(): string { return 'action'; }
 
 	constructor(
+		private readonly _supportsPreview: boolean,
 		private readonly _keybindingResolver: IActionKeybindingResolver | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
@@ -127,9 +130,18 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
+			if (this._supportsPreview) {
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+			} else {
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
+			}
 		} else {
 			data.container.title = '';
+		}
+		if (element.description) {
+			const label = new HighlightedLabel(dom.append(data.container, dom.$('span.label-description')));
+			label.element.classList.add('action-list-description');
+			label.set(element.description);
 		}
 	}
 
@@ -140,7 +152,8 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 export class ActionList<T extends IActionItem> extends Disposable {
 
-	readonly domNode: HTMLElement;
+	public readonly domNode: HTMLElement;
+
 	private readonly _list: List<IListMenuItem<IActionItem>>;
 
 	private readonly _actionLineHeight = 24;
@@ -148,17 +161,12 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 	private readonly _allMenuItems: IListMenuItem<IActionItem>[];
 
-	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
-		return !element.disabled && element.kind === ActionListItemKind.Action;
-	}
-
 	constructor(
 		user: string,
-		items: readonly T[],
-		showHeaders: boolean,
+		preview: boolean,
+		items: IListMenuItem<T>[],
 		private readonly _delegate: IRenderDelegate,
 		resolver: IActionKeybindingResolver | undefined,
-		toMenuItems: (inputActions: readonly T[], showHeaders: boolean) => IListMenuItem<T>[],
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -167,11 +175,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
-			getHeight: element => element.kind === 'header' ? this._headerLineHeight : this._actionLineHeight,
+			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
-			keyboardSupport: true,
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, resolver, this._keybindingService), new HeaderRenderer()], {
+			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === 'action') {
@@ -187,16 +195,20 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getRole: () => 'option',
 				getWidgetRole: () => user
 			},
-		});
+		}));
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
 		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this._allMenuItems = toMenuItems(items, showHeaders);
+		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
 		this.focusNext();
+	}
+
+	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
+		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
 	hide(didCancel?: boolean): void {
