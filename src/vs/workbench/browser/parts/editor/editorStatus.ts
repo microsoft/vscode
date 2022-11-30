@@ -336,7 +336,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.onScreenReaderModeChange(undefined, this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled)));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			const screenReaderMode = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+			this.updateState({ type: 'screenReaderMode', screenReaderMode });
+		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
@@ -793,7 +796,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined, accessiblitySupportEnabled?: boolean): void {
+	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
@@ -808,10 +811,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					}
 				}
 			}
-
 			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
-		} else if (accessiblitySupportEnabled !== undefined) {
-			screenReaderMode = accessiblitySupportEnabled;
 		}
 
 		if (screenReaderMode === false && this.screenReaderNotification) {
