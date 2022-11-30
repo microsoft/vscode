@@ -166,14 +166,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const existingInstallingExtension = this.installingExtensions.get(key);
 						if (existingInstallingExtension) {
 							if (this.canWaitForTask(installExtensionTask, existingInstallingExtension.task)) {
-								this.logService.info('Waiting for already requested installing extension', gallery.identifier.id, installExtensionTask.identifier.id);
-								existingInstallingExtension.waitingTasks.push(installExtensionTask);
 								const identifier = existingInstallingExtension.task.identifier;
+								this.logService.info('Waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
+								existingInstallingExtension.waitingTasks.push(installExtensionTask);
 								// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
 								alreadyRequestedInstallations.push(
 									Event.toPromise(
 										Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
 									).then(results => {
+										this.logService.info('Finished waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
 										const result = results.find(result => areSameExtensions(result.identifier, identifier));
 										if (!result?.local) {
 											// Extension failed to install
@@ -296,15 +297,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: installExtensionTaskOptions.context, profileLocation: installExtensionTaskOptions.profileLocation })));
 			throw error;
 		} finally {
-			for (const [key, { task, waitingTasks }] of this.installingExtensions.entries()) {
-				const index = waitingTasks.indexOf(installExtensionTask);
-				if (index !== -1) {
-					/* Current task was waiting for this task */
-					waitingTasks.splice(index, 1);
-				}
-				if (waitingTasks.length === 0 // No tasks are waiting for this task
-					&& (task === installExtensionTask || index !== -1)) {
-					this.installingExtensions.delete(key);
+			// Finally, remove all the tasks from the cache
+			for (const { task } of allInstallExtensionTasks) {
+				if (task.source && !URI.isUri(task.source)) {
+					this.installingExtensions.delete(getInstallExtensionTaskKey(task.source));
 				}
 			}
 		}
