@@ -41,9 +41,7 @@ pub fn require_consent(
 	if accept_server_license_terms {
 		load.consented = Some(true);
 	} else if !*IS_INTERACTIVE_CLI {
-		return Err(MissingLegalConsent(format!(
-			"Run this command again with --accept-server-license-terms to indicate your agreement.",
-		))
+		return Err(MissingLegalConsent("Run this command again with --accept-server-license-terms to indicate your agreement.".to_string())
 		.into());
 	} else {
 		match prompt_yn(prompt) {
