@@ -58,14 +58,6 @@ class UnsafeRepositorySet extends Set<string> {
 	}
 }
 
-class UnsafeRepositoryPick implements QuickPickItem {
-	get label(): string {
-		return `$(repo) ${this.path}`;
-	}
-
-	constructor(public readonly path: string) { }
-}
-
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -734,50 +726,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return [...this.pushErrorHandlers];
 	}
 
-	async manageUnsafeRepositories() {
-		const unsafeRepositories: string[] = [];
-
-		const quickpick = window.createQuickPick();
-		quickpick.title = l10n.t('Manage Unsafe Repositories');
-		quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
-
-		const allRepositoriesLabel = l10n.t('All Repositories');
-		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this._unsafeRepositories.values()).sort().map(r => new UnsafeRepositoryPick(r));
-
-		quickpick.items = this._unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
-			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
-
-		quickpick.show();
-		const repositoryItem = await new Promise<UnsafeRepositoryPick | QuickPickItem | undefined>(
-			resolve => {
-				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
-				quickpick.onDidHide(() => resolve(undefined));
-			});
-		quickpick.hide();
-
-		if (!repositoryItem) {
-			return;
-		}
-
-		if (repositoryItem.label === allRepositoriesLabel) {
-			// All Repositories
-			unsafeRepositories.push(...this._unsafeRepositories.values());
-		} else {
-			// One Repository
-			unsafeRepositories.push((repositoryItem as UnsafeRepositoryPick).path);
-		}
-
-		for (const unsafeRepository of unsafeRepositories) {
-			// Mark as Safe
-			await this.git.addSafeDirectory(unsafeRepository);
-
-			// Open Repository
-			await this.openRepository(unsafeRepository);
-			this._unsafeRepositories.delete(unsafeRepository);
-		}
-	}
-
 	private async showUnsafeRepositoryNotification(): Promise<void> {
 		const message = this._unsafeRepositories.size === 1 ?
 			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
@@ -789,7 +737,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
 		if (choice === manageUnsafeRepositories) {
 			// Manage Unsafe Repositories
-			await this.manageUnsafeRepositories();
+			commands.executeCommand('git.manageUnsafeRepositories');
 		} else if (choice === learnMore) {
 			// Learn More
 			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
