@@ -52,6 +52,7 @@ export class HoverWidget extends Widget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
+	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
@@ -109,6 +110,9 @@ export class HoverWidget extends Widget {
 		}
 		if (options.forcePosition) {
 			this._forcePosition = true;
+		}
+		if (options.trapFocus) {
+			this._enableFocusTraps = true;
 		}
 
 		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
@@ -224,7 +228,7 @@ export class HoverWidget extends Widget {
 	}
 
 	private addFocusTrap() {
-		if (this._addedFocusTrap) {
+		if (!this._enableFocusTraps || this._addedFocusTrap) {
 			return;
 		}
 		this._addedFocusTrap = true;
