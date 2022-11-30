@@ -2464,7 +2464,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	async highlightFind(cell: CodeCellViewModel, matchIndex: number): Promise<number> {
+	async highlightFind(matchIndex: number): Promise<number> {
 		if (!this._webview) {
 			return 0;
 		}

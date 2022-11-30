@@ -181,7 +181,6 @@ export interface ITextSearchMatch {
 	uri?: URI;
 	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
-	cellFragment?: string;
 }
 
 export interface ITextSearchContext {
@@ -275,11 +274,9 @@ export class FileMatch implements IFileMatch {
 export class TextSearchMatch implements ITextSearchMatch {
 	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
-	cellFragment?: string;
 
-	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions, cellFragment?: string) {
+	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
 		this.ranges = range;
-		this.cellFragment = cellFragment;
 
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.

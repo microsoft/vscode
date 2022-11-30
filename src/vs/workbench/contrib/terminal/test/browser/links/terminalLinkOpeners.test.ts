@@ -77,7 +77,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		fileService = new TestFileService(new NullLogService());
-		searchService = new TestSearchService(null!, null!, null!, null!, null!, null!, null!);
+		searchService = new TestSearchService(null!, null!, null!, null!, null!, null!, null!, null!);
 		instantiationService.set(IFileService, fileService);
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(ISearchService, searchService);

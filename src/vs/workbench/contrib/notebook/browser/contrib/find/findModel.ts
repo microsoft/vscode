@@ -491,7 +491,7 @@ export class FindModel extends Disposable {
 			this.clearCurrentFindMatchDecoration();
 
 			const match = this._findMatches[cellIndex].getMatch(matchIndex) as CellWebviewFindMatch;
-			const offset = await this._notebookEditor.highlightFind(cell, match.index);
+			const offset = await this._notebookEditor.highlightFind(match.index);
 			this._currentMatchDecorations = { kind: 'output', index: match.index };
 
 			this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
