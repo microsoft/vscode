@@ -669,9 +669,16 @@ export class SuggestModel implements IDisposable {
 
 			if (this._completionModel.items.length === 0) {
 
-				if (LineContext.shouldAutoTrigger(this._editor) && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
-					// retrigger when heading into a new word
-					this.trigger({ auto: this._context.auto, shy: false }, true);
+				if (LineContext.shouldAutoTrigger(this._editor)) {
+					if (!this._context) {
+						// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
+						// suggestions to be cancelled, which causes `this._context` to be undefined
+						this.cancel();
+
+					} else if (this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
+						// retrigger when heading into a new word
+						this.trigger({ auto: this._context.auto, shy: false }, true);
+					}
 					return;
 				}
 
