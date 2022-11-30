@@ -68,7 +68,7 @@ export interface IQuickInputWidgetStyles {
 	quickInputBackground?: Color;
 	quickInputForeground?: Color;
 	quickInputTitleBackground?: Color;
-	contrastBorder?: Color;
+	widgetBorder?: Color;
 	widgetShadow?: Color;
 }
 
@@ -1816,13 +1816,13 @@ export class QuickInputController extends Disposable {
 				quickInputTitleBackground,
 				quickInputBackground,
 				quickInputForeground,
-				contrastBorder,
+				widgetBorder,
 				widgetShadow,
 			} = this.styles.widget;
 			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ? quickInputTitleBackground.toString() : '';
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
-			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
+			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.count.style(this.styles.countBadge);
 			this.ui.list.style(this.styles.list);
