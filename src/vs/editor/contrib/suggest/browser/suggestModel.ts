@@ -679,6 +679,7 @@ export class SuggestModel implements IDisposable {
 				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
 					// retrigger when heading into a new word
 					this.trigger({ auto: this._context.auto, shy: false }, true);
+					return;
 				}
 
 				if (!this._context.auto) {
