@@ -362,7 +362,7 @@ export async function getQuickFixesForCommand(
 										if (!uri) {
 											return;
 										}
-										openerService.open(uri);
+										openerService.open(URI.revive(uri));
 									},
 									tooltip: label,
 									uri: fix.uri
