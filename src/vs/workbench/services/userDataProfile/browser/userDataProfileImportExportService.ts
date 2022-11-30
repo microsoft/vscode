@@ -42,7 +42,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { getErrorMessage, onUnexpectedError } from 'vs/base/common/errors';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -139,7 +139,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 	async handleURL(uri: URI): Promise<boolean> {
 		if (this.isProfileURL(uri)) {
-			await this.importProfile(uri);
+			try {
+				await this.importProfile(uri);
+			} catch (error) {
+				this.notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
+			}
 			return true;
 		}
 		return false;
@@ -251,8 +255,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 				let profileTemplate: IUserDataProfileTemplate = JSON.parse(profileContent);
 				if (!isUserDataProfileTemplate(profileTemplate)) {
-					this.notificationService.error('Invalid profile content.');
-					return;
+					throw new Error('Invalid profile content.');
 				}
 				const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 
@@ -351,10 +354,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			return await asText(context);
 		} else {
 			const message = await asText(context);
-			this.logService.info(`Failed to get profile from URL: ${resource.toString()}. Status code: ${context.res.statusCode}. Message: ${message}`);
+			throw new Error(`Failed to get profile from URL: ${resource.toString()}. Status code: ${context.res.statusCode}. Message: ${message}`);
 		}
-
-		return null;
 	}
 
 	private async pickProfileContentHandler(name: string): Promise<string | undefined> {
