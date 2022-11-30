@@ -231,7 +231,7 @@ export class HoverWidget extends Widget {
 
 		// Add a hover tab loop if the hover has at least one element with a valid tabIndex
 		const firstContainerFocusElement = this._hover.containerDomNode;
-		const lastContainerFocusElement = this.findLastFocusableChild(this._hover.contentsDomNode);
+		const lastContainerFocusElement = this.findLastFocusableChild(this._hover.containerDomNode);
 		if (lastContainerFocusElement) {
 			const beforeContainerFocusElement = dom.prepend(this._hoverContainer, $('div'));
 			const afterContainerFocusElement = dom.append(this._hoverContainer, $('div'));
