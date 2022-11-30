@@ -12,11 +12,11 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CenteredViewState {
-	/**
-	 * maximum width of the center split view in px
-	 */
+	// width of the fixed centered layout
 	targetWidth: number;
+	// proportional size of left margin
 	leftMarginRatio: number;
+	// proportional size of right margin
 	rightMarginRatio: number;
 }
 
@@ -26,7 +26,7 @@ const defaultState: CenteredViewState = {
 	rightMarginRatio: 0.1909,
 };
 
-const initialSizing: DistributeSizing = { type: 'distribute' };
+const distributeSizing: DistributeSizing = { type: 'distribute' };
 
 function createEmptyView(background: Color | undefined): ISplitViewView<{ top: number; left: number }> {
 	const element = $('.centered-layout-margin');
@@ -51,7 +51,6 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView<{
 		get minimumSize() { return view.minimumWidth; },
 		onDidChange: Event.map(view.onDidChange, e => e && e.width),
 		layout: (size, offset, ctx) => view.layout(size, getHeight(), ctx?.top ?? 0, (ctx?.left ?? 0) + offset)
-		// layout: (size, offset) => view.layout(size, getHeight(), 0, offset)
 	};
 }
 
@@ -129,14 +128,16 @@ export class CenteredViewLayout implements IDisposable {
 	setFixedWidth(option: boolean) {
 		this.centeredLayoutFixedWidth = option;
 		if (!!this.splitView) {
-			if (this.centeredLayoutFixedWidth) {
-				this.state.targetWidth = this.splitView.getViewSize(1);
-			}
-			else {
-				this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
-				this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
-			}
+			this.updateState();
 			this.resizeSplitViews();
+		}
+	}
+
+	private updateState() {
+		if (!!this.splitView) {
+			this.state.targetWidth = this.splitView.getViewSize(1);
+			this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
+			this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
 		}
 	}
 
@@ -169,14 +170,8 @@ export class CenteredViewLayout implements IDisposable {
 			this.splitView.orthogonalEndSash = this.boundarySashes.bottom;
 
 			this.splitViewDisposables.add(this.splitView.onDidSashChange(() => {
-				if (this.splitView) {
-					if (this.centeredLayoutFixedWidth) {
-						this.state.targetWidth = this.splitView.getViewSize(1);
-					}
-					else {
-						this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
-						this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
-					}
+				if (!!this.splitView) {
+					this.updateState();
 				}
 			}));
 			this.splitViewDisposables.add(this.splitView.onDidSashReset(() => {
@@ -189,9 +184,9 @@ export class CenteredViewLayout implements IDisposable {
 			this.emptyViews = [createEmptyView(backgroundColor), createEmptyView(backgroundColor)];
 
 			if (this.centeredLayoutFixedWidth) {
-				this.splitView.addView(this.emptyViews[0], initialSizing);
-				this.splitView.addView(toSplitViewView(this.view, () => this.height), initialSizing);
-				this.splitView.addView(this.emptyViews[1], initialSizing);
+				this.splitView.addView(this.emptyViews[0], distributeSizing);
+				this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
+				this.splitView.addView(this.emptyViews[1], distributeSizing);
 			} else {
 				this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
 				this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
