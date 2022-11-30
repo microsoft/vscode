@@ -842,8 +842,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			quickPick.show();
 
 			quickPick.onDidTriggerItemButton(async (e) => {
-				if (e.item.description !== undefined) {
-					const uri = URI.isUri(e.item.description) ? URI.parse(e.item.description) : await this.commandService.executeCommand(e.item.description);
+				if (e.item.documentation !== undefined) {
+					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand(e.item.documentation);
 					void this.openerService.open(uri, { openExternal: true });
 				}
 			});
@@ -910,7 +910,7 @@ class ContinueEditSessionItem implements IQuickPickItem {
 		public readonly command: string,
 		public readonly description?: string,
 		public readonly when?: ContextKeyExpression,
-		documentation?: string,
+		public readonly documentation?: string,
 	) {
 		if (documentation !== undefined) {
 			this.buttons = [{
