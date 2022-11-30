@@ -184,7 +184,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		}
 
 		// Unsafe repositories notification
-		this.showUnsafeRepositoryNotification();
+		if (this._unsafeRepositories.size !== 0) {
+			this.showUnsafeRepositoryNotification();
+		}
 
 		/* __GDPR__
 			"git.repositoryInitialScan" : {
@@ -441,12 +443,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				const unsafeRepositoryPath = path.normalize(match[1]);
 				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
-				this._unsafeRepositories.add(unsafeRepositoryPath);
-
 				// Show a notification if the unsafe repository is opened after the initial repository scan
 				if (this._state === 'initialized' && !this._unsafeRepositories.has(unsafeRepositoryPath)) {
 					this.showUnsafeRepositoryNotification();
 				}
+
+				this._unsafeRepositories.add(unsafeRepositoryPath);
 
 				return;
 			}
@@ -777,10 +779,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async showUnsafeRepositoryNotification(): Promise<void> {
-		if (this._unsafeRepositories.size === 0) {
-			return;
-		}
-
 		const message = this._unsafeRepositories.size === 1 ?
 			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
 			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');

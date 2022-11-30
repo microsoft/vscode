@@ -2741,23 +2741,13 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.folder.unsafeRepository%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount == 1"
+        "contents": "%view.workbench.scm.unsafeRepository%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount == 1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.folder.unsafeRepositories%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount > 1"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.workspace.unsafeRepository%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount == 1"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.workspace.unsafeRepositories%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount > 1"
+        "contents": "%view.workbench.scm.unsafeRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount > 1"
       },
       {
         "view": "explorer",
