@@ -625,13 +625,8 @@
         "enablement": "isMergeEditor"
       },
       {
-        "command": "git.addSafeDirectoryAndOpenRepository",
-        "title": "%command.addSafeDirectoryAndOpenRepository%",
-        "category": "Git"
-      },
-      {
-        "command": "git.api.getUnsafeRepositories",
-        "title": "%command.api.getUnsafeRepositories%",
+        "command": "git.manageUnsafeRepositories",
+        "title": "%command.manageUnsafeRepositories%",
         "category": "Git"
       }
     ],
@@ -1055,10 +1050,6 @@
         },
         {
           "command": "git.api.getRemoteSources",
-          "when": "false"
-        },
-        {
-          "command": "git.api.getUnsafeRepositories",
           "when": "false"
         },
         {
@@ -2750,13 +2741,23 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.unsafeRepository%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount == 1"
+        "contents": "%view.workbench.scm.folder.unsafeRepository%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount == 1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.unsafeRepositories%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount > 1"
+        "contents": "%view.workbench.scm.folder.unsafeRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount > 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.workspace.unsafeRepository%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.workspace.unsafeRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount > 1"
       },
       {
         "view": "explorer",

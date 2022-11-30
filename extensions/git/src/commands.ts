@@ -3182,15 +3182,9 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
-	@command('git.api.getUnsafeRepositories')
-	getUnsafeRepositories(): string {
-		const repositories = Array.from(this.model.unsafeRepositories.values());
-		return repositories.sort().map(m => `"${m}"`).join(', ');
-	}
-
-	@command('git.addSafeDirectoryAndOpenRepository')
-	async addSafeDirectoryAndOpenRepository(): Promise<void> {
-		await this.model.addSafeDirectoryAndOpenRepository();
+	@command('git.manageUnsafeRepositories')
+	async manageUnsafeRepositories(): Promise<void> {
+		await this.model.manageUnsafeRepositories();
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

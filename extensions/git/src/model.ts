@@ -58,6 +58,14 @@ class UnsafeRepositorySet extends Set<string> {
 	}
 }
 
+class UnsafeRepositoryPick implements QuickPickItem {
+	get label(): string {
+		return `$(repo) ${this.path}`;
+	}
+
+	constructor(public readonly path: string) { }
+}
+
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -175,10 +183,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
-		// Show unsafe repositories notification if we cannot use a welcome view
-		if (this.repositories.length > 0 && this._unsafeRepositories.size > 0) {
-			await this.showUnsafeRepositoryNotification();
-		}
+		// Unsafe repositories notification
+		this.showUnsafeRepositoryNotification();
 
 		/* __GDPR__
 			"git.repositoryInitialScan" : {
@@ -435,13 +441,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				const unsafeRepositoryPath = path.normalize(match[1]);
 				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
-				// If the unsafe repository is opened after the initial repository scan, and we cannot use the welcome view
-				// as there is already at least one opened repository, we will be showing a notification for the repository.
-				if (this._state === 'initialized' && this.openRepositories.length > 0 && !this._unsafeRepositories.has(unsafeRepositoryPath)) {
-					this.showUnsafeRepositoryNotification(unsafeRepositoryPath);
-				}
-
 				this._unsafeRepositories.add(unsafeRepositoryPath);
+
+				// Show a notification if the unsafe repository is opened after the initial repository scan
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(unsafeRepositoryPath)) {
+					this.showUnsafeRepositoryNotification();
+				}
 
 				return;
 			}
@@ -727,42 +732,38 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return [...this.pushErrorHandlers];
 	}
 
-	async addSafeDirectoryAndOpenRepository() {
+	async manageUnsafeRepositories() {
 		const unsafeRepositories: string[] = [];
 
-		if (this._unsafeRepositories.size === 1) {
-			// One unsafe repository
-			unsafeRepositories.push(this._unsafeRepositories.values().next().value);
+		const quickpick = window.createQuickPick();
+		quickpick.title = l10n.t('Manage Unsafe Repositories');
+		quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this._unsafeRepositories.values()).sort().map(r => new UnsafeRepositoryPick(r));
+
+		quickpick.items = this._unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		quickpick.show();
+		const repositoryItem = await new Promise<UnsafeRepositoryPick | QuickPickItem | undefined>(
+			resolve => {
+				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
+				quickpick.onDidHide(() => resolve(undefined));
+			});
+		quickpick.hide();
+
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem.label === allRepositoriesLabel) {
+			// All Repositories
+			unsafeRepositories.push(...this._unsafeRepositories.values());
 		} else {
-			// Multiple unsafe repositories
-			const allRepositoriesLabel = l10n.t('All Repositories');
-			const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-			const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this._unsafeRepositories.values()).sort().map(r => ({ label: `$(repo) ${r}` }));
-
-			const quickpick = window.createQuickPick();
-			quickpick.title = l10n.t('Mark Repository as Safe and Open');
-			quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
-			quickpick.items = [...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
-
-			quickpick.show();
-			const repositoryItem = await new Promise<string | undefined>(
-				resolve => {
-					quickpick.onDidAccept(() => resolve(quickpick.activeItems[0].label));
-					quickpick.onDidHide(() => resolve(undefined));
-				});
-			quickpick.hide();
-
-			if (!repositoryItem) {
-				return;
-			}
-
-			if (repositoryItem === allRepositoriesLabel) {
-				// All Repositories
-				unsafeRepositories.push(...this._unsafeRepositories.values());
-			} else {
-				// One Repository
-				unsafeRepositories.push(repositoryItem);
-			}
+			// One Repository
+			unsafeRepositories.push((repositoryItem as UnsafeRepositoryPick).path);
 		}
 
 		for (const unsafeRepository of unsafeRepositories) {
@@ -775,21 +776,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		}
 	}
 
-	private async showUnsafeRepositoryNotification(path?: string): Promise<void> {
-		const unsafeRepositoryPaths: string[] = path ? [path] : Array.from(this._unsafeRepositories.values());
-		const unsafeRepositoryPathLabels = unsafeRepositoryPaths.sort().map(m => `"${m}"`).join(', ');
+	private async showUnsafeRepositoryNotification(): Promise<void> {
+		if (this._unsafeRepositories.size === 0) {
+			return;
+		}
 
-		const message = unsafeRepositoryPaths.length === 1 ?
-			l10n.t('The git repository in the following folder is potentially unsafe as the folder is owned by someone other than the current user: {0}. Do you want to open the repository?', unsafeRepositoryPathLabels) :
-			l10n.t('The git repositories in the following folders are potentially unsafe as the folders are owned by someone other than the current user: {0}. Do you want to open the repositories?', unsafeRepositoryPathLabels);
+		const message = this._unsafeRepositories.size === 1 ?
+			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
+			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
 
-		const openRepository = unsafeRepositoryPaths.length === 1 ? l10n.t('Open Repository') : l10n.t('Open Repositories');
+		const manageUnsafeRepositories = l10n.t('Manage Unsafe Repositories');
 		const learnMore = l10n.t('Learn More');
 
-		const choice = await window.showErrorMessage(message, openRepository, learnMore);
-		if (choice === openRepository) {
-			// Open Repository
-			await this.addSafeDirectoryAndOpenRepository();
+		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
+		if (choice === manageUnsafeRepositories) {
+			// Manage Unsafe Repositories
+			await this.manageUnsafeRepositories();
 		} else if (choice === learnMore) {
 			// Learn More
 			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
