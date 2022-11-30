@@ -87,6 +87,8 @@
 .monaco-workbench.mac .debug-pane .monaco-list-row .expression,
 .monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
 	font-size: 11px;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-workbench .monaco-list-row .expression .value {

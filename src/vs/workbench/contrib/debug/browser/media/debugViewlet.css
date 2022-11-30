@@ -229,7 +229,6 @@
 }
 
 .debug-pane .monaco-list-row .expression .value {
-	overflow: hidden;
 	white-space: pre;
 	text-overflow: ellipsis;
 }
