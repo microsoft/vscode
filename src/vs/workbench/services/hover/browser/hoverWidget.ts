@@ -111,7 +111,7 @@ export class HoverWidget extends Widget {
 		if (options.forcePosition) {
 			this._forcePosition = true;
 		}
-		if (options.addFocusTraps) {
+		if (options.trapFocus) {
 			this._enableFocusTraps = true;
 		}
 

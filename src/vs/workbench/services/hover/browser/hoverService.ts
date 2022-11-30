@@ -39,7 +39,7 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
-		if (options.addFocusTraps && document.activeElement) {
+		if (options.trapFocus && document.activeElement) {
 			this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
 		} else {
 			this._lastFocusedElementBeforeOpen = undefined;
@@ -120,7 +120,7 @@ export class HoverService implements IHoverService {
 		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
 			return;
 		}
-		if (!this._currentHoverOptions?.addFocusTraps || e.key !== 'Tab') {
+		if (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab') {
 			this.hideHover();
 			this._lastFocusedElementBeforeOpen?.focus();
 		}

@@ -121,10 +121,11 @@ export interface IHoverOptions {
 	skipFadeInAnimation?: boolean;
 
 	/**
-	 * Whether to add focus traps so that when the hover closes, focus goes to the last focused element,
-	 * and when tabbing, focus stays inside of the hover.
+	 * Whether to trap focus in the following ways:
+	 * - When the hover closes, focus goes to the element that had focus before the hover opened
+	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
 	 */
-	addFocusTraps?: boolean;
+	trapFocus?: boolean;
 }
 
 export interface IHoverAction {

@@ -77,7 +77,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		hoverPosition: HoverPosition.BELOW,
 		showPointer: true,
 		compact: false,
-		addFocusTraps: true
+		trapFocus: true
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
