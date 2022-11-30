@@ -408,7 +408,8 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
@@ -624,7 +625,7 @@ export class CommentController implements IEditorContribution {
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
-	public onModelChanged(e: IModelChangedEvent): void {
+	public onModelChanged(): void {
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
