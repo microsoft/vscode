@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
@@ -195,7 +195,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
-			const contrastBorderColor = this.getColor(contrastBorder);
+			const contrastBorderColor = this.getColor(widgetBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
 
 			if (contrastBorderColor) {
