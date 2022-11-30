@@ -20,21 +20,22 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
+import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { minimapFindMatch, overviewRulerFindMatchForeground, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 // import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { notebookEditorMatchesToTextSearchResults, NotebookMatchInfo, NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 // import { addContextToNotebookEditorMatches, notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
@@ -43,15 +44,15 @@ import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/
 export class Match {
 
 	private static readonly MAX_PREVIEW_CHARS = 250;
-
-	private _id: string;
-	private _range: Range;
+	// need to make sure that IDs are different for same-line-different-cell stuff
+	protected _id: string;
+	protected _range: Range;
 	private _oneLinePreviewText: string;
 	private _rangeInPreviewText: ISearchRange;
 	// For replace
 	private _fullPreviewRange: ISearchRange;
 
-	constructor(private _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange) {
+	constructor(protected _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange) {
 		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
 		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
 			_fullPreviewRange.endColumn :
@@ -166,6 +167,47 @@ export class Match {
 	}
 }
 
+export class NotebookMatch extends Match {
+	constructor(_parent: FileMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, private _notebookMatchInfo: NotebookMatchInfo) {
+		super(_parent, _fullPreviewLines, _fullPreviewRange, _documentRange);
+
+		this._id = this._parent.id() + '>' + this._notebookMatchInfo.cellIndex + '_' + this.notebookMatchTypeString() + this.getRangeString() + this._range + this.getMatchString();
+	}
+
+	private notebookMatchTypeString(): string {
+		return this.isWebviewMatch() ? 'webview' : 'content';
+	}
+
+	private getRangeString(): string {
+		return `[${this._notebookMatchInfo.matchStartIndex},${this._notebookMatchInfo.matchStartIndex}]`;
+	}
+
+	public isWebviewMatch() {
+		return this._notebookMatchInfo.webviewMatchInfo !== undefined;
+	}
+
+	get cellIndex() {
+		return this._notebookMatchInfo.cellIndex;
+	}
+
+	get matchStartIndex() {
+		return this._notebookMatchInfo.matchStartIndex;
+	}
+
+	get matchEndIndex() {
+		return this._notebookMatchInfo.matchEndIndex;
+	}
+
+	get webviewIndex() {
+		return this._notebookMatchInfo.webviewMatchInfo?.index;
+	}
+
+	get cell() {
+		return this._notebookMatchInfo.cell;
+	}
+}
+
+
 export class FileMatch extends Disposable implements IFileMatch {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
@@ -220,6 +262,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
+	private _currentMatchCellDecorations: string[] = [];
+	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 
 	private _context: Map<number, string> = new Map();
 	public get context(): Map<number, string> {
@@ -376,13 +420,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
-		if (!this._notebookEditorWidget) {
-			return;
-		}
-
 		const textSearchResults = notebookEditorMatchesToTextSearchResults(matches, this._previewOptions);
 		textSearchResults.forEach(textSearchResult => {
-			textSearchResultToMatches(textSearchResult, this).forEach(match => {
+			textSearchResultToNotebookMatches(textSearchResult, this).forEach(match => {
 				if (!this._removedMatches.has(match.id())) {
 					this.add(match);
 					if (this.isMatchSelected(match)) {
@@ -451,7 +491,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	matches(): Match[] {
-		return Array.from(this._matches.values());
+		const vals = this._matches.values();
+		const arr = Array.from(vals);
+		return arr;
 	}
 
 	remove(matches: Match | Match[]): void {
@@ -550,6 +592,113 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.unbindModel();
 		this._onDispose.fire();
 		super.dispose();
+	}
+
+	public async showMatch(match: NotebookMatch) {
+		const offset = await this.highlightCurrentFindMatchDecoration(match);
+		await this.revealCellRange(match, offset);
+	}
+
+	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
+		if (!this._notebookEditorWidget) {
+			return Promise.resolve(null);
+		}
+		// needs
+		// notebook cell
+		// only cellmatch:
+		//    match range
+		// only webviewmatch:
+		//
+
+		if (!match.webviewIndex) {
+			this.clearCurrentFindMatchDecoration();
+			// match is an editor FindMatch, we update find match decoration in the editor
+			// we will highlight the match in the webview
+			this._notebookEditorWidget.changeModelDecorations(accessor => {
+				const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
+
+				const decorations: IModelDeltaDecoration[] = [
+					{ range: match.range(), options: findMatchesOptions }
+				];
+				const deltaDecoration: ICellModelDeltaDecorations = {
+					ownerId: match.cell.handle,
+					decorations: decorations
+				};
+
+				this._currentMatchDecorations = {
+					kind: 'input',
+					decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [deltaDecoration])
+				};
+			});
+
+			this._currentMatchCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._currentMatchCellDecorations, [{
+				ownerId: match.cell.handle,
+				handle: match.cell.handle,
+				options: {
+					overviewRuler: {
+						color: overviewRulerSelectionHighlightForeground,
+						modelRanges: [match.range()],
+						includeOutput: false
+					}
+				}
+			} as INotebookDeltaDecoration]);
+
+			return null;
+		} else {
+			this.clearCurrentFindMatchDecoration();
+			const offset = await this._notebookEditorWidget.highlightFind(match.webviewIndex);
+			this._currentMatchDecorations = { kind: 'output', index: match.webviewIndex };
+
+			this._currentMatchCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._currentMatchCellDecorations, [{
+				ownerId: match.cell.handle,
+				handle: match.cell.handle,
+				options: {
+					overviewRuler: {
+						color: overviewRulerSelectionHighlightForeground,
+						modelRanges: [],
+						includeOutput: true
+					}
+				}
+			} as INotebookDeltaDecoration]);
+
+			return offset;
+		}
+	}
+
+	private clearCurrentFindMatchDecoration() {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+
+		if (this._currentMatchDecorations?.kind === 'input') {
+			this._notebookEditorWidget.changeModelDecorations(accessor => {
+				accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], []);
+				this._currentMatchDecorations = null;
+			});
+		} else if (this._currentMatchDecorations?.kind === 'output') {
+			this._notebookEditorWidget.unHighlightFind(this._currentMatchDecorations.index);
+		}
+
+		this._currentMatchCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._currentMatchCellDecorations, []);
+	}
+
+	private revealCellRange(match: NotebookMatch, outputOffset: number | null) {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+		if (!match.webviewIndex) {
+			// reveal output range
+			this._notebookEditorWidget.focusElement(match.cell);
+			const index = this._notebookEditorWidget.getCellIndex(match.cell);
+			if (index !== undefined) {
+				// const range: ICellRange = { start: index, end: index + 1 };
+				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
+			}
+		} else {
+			this._notebookEditorWidget.focusElement(match.cell);
+			this._notebookEditorWidget.setCellEditorSelection(match.cell, match.range());
+			this._notebookEditorWidget.revealRangeInCenterIfOutsideViewportAsync(match.cell, match.range());
+		}
 	}
 }
 
@@ -1098,6 +1247,10 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		}
 	}
 
+	if (elementA instanceof NotebookMatch && elementB instanceof NotebookMatch) {
+		return compareNotebookPos(elementA, elementB);
+	}
+
 	if (elementA instanceof Match && elementB instanceof Match) {
 		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
 	}
@@ -1105,6 +1258,27 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	return 0;
 }
 
+export function compareNotebookPos(match1: NotebookMatch, match2: NotebookMatch): number {
+	if (match1.cellIndex === match2.cellIndex) {
+		if (match1.matchStartIndex === match2.matchStartIndex) {
+			if (match1.matchEndIndex === match2.matchEndIndex) {
+				return 0;
+			} else if (match1.matchEndIndex < match2.matchEndIndex) {
+				return -1;
+			} else {
+				return 1;
+			}
+		} else if (match1.matchStartIndex < match2.matchStartIndex) {
+			return -1;
+		} else {
+			return 1;
+		}
+	} else if (match1.cellIndex < match2.cellIndex) {
+		return -1;
+	} else {
+		return 1;
+	}
+}
 export function searchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
 	const elemAParents = createParentList(elementA);
 	const elemBParents = createParentList(elementB);
@@ -1174,9 +1348,6 @@ export class SearchResult extends Disposable {
 				this._isDirty = !this.isEmpty();
 			}
 		}));
-
-
-		// this._notebookEditors = new Set<NotebookEditor>();
 	}
 
 	async batchReplace(elementsToReplace: RenderableMatch[]) {
@@ -1826,6 +1997,21 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 	} else {
 		const previewRange = <ISearchRange>rawMatch.preview.matches;
 		const match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges);
+		return [match];
+	}
+}
+
+function textSearchResultToNotebookMatches(rawMatch: NotebookTextSearchMatch, fileMatch: FileMatch): NotebookMatch[] {
+	const previewLines = rawMatch.preview.text.split('\n');
+	if (Array.isArray(rawMatch.ranges)) {
+
+		return rawMatch.ranges.map((r, i) => {
+			const previewRange: ISearchRange = (<ISearchRange[]>rawMatch.preview.matches)[i];
+			return new NotebookMatch(fileMatch, previewLines, previewRange, r, rawMatch.notebookMatchInfo);
+		});
+	} else {
+		const previewRange = <ISearchRange>rawMatch.preview.matches;
+		const match = new NotebookMatch(fileMatch, previewLines, previewRange, rawMatch.ranges, rawMatch.notebookMatchInfo);
 		return [match];
 	}
 }

@@ -6,17 +6,32 @@
 import { FindMatch } from 'vs/editor/common/model';
 import { CellFindMatchWithIndex, ICellViewModel, CellWebviewFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-import { ITextSearchPreviewOptions, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { ISearchRange, ITextSearchPreviewOptions, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 
-interface CellFindMatchInfoForTextModel {
+export interface NotebookMatchInfo {
+	cellIndex: number;
+	matchStartIndex: number;
+	matchEndIndex: number;
 	cell: ICellViewModel;
+	webviewMatchInfo?: {
+		index: number;
+	};
+}
+
+interface CellFindMatchInfoForTextModel {
+	notebookMatchInfo: NotebookMatchInfo;
 	matches: FindMatch[] | CellWebviewFindMatch;
 }
 
-function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch | undefined {
-	const matches = cellInfo.matches;
+export class NotebookTextSearchMatch extends TextSearchMatch {
+	constructor(text: string, range: ISearchRange | ISearchRange[], public notebookMatchInfo: NotebookMatchInfo, previewOptions?: ITextSearchPreviewOptions) {
+		super(text, range, previewOptions);
+	}
+}
 
+function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTextModel, previewOptions?: ITextSearchPreviewOptions): NotebookTextSearchMatch | undefined {
+	const matches = cellInfo.matches;
 
 	if (Array.isArray(matches)) {
 		if (matches.length > 0) {
@@ -24,36 +39,39 @@ function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTex
 			const firstLine = matches[0].range.startLineNumber;
 			const lastLine = matches[matches.length - 1].range.endLineNumber;
 			for (let i = firstLine; i <= lastLine; i++) {
-				if (cellInfo.cell.textModel) {
-					lineTexts.push(cellInfo.cell.textModel?.getLineContent(i));
-				}
+				lineTexts.push(cellInfo.notebookMatchInfo.cell.textBuffer.getLineContent(i));
 			}
 
-			return new TextSearchMatch(
+			return new NotebookTextSearchMatch(
 				lineTexts.join('\n') + '\n',
 				matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
+				cellInfo.notebookMatchInfo,
 				previewOptions);
 		}
 	}
 	else {
-		return new TextSearchMatch(
+		return new NotebookTextSearchMatch(
 			matches.searchPreviewInfo.line,
 			new Range(0, matches.searchPreviewInfo.range.start, 0, matches.searchPreviewInfo.range.end),
+			cellInfo.notebookMatchInfo,
 			previewOptions);
 	}
 	return undefined;
 }
-export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
+export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFindMatchWithIndex[], previewOptions?: ITextSearchPreviewOptions): NotebookTextSearchMatch[] {
 	let previousEndLine = -1;
 	const groupedMatches: CellFindMatchInfoForTextModel[] = [];
 	let currentMatches: FindMatch[] = [];
+	let startIndexOfCurrentMatches = 0;
 
 
 	cellFindMatches.forEach((cellFindMatch) => {
-		cellFindMatch.contentMatches.forEach((match) => {
+		const cellIndex = cellFindMatch.index;
+		cellFindMatch.contentMatches.forEach((match, index) => {
 			if (match.range.startLineNumber !== previousEndLine) {
 				currentMatches = [];
-				groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
+				groupedMatches.push({ matches: currentMatches, notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: index, cell: cellFindMatch.cell } });
+				startIndexOfCurrentMatches = cellIndex + 1;
 			}
 
 			currentMatches.push(match);
@@ -61,50 +79,31 @@ export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFi
 		});
 
 		currentMatches = [];
-		groupedMatches.push({ cell: cellFindMatch.cell, matches: currentMatches });
+		groupedMatches.push({ matches: currentMatches, notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: cellFindMatch.contentMatches.length - 1, cell: cellFindMatch.cell } });
 
-		cellFindMatch.webviewMatches.forEach((match) => {
-			groupedMatches.push({ cell: cellFindMatch.cell, matches: match });
+		cellFindMatch.webviewMatches.forEach((match, index) => {
+			groupedMatches.push({ matches: match, notebookMatchInfo: { cellIndex, matchStartIndex: index, matchEndIndex: index, cell: cellFindMatch.cell, webviewMatchInfo: { index: match.index } } });
 		});
 	});
 
 	return groupedMatches.map(sameLineMatches => {
 		return notebookEditorMatchToTextSearchResult(sameLineMatches, previewOptions);
-	}).filter((elem): elem is TextSearchMatch => !!elem);
+	}).filter((elem): elem is NotebookTextSearchMatch => !!elem);
 }
 
-// export function addContextToNotebookEditorMatches(matches: ITextSearchMatch[], editorWidget: NotebookEditorWidget, query: ITextQuery): ITextSearchResult[] {
+// export function addContextToNotebookEditorMatches(cellFindMatches: CellFindMatchWithIndex[], query: ITextQuery): ITextSearchResult[] {
 // 	const results: ITextSearchResult[] = [];
 
-// 	let prevLine = -1;
-// 	for (let i = 0; i < matches.length; i++) {
-// 		const { start: matchStartLine, end: matchEndLine } = getMatchStartEnd(matches[i]);
-// 		if (typeof query.beforeContext === 'number' && query.beforeContext > 0) {
-// 			const beforeContextStartLine = Math.max(prevLine + 1, matchStartLine - query.beforeContext);
-// 			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
-// 				results.push(<ITextSearchContext>{
-// 					text: model.getLineContent(b + 1),
-// 					lineNumber: b
-// 				});
-// 			}
-// 		}
+// 	// we need a cell and all of its corresponding textmatches
+// 	// ^ we need this split by webview and content matches
 
-// 		results.push(matches[i]);
+// 	//
+// 	cellFindMatches.forEach(findMatch => {
+// 		findMatch.contentMatches.forEach(contentMatch => {
+// 			const result = addContextToEditorMatches()
+// 		})
+// 	})
 
-// 		const nextMatch = matches[i + 1];
-// 		const nextMatchStartLine = nextMatch ? getMatchStartEnd(nextMatch).start : Number.MAX_VALUE;
-// 		if (typeof query.afterContext === 'number' && query.afterContext > 0) {
-// 			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.afterContext, model.getLineCount() - 1);
-// 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
-// 				results.push(<ITextSearchContext>{
-// 					text: model.getLineContent(a + 1),
-// 					lineNumber: a
-// 				});
-// 			}
-// 		}
-
-// 		prevLine = matchEndLine;
-// 	}
 
 // 	return results;
 // }

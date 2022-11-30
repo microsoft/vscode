@@ -143,6 +143,16 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return undefined;
 	}
 
+	retrieveAllExistingWidgets(): IBorrowValue<NotebookEditorWidget>[] {
+		const ret: IBorrowValue<NotebookEditorWidget>[] = [];
+		for (const widgetInfo of this._borrowableEditors.values()) {
+			for (const widget of widgetInfo.values()) {
+				ret.push(this._createBorrowValue(widget.token!, widget));
+			}
+		}
+		return ret;
+	}
+
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension): IBorrowValue<NotebookEditorWidget> {
 
 		let value = this._borrowableEditors.get(group.id)?.get(input.resource);

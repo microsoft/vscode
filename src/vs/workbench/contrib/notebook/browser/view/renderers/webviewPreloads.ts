@@ -973,6 +973,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (match) {
 				let offset = 0;
 				try {
+					console.log(match.id);
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
@@ -1082,7 +1083,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 						const root = outputNode.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
 						if (shadowSelection && shadowSelection.anchorNode) {
-							console.log(extractSelectionLine(shadowSelection));
 							matches.push({
 								type: 'output',
 								id: outputNode.id,
@@ -1102,8 +1102,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 						// Optimization: avoid searching for the output container
 						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
-							console.log('here1');
-							console.log(lastEl);
 							matches.push({
 								type: lastEl.type,
 								id: lastEl.id,
@@ -1125,8 +1123,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 									// inside output
 									const cellId = node.parentElement?.parentElement?.id;
 									if (cellId) {
-										console.log('here2');
-										console.log(node);
 										matches.push({
 											type: 'output',
 											id: node.id,

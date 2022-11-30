@@ -73,7 +73,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -1797,8 +1797,18 @@ export class SearchView extends ViewPane {
 
 		if (editor instanceof NotebookEditor) {
 			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-			const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
-			controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
+			if (element instanceof Match) {
+				const matchIndex = element.parent().matches().findIndex(e => e.id() === element.id());
+				if (element instanceof NotebookMatch) {
+
+					// no op for now!
+					element.parent().showMatch(element);
+				} else {
+
+					controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
+				}
+			}
+
 		}
 	}
 
