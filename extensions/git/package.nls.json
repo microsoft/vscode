@@ -331,7 +331,7 @@
 		"message": "Scanning workspace for git repositories..."
 	},
 	"view.workbench.scm.unsafeRepository": {
-		"message": "The git repository in the following folder has been detected as potentially unsafe as the folder is owned by someone else other than the current user: ${command:git.api.getUnsafeRepositories}.\nDo you want to open the repository?\n[Open Repository](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
+		"message": "The git repository in the following folder is potentially unsafe as the folder is owned by someone other than the current user: ${command:git.api.getUnsafeRepositories}.\nDo you want to open the repository?\n[Open Repository](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
 		"comment": [
 			"{Locked='](command:git.api.getUnsafeRepositories'}",
 			"{Locked='](command:git.addSafeDirectoryAndOpenRepository'}",
@@ -340,7 +340,7 @@
 		]
 	},
 	"view.workbench.scm.unsafeRepositories": {
-		"message": "The git repositories in the following folders have been detected as potentially unsafe as the folder is owned by someone else other than the current user: ${command:git.api.getUnsafeRepositories}.\nDo you want to open the repositories?\n[Open Repositories](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
+		"message": "The git repositories in the following folders are potentially unsafe as the folders are owned by someone other than the current user: ${command:git.api.getUnsafeRepositories}.\nDo you want to open the repositories?\n[Open Repositories](command:git.addSafeDirectoryAndOpenRepository)\n[Learn More](https://aka.ms/vscode-scm)",
 		"comment": [
 			"{Locked='](command:git.api.getUnsafeRepositories'}",
 			"{Locked='](command:git.addSafeDirectoryAndOpenRepository'}",
