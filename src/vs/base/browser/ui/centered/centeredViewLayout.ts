@@ -120,8 +120,12 @@ export class CenteredViewLayout implements IDisposable {
 			this.splitView.resizeView(1, centerViewWidth);
 			this.splitView.resizeView(2, Math.ceil(marginWidthFloat));
 		} else {
-			this.splitView.resizeView(0, this.state.leftMarginRatio * this.width);
-			this.splitView.resizeView(2, this.state.rightMarginRatio * this.width);
+			const leftMargin = this.state.leftMarginRatio * this.width;
+			const rightMargin = this.state.rightMarginRatio * this.width;
+			const center = this.width - leftMargin - rightMargin;
+			this.splitView.resizeView(0, leftMargin);
+			this.splitView.resizeView(1, center);
+			this.splitView.resizeView(2, rightMargin);
 		}
 	}
 
@@ -183,15 +187,9 @@ export class CenteredViewLayout implements IDisposable {
 			const backgroundColor = this.style ? this.style.background : undefined;
 			this.emptyViews = [createEmptyView(backgroundColor), createEmptyView(backgroundColor)];
 
-			if (this.centeredLayoutFixedWidth) {
-				this.splitView.addView(this.emptyViews[0], distributeSizing);
-				this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
-				this.splitView.addView(this.emptyViews[1], distributeSizing);
-			} else {
-				this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
-				this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
-				this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
-			}
+			this.splitView.addView(this.emptyViews[0], distributeSizing, 0);
+			this.splitView.addView(toSplitViewView(this.view, () => this.height), distributeSizing, 1);
+			this.splitView.addView(this.emptyViews[1], distributeSizing, 2);
 
 			this.resizeSplitViews();
 		} else {
