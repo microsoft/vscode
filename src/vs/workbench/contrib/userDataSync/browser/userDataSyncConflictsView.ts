@@ -246,6 +246,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 	) {
 		super();
@@ -300,7 +301,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					await this.userDataSyncWorkbenchService.accept({ syncResource: userDataSyncResource.syncResource, profile: userDataSyncResource.profile }, model.uri, model.getValue(), false);
+					await this.userDataSyncWorkbenchService.accept({ syncResource: userDataSyncResource.syncResource, profile: userDataSyncResource.profile }, model.uri, model.getValue(), this.userDataSyncEnablementService.isEnabled());
 				}
 			}));
 
