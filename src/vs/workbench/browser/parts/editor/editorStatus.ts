@@ -336,6 +336,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized((enabled) => this.onScreenReaderModeChange(undefined, enabled)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
@@ -792,7 +793,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined): void {
+	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined, enabled?: boolean): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
@@ -809,6 +810,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 
 			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
+		} else if (!!enabled) {
+			screenReaderMode = enabled;
 		}
 
 		if (screenReaderMode === false && this.screenReaderNotification) {
