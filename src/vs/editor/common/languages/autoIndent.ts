@@ -53,6 +53,10 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 
 			return lastLineNumber;
 		}
+
+		if (lastLineNumber === 0) {
+			return 0;
+		}
 	}
 
 	return -1;
