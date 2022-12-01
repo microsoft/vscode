@@ -54,7 +54,7 @@
 
 .monaco-editor .find-widget > .find-part,
 .monaco-editor .find-widget > .replace-part {
-	margin: 4px 0 0 17px;
+	margin: 3px 0 0 17px;
 	font-size: 12px;
 	display: flex;
 }
