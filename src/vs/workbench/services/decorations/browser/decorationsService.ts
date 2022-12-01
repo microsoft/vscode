@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Emitter, DebounceEmitter, Event } from 'vs/base/common/event';
-import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
+import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData, DiskUriInfo } from '../common/decorations';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
@@ -311,22 +311,32 @@ export class DecorationsService implements IDecorationsService {
 		});
 	}
 
-	private _ensureEntry(uri: URI): DecorationEntry {
+	private static _diskUriInfoKey = Symbol('DiskUrlInfoKey');
+
+	private static _tryResetDecorationEntry(map: Map<any, any>, diskUriInfo?: DiskUriInfo) {
+		const diskInfo = map.get(DecorationsService._diskUriInfoKey);
+		if (diskInfo?.isSymbolicLink !== diskUriInfo?.isSymbolicLink) {
+			map.clear();
+			map.set(DecorationsService._diskUriInfoKey, diskUriInfo);
+		}
+	}
+
+	private _ensureEntry(uri: URI, diskUriInfo?: DiskUriInfo): DecorationEntry {
 		let map = this._data.get(uri);
 		if (!map) {
 			// nothing known about this uri
 			map = new Map();
 			this._data.set(uri, map);
 		}
+		DecorationsService._tryResetDecorationEntry(map, diskUriInfo);
 		return map;
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
-
+	getDecoration(uri: URI, includeChildren: boolean, diskUriInfo?: DiskUriInfo): IDecoration | undefined {
 		const all: IDecorationData[] = [];
 		let containsChildren: boolean = false;
 
-		const map = this._ensureEntry(uri);
+		const map = this._ensureEntry(uri, diskUriInfo);
 
 		for (const provider of this._provider) {
 

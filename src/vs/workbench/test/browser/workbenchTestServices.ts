@@ -501,6 +501,8 @@ export class TestDecorationsService implements IDecorationsService {
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
+
+	getDecoration(_uri: URI, _includeChildren: boolean): IDecoration | undefined;
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
 }
 

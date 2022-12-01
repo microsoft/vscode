@@ -40,6 +40,16 @@ export interface IResourceDecorationChangeEvent {
 	affectsResource(uri: URI): boolean;
 }
 
+/**
+ * URI could not fully express disk file.
+ *
+ * Add this to get fresh value(skip cache) for symbol link icon.
+ */
+// @internal
+export interface DiskUriInfo {
+	readonly isSymbolicLink?: boolean;
+}
+
 export interface IDecorationsService {
 
 	readonly _serviceBrand: undefined;
@@ -48,5 +58,5 @@ export interface IDecorationsService {
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined;
+	getDecoration(uri: URI, includeChildren: boolean, diskUriInfo?: DiskUriInfo): IDecoration | undefined;
 }
