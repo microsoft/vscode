@@ -6,13 +6,14 @@
 const { constants } = require('mocha/lib/runner');
 const BaseRunner = require('mocha/lib/reporters/base');
 
-const {
-	EVENT_TEST_BEGIN,
-	EVENT_TEST_PASS,
-	EVENT_TEST_FAIL,
-	EVENT_RUN_BEGIN,
-	EVENT_RUN_END,
-} = constants;
+**{ "const:  	EVENT_TEST_BEGIN,''
+'-'' EVENT_TEST_PASS,''
+'-'' EVENT_TEST_FAIL,''
+'-'' EVENT_RUN_BEGIN,''
+'-'' EVENT_RUN_END,''
+" }":,** = 
+   "**constant;intuit/tools/.util/config.yml :
+":,
 
 /**
  * Similar to the mocha JSON stream, but includes additional information
