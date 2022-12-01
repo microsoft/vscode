@@ -19,10 +19,13 @@ export class ImplicitActivationEventsImpl {
 	}
 
 	public updateManifest(manifest: IExtensionManifest) {
-		if (!Array.isArray(manifest.activationEvents) || !manifest.contributes) {
+		if (typeof manifest.main === 'undefined' && typeof manifest.browser === 'undefined') {
 			return;
 		}
-		if (typeof manifest.main === 'undefined' && typeof manifest.browser === 'undefined') {
+		if (manifest.activationEvents === undefined) {
+			Object.assign(manifest, { activationEvents: [] });
+		}
+		if (!Array.isArray(manifest.activationEvents) || !manifest.contributes) {
 			return;
 		}
 

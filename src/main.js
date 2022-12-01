@@ -181,7 +181,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
