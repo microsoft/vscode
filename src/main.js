@@ -108,7 +108,13 @@ if (locale) {
 // In that case, use `en` as the Electron locale.
 
 const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
-app.commandLine.appendSwitch('lang', electronLocale);
+
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543
+
+if (os.platform() !== 'darwin') {
+	app.commandLine.appendSwitch('lang', electronLocale);
+}
 
 // Load our code once ready
 app.once('ready', function () {
