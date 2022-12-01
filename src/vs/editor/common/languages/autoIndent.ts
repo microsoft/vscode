@@ -53,10 +53,6 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentR
 
 			return lastLineNumber;
 		}
-
-		if (lastLineNumber === 0) {
-			return 0;
-		}
 	}
 
 	return -1;
@@ -95,6 +91,19 @@ export function getInheritIndentForLine(
 			indentation: '',
 			action: null
 		};
+	}
+
+	// Use no indent if this is the first non-blank line
+	for (let priorLineNumber = lineNumber - 1; priorLineNumber > 0; priorLineNumber--) {
+		if (model.getLineContent(priorLineNumber) !== '') {
+			break;
+		}
+		if (priorLineNumber === 1) {
+			return {
+				indentation: '',
+				action: null
+			};
+		}
 	}
 
 	const precedingUnIgnoredLine = getPrecedingValidLine(model, lineNumber, indentRulesSupport);
