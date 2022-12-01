@@ -353,7 +353,6 @@ export async function getQuickFixesForCommand(
 									enabled: true,
 									run: () => openerService.open(fix.uri),
 									tooltip: label,
-									//TODO: why is uri on this object?
 									uri: fix.uri
 								} as ITerminalAction;
 								break;
