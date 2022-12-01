@@ -1057,7 +1057,7 @@
           "when": "false"
         },
         {
-          "command": "git.addSafeDirectoryAndOpenRepository",
+          "command": "git.manageUnsafeRepositories",
           "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
         }
       ],
