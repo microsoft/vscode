@@ -343,7 +343,10 @@ export async function getQuickFixesForCommand(
 							}
 							case TerminalQuickFixType.Opener: {
 								const fix = quickFix as ITerminalQuickFixOpenerAction;
-								const label = localize('quickFix.opener', 'Open: {0}', fix.uri.scheme + fix.uri.path + fix.uri.authority);
+								const { scheme, authority, path, query, fragment } = fix.uri;
+								const formattedLink = `${scheme}://${authority}${path}`;
+								const linkTail = `${query ? '?' + query : ''}${fragment ? '#' + fragment : ''}`;
+								const label = localize('quickFix.opener', 'Open: {0}', formattedLink + linkTail);
 								action = {
 									source: quickFix.source,
 									id: quickFix.id,
