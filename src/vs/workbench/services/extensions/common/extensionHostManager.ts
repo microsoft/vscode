@@ -143,7 +143,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				};
 				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', successTelemetryEvent);
 
-				return this._createExtensionHostCustomers(protocol);
+				return this._createExtensionHostCustomers(this.kind, protocol);
 			},
 			(err) => {
 				this._logService.error(`Error received from starting extension host (kind: ${extensionHostKindToString(this.kind)})`);
@@ -258,11 +258,11 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return ExtensionHostManager._convert(SIZE, sw.elapsed());
 	}
 
-	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): IExtensionHostProxy {
+	private _createExtensionHostCustomers(kind: ExtensionHostKind, protocol: IMessagePassingProtocol): IExtensionHostProxy {
 
 		let logger: IRPCProtocolLogger | null = null;
 		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
-			logger = new RPCLogger();
+			logger = new RPCLogger(kind);
 		}
 
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
@@ -643,12 +643,16 @@ class RPCLogger implements IRPCProtocolLogger {
 	private _totalIncoming = 0;
 	private _totalOutgoing = 0;
 
+	constructor(
+		private readonly _kind: ExtensionHostKind
+	) { }
+
 	private _log(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 		data = pretty(data);
 
 		const colorTable = colorTables[initiator];
 		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
-		let args = [`%c[${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
+		let args = [`%c[${extensionHostKindToString(this._kind)}][${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
 		if (/\($/.test(str)) {
 			args = args.concat(data);
 			args.push(')');
