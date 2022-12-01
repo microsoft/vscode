@@ -92,7 +92,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
 	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${rangeHighlightBorder}; box-sizing: border-box; }`);
 	}
 
 	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
