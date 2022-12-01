@@ -2929,6 +2929,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._baseCellEditorOptions.forEach(v => v.dispose());
 		this._baseCellEditorOptions.clear();
 
+		this._notebookOverviewRulerContainer.remove();
+
 		super.dispose();
 
 		// unref
