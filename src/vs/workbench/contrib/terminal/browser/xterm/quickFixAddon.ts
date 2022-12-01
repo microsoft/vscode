@@ -31,6 +31,7 @@ import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/com
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -274,6 +275,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 export interface ITerminalAction extends IAction {
 	source: string;
+	uri?: URI;
+	command?: string;
 }
 
 export async function getQuickFixesForCommand(
@@ -350,7 +353,8 @@ export async function getQuickFixesForCommand(
 								if (!fix.uri) {
 									return;
 								}
-								const uriLabel = (fix.uri.scheme === Schemas.http || fix.uri.scheme === Schemas.https) ? encodeURI(fix.uri.toString(true)) : labelService.getUriLabel(fix.uri);
+								const isUrl = (fix.uri.scheme === Schemas.http || fix.uri.scheme === Schemas.https);
+								const uriLabel = isUrl ? encodeURI(fix.uri.toString(true)) : labelService.getUriLabel(fix.uri);
 								const label = localize('quickFix.opener', 'Open: {0}', uriLabel);
 								action = {
 									source: quickFix.source,
