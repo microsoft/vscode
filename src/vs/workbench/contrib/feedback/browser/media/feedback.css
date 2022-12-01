@@ -9,6 +9,7 @@
 	right: 6px;
 	padding: 1em;
 	cursor: default;
+	border-radius: 4px;
 }
 
 .monaco-workbench .feedback-form h2 {

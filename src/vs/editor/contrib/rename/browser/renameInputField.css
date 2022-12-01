@@ -6,6 +6,7 @@
 .monaco-editor .rename-box {
 	z-index: 100;
 	color: inherit;
+	border-radius: 4px;
 }
 
 .monaco-editor .rename-box.preview {
