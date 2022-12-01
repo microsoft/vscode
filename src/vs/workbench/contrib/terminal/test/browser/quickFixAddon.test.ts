@@ -28,6 +28,8 @@ import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -43,18 +45,17 @@ suite('QuickFixAddon', () => {
 			cols: 80,
 			rows: 30
 		});
+		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
 		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event } as Partial<ITerminalQuickFixService>);
-		instantiationService.createInstance(LabelService);
-		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
 		commandDetection = instantiationService.createInstance(CommandDetectionCapability, terminal);
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
-		instantiationService.createInstance(OpenerService);
-		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		terminalInstance = {
 			async freePortKillProcess(port: string): Promise<void> { }
 		} as Pick<ITerminalInstance, 'freePortKillProcess'>;
