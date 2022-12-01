@@ -20,7 +20,7 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalEditorLocationOptions, TerminalQuickFix, TerminalQuickFixOpenerAction, TerminalQuickFixType } from 'vscode';
+import { TerminalEditorLocationOptions, TerminalQuickFix, TerminalQuickFixOpenerAction } from 'vscode';
 import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -460,7 +460,7 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
-	if (fix.type === TerminalQuickFixType.opener) {
+	if ('uri' in fix) {
 		(fix as TerminalQuickFixOpenerAction).uri = URI.revive((fix as TerminalQuickFixOpenerAction).uri);
 	}
 	return { id, source, ...fix };
