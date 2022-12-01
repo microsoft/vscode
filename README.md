@@ -30,12 +30,27 @@ There are many ways in which you can participate in this project, for example:
 If you are interested in fixing issues and contributing directly to the code base,
 please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 
+* [See what other developers have contributed and what you can contribute](https://github.com/Microsoft/vscode/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue)
 * [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
 * [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
 * [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
 * [Contributing to translations](https://aka.ms/vscodeloc)
+
+If you want to contribute using Visual Studio Code editor, please see the manual below:
+1. In the top-right corner of the GitHub page, click Fork.
+2. In the top-left corner of the fork page, click main.
+3. Click View all branches.
+4. In the top-right corner of the branches page, click New branch.
+5. Type branch name and click Create branch.
+6. Click your branch.
+7. In the top-right corner of your branch page, click Code.
+8. Copy the URL.
+9. Open Visual Studio Code editor and click Clone Git Repository.
+10. Paste the copied URL and select respiratory location.
+11. Make changes.
+12. Click Source Control and clock Commit!
 
 ## Feedback
 
