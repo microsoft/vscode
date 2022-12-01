@@ -96,7 +96,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 				commit,
 				date: buildDate
 			});
-			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
+			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}
 
 		return content;

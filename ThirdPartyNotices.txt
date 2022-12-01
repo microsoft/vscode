@@ -1268,7 +1268,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jeff-hykin/better-cpp-syntax 1.15.23 - MIT
+jeff-hykin/better-cpp-syntax 1.16.1 - MIT
 https://github.com/jeff-hykin/better-cpp-syntax
 
 MIT License
@@ -2287,7 +2287,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-mssql 1.16.0 - MIT
+microsoft/vscode-mssql 1.17.0 - MIT
 https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------

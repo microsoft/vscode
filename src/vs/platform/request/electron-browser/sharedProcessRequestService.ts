@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isBoolean } from 'vs/base/common/types';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
@@ -22,6 +24,7 @@ export class SharedProcessRequestService implements IRequestService {
 	constructor(
 		mainProcessService: IMainProcessService,
 		private readonly configurationService: IConfigurationService,
+		private readonly productService: IProductService,
 		private readonly logService: ILogService,
 	) {
 		this.browserRequestService = new RequestService(configurationService, logService);
@@ -37,11 +40,19 @@ export class SharedProcessRequestService implements IRequestService {
 	}
 
 	private getRequestService(): IRequestService {
-		if (this.configurationService.getValue('developer.sharedProcess.redirectRequestsToMain') === true) {
+		if (this.isMainRequestServiceEnabled()) {
 			this.logService.trace('Using main request service');
 			return this.mainRequestService;
 		}
 		this.logService.trace('Using browser request service');
 		return this.browserRequestService;
+	}
+
+	private isMainRequestServiceEnabled(): boolean {
+		const value = this.configurationService.getValue('developer.sharedProcess.redirectRequestsToMain');
+		if (isBoolean(value)) {
+			return value;
+		}
+		return this.productService.quality !== 'stable';
 	}
 }

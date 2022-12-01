@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as randomBytes from 'randombytes';
-import * as querystring from 'querystring';
-import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
-import { v4 as uuid } from 'uuid';
-import fetch, { Response } from 'node-fetch';
-import Logger from './logger';
-import { isSupportedEnvironment, toBase64UrlEncoding } from './utils';
-import { sha256 } from './env/node/sha256';
-import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
-import { LoopbackAuthServer } from './authServer';
+import * as querystring from 'querystring';
 import path = require('path');
+import Logger from './logger';
+import { isSupportedEnvironment } from './utils';
+import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
+import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
+import { LoopbackAuthServer } from './node/authServer';
+import { base64Decode } from './node/buffer';
+import { fetching } from './node/fetch';
 
 const redirectUrl = 'https://vscode.dev/redirect';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -295,8 +293,8 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async createSessionWithLocalServer(scopeData: IScopeData) {
-		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
+		const codeVerifier = generateCodeVerifier();
+		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const qs = new URLSearchParams({
 			response_type: 'code',
 			response_mode: 'query',
@@ -328,15 +326,15 @@ export class AzureActiveDirectoryService {
 
 	private async createSessionWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
-		const nonce = randomBytes(16).toString('base64');
+		const nonce = generateCodeVerifier();
 		const callbackQuery = new URLSearchParams(callbackUri.query);
 		callbackQuery.set('nonce', encodeURIComponent(nonce));
 		callbackUri = callbackUri.with({
 			query: callbackQuery.toString()
 		});
 		const state = encodeURIComponent(callbackUri.toString(true));
-		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
+		const codeVerifier = generateCodeVerifier();
+		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
 		const oauthStartQuery = new URLSearchParams({
 			response_type: 'code',
@@ -467,10 +465,10 @@ export class AzureActiveDirectoryService {
 
 		try {
 			if (json.id_token) {
-				claims = JSON.parse(Buffer.from(json.id_token.split('.')[1], 'base64').toString());
+				claims = JSON.parse(base64Decode(json.id_token.split('.')[1]));
 			} else {
 				Logger.info('Attempting to parse access_token instead since no id_token was included in the response.');
-				claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
+				claims = JSON.parse(base64Decode(json.access_token.split('.')[1]));
 			}
 		} catch (e) {
 			throw e;
@@ -491,7 +489,7 @@ export class AzureActiveDirectoryService {
 			idToken: json.id_token,
 			refreshToken: json.refresh_token,
 			scope: scopeData.scopeStr,
-			sessionId: existingId || `${id}/${uuid()}`,
+			sessionId: existingId || `${id}/${randomUUID()}`,
 			account: {
 				label,
 				id
@@ -739,10 +737,10 @@ export class AzureActiveDirectoryService {
 		let attempts = 0;
 		while (attempts <= 3) {
 			attempts++;
-			let result: Response | undefined;
+			let result;
 			let errorMessage: string | undefined;
 			try {
-				result = await fetch(endpoint, {
+				result = await fetching(endpoint, {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/x-www-form-urlencoded',

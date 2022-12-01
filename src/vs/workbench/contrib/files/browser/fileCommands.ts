@@ -330,7 +330,7 @@ CommandsRegistry.registerCommand({
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
 				explorerView.setExpanded(true);
-				await explorerService.select(uri, true);
+				await explorerService.select(uri, 'force');
 				explorerView.focus();
 			}
 		} else {

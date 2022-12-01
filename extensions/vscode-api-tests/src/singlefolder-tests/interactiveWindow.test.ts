@@ -36,7 +36,7 @@ async function addCell(code: string, notebook: vscode.NotebookDocument) {
 async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i: number) {
 	const cell = await addCell(code, notebook);
 	const event = asPromise(vscode.workspace.onDidChangeNotebookDocument);
-	await vscode.commands.executeCommand('notebook.cell.execute', { start: i, end: i + 1 });
+	await vscode.commands.executeCommand('notebook.cell.execute', { start: i, end: i + 1 }, notebook.uri);
 	await event;
 	assert.strictEqual(cell.outputs.length, 1, 'execute failed');
 	return cell;

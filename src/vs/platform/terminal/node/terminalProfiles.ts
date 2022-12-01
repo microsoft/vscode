@@ -208,7 +208,7 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
 		],
-		args: ['--login']
+		args: ['--login', '-i']
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',

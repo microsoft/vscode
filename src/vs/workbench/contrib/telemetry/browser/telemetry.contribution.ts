@@ -15,7 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { configurationTelemetry, TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
@@ -28,7 +28,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
-	mimeType: string;
+	mimeType: TrustedTelemetryValue<string>;
 	ext: string;
 	path: number;
 	reason?: number;
@@ -77,7 +77,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		type WorkspaceLoadClassification = {
 			owner: 'bpasero';
-			userAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user agent as reported by `navigator.userAgent` by Electron or the web browser.' };
 			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a folder or workspace is opened or not.' };
 			windowSize: WindowSizeFragment;
 			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should open or be created.' };
@@ -94,7 +93,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		type WorkspaceLoadEvent = {
-			userAgent: string;
 			windowSize: { innerHeight: number; innerWidth: number; outerHeight: number; outerWidth: number };
 			emptyWorkbench: boolean;
 			'workbench.filesToOpenOrCreate': number;
@@ -110,7 +108,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		telemetryService.publicLog2<WorkspaceLoadEvent, WorkspaceLoadClassification>('workspaceLoad', {
-			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,
@@ -219,7 +216,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const fileName = basename(resource);
 		const path = resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 		const telemetryData = {
-			mimeType: getMimeTypes(resource).join(', '),
+			mimeType: new TrustedTelemetryValue(getMimeTypes(resource).join(', ')),
 			ext,
 			path: hash(path),
 			reason,

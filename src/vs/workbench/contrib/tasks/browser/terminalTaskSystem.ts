@@ -16,6 +16,7 @@ import * as resources from 'vs/base/common/resources';
 import Severity from 'vs/base/common/severity';
 import * as Types from 'vs/base/common/types';
 import * as nls from 'vs/nls';
+import { asArray } from 'vs/base/common/arrays';
 
 import { IModelService } from 'vs/editor/common/services/model';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -28,7 +29,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
@@ -1334,9 +1335,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
 				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-				if (this._logService.getLevel() <= LogLevel.Trace) {
-					this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
-				}
+				this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
 				if (!task) {
 					continue;
 				}
@@ -1648,7 +1647,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				matcher = value;
 			}
 			if (matcher && matcher.filePrefix) {
-				this._collectVariables(variables, matcher.filePrefix);
+				if (Types.isString(matcher.filePrefix)) {
+					this._collectVariables(variables, matcher.filePrefix);
+				} else {
+					for (const fp of [...asArray(matcher.filePrefix.include || []), ...asArray(matcher.filePrefix.exclude || [])]) {
+						this._collectVariables(variables, fp);
+					}
+				}
 			}
 		});
 	}
@@ -1710,7 +1715,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
-					copy.filePrefix = await this._resolveVariable(resolver, copy.filePrefix);
+					const filePrefix = copy.filePrefix;
+					if (Types.isString(filePrefix)) {
+						copy.filePrefix = await this._resolveVariable(resolver, filePrefix);
+					} else if (filePrefix !== undefined) {
+						if (filePrefix.include) {
+							filePrefix.include = Array.isArray(filePrefix.include)
+								? await Promise.all(filePrefix.include.map(x => this._resolveVariable(resolver, x)))
+								: await this._resolveVariable(resolver, filePrefix.include);
+						}
+						if (filePrefix.exclude) {
+							filePrefix.exclude = Array.isArray(filePrefix.exclude)
+								? await Promise.all(filePrefix.exclude.map(x => this._resolveVariable(resolver, x)))
+								: await this._resolveVariable(resolver, filePrefix.exclude);
+						}
+					}
 				}
 				result.push(copy);
 			}

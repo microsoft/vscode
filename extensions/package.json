@@ -4,14 +4,14 @@
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "^4.9.2-rc"
+    "typescript": "^4.9.3"
   },
   "scripts": {
     "postinstall": "node ./postinstall.mjs"
   },
   "devDependencies": {
-    "@parcel/watcher": "2.0.5",
-    "esbuild": "^0.11.12",
+    "@parcel/watcher": "2.0.7",
+    "esbuild": "^0.15.14",
     "vscode-grammar-updater": "^1.1.0"
   }
 }

@@ -83,12 +83,21 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
+import { IDimension } from 'vs/editor/common/core/dimension';
+import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 
 const $ = DOM.$;
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
 	// We inlined the id to avoid loading comment contrib in tests
-	const skipContributions = ['editor.contrib.review', FloatingClickMenu.ID];
+	const skipContributions = [
+		'editor.contrib.review',
+		FloatingClickMenu.ID,
+		'editor.contrib.dirtydiff',
+		'editor.contrib.testingOutputPeek',
+		'editor.contrib.testingDecorations',
+		'store.contrib.stickyScrollController'
+	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {
@@ -323,12 +332,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		this._register(editorGroupsService.onDidScroll(() => {
+		this._register(editorGroupsService.onDidScroll(e => {
 			if (!this._shadowElement || !this._isVisible) {
 				return;
 			}
 
-			this.updateShadowElement(this._shadowElement);
+			this.updateShadowElement(this._shadowElement, this._dimension);
 			this.layoutContainerOverShadowElement(this._dimension);
 		}));
 
@@ -1691,7 +1700,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, _position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
 			return;
@@ -1703,7 +1712,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement);
+			this.updateShadowElement(shadowElement, dimension, /*position*/ undefined);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1732,7 +1741,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension);
+		this.layoutContainerOverShadowElement(dimension, /*position*/ undefined);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1745,19 +1754,36 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
-	private updateShadowElement(shadowElement: HTMLElement) {
-		const containerRect = shadowElement.getBoundingClientRect();
-
+	private updateShadowElement(shadowElement: HTMLElement, dimension?: IDimension, position?: DOM.IDomPosition) {
 		this._shadowElement = shadowElement;
-		this._shadowElementViewInfo = {
-			height: containerRect.height,
-			width: containerRect.width,
-			top: containerRect.top,
-			left: containerRect.left
-		};
+		if (dimension && position) {
+			this._shadowElementViewInfo = {
+				height: dimension.height,
+				width: dimension.width,
+				top: position.top,
+				left: position.left,
+			};
+		} else {
+			// We have to recompute position and size ourselves (which is slow)
+			const containerRect = shadowElement.getBoundingClientRect();
+			this._shadowElementViewInfo = {
+				height: containerRect.height,
+				width: containerRect.width,
+				top: containerRect.top,
+				left: containerRect.left
+			};
+		}
 	}
 
-	private layoutContainerOverShadowElement(dimension?: DOM.Dimension | null): void {
+	private layoutContainerOverShadowElement(dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
+		if (dimension && position) {
+			this._overlayContainer.style.top = `${position.top}px`;
+			this._overlayContainer.style.left = `${position.left}px`;
+			this._overlayContainer.style.width = `${dimension.width}px`;
+			this._overlayContainer.style.height = `${dimension.height}px`;
+			return;
+		}
+
 		if (!this._shadowElementViewInfo) {
 			return;
 		}
@@ -2370,7 +2396,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return [];
 		}
 
-		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.matches.length > 0);
+		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.length > 0);
 
 		if (!options.includeMarkupPreview && !options.includeOutput) {
 			this._webview?.findStop();
@@ -2411,14 +2437,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const exisitingMatch = matchMap[match.cellId];
 
 				if (exisitingMatch) {
-					exisitingMatch.matches.push(match);
+					exisitingMatch.webviewMatches.push(match);
 				} else {
-					matchMap[match.cellId] = {
-						cell: this._notebookViewModel!.viewCells.find(cell => cell.id === match.cellId)! as CellViewModel,
-						index: this._notebookViewModel!.viewCells.findIndex(cell => cell.id === match.cellId)!,
-						matches: [match],
-						modelMatchCount: 0
-					};
+
+					matchMap[match.cellId] = new CellFindMatchModel(
+						this._notebookViewModel!.viewCells.find(cell => cell.id === match.cellId)!,
+						this._notebookViewModel!.viewCells.findIndex(cell => cell.id === match.cellId)!,
+						[],
+						[match]
+					);
 				}
 			});
 		}
@@ -2426,12 +2453,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const ret: CellFindMatchWithIndex[] = [];
 		this._notebookViewModel.viewCells.forEach((cell, index) => {
 			if (matchMap[cell.id]) {
-				ret.push({
-					cell: cell as CellViewModel,
-					index: index,
-					matches: matchMap[cell.id].matches,
-					modelMatchCount: matchMap[cell.id].modelMatchCount
-				});
+				ret.push(new CellFindMatchModel(cell, index, matchMap[cell.id].contentMatches, matchMap[cell.id].webviewMatches));
 			}
 		});
 
@@ -2906,6 +2928,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._renderedEditors.clear();
 		this._baseCellEditorOptions.forEach(v => v.dispose());
 		this._baseCellEditorOptions.clear();
+
+		this._notebookOverviewRulerContainer.remove();
 
 		super.dispose();
 

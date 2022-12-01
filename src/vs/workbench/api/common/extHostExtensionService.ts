@@ -154,7 +154,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
-		this._storage = new ExtHostStorage(this._extHostContext);
+		this._storage = new ExtHostStorage(this._extHostContext, this._logService);
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
@@ -163,16 +163,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			[IExtHostSecretState, this._secretState]
 		));
 
-		let resolvedExtensions: ExtensionIdentifier[] = [];
-		let hostExtensions: ExtensionIdentifier[] = [];
-		if (this._initData.remote.isRemote) {
-			resolvedExtensions = this._initData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
-			hostExtensions = (
-				this._initData.allExtensions
-					.filter(extension => !myExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier.value)))
-					.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
-			);
-		}
+		const resolvedExtensions = this._initData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
+		const hostExtensions = (
+			this._initData.allExtensions
+				.filter(extension => !myExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier.value)))
+				.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
+		);
 		const hostExtensionsSet = extensionIdentifiersArrayToSet(hostExtensions);
 
 		this._activator = this._register(new ExtensionsActivator(
