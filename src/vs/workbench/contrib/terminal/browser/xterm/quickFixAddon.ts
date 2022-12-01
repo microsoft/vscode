@@ -29,7 +29,6 @@ import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/
 import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { URI } from 'vs/base/common/uri';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -337,6 +336,7 @@ export async function getQuickFixesForCommand(
 										});
 									},
 									tooltip: label,
+									//TODO: why is command on this object?
 									command: fix.terminalCommand
 								} as ITerminalAction;
 								expectedCommands.push(fix.terminalCommand);
@@ -344,27 +344,16 @@ export async function getQuickFixesForCommand(
 							}
 							case TerminalQuickFixType.Opener: {
 								const fix = quickFix as ITerminalQuickFixOpenerAction;
-								const label = localize('quickFix.opener', 'Open: {0}', fix.uri.toString());
+								const label = localize('quickFix.opener', 'Open: {0}', fix.uri.path);
 								action = {
 									source: quickFix.source,
 									id: quickFix.id,
 									label,
 									class: quickFix.type,
 									enabled: true,
-									run: () => {
-										let uri: URI | undefined;
-										if (URI.isUri(fix.uri)) {
-											uri = fix.uri;
-										} else if (typeof fix.uri === 'string') {
-											uri = URI.parse(fix.uri);
-										}
-
-										if (!uri) {
-											return;
-										}
-										openerService.open(URI.revive(uri));
-									},
+									run: () => openerService.open(fix.uri),
 									tooltip: label,
+									//TODO: why is uri on this object?
 									uri: fix.uri
 								} as ITerminalAction;
 								break;
