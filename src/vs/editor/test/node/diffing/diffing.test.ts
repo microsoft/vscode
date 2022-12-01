@@ -52,17 +52,15 @@ suite('diff fixtures', () => {
 		const invalidExists = existsSync(invalidFilePath);
 
 		if (!existsSync(expectedFilePath)) {
+			// New test, create the files
 			writeFileSync(expectedFilePath, expectedFileContentFromActual);
 			writeFileSync(invalidFilePath, '');
 			throw new Error('No expected file! Expected and invalid files were written. Delete the invalid file to make the test pass.');
 		} else {
 			const expectedFileContent = readFileSync(invalidExists ? invalidFilePath : expectedFilePath, 'utf8');
-			if (invalidExists && expectedFileContent === '') {
-				throw new Error('Delete the invalid file to make the test pass.');
-			}
-			const expectedFileDiffResult: DiffingResult = JSON.parse(expectedFileContent);
 
 			try {
+				const expectedFileDiffResult: DiffingResult = JSON.parse(expectedFileContent);
 				assert.deepStrictEqual(actualDiffingResult, expectedFileDiffResult);
 			} catch (e) {
 				if (!invalidExists) {
@@ -71,6 +69,11 @@ suite('diff fixtures', () => {
 				writeFileSync(expectedFilePath, expectedFileContentFromActual);
 				throw e;
 			}
+
+			if (invalidExists && expectedFileContent === '') {
+				throw new Error('Delete the invalid file to make the test pass.');
+			}
+			writeFileSync(expectedFilePath, expectedFileContentFromActual);
 		}
 
 		if (invalidExists) {
@@ -87,7 +90,7 @@ suite('diff fixtures', () => {
 	}
 
 	test(`debug`, () => {
-		runTest('penalize-fragmentation', 'experimental');
+		runTest('intra-block-align', 'experimental');
 	});
 });
 
