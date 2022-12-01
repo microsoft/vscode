@@ -59,6 +59,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Codicon } from 'vs/base/common/codicons';
+import { CancellationError } from 'vs/base/common/errors';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -139,7 +140,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoResumeEditSession() {
-		const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload';
+		const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.cloudChanges.autoResume') === 'onReload';
 
 		if (this.environmentService.editSessionId !== undefined) {
 			this.logService.info(`Resuming cloud changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
@@ -198,7 +199,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.editSessions.autoStore') === 'onShutdown') {
+		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown') {
 			const cancellationTokenSource = new CancellationTokenSource();
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
@@ -529,7 +530,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 							folderRoot = f;
 							break;
 						} else if (match === EditSessionIdentityMatch.Partial &&
-							this.configurationService.getValue('workbench.experimental.editSessions.partialMatches.enabled') === true
+							this.configurationService.getValue('workbench.experimental.cloudChanges.partialMatches.enabled') === true
 						) {
 							if (!force) {
 								// Surface partially matching edit session
@@ -885,7 +886,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'invalidDestination' });
 			return undefined;
 		} catch (ex) {
-			this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'unknownError' });
+			if (ex instanceof CancellationError) {
+				this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'cancelled' });
+			} else {
+				this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'unknownError' });
+			}
 			return undefined;
 		}
 	}
