@@ -17,16 +17,12 @@
 			"modifiedRange": "[10,12)",
 			"innerChanges": [
 				{
-					"originalRange": "[10,11 -> 10,20]",
-					"modifiedRange": "[10,11 -> 10,19]"
+					"originalRange": "[10,1 -> 10,1]",
+					"modifiedRange": "[10,1 -> 11,1]"
 				},
 				{
-					"originalRange": "[10,24 -> 10,31]",
-					"modifiedRange": "[10,23 -> 10,33]"
-				},
-				{
-					"originalRange": "[10,35 -> 10,42]",
-					"modifiedRange": "[10,37 -> 11,18]"
+					"originalRange": "[10,17 -> 10,41]",
+					"modifiedRange": "[11,17 -> 11,17]"
 				},
 				{
 					"originalRange": "[10,72 -> 10,73]",
