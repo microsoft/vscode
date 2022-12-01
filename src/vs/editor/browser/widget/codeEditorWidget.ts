@@ -1618,7 +1618,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					if (e.reachedMaxCursorCount) {
 
 						const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
-						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes.", multiCursorLimit);
+						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes or increase the editor multi cursor limit setting.", multiCursorLimit);
 						this._notificationService.prompt(Severity.Warning, message, [
 							{
 								label: 'Find and Replace',
@@ -1627,7 +1627,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 								}
 							},
 							{
-								label: nls.localize('goToSetting', 'Open Settings'),
+								label: nls.localize('goToSetting', 'Increase Multi Cursor Limit'),
 								run: () => {
 									this._commandService.executeCommand('workbench.action.openSettings2', {
 										query: 'editor.multiCursorLimit'
