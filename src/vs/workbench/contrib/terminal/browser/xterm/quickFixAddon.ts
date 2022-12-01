@@ -29,6 +29,8 @@ import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/
 import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -80,7 +82,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -194,7 +197,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}
 			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, exitStatus: selector.exitStatus, id: selector.id }, new CancellationTokenSource().token);
 		};
-		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand, resolver);
+		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
 			return;
 		}
@@ -279,6 +282,7 @@ export async function getQuickFixesForCommand(
 	terminalCommand: ITerminalCommand,
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
+	labelService: ILabelService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
 	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
 ): Promise<ITerminalAction[] | undefined> {
@@ -343,10 +347,11 @@ export async function getQuickFixesForCommand(
 							}
 							case TerminalQuickFixType.Opener: {
 								const fix = quickFix as ITerminalQuickFixOpenerAction;
-								const { scheme, authority, path, query, fragment } = fix.uri;
-								const formattedLink = `${scheme}://${authority}${path}`;
-								const linkTail = `${query ? '?' + query : ''}${fragment ? '#' + fragment : ''}`;
-								const label = localize('quickFix.opener', 'Open: {0}', formattedLink + linkTail);
+								if (!fix.uri) {
+									return;
+								}
+								const uriLabel = (fix.uri.scheme === Schemas.http || fix.uri.scheme === Schemas.https) ? encodeURI(fix.uri.toString(true)) : labelService.getUriLabel(fix.uri);
+								const label = localize('quickFix.opener', 'Open: {0}', uriLabel);
 								action = {
 									source: quickFix.source,
 									id: quickFix.id,
