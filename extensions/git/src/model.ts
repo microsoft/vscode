@@ -740,7 +740,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			commands.executeCommand('git.manageUnsafeRepositories');
 		} else if (choice === learnMore) {
 			// Learn More
-			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-scm'));
+			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-unsafe-repository'));
 		}
 	}
 
