@@ -336,7 +336,6 @@ export async function getQuickFixesForCommand(
 										});
 									},
 									tooltip: label,
-									//TODO: why is command on this object?
 									command: fix.terminalCommand
 								} as ITerminalAction;
 								expectedCommands.push(fix.terminalCommand);
