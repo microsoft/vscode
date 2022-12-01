@@ -15,7 +15,7 @@ import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiff
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
@@ -30,7 +30,7 @@ import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentInfo, ICommentService, WorkspaceHasCommenting } from 'vs/workbench/contrib/comments/browser/commentService';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -314,11 +314,6 @@ const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorH
 	type: 'boolean'
 });
 
-const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
-	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
-	type: 'boolean'
-});
-
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -337,7 +332,6 @@ export class CommentController implements IEditorContribution {
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
-	private _workspaceHasCommenting: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -356,7 +350,6 @@ export class CommentController implements IEditorContribution {
 		this._pendingCommentCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
-		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -388,11 +381,6 @@ export class CommentController implements IEditorContribution {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetAllCommentThreads(e => {
-			if (e.commentThreads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
-		}));
 
 		this.globalToDispose.add(this.commentService.onDidChangeCommentingEnabled(e => {
 			if (e) {
@@ -408,7 +396,8 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
@@ -624,7 +613,7 @@ export class CommentController implements IEditorContribution {
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
-	public onModelChanged(e: IModelChangedEvent): void {
+	public onModelChanged(): void {
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
@@ -951,7 +940,6 @@ export class CommentController implements IEditorContribution {
 		});
 
 		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
-			this._workspaceHasCommenting.set(true);
 			this._commentingRangeSpaceReserved = true;
 			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
 			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
@@ -975,9 +963,6 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
-			if (info.threads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
 			const providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {

@@ -686,6 +686,9 @@ export class Git {
 	}
 
 	async addSafeDirectory(repositoryPath: string): Promise<void> {
+		// safe.directory only supports paths with `/` as separator
+		repositoryPath = repositoryPath.replaceAll('\\', '/');
+
 		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
 		return;
 	}

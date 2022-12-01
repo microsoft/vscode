@@ -8,7 +8,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as DOM from 'vs/base/browser/dom';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT, PROFILES_TTILE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, isUserDataProfileTemplate, IUserDataProfileManagementService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT, PROFILES_TTILE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -42,7 +42,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { getErrorMessage, onUnexpectedError } from 'vs/base/common/errors';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -56,6 +56,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { isUndefined } from 'vs/base/common/types';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -67,6 +68,18 @@ interface IUserDataProfileTemplate {
 	readonly globalState?: string;
 	readonly extensions?: string;
 }
+
+function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
+	const candidate = thing as IUserDataProfileTemplate | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& (candidate.name && typeof candidate.name === 'string')
+		&& (isUndefined(candidate.shortName) || typeof candidate.shortName === 'string')
+		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
+		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
+		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
+}
+
 
 export class UserDataProfileImportExportService extends Disposable implements IUserDataProfileImportExportService, IURLHandler {
 
@@ -126,7 +139,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 	async handleURL(uri: URI): Promise<boolean> {
 		if (this.isProfileURL(uri)) {
-			await this.importProfile(uri);
+			try {
+				await this.importProfile(uri);
+			} catch (error) {
+				this.notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
+			}
 			return true;
 		}
 		return false;
@@ -238,8 +255,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 				let profileTemplate: IUserDataProfileTemplate = JSON.parse(profileContent);
 				if (!isUserDataProfileTemplate(profileTemplate)) {
-					this.notificationService.error('Invalid profile content.');
-					return;
+					throw new Error('Invalid profile content.');
 				}
 				const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 
@@ -338,10 +354,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			return await asText(context);
 		} else {
 			const message = await asText(context);
-			this.logService.info(`Failed to get profile from URL: ${resource.toString()}. Status code: ${context.res.statusCode}. Message: ${message}`);
+			throw new Error(`Failed to get profile from URL: ${resource.toString()}. Status code: ${context.res.statusCode}. Message: ${message}`);
 		}
-
-		return null;
 	}
 
 	private async pickProfileContentHandler(name: string): Promise<string | undefined> {

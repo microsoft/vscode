@@ -194,7 +194,7 @@ export class WorkbenchLanguageService extends LanguageService {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
 				if (typeof langId !== 'string') {
-					this.logService.warn(`Ingnoing configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
+					this.logService.warn(`Ignoring configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
 
 					return; // https://github.com/microsoft/vscode/issues/147284
 				}
