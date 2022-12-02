@@ -168,7 +168,7 @@ interface IWriter {
 /**
  * @see https://en.wikipedia.org/wiki/Variable-length_quantity
  */
-function readUIntVQL(reader: IReader) {
+function readIntVQL(reader: IReader) {
 	let value = 0;
 	for (let n = 0; ; n += 7) {
 		const next = reader.read(1);
@@ -179,21 +179,24 @@ function readUIntVQL(reader: IReader) {
 	}
 }
 
+const vqlZero = createOneByteBuffer(0);
+
 /**
  * @see https://en.wikipedia.org/wiki/Variable-length_quantity
  */
-function writeUIntVQL(writer: IWriter, value: number) {
-	if (value < 0 || !Number.isInteger(value) || value > Number.MAX_SAFE_INTEGER) {
-		throw new Error(`writeVQL only supports positive safe integers, and ${value} is not`);
+function writeInt32VQL(writer: IWriter, value: number) {
+	if (value === 0) {
+		writer.write(vqlZero);
+		return;
 	}
 
-	let len = 1;
-	for (let v2 = value >>> 7; v2 > 0; v2 = v2 >>> 7) {
+	let len = 0;
+	for (let v2 = value; v2 !== 0; v2 = v2 >>> 7) {
 		len++;
 	}
 
 	const scratch = VSBuffer.alloc(len);
-	for (let i = 0; value > 0; i++) {
+	for (let i = 0; value !== 0; i++) {
 		scratch.buffer[i] = value & 0b01111111;
 		value = value >>> 7;
 		if (value > 0) {
@@ -217,7 +220,7 @@ export class BufferReader implements IReader {
 	}
 }
 
-class BufferWriter implements IWriter {
+export class BufferWriter implements IWriter {
 
 	private buffers: VSBuffer[] = [];
 
@@ -237,7 +240,7 @@ enum DataType {
 	VSBuffer = 3,
 	Array = 4,
 	Object = 5,
-	Uint = 6
+	Int = 6
 }
 
 function createOneByteBuffer(value: number): VSBuffer {
@@ -253,7 +256,7 @@ const BufferPresets = {
 	VSBuffer: createOneByteBuffer(DataType.VSBuffer),
 	Array: createOneByteBuffer(DataType.Array),
 	Object: createOneByteBuffer(DataType.Object),
-	Uint: createOneByteBuffer(DataType.Uint),
+	Uint: createOneByteBuffer(DataType.Int),
 };
 
 declare const Buffer: any;
@@ -265,31 +268,32 @@ export function serialize(writer: IWriter, data: any): void {
 	} else if (typeof data === 'string') {
 		const buffer = VSBuffer.fromString(data);
 		writer.write(BufferPresets.String);
-		writeUIntVQL(writer, buffer.byteLength);
+		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
 	} else if (hasBuffer && Buffer.isBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
-		writeUIntVQL(writer, buffer.byteLength);
+		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
 	} else if (data instanceof VSBuffer) {
 		writer.write(BufferPresets.VSBuffer);
-		writeUIntVQL(writer, data.byteLength);
+		writeInt32VQL(writer, data.byteLength);
 		writer.write(data);
 	} else if (Array.isArray(data)) {
 		writer.write(BufferPresets.Array);
-		writeUIntVQL(writer, data.length);
+		writeInt32VQL(writer, data.length);
 
 		for (const el of data) {
 			serialize(writer, el);
 		}
-	} else if (typeof data === 'number' && Number.isInteger(data)) {
+	} else if (typeof data === 'number' && (data | 0) === data) {
+		// write a vql if it's a number that we can do bitwise operations on
 		writer.write(BufferPresets.Uint);
-		writeUIntVQL(writer, data);
+		writeInt32VQL(writer, data);
 	} else {
 		const buffer = VSBuffer.fromString(JSON.stringify(data));
 		writer.write(BufferPresets.Object);
-		writeUIntVQL(writer, buffer.byteLength);
+		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
 	}
 }
@@ -299,11 +303,11 @@ export function deserialize(reader: IReader): any {
 
 	switch (type) {
 		case DataType.Undefined: return undefined;
-		case DataType.String: return reader.read(readUIntVQL(reader)).toString();
-		case DataType.Buffer: return reader.read(readUIntVQL(reader)).buffer;
-		case DataType.VSBuffer: return reader.read(readUIntVQL(reader));
+		case DataType.String: return reader.read(readIntVQL(reader)).toString();
+		case DataType.Buffer: return reader.read(readIntVQL(reader)).buffer;
+		case DataType.VSBuffer: return reader.read(readIntVQL(reader));
 		case DataType.Array: {
-			const length = readUIntVQL(reader);
+			const length = readIntVQL(reader);
 			const result: any[] = [];
 
 			for (let i = 0; i < length; i++) {
@@ -312,8 +316,8 @@ export function deserialize(reader: IReader): any {
 
 			return result;
 		}
-		case DataType.Object: return JSON.parse(reader.read(readUIntVQL(reader)).toString());
-		case DataType.Uint: return readUIntVQL(reader);
+		case DataType.Object: return JSON.parse(reader.read(readIntVQL(reader)).toString());
+		case DataType.Int: return readIntVQL(reader);
 	}
 }
 
