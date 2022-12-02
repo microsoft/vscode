@@ -112,7 +112,7 @@ const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 // For now, don't pass in the locale on macOS due to
 // https://github.com/microsoft/vscode/issues/167543
 
-if (os.platform() !== 'darwin') {
+if (process.platform === 'win32') {
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
