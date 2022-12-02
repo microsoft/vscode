@@ -34,7 +34,7 @@ export class DynamicProgrammingDiffing implements IDiffAlgorithm {
 					}
 					if (s1 > 0 && s2 > 0 && directions.get(s1 - 1, s2 - 1) === 3) {
 						// Prefer consecutive diagonals
-						extendedSeqScore += 0.1;
+						extendedSeqScore += lengths.get(s1 - 1, s2 - 1);
 					}
 					extendedSeqScore += (equalityScore ? equalityScore(s1, s2) : 1);
 				} else {
