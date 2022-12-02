@@ -111,7 +111,9 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem(getText('activeFolderShort'), range, vscode.l10n.t("the name of the folder the file is contained in (e.g. myFileFolder)")));
 		completions.push(this.newSimpleCompletionItem(getText('activeFolderMedium'), range, vscode.l10n.t("the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
 		completions.push(this.newSimpleCompletionItem(getText('activeFolderLong'), range, vscode.l10n.t("the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('rootName'), range, vscode.l10n.t("name of the workspace (e.g. myFolder or myWorkspace)")));
+		completions.push(this.newSimpleCompletionItem(getText('rootName'), range, vscode.l10n.t("name of the workspace (e.g. myFolder or myWorkspace), with '(Workspace)' on workspaces.")));
+		completions.push(this.newSimpleCompletionItem(getText('rootNameShort'), range, vscode.l10n.t("name of the workspace (e.g. myFolder or myWorkspace), without the '(Workspace)' text.")));
+		completions.push(this.newSimpleCompletionItem(getText('rootNameLong'), range, vscode.l10n.t("`name of the workspace (e.g. myFolder or myWorkspace), with '(Workspace)' on workspaces and the full path to the workspace.")));
 		completions.push(this.newSimpleCompletionItem(getText('rootPath'), range, vscode.l10n.t("file path of the workspace (e.g. /Users/Development/myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem(getText('folderName'), range, vscode.l10n.t("name of the workspace folder the file is contained in (e.g. myFolder)")));
 		completions.push(this.newSimpleCompletionItem(getText('folderPath'), range, vscode.l10n.t("file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));

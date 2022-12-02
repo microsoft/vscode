@@ -27,6 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { Verbosity } from 'vs/workbench/common/editor';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -287,7 +288,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return pathLib.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbosity: Verbosity }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (identifier) {
@@ -315,11 +316,11 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbosity: Verbosity }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
-			return localize('untitledWorkspace', "Untitled (Workspace)");
+			return (options?.verbosity === Verbosity.SHORT) ? localize('untitledWorkspace', "Untitled") : localize('untitledWorkspace', "Untitled (Workspace)");
 		}
 
 		// Workspace: Temporary
@@ -334,17 +335,25 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label: string;
-		if (options?.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
-		} else {
-			label = localize('workspaceName', "{0} (Workspace)", filename);
+
+		switch (options?.verbosity) {
+			case Verbosity.SHORT:
+				label = localize('workspaceName', "{0}", filename);
+				break;
+			default:
+			case Verbosity.MEDIUM:
+				label = localize('workspaceName', "{0} (Workspace)", filename);
+				break;
+			case Verbosity.LONG:
+				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+				break;
 		}
 
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
-		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || posix.sep;
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbosity: Verbosity }): string {
+		const label = options?.verbosity == Verbosity.LONG ? this.getUriLabel(folderUri) : basename(folderUri) || posix.sep;
 
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}

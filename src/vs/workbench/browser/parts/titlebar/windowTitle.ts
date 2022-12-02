@@ -206,7 +206,7 @@ export class WindowTitle extends Disposable {
 		}
 
 		// Compute remote
-		// vscode-remtoe: use as is
+		// vscode-remote: use as is
 		// otherwise figure out if we have a virtual folder opened
 		let remoteName: string | undefined = undefined;
 		if (this.environmentService.remoteAuthority && !isWeb) {
@@ -226,6 +226,8 @@ export class WindowTitle extends Disposable {
 		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
 		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
+		const rootNameShort = this.labelService.getWorkspaceLabel(workspace, { verbosity: Verbosity.SHORT });
+		const rootNameLong = this.labelService.getWorkspaceLabel(workspace, { verbosity: Verbosity.LONG });
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
@@ -242,6 +244,8 @@ export class WindowTitle extends Disposable {
 			activeFolderMedium,
 			activeFolderLong,
 			rootName,
+			rootNameShort,
+			rootNameLong,
 			rootPath,
 			folderName,
 			folderPath,
