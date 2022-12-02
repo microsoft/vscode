@@ -338,7 +338,7 @@ export async function getQuickFixesForCommand(
 									run: () => {
 										onDidRequestRerunCommand?.fire({
 											command: fix.terminalCommand,
-											addNewLine: !!fix.addNewLine ? fix.addNewLine : true
+											addNewLine: fix.addNewLine ?? true
 										});
 									},
 									tooltip: label,
