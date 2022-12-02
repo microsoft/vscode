@@ -1137,6 +1137,8 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
+
+		this.windowsMainService?.sendToAll('vscode.accessibilitySupportChanged', app.isAccessibilitySupportEnabled());
 	}
 
 	private async installMutex(): Promise<void> {
