@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { statSync, readFileSync } from 'fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as utils from './utils';
 import * as colors from 'ansi-colors';
 import * as ts from 'typescript';
 import * as Vinyl from 'vinyl';
+import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
@@ -158,8 +159,63 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 								const dirname = path.dirname(vinyl.relative);
 								const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
 
-								const sourceMap = JSON.parse(sourcemapFile.text);
+								let sourceMap = <RawSourceMap>JSON.parse(sourcemapFile.text);
 								sourceMap.sources[0] = tsname.replace(/\\/g, '/');
+
+								// check for an input source map and combine them
+								const snapshot = host.getScriptSnapshot(fileName);
+								if (snapshot instanceof VinylScriptSnapshot && snapshot.sourceMap) {
+									const inputSMC = new SourceMapConsumer(snapshot.sourceMap);
+									const tsSMC = new SourceMapConsumer(sourceMap);
+									let didChange = false;
+									const smg = new SourceMapGenerator({
+										file: sourceMap.file,
+										sourceRoot: sourceMap.sourceRoot
+									});
+									tsSMC.eachMapping(m => {
+										didChange = true;
+										const original = { line: m.originalLine, column: m.originalColumn };
+										const generated = { line: m.generatedLine, column: m.generatedColumn };
+										// JS-out position -> input original position
+										const inputOriginal = inputSMC.originalPositionFor(original);
+										if (inputOriginal.source !== null) {
+											const inputSource = inputOriginal.source;
+											smg.addMapping({
+												source: inputSource,
+												name: inputOriginal.name,
+												generated: generated,
+												original: inputOriginal
+											});
+											smg.setSourceContent(
+												inputSource,
+												inputSMC.sourceContentFor(inputSource)
+											);
+										} else {
+											smg.addMapping({
+												source: m.source,
+												name: m.name,
+												generated: generated,
+												original: original
+											});
+											smg.setSourceContent(
+												m.source,
+												tsSMC.sourceContentFor(m.source)
+											);
+
+										}
+									}, null, SourceMapConsumer.GENERATED_ORDER);
+
+									if (didChange) {
+										sourceMap = JSON.parse(smg.toString());
+
+										// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
+										// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
+										// 	await fs.promises.writeFile(filename, smg.toString());
+										// 	await fs.promises.writeFile('/Users/jrieken/Code/vscode/src2/' + vinyl.relative, vinyl.contents);
+										// });
+									}
+								}
+
 								(<any>vinyl).sourceMap = sourceMap;
 							}
 						}
@@ -397,9 +453,12 @@ class VinylScriptSnapshot extends ScriptSnapshot {
 
 	private readonly _base: string;
 
-	constructor(file: Vinyl) {
+	readonly sourceMap?: RawSourceMap;
+
+	constructor(file: Vinyl & { sourceMap?: RawSourceMap }) {
 		super(file.contents!.toString(), file.stat!.mtime);
 		this._base = file.base;
+		this.sourceMap = file.sourceMap;
 	}
 
 	getBase(): string {
@@ -474,9 +533,9 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 			try {
 				result = new VinylScriptSnapshot(new Vinyl(<any>{
 					path: filename,
-					contents: readFileSync(filename),
+					contents: fs.readFileSync(filename),
 					base: this.getCompilationSettings().outDir,
-					stat: statSync(filename)
+					stat: fs.statSync(filename)
 				}));
 				this.addScriptSnapshot(filename, result);
 			} catch (e) {

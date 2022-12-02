@@ -7,6 +7,8 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 import { argv } from 'process';
+import { SourceMapGenerator } from 'source-map';
+import { pathToFileURL } from 'url';
 
 class ShortIdent {
 
@@ -339,7 +341,7 @@ export class Mangler {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
-	computeNewFileContents(): Map<string, string> {
+	computeNewFileContents(): Map<string, { out: string; sourceMap?: string }> {
 
 		// STEP: find all classes and their field info
 
@@ -467,10 +469,17 @@ export class Mangler {
 		this.log(`done preparing EDITS for ${editsByFile.size} files`);
 
 		// STEP: apply all rename edits (per file)
-		const result = new Map<string, string>();
+		const result = new Map<string, { out: string; sourceMap?: string }>();
 		let savedBytes = 0;
 
 		for (const item of this.service.getProgram()!.getSourceFiles()) {
+
+			const { mapRoot, sourceRoot } = this.service.getProgram()!.getCompilerOptions();
+			const projectDir = path.dirname(this.projectPath);
+			const sourceMapRoot = mapRoot ?? pathToFileURL(sourceRoot ?? projectDir).toString();
+
+			// source maps
+			let generator: SourceMapGenerator | undefined;
 
 			let newFullText: string;
 			const edits = editsByFile.get(item.fileName);
@@ -479,6 +488,13 @@ export class Mangler {
 				newFullText = item.getFullText();
 
 			} else {
+				// source map generator
+				const relativeFileName = path.relative(projectDir, item.fileName);
+				generator = new SourceMapGenerator({
+					file: path.basename(item.fileName),
+					sourceRoot: sourceMapRoot
+				});
+
 				// apply renames
 				edits.sort((a, b) => b.offset - a.offset);
 				const characters = item.getFullText().split('');
@@ -498,12 +514,27 @@ export class Mangler {
 						}
 					}
 					lastEdit = edit;
-					const removed = characters.splice(edit.offset, edit.length, edit.newText);
-					savedBytes += removed.length - edit.newText.length;
+					const mangledName = characters.splice(edit.offset, edit.length, edit.newText).join('');
+					savedBytes += mangledName.length - edit.newText.length;
+
+					// source maps
+					const pos = item.getLineAndCharacterOfPosition(edit.offset);
+					generator.addMapping({
+						source: relativeFileName,
+						original: { line: pos.line + 1, column: pos.character },
+						generated: { line: pos.line + 1, column: pos.character },
+						name: mangledName
+					});
+					generator.addMapping({
+						source: relativeFileName,
+						original: { line: pos.line + 1, column: pos.character + edit.length },
+						generated: { line: pos.line + 1, column: pos.character + edit.newText.length }
+					});
+					generator.setSourceContent(relativeFileName, item.getFullText());
 				}
 				newFullText = characters.join('');
 			}
-			result.set(item.fileName, newFullText);
+			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
 		}
 
 		this.log(`DONE saved ${savedBytes / 1000}kb`);
@@ -523,12 +554,15 @@ async function _run() {
 
 	const projectPath = path.join(__dirname, '../../src/tsconfig.json');
 	const projectBase = path.dirname(projectPath);
-	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '-mangle');
+	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
 
 	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents()) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
 		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
-		await fs.promises.writeFile(newFilePath, contents);
+		await fs.promises.writeFile(newFilePath, contents.out);
+		if (contents.sourceMap) {
+			await fs.promises.writeFile(newFilePath + '.map', contents.sourceMap);
+		}
 	}
 }
 
