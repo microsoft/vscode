@@ -19,17 +19,13 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
-import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
+import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService, WorkspaceHasCommenting } from 'vs/workbench/contrib/comments/browser/commentService';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
@@ -47,7 +43,6 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
-import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
@@ -1212,104 +1207,3 @@ function getActiveController(accessor: ServicesAccessor): CommentController | un
 	return controller;
 }
 
-registerThemingParticipant((theme, collector) => {
-	const peekViewBackground = theme.getColor(peekViewResultsBackground);
-	if (peekViewBackground) {
-		collector.addRule(
-			`.monaco-editor .review-widget,` +
-			`.monaco-editor .review-widget {` +
-			`	background-color: ${peekViewBackground};` +
-			`}`);
-	}
-
-	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
-	if (monacoEditorBackground) {
-		collector.addRule(
-			`.review-widget .body .comment-form .review-thread-reply-button {` +
-			`	background-color: ${monacoEditorBackground}` +
-			`}`
-		);
-	}
-
-	const monacoEditorForeground = theme.getColor(editorForeground);
-	if (monacoEditorForeground) {
-		collector.addRule(
-			`.review-widget .body .monaco-editor {` +
-			`	color: ${monacoEditorForeground}` +
-			`}` +
-			`.review-widget .body .comment-form .review-thread-reply-button {` +
-			`	color: ${monacoEditorForeground};` +
-			`	font-size: inherit` +
-			`}`
-		);
-	}
-
-	const selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
-
-	if (selectionBackground) {
-		collector.addRule(
-			`@keyframes monaco-review-widget-focus {` +
-			`	0% { background: ${selectionBackground}; }` +
-			`	100% { background: transparent; }` +
-			`}` +
-			`.review-widget .body .review-comment.focus {` +
-			`	animation: monaco-review-widget-focus 3s ease 0s;` +
-			`}`
-		);
-	}
-
-	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
-	if (commentingRangeForeground) {
-		collector.addRule(`
-			.monaco-editor .comment-diff-added,
-			.monaco-editor .comment-range-glyph.multiline-add {
-				border-left-color: ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-diff-added:before,
-			.monaco-editor .comment-range-glyph.line-hover:before {
-				background: ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-thread:before {
-				background: ${commentingRangeForeground};
-			}
-		`);
-	}
-
-	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
-	if (statusBarItemHoverBackground) {
-		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
-	}
-
-	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
-	if (statusBarItemActiveBackground) {
-		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
-	}
-
-	const commentThreadRangeBackgroundColor = theme.getColor(commentThreadRangeBackground);
-	if (commentThreadRangeBackgroundColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range { background-color: ${commentThreadRangeBackgroundColor};}`);
-	}
-
-	const commentThreadRangeBorderColor = theme.getColor(commentThreadRangeBorder);
-	if (commentThreadRangeBorderColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range {
-		border-color: ${commentThreadRangeBorderColor};
-		border-width: 1px;
-		border-style: solid;
-		box-sizing: border-box; }`);
-	}
-
-	const commentThreadRangeActiveBackgroundColor = theme.getColor(commentThreadRangeActiveBackground);
-	if (commentThreadRangeActiveBackgroundColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range-current { background-color: ${commentThreadRangeActiveBackgroundColor};}`);
-	}
-
-	const commentThreadRangeActiveBorderColor = theme.getColor(commentThreadRangeActiveBorder);
-	if (commentThreadRangeActiveBorderColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range-current {
-		border-color: ${commentThreadRangeActiveBorderColor};
-		border-width: 1px;
-		border-style: solid;
-		box-sizing: border-box; }`);
-	}
-});

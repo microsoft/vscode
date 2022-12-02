@@ -8,6 +8,10 @@
 	position: absolute;
 }
 
+.monaco-editor .review-widget,
+.monaco-editor .review-widget {
+	background-color: var(--vscode-peekViewResult-background);
+}
 .review-widget .hidden {
 	display: none !important;
 }
@@ -21,6 +25,19 @@
 	display: flex;
 }
 
+@keyframes monaco-review-widget-focus {
+	0% {
+		background: var(--vscode-peekViewResult-selectionBackground);
+	}
+
+	100% {
+		background: transparent;
+	}
+}
+
+.review-widget .body .review-comment.focus {
+	animation: monaco-review-widget-focus 3s ease 0s;
+}
 .review-widget .body .review-comment .comment-actions {
 	margin-left: auto;
 }
@@ -183,6 +200,14 @@
 	opacity: 0.6;
 }
 
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover {
+	background-color: var(--vscode-statusBarItem-hoverBackground);
+}
+
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active {
+	background-color: var(--vscode-statusBarItem-activeBackground);
+	border: 1px solid transparent;
+}
 .review-widget .body .review-comment .review-comment-contents a {
 	cursor: pointer;
 }
@@ -282,6 +307,9 @@
 	align-items: center;
 }
 
+.review-widget .body .monaco-editor {
+	color: var(--vscode-editor-foreground);
+}
 .review-widget .body .comment-form.expand .review-thread-reply-button {
 	display: none;
 }
@@ -305,6 +333,9 @@
 	white-space: nowrap;
 	border: 0px;
 	outline: 1px solid transparent;
+	background-color: var(--vscode-peekViewTitle-background);
+	color: var(--vscode--editor-foreground);
+	font-size: inherit;
 }
 
 .review-widget .body .comment-form .review-thread-reply-button:focus {
@@ -423,6 +454,37 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-diff-added {
 	border-left-width: 3px;
 	border-left-style: solid;
+}
+
+.monaco-editor .comment-diff-added,
+.monaco-editor .comment-range-glyph.multiline-add {
+	border-left-color: var(--vscode-editorGutter-commentRangeForeground);
+}
+
+.monaco-editor .comment-diff-added:before,
+.monaco-editor .comment-range-glyph.line-hover:before {
+	background: var(--vscode-editorGutter-commentRangeForeground);
+}
+
+.monaco-editor .comment-thread:before {
+	background: var(--vscode-editorGutter-commentRangeForeground);
+}
+
+.monaco-editor .comment-thread-range,
+.monaco-editor .comment-thread-range-current {
+	border-width: 1px;
+	border-style: solid;
+	box-sizing: border-box;
+}
+
+.monaco-editor .comment-thread-range {
+	background-color: var(--vscode-editorCommentsWidget-rangeBackground);
+	border-color: var(--vscode-editorCommentsWidget-rangeBorder);
+}
+
+.monaco-editor .comment-thread-range-current {
+	background-color: var(--vscode-editorCommentsWidget-rangeActiveBackground);
+	border-color: var(--vscode-editorCommentsWidget-rangeActiveBorder);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
