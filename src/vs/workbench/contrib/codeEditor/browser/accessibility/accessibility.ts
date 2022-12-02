@@ -120,7 +120,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KeyE)) {
 				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
 
-				this._configurationService.updateValue('editor.accessibilitySupport', 'on');
+				this._configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 
 				e.preventDefault();
 				e.stopPropagation();
