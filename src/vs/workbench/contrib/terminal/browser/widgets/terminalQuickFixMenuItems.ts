@@ -65,7 +65,7 @@ function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
 		case TerminalQuickFixType.Opener:
 			if ('uri' in quickFix.action && quickFix.action.uri?.scheme) {
 				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
-				return { codicon: isUrl ? Codicon.link : Codicon.file };
+				return { codicon: isUrl ? Codicon.linkExternal : Codicon.goToFile };
 			}
 		case TerminalQuickFixType.Command:
 			return { codicon: Codicon.run };
