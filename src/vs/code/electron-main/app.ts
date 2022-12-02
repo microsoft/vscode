@@ -544,10 +544,10 @@ export class CodeApplication extends Disposable {
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
-
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
 			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+			this.windowsMainService?.sendToAll('vscode.accessibilitySupportChanged', app.isAccessibilitySupportEnabled());
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
 	}
@@ -1137,8 +1137,6 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
-
-		this.windowsMainService?.sendToAll('vscode.accessibilitySupportChanged', app.isAccessibilitySupportEnabled());
 	}
 
 	private async installMutex(): Promise<void> {

@@ -107,7 +107,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		if (this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
-
+		console.log('set accessibility support', accessibilitySupport);
 		this._accessibilitySupport = accessibilitySupport;
 		this._onDidChangeScreenReaderOptimized.fire();
 	}
