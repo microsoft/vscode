@@ -8,9 +8,7 @@ import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { memoize } from '../utils/memoize';
 import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptVersion } from './versionProvider';
-// NIEUW
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
-// import { Cancellation } from '@vscode/sync-api-common/lib/common/messageCancellation';
 import { Requests, ApiService } from '@vscode/sync-api-service';
 
 
@@ -108,10 +106,6 @@ export class WorkerServerProcess implements TsServerProcess {
 	}
 
 	write(serverRequest: Proto.Request): void {
-		// let cancelFn = Cancellation.addData(serverRequest)
-		// TODO: what is token supposed to be? Why did the terms 'client' and 'server' appear to reverse?
-		// token.onCancellationRequest(() => cancelFn())
-
 		this.worker.postMessage(serverRequest);
 	}
 

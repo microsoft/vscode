@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Cancellation } from '@vscode/sync-api-common/lib/common/messageCancellation';
 import type * as Proto from '../protocol';
 import { EventName } from '../protocol.const';
 import { CallbackMap } from '../tsServer/callbackMap';
@@ -167,6 +168,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					throw new Error(`Unknown message type ${message.type} received`);
 			}
 		} finally {
+			// TODO: Also need to make requests cancellable that came in while handling responses, but I don't have a token
 			this.sendNextRequests();
 		}
 	}
@@ -220,6 +222,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
 				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
+				// TODO: Need to decide whether to old-cancel or new-cancel (although for prototype purposes, doing both might not crash)
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
 						this.tryCancelRequest(request.seq, command);
@@ -246,16 +249,19 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 
 		this._requestQueue.enqueue(requestInfo);
-		this.sendNextRequests();
+		this.sendNextRequests(executeInfo.expectsResult && executeInfo.token);
 
 		return [result];
 	}
 
-	private sendNextRequests(): void {
+	private sendNextRequests(cancelToken?: vscode.CancellationToken | false): void {
 		while (this._pendingResponses.size === 0 && this._requestQueue.length > 0) {
 			const item = this._requestQueue.dequeue();
 			if (item) {
 				this.sendRequest(item);
+				if (cancelToken) {
+					cancelToken.onCancellationRequested(Cancellation.addData(item.request));
+				}
 			}
 		}
 	}

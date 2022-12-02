@@ -5,13 +5,12 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='dom' />
 import * as ts from 'typescript/lib/tsserverlibrary';
-import { ApiClient/*, Cancellation*/, FileType, Requests } from '@vscode/sync-api-client';
+import { ApiClient, Cancellation, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
 import { URI } from 'vscode-uri';
 // GLOBALS
 let watchFiles: Map<string, { path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions }> = new Map();
 let watchDirectories: Map<string, { path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions }> = new Map();
-// let isCancelled = () => false
 let session: WorkerSession | undefined;
 // END GLOBALS
 // BEGIN misc internals
@@ -345,17 +344,32 @@ function createWebSystem(connection: ClientConnection<Requests>, logger: ts.serv
 	return sys
 }
 
-// TODO: Cancellation next
-// const woo: ts.server.ServerCancellationToken = {
-//	 // TODO: Figure out what these are for
-//	 setRequest(requestId: number) {
-//	 },
-//	 resetRequest(requestId: number)  {
-//	 },
-//	 isCancellationRequested(): boolean {
-//		 return isCancelled()
-//	 }
-// }
+class WasmCancellationToken implements ts.server.ServerCancellationToken {
+	checkers: Array<() => boolean> = [];
+	// TODO: If this is like Session in tsserver, you can keep just the checker for the most recent request id
+	// However, I don't yet track request id (or know how to get it from tsserver if it's tracked there)
+	currentRequestId: number | undefined = undefined
+	setRequest(requestId: number) {
+		this.currentRequestId = requestId
+	}
+	resetRequest(requestId: number) {
+		if (requestId === this.currentRequestId) {
+			this.currentRequestId = undefined
+		}
+		else {
+			throw new Error("Mismatched request ids, thanks Copilot")
+		}
+	}
+	isCancellationRequested(): boolean {
+		return this.checkers.some(c => c());
+	}
+	add(cancellation: () => boolean) {
+		if (cancellation) {
+			this.checkers.push(cancellation)
+		}
+	}
+}
+const wasmCancellationToken = new WasmCancellationToken()
 
 interface StartSessionOptions {
 	globalPlugins: ts.server.SessionOptions['globalPlugins'];
@@ -459,7 +473,6 @@ function initializeSession(args: string[], platform: string, connection: ClientC
 	// webServer.ts
 	// getWebPath
 	// ScriptInfo.ts:isDynamicFilename <-- better predicate than trimHat
-	const cancellationToken = ts.server.nullCancellationToken // TODO: Switch to real cancellation when it's ready
 	const serverMode = ts.LanguageServiceMode.Semantic
 	const unknownServerMode = undefined
 	serverLogger.info(`Starting TS Server`);
@@ -480,7 +493,7 @@ function initializeSession(args: string[], platform: string, connection: ClientC
 	},
 		connection,
 		serverLogger,
-		cancellationToken);
+		wasmCancellationToken);
 }
 function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
 	const arg = findArgument(args, name)
@@ -532,7 +545,10 @@ const listener = async (e: any) => {
 			callWatcher(e.data.event, e.data.path, serverLogger)
 		}
 		else {
-			// isCancelled = Cancellation.retrieveCheck(e);
+			// TODO: Not sure whether this should be `e` or `e.data`
+			wasmCancellationToken.add(Cancellation.retrieveCheck(e.data))
+			// ok, now you have a function to call that returns true if we're cancelled.
+			// how does typescript use that?
 			session.onMessage(translateRequest(e.data))
 		}
 	}
