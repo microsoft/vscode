@@ -157,7 +157,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					// not exist. Doing otherwise could cause unexpected results where handling via the
 					// word link detector is preferable.
 					if (absolutePath) {
-						linkCandidates.push(absolutePath);
+						linkCandidates.push(...absolutePath);
 					}
 				} else {
 					// Fallback to resolving against the initial cwd, removing any relative directory prefixes
