@@ -30,11 +30,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	) {
 		super();
 		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);
-
-		const updateContextKey = () => this._accessibilityModeEnabledContext.set(this.isScreenReaderOptimized());
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
-				updateContextKey();
+				this._updateContextKey();
 				this._onDidChangeScreenReaderOptimized.fire();
 			}
 			if (e.affectsConfiguration('workbench.reduceMotion')) {
@@ -42,14 +40,17 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 				this._onDidChangeReducedMotion.fire();
 			}
 		}));
-		updateContextKey();
-		this._register(this.onDidChangeScreenReaderOptimized(() => updateContextKey()));
+		this._updateContextKey();
 
 		const reduceMotionMatcher = window.matchMedia(`(prefers-reduced-motion: reduce)`);
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
 
 		this.initReducedMotionListeners(reduceMotionMatcher);
+	}
+
+	private _updateContextKey(): void {
+		this._accessibilityModeEnabledContext.set(this.isScreenReaderOptimized());
 	}
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
@@ -109,6 +110,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		}
 
 		this._accessibilitySupport = accessibilitySupport;
+		this._updateContextKey();
 		this._onDidChangeScreenReaderOptimized.fire();
 	}
 

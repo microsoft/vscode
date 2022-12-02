@@ -21,7 +21,7 @@ import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOpti
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -341,7 +341,7 @@ class ToggleScreenReaderMode extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const value = configurationService.getValue('editor.accessibilitySupport');
-		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on');
+		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on', ConfigurationTarget.APPLICATION);
 	}
 }
 
