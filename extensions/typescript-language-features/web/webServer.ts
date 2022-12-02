@@ -5,262 +5,357 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='dom' />
 import * as ts from 'typescript/lib/tsserverlibrary';
+import { ApiClient/*, Cancellation*/, FileType, Requests } from '@vscode/sync-api-client';
+import { ClientConnection } from '@vscode/sync-api-common/browser';
+import { URI } from 'vscode-uri';
+// GLOBALS
+let watchFiles: Map<string, { path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions }> = new Map();
+let watchDirectories: Map<string, { path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions }> = new Map();
+// let isCancelled = () => false
+let session: WorkerSession | undefined;
+// END GLOBALS
 // BEGIN misc internals
-const hasArgument: (argumentName: string) => boolean = (ts as any).server.hasArgument;
-const findArgument: (argumentName: string) => string | undefined = (ts as any).server.findArgument;
-const nowString: () => string = (ts as any).server.nowString;
-const noop = () => { };
-const perfLogger = {
-	logEvent: noop,
-	logErrEvent(_: any) { },
-	logPerfEvent(_: any) { },
-	logInfoEvent(_: any) { },
-	logStartCommand: noop,
-	logStopCommand: noop,
-	logStartUpdateProgram: noop,
-	logStopUpdateProgram: noop,
-	logStartUpdateGraph: noop,
-	logStopUpdateGraph: noop,
-	logStartResolveModule: noop,
-	logStopResolveModule: noop,
-	logStartParseSourceFile: noop,
-	logStopParseSourceFile: noop,
-	logStartReadFile: noop,
-	logStopReadFile: noop,
-	logStartBindFile: noop,
-	logStopBindFile: noop,
-	logStartScheduledOperation: noop,
-	logStopScheduledOperation: noop,
-};
-const assertNever: (member: never) => never = (ts as any).Debug.assertNever;
-const memoize: <T>(callback: () => T) => () => T = (ts as any).memoize;
-const ensureTrailingDirectorySeparator: (path: string) => string = (ts as any).ensureTrailingDirectorySeparator;
-const getDirectoryPath: (path: string) => string = (ts as any).getDirectoryPath;
-const directorySeparator: string = (ts as any).directorySeparator;
-const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
-const noopFileWatcher: ts.FileWatcher = { close: noop };
-const returnNoopFileWatcher = () => noopFileWatcher;
-function getLogLevel(level: string | undefined) {
-	if (level) {
-		const l = level.toLowerCase();
-		for (const name in ts.server.LogLevel) {
-			if (isNaN(+name) && l === name.toLowerCase()) {
-				return ts.server.LogLevel[name] as any as ts.server.LogLevel;
-			}
-		}
-	}
-	return undefined;
-}
-
-const notImplemented: () => never = (ts as any).notImplemented;
-const returnFalse: () => false = (ts as any).returnFalse;
-const returnUndefined: () => undefined = (ts as any).returnUndefined;
-const identity: <T>(x: T) => T = (ts as any).identity;
 const indent: (str: string) => string = (ts as any).server.indent;
 const setSys: (s: ts.System) => void = (ts as any).setSys;
-const validateLocaleAndSetLanguage: (
-	locale: string,
-	sys: { getExecutingFilePath(): string; resolvePath(path: string): string; fileExists(fileName: string): boolean; readFile(fileName: string): string | undefined },
-) => void = (ts as any).validateLocaleAndSetLanguage;
-const setStackTraceLimit: () => void = (ts as any).setStackTraceLimit;
 
 // End misc internals
 // BEGIN webServer/webServer.ts
-interface HostWithWriteMessage {
-	writeMessage(s: any): void;
+/**
+ * Convert an in-memory path to a simply rooted path.
+ * TODO: Eventually we should insert an artificial prefix (perhaps either `scheme` or `authority`) so that we can hang other things
+ * off the root like ATA or other things.
+ *
+ * Find the first ^ anywhere in the path and delete ^/scheme/authority from that position
+ */
+function fromInMemory(path: string) {
+	const i = path.indexOf("^")
+	if (i > -1) {
+		return path.replace(/\^\/[0-9A-Za-z-]+\/[0-9A-Za-z-]+/, '').replace(/\/\//, '/')
+	}
+	return path
 }
-interface WebHost extends HostWithWriteMessage {
-	readFile(path: string): string | undefined;
-	fileExists(path: string): boolean;
+function toInMemory(path: string, scheme: string, authority: string) {
+	return `^/${scheme}/${authority}${path}`
 }
-
-class BaseLogger implements ts.server.Logger {
-	private seq = 0;
-	private inGroup = false;
-	private firstInGroup = true;
-	constructor(protected readonly level: ts.server.LogLevel) {
-	}
-	static padStringRight(str: string, padding: string) {
-		return (str + padding).slice(0, padding.length);
-	}
-	close() {
-	}
-	getLogFileName(): string | undefined {
-		return undefined;
-	}
-	perftrc(s: string) {
-		this.msg(s, ts.server.Msg.Perf);
-	}
-	info(s: string) {
-		this.msg(s, ts.server.Msg.Info);
-	}
-	err(s: string) {
-		this.msg(s, ts.server.Msg.Err);
-	}
-	startGroup() {
-		this.inGroup = true;
-		this.firstInGroup = true;
-	}
-	endGroup() {
-		this.inGroup = false;
-	}
-	loggingEnabled() {
-		return true;
-	}
-	hasLevel(level: ts.server.LogLevel) {
-		return this.loggingEnabled() && this.level >= level;
-	}
-	msg(s: string, type: ts.server.Msg = ts.server.Msg.Err) {
-		switch (type) {
-			case ts.server.Msg.Info:
-				perfLogger.logInfoEvent(s);
+function translateRequest(message: {}) {
+	if ("command" in message) {
+		let msg
+		switch (message.command) {
+			case "updateOpen":
+				msg = message as ts.server.protocol.UpdateOpenRequest;
+				msg.arguments.changedFiles?.forEach(f => f.fileName = fromInMemory(f.fileName));
+				msg.arguments.openFiles?.forEach(f => f.file = fromInMemory(f.file));
+				if (msg.arguments.closedFiles) {
+					msg.arguments.closedFiles = msg.arguments.closedFiles.map(fromInMemory);
+				}
 				break;
-			case ts.server.Msg.Perf:
-				perfLogger.logPerfEvent(s);
+			case "navtree":
+				msg = message as ts.server.protocol.NavTreeRequest;
+				msg.arguments.file = fromInMemory(msg.arguments.file);
 				break;
-			default: // Msg.Err
-				perfLogger.logErrEvent(s);
+			case "geterr":
+				msg = message as ts.server.protocol.GeterrRequest;
+				msg.arguments.files = msg.arguments.files.map(fromInMemory);
+				break;
+			case "getOutliningSpans":
+			case "configure":
+			case "quickinfo":
+			case "completionInfo":
+			case "projectInfo":
+			case "getApplicableRefactors":
+			case "encodedSemanticClassifications-full":
+			case "getCodeFixes":
+				msg = message as ts.server.protocol.FileRequest;
+				if (msg.arguments.file)
+					msg.arguments.file = fromInMemory(msg.arguments.file);
 				break;
 		}
-
-		if (!this.canWrite()) { return; }
-
-		s = `[${nowString()}] ${s}\n`;
-		if (!this.inGroup || this.firstInGroup) {
-			const prefix = BaseLogger.padStringRight(type + ' ' + this.seq.toString(), '		  ');
-			s = prefix + s;
-		}
-		this.write(s, type);
-		if (!this.inGroup) {
-			this.seq++;
-		}
 	}
-	protected canWrite() {
-		return true;
-	}
-	protected write(_s: string, _type: ts.server.Msg) {
-	}
+	return message
 }
+function translateResponse(message: ts.server.protocol.Message) {
+	let msg
+	if (message.type === 'event') {
+		msg = message as ts.server.protocol.Event;
+		switch (msg.event) {
+			case "projectLoadingStart":
+			case "projectLoadingFinish":
+				msg.body.projectName = toInMemory(msg.body.projectName, 'vscode-test-web', 'mount')
+				break;
+			case "configFileDiag":
+				msg.body.triggerFile = toInMemory(msg.body.triggerFile, 'vscode-test-web', 'mount')
+				msg.body.configFile = toInMemory(msg.body.configFile, 'vscode-test-web', 'mount')
+				break;
+			case "syntaxDiag":
+			case "semanticDiag":
+			case "suggestionDiag":
+				msg.body.file = toInMemory(msg.body.file, 'vscode-test-web', 'mount')
+				break;
 
-type MessageLogLevel = 'info' | 'perf' | 'error';
-interface LoggingMessage {
-	readonly type: 'log';
-	readonly level: MessageLogLevel;
-	readonly body: string;
-}
-class MainProcessLogger extends BaseLogger {
-	constructor(level: ts.server.LogLevel, private host: HostWithWriteMessage) {
-		super(level);
-	}
-	protected override write(body: string, type: ts.server.Msg) {
-		let level: MessageLogLevel;
-		switch (type) {
-			case ts.server.Msg.Info:
-				level = 'info';
-				break;
-			case ts.server.Msg.Perf:
-				level = 'perf';
-				break;
-			case ts.server.Msg.Err:
-				level = 'error';
-				break;
-			default:
-				assertNever(type);
 		}
-		this.host.writeMessage({
-			type: 'log',
-			level,
-			body,
-		} as LoggingMessage);
+		if (msg.event === 'projectLoadingStart' || msg.event === 'projectLoadingFinish') {
+		}
 	}
+
 }
-
-function serverCreateWebSystem(host: WebHost, args: string[], getExecutingFilePath: () => string):
-	ts.server.ServerHost & {
-		importPlugin?(root: string, moduleName: string): Promise<ts.server.ModuleImportResult>;
-		getEnvironmentVariable(name: string): string;
-	} {
-	const returnEmptyString = () => '';
-	const getExecutingDirectoryPath = memoize(() => memoize(() => ensureTrailingDirectorySeparator(getDirectoryPath(getExecutingFilePath()))));
-	// Later we could map ^memfs:/ to do something special if we want to enable more functionality like module resolution or something like that
-	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;
-
+function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
+	const scheme = apiClient.vscode.workspace.workspaceFolders[0].uri.scheme
+	// TODO: Now see which uses of vfsroot need to become serverroot
+	const root = apiClient.vscode.workspace.workspaceFolders[0].uri.path
+	const fs = apiClient.vscode.workspace.fileSystem
+	logger.info(`starting serverhost with scheme ${scheme} and root ${root}`)
 	return {
+		/**
+		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
+		 */
+		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
+			const p = fromInMemory(path)
+			logger.info(`calling watchFile on ${path} (${p}) (${watchFiles.has(p) ? 'OLD' : 'new'})`)
+			watchFiles.set(p, { path: p, callback, pollingInterval, options })
+			return {
+				close() {
+					watchFiles.delete(path)
+				}
+			}
+		},
+		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
+			const p = fromInMemory(path)
+			logger.info(`calling watchDirectory on ${path} (${p}) (${watchDirectories.has(p) ? 'OLD' : 'new'})`)
+			watchDirectories.set(path, { path: p, callback, recursive, options })
+			return {
+				close() {
+					watchDirectories.delete(path)
+				}
+			}
+		},
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+			const timeoutId = setTimeout(callback, ms, ...args)
+			logger.info(`calling setTimeout, got ${timeoutId}`)
+			return timeoutId
+		},
+		clearTimeout(timeoutId: any): void {
+			logger.info(`calling clearTimeout on ${timeoutId}`)
+			clearTimeout(timeoutId)
+		},
+		/** MDN gives a few ways to emulate setImmediate: https://developer.mozilla.org/en-US/docs/Web/API/Window/setImmediate#notes */
+		setImmediate(callback: (...args: any[]) => void, ...args: any[]): any {
+			const timeoutId = this.setTimeout(callback, 0, ...args)
+			logger.info(`calling setImmediate, got ${timeoutId}`)
+			return timeoutId
+		},
+		clearImmediate(timeoutId: any): void {
+			logger.info(`calling clearImmediate on ${timeoutId}`)
+			// clearImmediate(timeoutId)
+			this.clearTimeout(timeoutId)
+		},
+		// gc?(): void {}, // afaict this isn't available in the browser
+		trace: logger.info,
+		// require?(initialPath: string, moduleName: string): ModuleImportResult {},
+		// TODO: This definitely needs to be imlemented
+		// importServicePlugin?(root: string, moduleName: string): Promise<ModuleImportResult> {},
+		// System
 		args,
-		newLine: '\r\n', // This can be configured by clients
-		useCaseSensitiveFileNames: false, // Use false as the default on web since that is the safest option
-		readFile: path => {
-			const webPath = getWebPath(path);
-			return webPath && host.readFile(webPath);
-		},
-		write: host.writeMessage.bind(host),
-		watchFile: returnNoopFileWatcher,
-		watchDirectory: returnNoopFileWatcher,
-
-		getExecutingFilePath: () => directorySeparator,
-		getCurrentDirectory: returnEmptyString, // For inferred project root if projectRoot path is not set, normalizing the paths
-
-		/* eslint-disable no-restricted-globals */
-		setTimeout: (cb, ms, ...args) => setTimeout(cb, ms, ...args),
-		clearTimeout: handle => clearTimeout(handle),
-		setImmediate: x => setTimeout(x, 0),
-		clearImmediate: handle => clearTimeout(handle),
-		/* eslint-enable no-restricted-globals */
-
-		importPlugin: async (initialDir: string, moduleName: string): Promise<ts.server.ModuleImportResult> => {
-			const packageRoot = combinePaths(initialDir, moduleName);
-
-			let packageJson: any | undefined;
+		newLine: '\n',
+		useCaseSensitiveFileNames: true,
+		write: apiClient.vscode.terminal.write, // TODO: MAYBE
+		writeOutputIsTTY(): boolean { return true }, // TODO: Maybe
+		// getWidthOfTerminal?(): number {},
+		readFile(path) {
 			try {
-				const packageJsonResponse = await fetch(combinePaths(packageRoot, 'package.json'));
-				packageJson = await packageJsonResponse.json();
+				logger.info('calling readFile on ' + path)
+				const bytes = fs.readFile(URI.from({ scheme, path: fromInMemory(path) }))
+				return new TextDecoder().decode(new Uint8Array(bytes).slice()) // TODO: Not sure why `bytes.slice()` isn't as good as `new Uint8Array(bytes).slice()`
+				// (common/connection.ts says that Uint8Array is only a view on the bytes which could change, which is why the slice exists)
 			}
 			catch (e) {
-				return { module: undefined, error: new Error('Could not load plugin. Could not load "package.json".') };
+				logger.info(`Error fs.readFile`)
+				logger(e)
+				return undefined
 			}
-
-			const browser = packageJson.browser;
-			if (!browser) {
-				return { module: undefined, error: new Error('Could not load plugin. No "browser" field found in package.json.') };
-			}
-
-			const scriptPath = combinePaths(packageRoot, browser);
+		},
+		getFileSize(path) {
 			try {
-				const { default: module } = await import(/* webpackIgnore: true */scriptPath);
-				return { module, error: undefined };
+				logger.info('calling getFileSize on ' + path)
+				return fs.stat(URI.from({ scheme, path })).size
 			}
 			catch (e) {
-				return { module: undefined, error: e };
+				logger.info(`Error fs.getFileSize`)
+				logger(e)
+				return -1 // TODO: Find out what the failure return value is in the normal host.
 			}
 		},
-		exit: notImplemented,
-
-		// Debugging related
-		getEnvironmentVariable: returnEmptyString, // TODO:: Used to enable debugging info
-		// tryEnableSourceMapsForHost?(): void;
-		// debugMode?: boolean;
-
-		// For semantic server mode
-		fileExists: path => {
-			const webPath = getWebPath(path);
-			return !!webPath && host.fileExists(webPath);
+		writeFile(path, data) {
+			try {
+				logger.info('calling writeFile on ' + path)
+				fs.writeFile(URI.from({ scheme, path }), new TextEncoder().encode(data))
+			}
+			catch (e) {
+				logger.info(`Error fs.writeFile`)
+				logger(e)
+			}
 		},
-		directoryExists: returnFalse, // Module resolution
-		readDirectory: notImplemented, // Configured project, typing installer
-		getDirectories: () => [], // For automatic type reference directives
-		createDirectory: notImplemented, // compile On save
-		writeFile: notImplemented, // compile on save
-		resolvePath: identity, // Plugins
-		// realpath? // Module resolution, symlinks
-		// getModifiedTime // File watching
-		// createSHA256Hash // telemetry of the project
-
-		// Logging related
-		// /*@internal*/ bufferFrom?(input: string, encoding?: string): Buffer;
-		// gc?(): void;
-		// getMemoryUsage?(): number;
-	};
+		/** If TS' webServer/webServer.ts is good enough to copy here, this is just identity */
+		resolvePath(path: string): string {
+			logger.info('calling resolvePath on ' + path)
+			return path
+		},
+		fileExists(path: string): boolean {
+			try {
+				logger.info(`calling fileExists on ${path} (as ${URI.from({ scheme, path: fromInMemory(path) })})`)
+				// TODO: FileType.File might be correct! (need to learn about vscode's FileSystem.stat)
+				return fs.stat(URI.from({ scheme, path: fromInMemory(path) })).type === FileType.File
+			}
+			catch (e) {
+				logger.info(`Error fs.fileExists for ${path}`)
+				logger(e)
+				return false
+			}
+		},
+		directoryExists(path: string): boolean {
+			try {
+				logger.info(`calling directoryExists on ${path} (as ${URI.from({ scheme, path: fromInMemory(path) })})`)
+				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
+				return fs.stat(URI.from({ scheme, path: fromInMemory(path) })).type === FileType.Directory
+			}
+			catch (e) {
+				logger.info(`Error fs.directoryExists for ${path}`)
+				logger(e)
+				return false
+			}
+		},
+		createDirectory(path: string): void {
+			try {
+				logger.info(`calling createDirectory on ${path} (as ${URI.from({ scheme, path: fromInMemory(path) })})`)
+				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
+				fs.createDirectory(URI.from({ scheme, path: fromInMemory(path) }))
+			}
+			catch (e) {
+				logger.info(`Error fs.createDirectory`)
+				logger(e)
+			}
+		},
+		getExecutingFilePath(): string {
+			logger.info('calling getExecutingFilePath')
+			return root // TODO: Might be correct!
+		},
+		getCurrentDirectory(): string {
+			logger.info('calling getCurrentDirectory')
+			return root // TODO: Might be correct!
+		},
+		getDirectories(path: string): string[] {
+			try {
+				logger.info('calling getDirectories on ' + path)
+				const entries = fs.readDirectory(URI.from({ scheme, path }))
+				return entries.filter(([_, type]) => type === FileType.Directory).map(([f, _]) => f)
+			}
+			catch (e) {
+				logger.info(`Error fs.getDirectory`)
+				logger(e)
+				return []
+			}
+		},
+		/**
+		 * TODO: A lot of this code is made-up and should be copied from a known-good implementation
+		 * For example, I have NO idea how to easily support `depth`
+		 * Note: webServer.ts comments say this is used for configured project and typing installer.
+		 */
+		readDirectory(path: string, extensions?: readonly string[], exclude?: readonly string[]): string[] {
+			try {
+				logger.info('calling readDirectory on ' + path)
+				const entries = fs.readDirectory(URI.from({ scheme, path }))
+				return entries
+					.filter(([f, type]) => type === FileType.File && (!extensions || extensions.some(ext => f.endsWith(ext))) && (!exclude || !exclude.includes(f)))
+					.map(([e, _]) => e)
+			}
+			catch (e) {
+				logger.info(`Error fs.readDirectory`)
+				logger(e)
+				return []
+			}
+		},
+		getModifiedTime(path: string): Date | undefined {
+			try {
+				logger.info('calling getModifiedTime on ' + path)
+				return new Date(fs.stat(URI.from({ scheme, path })).mtime)
+			}
+			catch (e) {
+				logger.info(`Error fs.getModifiedTime`)
+				logger(e)
+				return undefined
+			}
+		},
+		setModifiedTime(path: string): void {
+			logger.info('calling setModifiedTime on ' + path)
+			// But I don't have any idea of how to set the modified time to an arbitrary date!
+		},
+		deleteFile(path: string): void {
+			const uri = URI.from({ scheme, path })
+			try {
+				logger.info(`calling deleteFile on ${uri}`)
+				fs.delete(uri)
+			}
+			catch (e) {
+				logger.info(`Error fs.deleteFile`)
+				logger(e)
+			}
+		},
+		/**
+		 * A good implementation is node.js' `crypto.createHash`. (https://nodejs.org/api/crypto.html#crypto_crypto_createhash_algorithm)
+		 */
+		// createHash?(data: string): string {},
+		/** This must be cryptographically secure. Only implement this method using `crypto.createHash("sha256")`. */
+		// createSHA256Hash?(data: string): string { },
+		// getMemoryUsage?(): number {},
+		exit(exitCode?: number): void {
+			logger.info("EXCITING!" + exitCode)
+			removeEventListener("message", listener) // TODO: Not sure this is right (and there might be other cleanup)
+		},
+		/** webServer comments this out and says "module resolution, symlinks"
+		 * I don't think we support symlinks yet but module resolution should work */
+		realpath(path: string): string {
+			const parts = [...root.split('/'), ...fromInMemory(path).split('/')]
+			const out = []
+			for (const part of parts) {
+				switch (part) {
+					case '':
+					case '.':
+						break;
+					case '..':
+						//delete if there is something there to delete
+						out.pop()
+						break;
+					default:
+						out.push(part)
+				}
+			}
+			logger.info(`realpath: resolved ${path} (${fromInMemory(path)}) to ${'/' + out.join('/')}`)
+			return '/' + out.join('/')
+		},
+		// clearScreen?(): void { },
+		// base64decode?(input: string): string {},
+		// base64encode?(input: string): string {},
+	}
 }
+
+function createWebSystem(connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void)) {
+	logger.info("in createWebSystem")
+	const sys = createServerHost(logger, new ApiClient(connection), [])
+	setSys(sys)
+	logger.info("finished creating web system")
+	return sys
+}
+
+// TODO: Cancellation next
+// const woo: ts.server.ServerCancellationToken = {
+//	 // TODO: Figure out what these are for
+//	 setRequest(requestId: number) {
+//	 },
+//	 resetRequest(requestId: number)  {
+//	 },
+//	 isCancellationRequested(): boolean {
+//		 return isCancelled()
+//	 }
+// }
 
 interface StartSessionOptions {
 	globalPlugins: ts.server.SessionOptions['globalPlugins'];
@@ -273,29 +368,30 @@ interface StartSessionOptions {
 	syntaxOnly: ts.server.SessionOptions['syntaxOnly'];
 	serverMode: ts.server.SessionOptions['serverMode'];
 }
-class ServerWorkerSession extends ts.server.Session<{}> {
+class WorkerSession extends ts.server.Session<{}> {
 	constructor(
 		host: ts.server.ServerHost,
-		private webHost: HostWithWriteMessage,
 		options: StartSessionOptions,
 		logger: ts.server.Logger,
 		cancellationToken: ts.server.ServerCancellationToken,
-		hrtime: ts.server.SessionOptions['hrtime']
+		hrtime: ts.server.SessionOptions["hrtime"]
 	) {
 		super({
 			host,
 			cancellationToken,
 			...options,
-			typingsInstaller: ts.server.nullTypingsInstaller,
-			byteLength: notImplemented, // Formats the message text in send of Session which is overriden in this class so not needed
+			typingsInstaller: ts.server.nullTypingsInstaller, // TODO: Someday!
+			byteLength: () => { throw new Error("Not implemented") }, // Formats the message text in send of Session which is overriden in this class so not needed
 			hrtime,
 			logger,
 			canUseEvents: true,
 		});
+		this.logger.info('done constructing WorkerSession')
 	}
-
 	public override send(msg: ts.server.protocol.Message) {
-		if (msg.type === 'event' && !this.canUseEvents) {
+		// TODO: Translate paths *back* to ^/scheme/authority/ format.. actually this should be easy.
+		translateResponse(msg)
+		if (msg.type === "event" && !this.canUseEvents) {
 			if (this.logger.hasLevel(ts.server.LogLevel.verbose)) {
 				this.logger.info(`Session does not support events: ignored event: ${JSON.stringify(msg)}`);
 			}
@@ -304,113 +400,30 @@ class ServerWorkerSession extends ts.server.Session<{}> {
 		if (this.logger.hasLevel(ts.server.LogLevel.verbose)) {
 			this.logger.info(`${msg.type}:${indent(JSON.stringify(msg))}`);
 		}
-		this.webHost.writeMessage(msg);
+		postMessage(msg);
 	}
-
 	protected override parseMessage(message: {}): ts.server.protocol.Request {
 		return message as ts.server.protocol.Request;
 	}
-
 	protected override toStringMessage(message: {}) {
 		return JSON.stringify(message, undefined, 2);
+	}
+	override exit() {
+		this.logger.info("Exiting...");
+		this.projectService.closeLog();
+		close();
+	}
+	// TODO: Unused right now, but maybe someday
+	listen(port: MessagePort) {
+		this.logger.info('SHOULD BE UNUSED: starting to listen for messages on "message"...')
+		port.addEventListener("message", (message: any) => {
+			this.logger.info(`host msg: ${JSON.stringify(message.data)}`)
+			this.onMessage(message.data);
+		});
 	}
 }
 // END webServer/webServer.ts
 // BEGIN tsserver/webServer.ts
-const nullLogger: ts.server.Logger = {
-	close: noop,
-	hasLevel: returnFalse,
-	loggingEnabled: returnFalse,
-	perftrc: noop,
-	info: noop,
-	msg: noop,
-	startGroup: noop,
-	endGroup: noop,
-	getLogFileName: returnUndefined,
-};
-
-function parseServerMode(): ts.LanguageServiceMode | string | undefined {
-	const mode = findArgument('--serverMode');
-	if (!mode) { return undefined; }
-	switch (mode.toLowerCase()) {
-		case 'partialsemantic':
-			return ts.LanguageServiceMode.PartialSemantic;
-		case 'syntactic':
-			return ts.LanguageServiceMode.Syntactic;
-		default:
-			return mode;
-	}
-}
-
-function initializeWebSystem(args: string[]): StartInput {
-	createWebSystem(args);
-	const modeOrUnknown = parseServerMode();
-	let serverMode: ts.LanguageServiceMode | undefined;
-	let unknownServerMode: string | undefined;
-	if (typeof modeOrUnknown === 'number') { serverMode = modeOrUnknown; }
-	else { unknownServerMode = modeOrUnknown; }
-	const logger = createLogger();
-
-	// enable deprecation logging
-	(ts as any).Debug.loggingHost = {
-		log(level: unknown, s: string) {
-			switch (level) {
-				case (ts as any).LogLevel.Error:
-				case (ts as any).LogLevel.Warning:
-					return logger.msg(s, ts.server.Msg.Err);
-				case (ts as any).LogLevel.Info:
-				case (ts as any).LogLevel.Verbose:
-					return logger.msg(s, ts.server.Msg.Info);
-			}
-		}
-	};
-
-	return {
-		args,
-		logger,
-		cancellationToken: ts.server.nullCancellationToken,
-		// Webserver defaults to partial semantic mode
-		serverMode: serverMode ?? ts.LanguageServiceMode.PartialSemantic,
-		unknownServerMode,
-		startSession: startWebSession
-	};
-}
-
-function createLogger() {
-	const cmdLineVerbosity = getLogLevel(findArgument('--logVerbosity'));
-	return cmdLineVerbosity !== undefined ? new MainProcessLogger(cmdLineVerbosity, { writeMessage }) : nullLogger;
-}
-
-function writeMessage(s: any) {
-	postMessage(s);
-}
-
-function createWebSystem(args: string[]) {
-	(ts as any).Debug.assert(ts.sys === undefined);
-	const webHost: WebHost = {
-		readFile: webPath => {
-			const request = new XMLHttpRequest();
-			request.open('GET', webPath, /* asynchronous */ false);
-			request.send();
-			return request.status === 200 ? request.responseText : undefined;
-		},
-		fileExists: webPath => {
-			const request = new XMLHttpRequest();
-			request.open('HEAD', webPath, /* asynchronous */ false);
-			request.send();
-			return request.status === 200;
-		},
-		writeMessage,
-	};
-	// Do this after sys has been set as findArguments is going to work only then
-	const sys = serverCreateWebSystem(webHost, args, () => findArgument('--executingFilePath') || location + '');
-	setSys(sys);
-	const localeStr = findArgument('--locale');
-	if (localeStr) {
-		validateLocaleAndSetLanguage(localeStr, sys);
-	}
-}
-
 function hrtime(previous?: number[]) {
 	const now = self.performance.now() * 1e-3;
 	let seconds = Math.floor(now);
@@ -427,102 +440,106 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startWebSession(options: StartSessionOptions, logger: ts.server.Logger, cancellationToken: ts.server.ServerCancellationToken) {
-	class WorkerSession extends ServerWorkerSession {
-		constructor() {
-			super(
-				ts.sys as ts.server.ServerHost & { tryEnableSourceMapsForHost?(): void; getEnvironmentVariable(name: string): string },
-				{ writeMessage },
-				options,
-				logger,
-				cancellationToken,
-				hrtime);
-		}
-
-		override exit() {
-			this.logger.info('Exiting...');
-			this.projectService.closeLog();
-			close();
-		}
-
-		listen() {
-			addEventListener('message', (message: any) => {
-				this.onMessage(message.data);
-			});
-		}
-	}
-
-	const session = new WorkerSession();
-
-	// Start listening
-	session.listen();
+function startSession(options: StartSessionOptions, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), cancellationToken: ts.server.ServerCancellationToken) {
+	session = new WorkerSession(createWebSystem(connection, logger), options, logger, cancellationToken, hrtime)
 }
 // END tsserver/webServer.ts
 // BEGIN tsserver/server.ts
-function findArgumentStringArray(argName: string): readonly string[] {
-	const arg = findArgument(argName);
-	if (arg === undefined) {
-		return [];
-	}
-	return arg.split(',').filter(name => name !== '');
+const serverLogger: ts.server.Logger & ((x: any) => void) = (x: any) => postMessage({ type: "log", body: JSON.stringify(x) + '\n' }) as any
+serverLogger.close = () => { }
+serverLogger.hasLevel = level => level <= ts.server.LogLevel.verbose
+serverLogger.loggingEnabled = () => true
+serverLogger.perftrc = () => { }
+serverLogger.info = s => postMessage({ type: "log", body: s + '\n' })
+serverLogger.msg = s => postMessage({ type: "log", body: s + '\n' })
+serverLogger.startGroup = () => { }
+serverLogger.endGroup = () => { }
+serverLogger.getLogFileName = () => "tsserver.log"
+function initializeSession(args: string[], platform: string, connection: ClientConnection<Requests>): void {
+	// webServer.ts
+	// getWebPath
+	// ScriptInfo.ts:isDynamicFilename <-- better predicate than trimHat
+	const cancellationToken = ts.server.nullCancellationToken // TODO: Switch to real cancellation when it's ready
+	const serverMode = ts.LanguageServiceMode.Semantic
+	const unknownServerMode = undefined
+	serverLogger.info(`Starting TS Server`);
+	serverLogger.info(`Version: 0.0.0`);
+	serverLogger.info(`Arguments: ${args.join(" ")}`);
+	serverLogger.info(`Platform: ${platform} CaseSensitive: true`);
+	serverLogger.info(`ServerMode: ${serverMode} syntaxOnly: false hasUnknownServerMode: ${unknownServerMode}`);
+	startSession({
+		globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
+		pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
+		allowLocalPluginLoads: hasArgument(args, "--allowLocalPluginLoads"),
+		useSingleInferredProject: hasArgument(args, "--useSingleInferredProject"),
+		useInferredProjectPerProjectRoot: hasArgument(args, "--useInferredProjectPerProjectRoot"),
+		suppressDiagnosticEvents: hasArgument(args, "--suppressDiagnosticEvents"),
+		noGetErrOnBackgroundUpdate: hasArgument(args, "--noGetErrOnBackgroundUpdate"),
+		syntaxOnly: false,
+		serverMode
+	},
+		connection,
+		serverLogger,
+		cancellationToken);
 }
-
-interface StartInput {
-	args: readonly string[];
-	logger: ts.server.Logger;
-	cancellationToken: ts.server.ServerCancellationToken;
-	serverMode: ts.LanguageServiceMode | undefined;
-	unknownServerMode?: string;
-	startSession: (option: StartSessionOptions, logger: ts.server.Logger, cancellationToken: ts.server.ServerCancellationToken) => void;
+function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
+	const arg = findArgument(args, name)
+	return arg === undefined ? [] : arg.split(",").filter(name => name !== "");
 }
-function start({ args, logger, cancellationToken, serverMode, unknownServerMode, startSession: startServer }: StartInput, platform: string) {
-	const syntaxOnly = hasArgument('--syntaxOnly');
-
-	logger.info(`Starting TS Server`);
-	logger.info(`Version: Moved from Typescript 5.0.0-dev`);
-	logger.info(`Arguments: ${args.join(' ')}`);
-	logger.info(`Platform: ${platform} NodeVersion: N/A CaseSensitive: ${ts.sys.useCaseSensitiveFileNames}`);
-	logger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} hasUnknownServerMode: ${unknownServerMode}`);
-
-	setStackTraceLimit();
-
-	if ((ts as any).Debug.isDebugging) {
-		(ts as any).Debug.enableDebugInfo();
+function hasArgument(args: readonly string[], name: string): boolean {
+	return args.indexOf(name) >= 0;
+}
+function findArgument(args: readonly string[], name: string): string | undefined {
+	const index = args.indexOf(name);
+	return 0 <= index && index < args.length - 1
+		? args[index + 1]
+		: undefined;
+}
+function callWatcher(event: "create" | "change" | "delete", path: string, logger: ts.server.Logger) {
+	logger.info(`checking for watch on ${path}: event=${event}`)
+	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
+		: event === 'change' ? ts.FileWatcherEventKind.Changed
+			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
+				: ts.FileWatcherEventKind.Changed;
+	if (watchFiles.has(path)) {
+		logger.info("file watcher found for " + path)
+		watchFiles.get(path)!.callback(path, kind) // TODO: Might need to have first arg be watchFiles.get(path).path
 	}
-
-	if ((ts as any).sys.tryEnableSourceMapsForHost && /^development$/i.test((ts as any).sys.getEnvironmentVariable('NODE_ENV'))) {
-		(ts as any).sys.tryEnableSourceMapsForHost();
+	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
+		logger.info(`directory watcher on ${watch} found for ${path}`)
+		watchDirectories.get(watch)!.callback(path)
 	}
-
-	// Overwrites the current console messages to instead write to
-	// the log. This is so that language service plugins which use
-	// console.log don't break the message passing between tsserver
-	// and the client
-	console.log = (...args) => logger.msg(args.length === 1 ? args[0] : args.join(', '), ts.server.Msg.Info);
-	console.warn = (...args) => logger.msg(args.length === 1 ? args[0] : args.join(', '), ts.server.Msg.Err);
-	console.error = (...args) => logger.msg(args.length === 1 ? args[0] : args.join(', '), ts.server.Msg.Err);
-
-	startServer(
-		{
-			globalPlugins: findArgumentStringArray('--globalPlugins'),
-			pluginProbeLocations: findArgumentStringArray('--pluginProbeLocations'),
-			allowLocalPluginLoads: hasArgument('--allowLocalPluginLoads'),
-			useSingleInferredProject: hasArgument('--useSingleInferredProject'),
-			useInferredProjectPerProjectRoot: hasArgument('--useInferredProjectPerProjectRoot'),
-			suppressDiagnosticEvents: hasArgument('--suppressDiagnosticEvents'),
-			noGetErrOnBackgroundUpdate: hasArgument('--noGetErrOnBackgroundUpdate'),
-			syntaxOnly,
-			serverMode
-		},
-		logger,
-		cancellationToken
-	);
 }
 // Get args from first message
-const listener = (e: any) => {
-	removeEventListener('message', listener);
-	const args = e.data;
-	start(initializeWebSystem(args), 'web');
+let init: Promise<any> | undefined;
+const listener = async (e: any) => {
+	if (!init) {
+		if ('args' in e.data && 'port' in e.data) {
+			const connection = new ClientConnection<Requests>(e.data.port);
+			init = connection.serviceReady().then(() => initializeSession(e.data.args, "web-sync-api", connection))
+		}
+		else {
+			console.error('init message not yet received, got ' + JSON.stringify(e.data))
+		}
+		return
+	}
+	await init // TODO: Not strictly necessary since I can check session instead
+	// TODO: Instead of reusing this listener and passing its messages on to session.onMessage, I could receive another port in the setup message
+	// and close removeEventListener on this listener
+	if (!!session) {
+		if (e.data.type === 'watch') {
+			// call watcher
+			callWatcher(e.data.event, e.data.path, serverLogger)
+		}
+		else {
+			// isCancelled = Cancellation.retrieveCheck(e);
+			session.onMessage(translateRequest(e.data))
+		}
+	}
+	else {
+		console.error('Init is done, but session is not available yet')
+	}
+
 };
 addEventListener('message', listener);
 // END tsserver/server.ts
