@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBufferCellPosition, IBuffer } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
@@ -139,18 +139,18 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 }
 
 
-export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
-	if (position.y < range.start.y || position.y > range.end.y) {
-		return false;
-	}
-	if (position.y === range.start.y && position.x < range.start.x) {
-		return false;
-	}
-	if (position.y === range.end.y && position.x > range.end.x) {
-		return false;
-	}
-	return true;
-}
+// export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
+// 	if (position.y < range.start.y || position.y > range.end.y) {
+// 		return false;
+// 	}
+// 	if (position.y === range.start.y && position.x < range.start.x) {
+// 		return false;
+// 	}
+// 	if (position.y === range.end.y && position.x > range.end.x) {
+// 		return false;
+// 	}
+// 	return true;
+// }
 
 /**
  * For shells with the CommandDetection capability, the cwd for a command relative to the line of
