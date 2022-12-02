@@ -341,7 +341,7 @@ class ToggleScreenReaderMode extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const value = configurationService.getValue('editor.accessibilitySupport');
-		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on', ConfigurationTarget.APPLICATION);
+		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on', ConfigurationTarget.USER);
 	}
 }
 
