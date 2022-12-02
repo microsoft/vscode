@@ -63,7 +63,7 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
-			if ('uri' in quickFix.action && quickFix.action.uri?.scheme) {
+			if ('uri' in quickFix.action && quickFix.action.uri) {
 				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
 				return { codicon: isUrl ? Codicon.linkExternal : Codicon.goToFile };
 			}
