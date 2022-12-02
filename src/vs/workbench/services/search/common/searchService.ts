@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isNumber } from 'vs/base/common/types';
@@ -20,8 +20,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+// import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+// import { notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -48,7 +48,7 @@ export class SearchService extends Disposable implements ISearchService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
+		// @INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
 	}
@@ -78,7 +78,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = await this.getLocalResults(query);
 
@@ -89,7 +89,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			if (isFileMatch(progress)) {
 				// Match
-				if (!localResults.results.has(progress.resource) && onProgress) { // don't override local results
+				if (!localResults.results.has(progress.resource) && !(notebookURIs && notebookURIs.has(progress.resource)) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {
@@ -480,39 +480,39 @@ export class SearchService extends Disposable implements ISearchService {
 			});
 
 
-			const notebookWidgets = this.notebookEditorService.retrieveAllExistingWidgets();
-			for (const borrowWidget of notebookWidgets) {
-				const widget = borrowWidget.value;
-				if (!widget || !widget.viewModel) {
-					continue;
-				}
-				const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
-				let matches = await widget
-					.find(query.contentPattern.pattern, {
-						regex: query.contentPattern.isRegExp,
-						wholeWord: query.contentPattern.isWordMatch,
-						caseSensitive: query.contentPattern.isCaseSensitive,
-						includeMarkupInput: false,
-						includeMarkupPreview: true,
-						includeCodeInput: true,
-						includeOutput: true,
-					}, CancellationToken.None);
+			// const notebookWidgets = this.notebookEditorService.retrieveAllExistingWidgets();
+			// for (const borrowWidget of notebookWidgets) {
+			// 	const widget = borrowWidget.value;
+			// 	if (!widget || !widget.viewModel) {
+			// 		continue;
+			// 	}
+			// 	const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
+			// 	let matches = await widget
+			// 		.find(query.contentPattern.pattern, {
+			// 			regex: query.contentPattern.isRegExp,
+			// 			wholeWord: query.contentPattern.isWordMatch,
+			// 			caseSensitive: query.contentPattern.isCaseSensitive,
+			// 			includeMarkupInput: false,
+			// 			includeMarkupPreview: true,
+			// 			includeCodeInput: true,
+			// 			includeOutput: true,
+			// 		}, CancellationToken.None);
 
 
-				if (matches.length) {
-					if (askMax && matches.length >= askMax) {
-						limitHit = true;
-						matches = matches.slice(0, askMax - 1);
-					}
+			// 	if (matches.length) {
+			// 		if (askMax && matches.length >= askMax) {
+			// 			limitHit = true;
+			// 			matches = matches.slice(0, askMax - 1);
+			// 		}
 
-					const fileMatch = new FileMatch(widget.viewModel.uri);
-					localResults.set(widget.viewModel.uri, fileMatch);
+			// 		const fileMatch = new FileMatch(widget.viewModel.uri);
+			// 		localResults.set(widget.viewModel.uri, fileMatch);
 
-					fileMatch.results = notebookEditorMatchesToTextSearchResults(matches, query.previewOptions);
-				} else {
-					localResults.set(widget.viewModel.uri, null);
-				}
-			}
+			// 		fileMatch.results = notebookEditorMatchesToTextSearchResults(matches, query.previewOptions);
+			// 	} else {
+			// 		localResults.set(widget.viewModel.uri, null);
+			// 	}
+			// }
 		}
 
 		return {

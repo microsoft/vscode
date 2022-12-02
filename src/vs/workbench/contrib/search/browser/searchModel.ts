@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { compareFileExtensions, compareFileNames, comparePaths } from 'vs/base/common/comparers';
@@ -11,10 +12,11 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { lcut } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { isNumber } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -38,7 +40,7 @@ import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { notebookEditorMatchesToTextSearchResults, NotebookMatchInfo, NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 // import { addContextToNotebookEditorMatches, notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class Match {
@@ -1693,7 +1695,9 @@ export class SearchModel extends Disposable {
 		@ISearchService private readonly searchService: ISearchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
@@ -1735,6 +1739,84 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
+	private async getLocalNotebookResults(query: ITextQuery): Promise<{ results: ResourceMap<IFileMatch | null>; limitHit: boolean }> {
+		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		let limitHit = false;
+
+		if (query.type === QueryType.Text) {
+			const notebookWidgets = this.notebookEditorService.retrieveAllExistingWidgets();
+			for (const borrowWidget of notebookWidgets) {
+				const widget = borrowWidget.value;
+				if (!widget || !widget.viewModel) {
+					continue;
+				}
+
+				const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
+				let matches = await widget
+					.find(query.contentPattern.pattern, {
+						regex: query.contentPattern.isRegExp,
+						wholeWord: query.contentPattern.isWordMatch,
+						caseSensitive: query.contentPattern.isCaseSensitive,
+						includeMarkupInput: false,
+						includeMarkupPreview: true,
+						includeCodeInput: true,
+						includeOutput: true,
+					}, CancellationToken.None);
+
+
+				if (matches.length) {
+					if (askMax && matches.length >= askMax) {
+						limitHit = true;
+						matches = matches.slice(0, askMax - 1);
+					}
+					const fileMatch = { resource: widget.viewModel.uri, results: notebookEditorMatchesToTextSearchResults(matches, query.previewOptions) };
+					localResults.set(widget.viewModel.uri, fileMatch);
+				} else {
+					localResults.set(widget.viewModel.uri, null);
+				}
+			}
+		}
+
+		return {
+			results: localResults,
+			limitHit
+		};
+	}
+
+	async notebookSearch(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const localResults = await this.getLocalNotebookResults(query);
+
+		if (onProgress) {
+			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
+		}
+
+		return {
+			messages: [],
+			limitHit: localResults.limitHit,
+			results: arrays.coalesce([...localResults.results.values()])
+		};
+	}
+
+
+	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, onProgress?: (result: ISearchProgressItem) => void) {
+		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
+		const onProgressCall = (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgress(p);
+
+			onProgress?.(p);
+		};
+		const notebookResult = await this.notebookSearch(query, onProgressCall);
+		const currentResult = await this.searchService.textSearch(
+			searchQuery,
+			this.currentCancelTokenSource.token, onProgressCall,
+			new ResourceSet(notebookResult.results.map(r => r.resource, this.uriIdentityService.extUri.ignorePathCasing), uri => this.uriIdentityService.extUri.getComparisonKey(uri))
+		);
+		tokenSource.dispose();
+		return { ...currentResult, ...notebookResult };
+
+	}
+
 	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch(true);
 
@@ -1751,16 +1833,7 @@ export class SearchModel extends Disposable {
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
-		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
-		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {
-			progressEmitter.fire();
-			this.onSearchProgress(p);
-
-			onProgress?.(p);
-		});
-
-		const dispose = () => tokenSource.dispose();
-		currentRequest.then(dispose, dispose);
+		const currentRequest = this.doSearch(query, progressEmitter, this._searchQuery, onProgress);
 
 		const start = Date.now();
 
