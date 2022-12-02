@@ -487,7 +487,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 });
 
 
-function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string, input: string, fileExtension: string = 'html'): Thenable<any> {
+function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string, input: string, fileExtension: string = 'html'): Thenable<boolean> {
 	return withRandomFileEditor(input, fileExtension, (editor, _) => {
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
@@ -503,7 +503,7 @@ function testWrapWithAbbreviation(selections: Selection[], abbreviation: string,
 	});
 }
 
-function testWrapIndividualLinesWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string, input: string, fileExtension: string = 'html'): Thenable<any> {
+function testWrapIndividualLinesWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string, input: string, fileExtension: string = 'html'): Thenable<boolean> {
 	return withRandomFileEditor(input, fileExtension, (editor, _) => {
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
