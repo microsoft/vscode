@@ -493,7 +493,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const didNotifyPreview = storageService.getBoolean(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, StorageScope.APPLICATION, false);
 				if (!didNotifyPreview) {
 					const result = await dialogService.confirm({
-						message: localize('tunnel.preview', 'Remote Tunnels is currently in preview. Please report any problems using the "Help: Report Issue" command, or on Github.'),
+						message: localize('tunnel.preview', 'Remote Tunnels is currently in preview. Please report any problems using the "Help: Report Issue" command.'),
 						primaryButton: localize('ok', 'OK'),
 						secondaryButton: localize('cancel', 'Cancel'),
 					});
