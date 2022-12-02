@@ -109,13 +109,19 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	}
 	deltaBefore--;
 
-	let deltaAfter = 1;
+	let deltaAfter = 0;
 	while (diff.seq2Range.start + deltaAfter < seq2NextStart &&
 		sequence2.getElement(diff.seq2Range.start + deltaAfter) ===
 		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit) {
 		deltaAfter++;
 	}
-	deltaAfter--;
+
+	if (deltaBefore === 0 && deltaAfter === 0) {
+		return diff;
+	}
+
+	// Visualize `[sequence1.text, diff.seq1Range.start + deltaAfter]`
+	// and `[sequence2.text, diff.seq2Range.start + deltaAfter, diff.seq2Range.endExclusive + deltaAfter]`
 
 	let bestDelta = 0;
 	let bestScore = -1;

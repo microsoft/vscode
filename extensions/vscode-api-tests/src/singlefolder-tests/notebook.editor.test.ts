@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite.skip)('Notebook Editor', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook Editor', function () {
 
 	const contentSerializer = new class implements vscode.NotebookSerializer {
 		deserializeNotebook() {
@@ -66,14 +66,14 @@ import * as utils from '../utils';
 	});
 
 	// #138683
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	test('Opening a notebook should fire activeNotebook event changed only once', utils.withVerboseLogs(async function () {
 		const openedEditor = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.workspace.openNotebookDocument(resource);
 		const editor = await vscode.window.showNotebookDocument(document);
 		assert.ok(await openedEditor);
 		assert.strictEqual(editor.notebook.uri.toString(), resource.toString());
-	});
+	}));
 
 	test('Active/Visible Editor', async function () {
 		const firstEditorOpen = onDidOpenNotebookEditor();

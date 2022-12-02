@@ -85,7 +85,6 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
@@ -629,7 +628,9 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: StandaloneConfigurationService
+		@IConfigurationService private readonly configurationService: StandaloneConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
@@ -638,13 +639,28 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 
 	getValue<T>(resource: URI, section?: string): T;
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
-	getValue<T>(resource: any, arg2?: any, arg3?: any) {
+	getValue<T>(resource: URI | undefined, arg2?: any, arg3?: any) {
 		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
 		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
+		const language = resource ? this.getLanguage(resource, position) : undefined;
 		if (typeof section === 'undefined') {
-			return this.configurationService.getValue<T>();
+			return this.configurationService.getValue<T>({
+				resource,
+				overrideIdentifier: language
+			});
 		}
-		return this.configurationService.getValue<T>(section);
+		return this.configurationService.getValue<T>(section, {
+			resource,
+			overrideIdentifier: language
+		});
+	}
+
+	private getLanguage(resource: URI, position: IPosition | null): string | null {
+		const model = this.modelService.getModel(resource);
+		if (model) {
+			return position ? model.getLanguageIdAtPosition(position.lineNumber, position.column) : model.getLanguageId();
+		}
+		return this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 	}
 
 	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
@@ -673,7 +689,7 @@ class StandaloneResourcePropertiesService implements ITextResourcePropertiesServ
 class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	public telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
+	public telemetryLevel = TelemetryLevel.NONE;
 	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {

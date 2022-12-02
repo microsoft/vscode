@@ -9,7 +9,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./messageController';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -188,4 +188,4 @@ class MessageWidget implements IContentWidget {
 
 }
 
-registerEditorContribution(MessageController.ID, MessageController);
+registerEditorContribution(MessageController.ID, MessageController, EditorContributionInstantiation.Lazy);

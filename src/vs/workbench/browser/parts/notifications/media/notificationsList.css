@@ -5,6 +5,12 @@
 
 /** Notification: Container */
 
+.monaco-workbench .notifications-list-container {
+	color: var(--vscode-notifications-foreground);
+	background: var(--vscode-notifications-background);
+	outline-color: var(--vscode-contrastBorder);
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item {
 	display: flex;
 	flex-direction: column;

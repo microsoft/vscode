@@ -17,10 +17,7 @@
     "ui",
     "workspace"
   ],
-  "activationEvents": [
-    "onAuthenticationRequest:github",
-    "onAuthenticationRequest:github-enterprise"
-  ],
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {

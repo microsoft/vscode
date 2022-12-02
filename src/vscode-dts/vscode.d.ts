@@ -6468,7 +6468,7 @@ declare module 'vscode' {
 	/**
 	 * A channel for containing log output.
 	 *
-	 * To get an instance of an `LogOutputChannel` use
+	 * To get an instance of a `LogOutputChannel` use
 	 * {@link window.createOutputChannel createOutputChannel}.
 	 */
 	export interface LogOutputChannel extends OutputChannel {

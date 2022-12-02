@@ -12,10 +12,10 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
@@ -30,7 +30,7 @@ import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentInfo, ICommentService, WorkspaceHasCommenting } from 'vs/workbench/contrib/comments/browser/commentService';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -314,11 +314,6 @@ const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorH
 	type: 'boolean'
 });
 
-const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
-	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
-	type: 'boolean'
-});
-
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -337,7 +332,6 @@ export class CommentController implements IEditorContribution {
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
-	private _workspaceHasCommenting: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -356,7 +350,6 @@ export class CommentController implements IEditorContribution {
 		this._pendingCommentCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
-		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -388,17 +381,13 @@ export class CommentController implements IEditorContribution {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetAllCommentThreads(e => {
-			if (e.commentThreads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
-		}));
 
 		this.globalToDispose.add(this.commentService.onDidChangeCommentingEnabled(e => {
 			if (e) {
 				this.registerEditorListeners();
 				this.beginCompute();
 			} else {
+				this.tryUpdateReservedSpace();
 				this.clearEditorListeners();
 				this._commentingRangeDecorator.update(this.editor, []);
 				this._commentThreadRangeDecorator.update(this.editor, []);
@@ -407,7 +396,8 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
@@ -623,7 +613,7 @@ export class CommentController implements IEditorContribution {
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
-	public onModelChanged(e: IModelChangedEvent): void {
+	public onModelChanged(): void {
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
@@ -896,46 +886,69 @@ export class CommentController implements IEditorContribution {
 		return;
 	}
 
+	private getExistingCommentEditorOptions(editor: ICodeEditor) {
+		const lineDecorationsWidth: number = editor.getOption(EditorOption.lineDecorationsWidth);
+		let extraEditorClassName: string[] = [];
+		const configuredExtraClassName = editor.getRawOptions().extraEditorClassName;
+		if (configuredExtraClassName) {
+			extraEditorClassName = configuredExtraClassName.split(' ');
+		}
+		return { lineDecorationsWidth, extraEditorClassName };
+	}
+
+	private getWithoutCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
+		let lineDecorationsWidth = startingLineDecorationsWidth;
+		const inlineCommentPos = extraEditorClassName.findIndex(name => name === 'inline-comment');
+		if (inlineCommentPos >= 0) {
+			extraEditorClassName.splice(inlineCommentPos, 1);
+		}
+
+		const options = editor.getOptions();
+		if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
+			lineDecorationsWidth += 11; // 11 comes from https://github.com/microsoft/vscode/blob/94ee5f58619d59170983f453fe78f156c0cc73a3/src/vs/workbench/contrib/comments/browser/media/review.css#L485
+		}
+		lineDecorationsWidth -= 24;
+		return { extraEditorClassName, lineDecorationsWidth };
+	}
+
+	private getWithCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
+		let lineDecorationsWidth = startingLineDecorationsWidth;
+		const options = editor.getOptions();
+		if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
+			lineDecorationsWidth -= 11;
+		}
+		lineDecorationsWidth += 24;
+		extraEditorClassName.push('inline-comment');
+		return { lineDecorationsWidth, extraEditorClassName };
+	}
+
+	private updateEditorLayoutOptions(editor: ICodeEditor, extraEditorClassName: string[], lineDecorationsWidth: number) {
+		editor.updateOptions({
+			extraEditorClassName: extraEditorClassName.join(' '),
+			lineDecorationsWidth: lineDecorationsWidth
+		});
+	}
+
 	private tryUpdateReservedSpace() {
 		if (!this.editor) {
 			return;
 		}
 
-		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
 		const hasCommentsOrRanges = this._commentInfos.some(info => {
 			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
 			return hasRanges || (info.threads.length > 0);
 		});
 
-		if (hasCommentsOrRanges) {
-			this._workspaceHasCommenting.set(true);
-			if (!this._commentingRangeSpaceReserved) {
-				this._commentingRangeSpaceReserved = true;
-				let extraEditorClassName: string[] = [];
-				const configuredExtraClassName = this.editor.getRawOptions().extraEditorClassName;
-				if (configuredExtraClassName) {
-					extraEditorClassName = configuredExtraClassName.split(' ');
-				}
-
-				const options = this.editor.getOptions();
-				if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
-					lineDecorationsWidth -= 27;
-				}
-				lineDecorationsWidth += 24;
-				extraEditorClassName.push('inline-comment');
-				this.editor.updateOptions({
-					extraEditorClassName: extraEditorClassName.join(' '),
-					lineDecorationsWidth: lineDecorationsWidth
-				});
-
-				// we only update the lineDecorationsWidth property but keep the width of the whole editor.
-				const originalLayoutInfo = this.editor.getLayoutInfo();
-
-				this.editor.layout({
-					width: originalLayoutInfo.width,
-					height: originalLayoutInfo.height
-				});
-			}
+		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
+			this._commentingRangeSpaceReserved = true;
+			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
+			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
+			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
+		} else if ((!hasCommentsOrRanges || !this.commentService.isCommentingEnabled) && this._commentingRangeSpaceReserved) {
+			this._commentingRangeSpaceReserved = false;
+			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
+			const newOptions = this.getWithoutCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
+			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
 		}
 	}
 
@@ -950,9 +963,6 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
-			if (info.threads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
 			const providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
@@ -1059,7 +1069,7 @@ export class PreviousCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ID, CommentController);
+registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
 

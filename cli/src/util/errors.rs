@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use std::fmt::Display;
 
-use crate::constants::{APPLICATION_NAME, CONTROL_PORT, QUALITYLESS_PRODUCT_NAME};
+use crate::constants::{
+	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+};
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -169,7 +171,8 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at https://code.visualstudio.com/docs/remote/linux",
+			"{}\r\n\r\nMore info at {}/remote/linux",
+			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
 	}
