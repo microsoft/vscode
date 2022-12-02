@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -184,7 +185,7 @@ export function gitCreatePr(): IInternalOptions {
 				label,
 				enabled: true,
 				type: 'opener',
-				uri: link,
+				uri: URI.parse(link),
 				run: () => { }
 			};
 		}
