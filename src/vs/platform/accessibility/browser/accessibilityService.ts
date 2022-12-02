@@ -41,7 +41,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 			}
 		}));
 		this._updateContextKey();
-
+		this.onDidChangeScreenReaderOptimized(() => console.log('changed screen reader optimized', this.isScreenReaderOptimized()));
 		const reduceMotionMatcher = window.matchMedia(`(prefers-reduced-motion: reduce)`);
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
@@ -84,6 +84,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	isScreenReaderOptimized(): boolean {
 		const config = this._configurationService.getValue('editor.accessibilitySupport');
+		console.log('config', config);
+		console.log('accessibility support enabled', this._accessibilitySupport === AccessibilitySupport.Enabled);
+		console.log('isScreenReaderOptimized', config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled));
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
 	}
 
@@ -105,6 +108,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+		console.log('current, new', this._accessibilitySupport, accessibilitySupport);
 		if (this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
