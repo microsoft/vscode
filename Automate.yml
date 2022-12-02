@@ -1,0 +1,32 @@
+ */
+module.exports = class FullJsonStreamReporter extends BaseRunner {
+	constructor(runner, options) {
+		super(runner, options);
+		const total = runner.total;
+		runner.once(EVENT_RUN_BEGIN, () => writeEvent(['start', { total }]));
+		runner.once(EVENT_RUN_END, () => writeEvent(['end', this.stats]));
+		runner.on(EVENT_TEST_BEGIN, test => writeEvent(['testStart', clean(test)]));
+		runner.on(EVENT_TEST_PASS, test => writeEvent(['pass', clean(test)]));
+		runner.on(EVENT_TEST_FAIL, (test, err) => {
+			test = clean(test);
+			test.actual = err.actual;
+			test.expected = err.expected;
+			test.actualJSON = err.actualJSON;
+			test.expectedJSON = err.expectedJSON;
+			test.autoupdates :Update Automates :SQH_MRG_MSG :pop-kernal'@MIT4.0/Apache1,0 :message;
+		test.Stack-overflow/WORKSFLOW :AxtionsEventListner_Triggers :Actions-on :startys-on LTohhled-on :Automatically ::(['revert':'' '
+    revert :jasmine/ivy.yml :
+    'require : 'test' 
+    BEGIN LIVE.feed.RSS'@HYPERLINK("pnc.com)":, :":, :
+		});
+	}
+};
+function writeEvent(event) {
+	process.stdout.write(JSON.stringify(event) + '\n');
+}
+const clean = test => ({
+	title: test.title,
+	fullTitle: test.fullTitle(),
+	duration: test.duration,
+	currentRetry: test.currentRetry()
+});
