@@ -11,7 +11,8 @@
 
 .search-view .results {
 	flex-grow: 1;
-	min-height: 0; /* Allow it to be smaller than its contents */
+	min-height: 0;
+	/* Allow it to be smaller than its contents */
 }
 
 .search-view .search-widgets-container {
@@ -36,35 +37,45 @@
 	justify-content: center;
 }
 
+.monaco-workbench .search-view .search-widget .toggle-replace-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground)
+}
+
+.monaco-workbench .search-view .search-widget .toggle-replace-button:active {
+	background-color: var(--vscode-toolbar-activeBackground)
+}
+
 .search-view .search-widget .search-container,
 .search-view .search-widget .replace-container {
 	margin-left: 18px;
 }
 
-.search-view .search-widget .monaco-inputbox > .ibwrapper {
+.search-view .search-widget .monaco-inputbox>.ibwrapper {
 	height: 100%;
 }
 
-.search-view .search-widget .monaco-inputbox > .ibwrapper > .mirror,
-.search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
+.search-view .search-widget .monaco-inputbox>.ibwrapper>.mirror,
+.search-view .search-widget .monaco-inputbox>.ibwrapper>textarea.input {
 	padding: 3px 0px 3px 4px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/
-.search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
+.search-view .search-widget .monaco-inputbox>.ibwrapper>textarea.input {
 	overflow: initial;
-	height: 24px; /* set initial height before measure */
+	height: 24px;
+	/* set initial height before measure */
 }
 
 .search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {
 	opacity: 0;
 }
 
-.search-view .monaco-inputbox > .ibwrapper > textarea.input {
-	scrollbar-width: none; /* Firefox: hide scrollbar */
+.search-view .monaco-inputbox>.ibwrapper>textarea.input {
+	scrollbar-width: none;
+	/* Firefox: hide scrollbar */
 }
 
-.search-view .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
+.search-view .monaco-inputbox>.ibwrapper>textarea.input::-webkit-scrollbar {
 	display: none;
 }
 
@@ -87,7 +98,7 @@
 	width: auto !important;
 }
 
-.search-view .search-widget .replace-input > .controls {
+.search-view .search-widget .replace-input>.controls {
 	position: absolute;
 	top: 3px;
 	right: 2px;
@@ -115,14 +126,15 @@
 	width: 25px;
 	height: 16px;
 	color: inherit;
-	z-index: 2; /* Force it above the search results message, which has a negative top margin */
+	z-index: 2;
+	/* Force it above the search results message, which has a negative top margin */
 }
 
 .search-view .query-details .file-types {
 	display: none;
 }
 
-.search-view .query-details .file-types > .monaco-inputbox {
+.search-view .query-details .file-types>.monaco-inputbox {
 	width: 100%;
 	height: 25px;
 }
@@ -163,6 +175,15 @@
 	-webkit-user-select: text;
 }
 
+.search-view .message a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.search-view .message a:hover,
+.search-view .message a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .search-view .foldermatch,
 .search-view .filematch {
 	display: flex;
@@ -196,7 +217,7 @@
 	overflow: hidden;
 }
 
-.search-view .linematch > .match {
+.search-view .linematch>.match {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: pre;
@@ -266,17 +287,26 @@
 	margin-right: 12px;
 }
 
-.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row:hover .filematch .monaco-count-badge,
-.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row:hover .foldermatch .monaco-count-badge,
-.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row:hover .linematch .monaco-count-badge,
-.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row.focused .filematch .monaco-count-badge,
-.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
-.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
+.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row:hover .filematch .monaco-count-badge,
+.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row:hover .foldermatch .monaco-count-badge,
+.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row:hover .linematch .monaco-count-badge,
+.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row.focused .filematch .monaco-count-badge,
+.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
+.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
 	display: none;
 }
 
 .search-view .replace.findInFileMatch {
 	text-decoration: line-through;
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	border: 1px solid var(--vscode-diffEditor-removedTextBackground);
+}
+
+/* High Contrast Theming */
+
+.monaco-workbench.hc-light .search-view .replace.findInFileMatch,
+.monaco-workbench.hc-dark .search-view .replace.findInFileMatch {
+	border: 1px dashed var(--vscode-diffEditor-removedTextBackground);
 }
 
 .search-view .findInFileMatch,
@@ -284,12 +314,40 @@
 	white-space: pre;
 }
 
+.search-view .findInFileMatch {
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+	border: 1px solid var(--vscode-editor-findMatchHighlightBorder);
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-light .search-view .findInFileMatch,
+.monaco-workbench.hc-dark .search-view .findInFileMatch {
+	border: 1px dashed var(--vscode-editor-findMatchHighlightBorder);
+}
+
+.search-view .replaceMatch {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+/* High Contrast Theming */
+
 .monaco-workbench.hc-black .search-view .replaceMatch,
 .monaco-workbench.hc-black .search-view .findInFileMatch,
 .monaco-workbench.hc-light .search-view .replaceMatch,
 .monaco-workbench.hc-light .search-view .findInFileMatch {
 	background: none !important;
 	box-sizing: border-box;
+}
+
+.search-view .replaceMatch:not(:empty) {
+	border: 1px solid var(--vscode-diffEditor-insertedLineBackground);
+}
+
+/* High Contrast Theming */
+
+.monaco-workbench.hc-light .search-view .replaceMatch:not(:empty),
+.monaco-workbench.hc-dark .search-view .replaceMatch:not(:empty) {
+	border: 1px dashed var(--vscode-diffEditor-insertedLineBackground);
 }
 
 /* High Contrast Theming */
@@ -316,4 +374,8 @@
 	position: relative;
 	top: 3px;
 	padding-right: 3px;
+}
+
+.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
+	outline-color: var(--vscode-list-activeSelectionForeground)
 }
