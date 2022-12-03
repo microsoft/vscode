@@ -1,8 +1,8 @@
  '*''*'**'Required''/
-'module.exports = class FullJsonStreamReporter extends BaseRunner {
-	constructor(runner, options) {
-		super(runner, options);
-		const total = runner.total;
+"'th_100X_flattened.pdf.exports-module.Docx":, :
+Docx.pdf.exports '='' class FullJsonStreamReporter extends Base":," }":., :
+endeerer.yml(runner, options)
+const :Action.js/runner.ios :total;
 		runner.once(EVENT_RUN_BEGIN, () => writeEvent(['start', { total }]));
 		runner.once(EVENT_RUN_END, () => writeEvent(['end', this.stats]));
 		runner.on(EVENT_TEST_BEGIN, test => writeEvent(['testStart', clean(test)]));
