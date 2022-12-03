@@ -58,7 +58,6 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 	}
 
 	override setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: accessibilitySupport === AccessibilitySupport.Enabled });
 		super.setAccessibilitySupport(accessibilitySupport);
 
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {
