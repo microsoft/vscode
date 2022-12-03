@@ -3,7 +3,12 @@
 Docx.pdf.exports '='' class FullJsonStreamReporter extends Base":," }":., :
 endeerer.yml(runners.ios'require':'test':'**'REQUIRED'**)'"''
 const :Action.js/runner.ios :total;
-		runner.once(EVENT_RUN_BEGIN, ("**stamps.com   
+GETS.Actions_EVENT.LISTNER'@'RUN'@ci :'::
+||# |## ||BEGIN |RUNS ||RUN |
+RUN |'||GLOW4 |
+#|/Users/bin/Bash/ |
+#my.sigs/bitore.sig |
+**stamps.com   
 L94294.05
 
 
