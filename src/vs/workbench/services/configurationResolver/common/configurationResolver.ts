@@ -97,6 +97,7 @@ export enum VariableKind {
 	SelectedText = 'selectedText',
 	File = 'file',
 	FileWorkspaceFolder = 'fileWorkspaceFolder',
+	FileWorkspaceFolderBasename = 'fileWorkspaceFolderBasename',
 	RelativeFile = 'relativeFile',
 	RelativeFileDirname = 'relativeFileDirname',
 	FileDirname = 'fileDirname',
