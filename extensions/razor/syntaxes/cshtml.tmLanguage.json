@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor-tooling/commit/4d5eeeaeeadf6371354e5fd8ad4c195185806f0c",
+	"version": "https://github.com/dotnet/razor-tooling/commit/8d0ae9664cb27276eab36d83e48e88356468ca67",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"patterns": [
@@ -35,6 +35,31 @@
 				},
 				{
 					"include": "#transitioned-csharp-control-structures"
+				},
+				{
+					"include": "#implicit-expression"
+				}
+			]
+		},
+		"optionally-transitioned-razor-control-structures": {
+			"patterns": [
+				{
+					"include": "#razor-comment"
+				},
+				{
+					"include": "#razor-codeblock"
+				},
+				{
+					"include": "#explicit-razor-expression"
+				},
+				{
+					"include": "#escaped-transition"
+				},
+				{
+					"include": "#directives"
+				},
+				{
+					"include": "#optionally-transitioned-csharp-control-structures"
 				},
 				{
 					"include": "#implicit-expression"
@@ -89,7 +114,7 @@
 					"include": "#razor-single-line-markup"
 				},
 				{
-					"include": "#razor-control-structures"
+					"include": "#optionally-transitioned-razor-control-structures"
 				},
 				{
 					"include": "source.cs"
@@ -966,6 +991,40 @@
 				}
 			}
 		},
+		"optionally-transitioned-csharp-control-structures": {
+			"patterns": [
+				{
+					"include": "#using-statement-with-optional-transition"
+				},
+				{
+					"include": "#if-statement-with-optional-transition"
+				},
+				{
+					"include": "#else-part"
+				},
+				{
+					"include": "#foreach-statement-with-optional-transition"
+				},
+				{
+					"include": "#for-statement-with-optional-transition"
+				},
+				{
+					"include": "#while-statement"
+				},
+				{
+					"include": "#switch-statement-with-optional-transition"
+				},
+				{
+					"include": "#lock-statement-with-optional-transition"
+				},
+				{
+					"include": "#do-statement-with-optional-transition"
+				},
+				{
+					"include": "#try-statement-with-optional-transition"
+				}
+			]
+		},
 		"transitioned-csharp-control-structures": {
 			"patterns": [
 				{
@@ -1002,6 +1061,34 @@
 		},
 		"using-statement": {
 			"name": "meta.statement.using.razor",
+			"begin": "(?:(@))(using)\\b\\s*(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.other.using.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"using-statement-with-optional-transition": {
+			"name": "meta.statement.using.razor",
 			"begin": "(?:^\\s*|(@))(using)\\b\\s*(?=\\()",
 			"beginCaptures": {
 				"1": {
@@ -1029,6 +1116,34 @@
 			"end": "(?<=})"
 		},
 		"if-statement": {
+			"name": "meta.statement.if.razor",
+			"begin": "(?:(@))(if)\\b\\s*(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.conditional.if.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"if-statement-with-optional-transition": {
 			"name": "meta.statement.if.razor",
 			"begin": "(?:^\\s*|(@))(if)\\b\\s*(?=\\()",
 			"beginCaptures": {
@@ -1082,6 +1197,34 @@
 		},
 		"for-statement": {
 			"name": "meta.statement.for.razor",
+			"begin": "(?:(@))(for)\\b\\s*(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.loop.for.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"for-statement-with-optional-transition": {
+			"name": "meta.statement.for.razor",
 			"begin": "(?:^\\s*|(@))(for)\\b\\s*(?=\\()",
 			"beginCaptures": {
 				"1": {
@@ -1109,6 +1252,41 @@
 			"end": "(?<=})"
 		},
 		"foreach-statement": {
+			"name": "meta.statement.foreach.razor",
+			"begin": "(?:(@)(await\\s+)?)(foreach)\\b\\s*(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#await-prefix"
+						}
+					]
+				},
+				"3": {
+					"name": "keyword.control.loop.foreach.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#foreach-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"foreach-statement-with-optional-transition": {
 			"name": "meta.statement.foreach.razor",
 			"begin": "(?:^\\s*|(@)(await\\s+)?)(foreach)\\b\\s*(?=\\()",
 			"beginCaptures": {
@@ -1203,7 +1381,35 @@
 		},
 		"do-statement": {
 			"name": "meta.statement.do.razor",
-			"begin": "(?:^\\s*|(@))(do)\\b\\s*",
+			"begin": "(?:(@))(do)\\b\\s",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.loop.do.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"do-statement-with-optional-transition": {
+			"name": "meta.statement.do.razor",
+			"begin": "(?:^\\s*|(@))(do)\\b\\s",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1264,6 +1470,34 @@
 		},
 		"switch-statement": {
 			"name": "meta.statement.switch.razor",
+			"begin": "(?:(@))(switch)\\b\\s*(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.switch.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#switch-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"switch-statement-with-optional-transition": {
+			"name": "meta.statement.switch.razor",
 			"begin": "(?:^\\s*|(@))(switch)\\b\\s*(?=\\()",
 			"beginCaptures": {
 				"1": {
@@ -1315,6 +1549,34 @@
 		},
 		"lock-statement": {
 			"name": "meta.statement.lock.razor",
+			"begin": "(?:(@))(lock)\\b\\s*(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.other.lock.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"lock-statement-with-optional-transition": {
+			"name": "meta.statement.lock.razor",
 			"begin": "(?:^\\s*|(@))(lock)\\b\\s*(?=\\()",
 			"beginCaptures": {
 				"1": {
@@ -1354,7 +1616,48 @@
 				}
 			]
 		},
+		"try-statement-with-optional-transition": {
+			"patterns": [
+				{
+					"include": "#try-block-with-optional-transition"
+				},
+				{
+					"include": "#catch-clause"
+				},
+				{
+					"include": "#finally-clause"
+				}
+			]
+		},
 		"try-block": {
+			"name": "meta.statement.try.razor",
+			"begin": "(?:(@))(try)\\b\\s*",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.try.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#csharp-condition"
+				},
+				{
+					"include": "#csharp-code-block"
+				},
+				{
+					"include": "#razor-codeblock-body"
+				}
+			],
+			"end": "(?<=})"
+		},
+		"try-block-with-optional-transition": {
 			"name": "meta.statement.try.razor",
 			"begin": "(?:^\\s*|(@))(try)\\b\\s*",
 			"beginCaptures": {

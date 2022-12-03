@@ -96,6 +96,10 @@ export class OpenEditorsView extends ViewPane {
 		this.structuralRefreshDelay = 0;
 		let labelChangeListeners: IDisposable[] = [];
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
+			// No need to refresh the list if it's not rendered
+			if (!this.list) {
+				return;
+			}
 			labelChangeListeners = dispose(labelChangeListeners);
 			const previousLength = this.list.length;
 			const elements = this.getElements();

@@ -565,7 +565,7 @@ export const schema: IJSONSchema = {
 	}
 };
 
-export type toArray<T> = T extends Array<any> ? T : T[];
+export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
@@ -576,7 +576,7 @@ export interface IExtensionPointDescriptor<T> {
 	 * A function which runs before the extension point has been validated and which
 	 * can should collect automatic activation events from the contribution.
 	 */
-	activationEventsGenerator?: IActivationEventsGenerator<toArray<T>>;
+	activationEventsGenerator?: IActivationEventsGenerator<removeArray<T>>;
 }
 
 export class ExtensionsRegistryImpl {

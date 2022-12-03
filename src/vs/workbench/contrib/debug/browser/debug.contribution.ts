@@ -9,7 +9,7 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debug.contribution';
 import 'vs/css!./media/debugHover';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import * as nls from 'vs/nls';
 import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
@@ -90,9 +90,9 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Debug Consoles"), commandId: SELECT_DEBUG_CONSOLE_ID }]
 });
 
-registerEditorContribution('editor.contrib.callStack', LazyCallStackEditorContribution);
-registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, LazyBreakpointEditorContribution);
-registerEditorContribution(EDITOR_CONTRIBUTION_ID, LazyDebugEditorContribution);
+registerEditorContribution('editor.contrib.callStack', LazyCallStackEditorContribution, EditorContributionInstantiation.Eager);
+registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, LazyBreakpointEditorContribution, EditorContributionInstantiation.Eager);
+registerEditorContribution(EDITOR_CONTRIBUTION_ID, LazyDebugEditorContribution, EditorContributionInstantiation.Eager);
 
 const registerDebugCommandPaletteItem = (id: string, title: ICommandActionTitle, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {

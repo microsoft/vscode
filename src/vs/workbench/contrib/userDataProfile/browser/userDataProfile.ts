@@ -33,6 +33,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -375,7 +376,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							}
 						}
 					} catch (error) {
-						notificationService.error(error);
+						notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
 					}
 				}));
 				disposables.add(quickPick.onDidHide(() => disposables.dispose()));

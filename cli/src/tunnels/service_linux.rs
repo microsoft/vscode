@@ -92,6 +92,19 @@ impl ServiceManager for SystemdService {
 
 		info!(self.log, "Successfully registered service...");
 
+		// note: enablement is implicit in recent systemd version, but required for older systems
+		// https://github.com/microsoft/vscode/issues/167489#issuecomment-1331222826
+		proxy
+			.enable_unit_files(
+				vec![SystemdService::service_name_string()],
+				/* 'runtime only'= */ false,
+				/* replace existing = */ true,
+			)
+			.await
+			.map_err(|e| wrap(e, "error enabling unit files for service"))?;
+
+		info!(self.log, "Successfully enabled unit files...");
+
 		proxy
 			.start_unit(SystemdService::service_name_string(), "replace".to_string())
 			.await
