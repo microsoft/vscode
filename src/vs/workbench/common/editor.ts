@@ -741,7 +741,7 @@ export const enum EditorInputCapabilities {
 	MultipleEditors = 1 << 8,
 
 	/**
-	 * Signals that the editor is should always handle dropping
+	 * Signals that the editor should always handle dropping
 	 * int the editor.
 	 */
 	ForceDropIntoEditor = 1 << 9
