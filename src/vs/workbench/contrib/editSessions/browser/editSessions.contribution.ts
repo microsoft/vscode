@@ -46,7 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
 import { isNative } from 'vs/base/common/platform';
-import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
+import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
@@ -59,6 +59,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Codicon } from 'vs/base/common/codicons';
+import { CancellationError } from 'vs/base/common/errors';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -73,7 +74,7 @@ const openLocalFolderCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession.openLocalFolder',
 	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
 	category: EDIT_SESSION_SYNC_CATEGORY,
-	precondition: IsWebContext
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), VirtualWorkspaceContext)
 };
 const showOutputChannelCommand: IAction2Options = {
 	id: 'workbench.editSessions.actions.showOutputChannel',
@@ -139,7 +140,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoResumeEditSession() {
-		const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload';
+		const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.cloudChanges.autoResume') === 'onReload';
 
 		if (this.environmentService.editSessionId !== undefined) {
 			this.logService.info(`Resuming cloud changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
@@ -198,7 +199,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.editSessions.autoStore') === 'onShutdown') {
+		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown') {
 			const cancellationTokenSource = new CancellationTokenSource();
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
@@ -529,7 +530,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 							folderRoot = f;
 							break;
 						} else if (match === EditSessionIdentityMatch.Partial &&
-							this.configurationService.getValue('workbench.experimental.editSessions.partialMatches.enabled') === true
+							this.configurationService.getValue('workbench.experimental.cloudChanges.partialMatches.enabled') === true
 						) {
 							if (!force) {
 								// Surface partially matching edit session
@@ -805,7 +806,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			async run(accessor: ServicesAccessor): Promise<URI | undefined> {
 				const selection = await that.fileDialogService.showOpenDialog({
-					title: localize('continueEditSession.openLocalFolder.title', 'Select a local folder to continue your edit session in'),
+					title: localize('continueEditSession.openLocalFolder.title.v2', 'Select a local folder to continue working in'),
 					canSelectFolders: true,
 					canSelectMany: false,
 					canSelectFiles: false,
@@ -819,6 +820,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 		}));
+
+		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
+			this.generateStandaloneOptionCommand(openLocalFolderCommand.id, localize('continueWorkingOn.existingLocalFolder', 'Continue Working in Existing Local Folder'), undefined, openLocalFolderCommand.precondition);
+		}
 	}
 
 	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
@@ -881,7 +886,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'invalidDestination' });
 			return undefined;
 		} catch (ex) {
-			this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'unknownError' });
+			if (ex instanceof CancellationError) {
+				this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'cancelled' });
+			} else {
+				this.telemetryService.publicLog2<EvaluateContinueOnDestinationEvent, EvaluateContinueOnDestinationClassification>('continueOn.openDestination.outcome', { selection: command, outcome: 'unknownError' });
+			}
 			return undefined;
 		}
 	}

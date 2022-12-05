@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { IObservable, observableFromEvent, derived } from 'vs/base/common/observable';
+import { IObservable, observableFromEvent, derived, IObserver } from 'vs/base/common/observable';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -19,7 +19,8 @@ export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCues(cues: AudioCue[]): Promise<void>;
-	isEnabled(cue: AudioCue): IObservable<boolean>;
+	isEnabled(cue: AudioCue): boolean;
+	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 }
@@ -40,14 +41,14 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
-		if (this.isEnabled(cue).get()) {
+		if (this.isEnabled(cue)) {
 			await this.playSound(cue.sound, allowManyInParallel);
 		}
 	}
 
 	public async playAudioCues(cues: AudioCue[]): Promise<void> {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cues.filter(cue => this.isEnabled(cue).get()).map(cue => cue.sound));
+		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
 	}
 
@@ -125,9 +126,45 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	});
 
-	public isEnabled(cue: AudioCue): IObservable<boolean> {
-		return this.isEnabledCache.get(cue);
+	public isEnabled(cue: AudioCue): boolean {
+		return this.isEnabledCache.get(cue).get();
 	}
+
+	public onEnabledChanged(cue: AudioCue): Event<void> {
+		return eventFromObservable(this.isEnabledCache.get(cue));
+	}
+}
+
+function eventFromObservable(observable: IObservable<any>): Event<void> {
+	return (listener) => {
+		let count = 0;
+		let didChange = false;
+		const observer: IObserver = {
+			beginUpdate() {
+				count++;
+			},
+			endUpdate() {
+				count--;
+				if (count === 0 && didChange) {
+					didChange = false;
+					listener();
+				}
+			},
+			handleChange() {
+				if (count === 0) {
+					listener();
+				} else {
+					didChange = true;
+				}
+			}
+		};
+		observable.addObserver(observer);
+		return {
+			dispose() {
+				observable.removeObserver(observer);
+			}
+		};
+	};
 }
 
 class Cache<TArg, TValue> {

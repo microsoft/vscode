@@ -12,6 +12,9 @@
   "categories": [
     "Other"
   ],
+  "enabledApiProposals": [
+    "terminalQuickFixProvider"
+  ],
   "scripts": {
     "compile": "gulp compile-extension:npm",
     "watch": "gulp watch-extension:npm"
@@ -334,7 +337,23 @@
         },
         "when": "shellExecutionSupported"
       }
-    ]
+    ],
+    "terminal": {
+      "quickFixes": [
+        {
+          "id": "ms-vscode.npm-command",
+          "commandLineMatcher": "npm",
+          "exitStatus": false,
+          "outputMatcher": {
+            "anchor": "bottom",
+            "length": 8,
+            "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
+            "offset": 2,
+            "multipleMatches": true
+          }
+        }
+      ]
+    }
   },
   "repository": {
     "type": "git",

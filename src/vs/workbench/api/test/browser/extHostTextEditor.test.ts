@@ -21,7 +21,7 @@ suite('ExtHostTextEditor', () => {
 	], '\n', 1, 'text', false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -48,7 +48,7 @@ suite('ExtHostTextEditor', () => {
 					applyCount += 1;
 					return Promise.resolve(true);
 				}
-			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 
 		await editor.value.edit(edit => { });
 		assert.strictEqual(applyCount, 0);

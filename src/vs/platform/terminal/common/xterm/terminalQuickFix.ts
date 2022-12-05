@@ -6,7 +6,7 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export interface ITerminalCommandSelector {
@@ -39,7 +39,7 @@ export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
 }
 export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
 	type: 'opener';
-	uri: UriComponents;
+	uri: URI;
 }
 
 export interface ITerminalCommandSelector {

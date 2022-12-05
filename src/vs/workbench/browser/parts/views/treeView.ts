@@ -50,9 +50,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { focusBorder, listFilterMatchHighlight, listFilterMatchHighlightBorder, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { FileThemeIcon, FolderThemeIcon, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { FileThemeIcon, FolderThemeIcon, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -1004,33 +1003,6 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return result;
 	}
 }
-
-// todo@jrieken,sandy make this proper and contributable from extensions
-registerThemingParticipant((theme, collector) => {
-
-	const matchBackgroundColor = theme.getColor(listFilterMatchHighlight);
-	if (matchBackgroundColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
-	}
-	const matchBorderColor = theme.getColor(listFilterMatchHighlightBorder);
-	if (matchBorderColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
-	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a { color: ${link}; }`);
-	}
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a:focus { outline: 1px solid ${focusBorderColor}; outline-offset: -1px; }`);
-	}
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message code { background-color: ${codeBackground}; }`);
-	}
-});
 
 interface ITreeExplorerTemplateData {
 	readonly elementDisposable: DisposableStore;
