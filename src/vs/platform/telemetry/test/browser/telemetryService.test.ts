@@ -224,8 +224,8 @@ suite('TelemetryService', () => {
 			return Promise.all(this.promises);
 		}
 
-		override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-			const p = super.publicLog(eventName, data, anonymizeFilePaths);
+		override publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+			const p = super.publicLog(eventName, data);
 			// publicLog is called from the ctor and therefore promises can be undefined
 			this.promises = this.promises ?? [];
 			this.promises.push(p);
@@ -800,15 +800,15 @@ suite('TelemetryService', () => {
 			}
 		}(), TestProductService);
 
-		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.NONE);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
 
 		telemetryLevel = TelemetryConfiguration.ON;
 		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.USAGE);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.USAGE);
 
 		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.ERROR);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
 
 		service.dispose();
 	});

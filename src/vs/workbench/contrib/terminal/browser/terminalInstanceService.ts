@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -85,9 +85,14 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	}
 
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> {
-		await this._lifecycleService.when(LifecyclePhase.Restored);
-		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		let backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		if (!backend) {
+			// Ensure all backends are initialized and try again
+			await this._lifecycleService.when(LifecyclePhase.Restored);
+			backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		}
+		return backend;
 	}
 }
 
-registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);

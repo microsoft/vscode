@@ -21,6 +21,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -440,7 +441,7 @@ export class TextModelResolvedOptions {
 		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
-		this.indentSize = src.tabSize | 0;
+		this.indentSize = Math.max(1, src.indentSize | 0);
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
@@ -666,13 +667,13 @@ export interface ITextModel {
 	 * @param range The range describing what text length to get.
 	 * @return The text length.
 	 */
-	getValueLengthInRange(range: IRange): number;
+	getValueLengthInRange(range: IRange, eol?: EndOfLinePreference): number;
 
 	/**
 	 * Get the character count of text in a certain range.
 	 * @param range The range describing what text length to get.
 	 */
-	getCharacterCountInRange(range: IRange): number;
+	getCharacterCountInRange(range: IRange, eol?: EndOfLinePreference): number;
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
@@ -1023,6 +1024,10 @@ export interface ITextModel {
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
 	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	/**
+	 * @internal
+	 */
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of

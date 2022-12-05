@@ -70,6 +70,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		return '';
 	}));
 	context.subscriptions.push(new NpmScriptLensProvider());
+
+	context.subscriptions.push(vscode.window.registerTerminalQuickFixProvider('ms-vscode.npm-command', {
+		provideTerminalQuickFixes({ outputMatch }) {
+			if (!outputMatch) {
+				return;
+			}
+
+			const lines = outputMatch.regexMatch[1];
+			const fixes: vscode.TerminalQuickFixCommandAction[] = [];
+			for (const line of lines.split('\n')) {
+				// search from the second char, since the lines might be prefixed with
+				// "npm ERR!" which comes before the actual command suggestion.
+				const begin = line.indexOf('npm', 1);
+				if (begin === -1) {
+					continue;
+				}
+
+				const end = line.lastIndexOf('#');
+				fixes.push({
+					type: vscode.TerminalQuickFixType.command,
+					terminalCommand: line.slice(begin, end === -1 ? undefined : end - 1)
+				});
+			}
+
+			return fixes;
+		},
+	}));
 }
 
 async function getNPMCommandPath(): Promise<string | undefined> {

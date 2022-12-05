@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { areFunctions, assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
@@ -19,7 +19,7 @@ import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/l
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
+import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -222,67 +222,69 @@ class State {
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
 
-		if (update.type === 'selectionStatus') {
-			if (this._selectionStatus !== update.selectionStatus) {
-				this._selectionStatus = update.selectionStatus;
-				change.selectionStatus = true;
-			}
-		}
+		switch (update.type) {
+			case 'selectionStatus':
+				if (this._selectionStatus !== update.selectionStatus) {
+					this._selectionStatus = update.selectionStatus;
+					change.selectionStatus = true;
+				}
+				break;
 
-		if (update.type === 'indentation') {
-			if (this._indentation !== update.indentation) {
-				this._indentation = update.indentation;
-				change.indentation = true;
-			}
-		}
+			case 'indentation':
+				if (this._indentation !== update.indentation) {
+					this._indentation = update.indentation;
+					change.indentation = true;
+				}
+				break;
 
-		if (update.type === 'languageId') {
-			if (this._languageId !== update.languageId) {
-				this._languageId = update.languageId;
-				change.languageId = true;
-			}
-		}
+			case 'languageId':
+				if (this._languageId !== update.languageId) {
+					this._languageId = update.languageId;
+					change.languageId = true;
+				}
+				break;
 
-		if (update.type === 'encoding') {
-			if (this._encoding !== update.encoding) {
-				this._encoding = update.encoding;
-				change.encoding = true;
-			}
-		}
+			case 'encoding':
+				if (this._encoding !== update.encoding) {
+					this._encoding = update.encoding;
+					change.encoding = true;
+				}
+				break;
 
-		if (update.type === 'EOL') {
-			if (this._EOL !== update.EOL) {
-				this._EOL = update.EOL;
-				change.EOL = true;
-			}
-		}
+			case 'EOL':
+				if (this._EOL !== update.EOL) {
+					this._EOL = update.EOL;
+					change.EOL = true;
+				}
+				break;
 
-		if (update.type === 'tabFocusMode') {
-			if (this._tabFocusMode !== update.tabFocusMode) {
-				this._tabFocusMode = update.tabFocusMode;
-				change.tabFocusMode = true;
-			}
-		}
+			case 'tabFocusMode':
+				if (this._tabFocusMode !== update.tabFocusMode) {
+					this._tabFocusMode = update.tabFocusMode;
+					change.tabFocusMode = true;
+				}
+				break;
 
-		if (update.type === 'columnSelectionMode') {
-			if (this._columnSelectionMode !== update.columnSelectionMode) {
-				this._columnSelectionMode = update.columnSelectionMode;
-				change.columnSelectionMode = true;
-			}
-		}
+			case 'columnSelectionMode':
+				if (this._columnSelectionMode !== update.columnSelectionMode) {
+					this._columnSelectionMode = update.columnSelectionMode;
+					change.columnSelectionMode = true;
+				}
+				break;
 
-		if (update.type === 'screenReaderMode') {
-			if (this._screenReaderMode !== update.screenReaderMode) {
-				this._screenReaderMode = update.screenReaderMode;
-				change.screenReaderMode = true;
-			}
-		}
+			case 'screenReaderMode':
+				if (this._screenReaderMode !== update.screenReaderMode) {
+					this._screenReaderMode = update.screenReaderMode;
+					change.screenReaderMode = true;
+				}
+				break;
 
-		if (update.type === 'metadata') {
-			if (this._metadata !== update.metadata) {
-				this._metadata = update.metadata;
-				change.metadata = true;
-			}
+			case 'metadata':
+				if (this._metadata !== update.metadata) {
+					this._metadata = update.metadata;
+					change.metadata = true;
+				}
+				break;
 		}
 
 		return change;
@@ -334,6 +336,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			const screenReaderMode = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+			this.updateState({ type: 'screenReaderMode', screenReaderMode });
+		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
@@ -349,7 +355,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.screenReaderNotification) {
 			this.screenReaderNotification = this.notificationService.prompt(
 				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code? (word wrap is disabled when using a screen reader)"),
+				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
 				[{
 					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
@@ -379,12 +385,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
-			activeTextEditorControl.getAction(IndentUsingTabs.ID),
-			activeTextEditorControl.getAction(DetectIndentation.ID),
-			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
-			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
@@ -671,7 +678,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for Selection changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPosition(() => {
+			this.activeEditorListeners.add(Event.defer(activeCodeEditor.onDidChangeCursorPosition)(() => {
 				this.onSelectionChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 			}));
@@ -682,16 +689,18 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelContent(e => {
+			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent)(e => {
 				this.onEOLChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
 				if (selections) {
-					for (const change of e.changes) {
-						if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
-							this.onSelectionChange(activeCodeEditor);
-							break;
+					for (const inner of e) {
+						for (const change of inner.changes) {
+							if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
+								this.onSelectionChange(activeCodeEditor);
+								break;
+							}
 						}
 					}
 				}
@@ -756,7 +765,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				const modelOpts = model.getOptions();
 				update.indentation = (
 					modelOpts.insertSpaces
-						? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
+						? modelOpts.tabSize === modelOpts.indentSize
+							? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
+							: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
 						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
 				);
 			}
@@ -800,7 +811,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					}
 				}
 			}
-
 			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
 		}
 
@@ -1320,7 +1330,7 @@ export class ChangeLanguageAction extends Action {
 	}
 }
 
-export interface IChangeEOLEntry extends IQuickPickItem {
+interface IChangeEOLEntry extends IQuickPickItem {
 	eol: EndOfLineSequence;
 }
 

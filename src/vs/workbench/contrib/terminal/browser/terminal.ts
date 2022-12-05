@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -12,14 +10,15 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -136,9 +135,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly defaultLocation: TerminalLocation;
-	readonly primaryBackendRegistered: Promise<void>;
 
-	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;
 	onDidCreateInstance: Event<ITerminalInstance>;
@@ -192,6 +189,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	refreshActiveGroup(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
+
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
@@ -416,14 +414,6 @@ export interface ISearchOptions {
 	incremental?: boolean;
 }
 
-export interface ITerminalBeforeHandleLinkEvent {
-	terminal?: ITerminalInstance;
-	/** The text of the link */
-	link: string;
-	/** Call with whether the link was handled by the interceptor */
-	resolve(wasHandled: boolean): void;
-}
-
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to uniquely identify
@@ -456,10 +446,11 @@ export interface ITerminalInstance {
 	readonly initialCwd?: string;
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly usedShellIntegrationInjection: boolean;
 
 	readonly statusList: ITerminalStatusList;
 
-	quickFix: ITerminalQuickFix | undefined;
+	quickFix: ITerminalQuickFixAddon | undefined;
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 
@@ -586,10 +577,23 @@ export interface ITerminalInstance {
 
 	onDidFocusFindWidget: Event<void>;
 
+	/**
+	 * The exit code or undefined when the terminal process hasn't yet exited or
+	 * the process exit code could not be determined. Use {@link exitReason} to see
+	 * why the process has exited.
+	 */
 	readonly exitCode: number | undefined;
 
+	/**
+	 * The reason the terminal process exited, this will be undefined if the process is still
+	 * running.
+	 */
 	readonly exitReason: TerminalExitReason | undefined;
 
+	/**
+	 * Whether links in the terminal are ready, links aren't available until after the process is
+	 * ready.
+	 */
 	readonly areLinksReady: boolean;
 
 	/**
@@ -650,11 +654,21 @@ export interface ITerminalInstance {
 	 */
 	disableLayout: boolean;
 
+	/**
+	 * Access to the navigation mode accessibility feature.
+	 */
 	readonly navigationMode: INavigationMode | undefined;
 
+	/**
+	 * The description of the terminal, this is typically displayed next to {@link title}.
+	 */
 	description: string | undefined;
 
+	/**
+	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
+	 */
 	userHome: string | undefined;
+
 	/**
 	 * Shows the environment information hover if the widget exists.
 	 */
@@ -778,6 +792,8 @@ export interface ITerminalInstance {
 	 */
 	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
 
+	runCommand(command: string, addNewLine?: boolean): void;
+
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
 	 * includes trying to prepare the path for WSL if needed.
@@ -855,8 +871,14 @@ export interface ITerminalInstance {
 	 */
 	toggleSizeToContentWidth(): Promise<void>;
 
+	/**
+	 * Toggles escape sequence logging in the devtools console.
+	 */
 	toggleEscapeSequenceLogging(): Promise<boolean>;
 
+	/**
+	 * Sets whether escape seqeunce logging is enabled in the devtools console.
+	 */
 	setEscapeSequenceLogging(enable: boolean): void;
 
 	/**
@@ -916,22 +938,13 @@ export interface ITerminalInstance {
 	 */
 	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
 
-	freePortKillProcess(port: string): Promise<void>;
+	/**
+	 * Attempts to detect and kill the process listening on specified port.
+	 * If successful, places commandToRun on the command line
+	 */
+	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 }
 
-export interface ITerminalQuickFixOptions {
-	commandLineMatcher: string | RegExp;
-	outputMatcher?: ITerminalOutputMatcher;
-	getQuickFixes: QuickFixCallback;
-	exitStatus?: boolean;
-}
-export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ITerminalQuickFixAction[] | undefined;
-
-export interface ITerminalQuickFixAction extends IAction {
-	commandToRunInTerminal?: string;
-	addNewLine?: boolean;
-}
 
 export interface IXtermTerminal {
 	/**
@@ -946,6 +959,11 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
+
+	/**
+	 * Gets a view of the current texture atlas used by the renderers.
+	 */
+	readonly textureAtlas: Promise<ImageBitmap> | undefined;
 
 	/**
 	 * The position of the terminal.

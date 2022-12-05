@@ -14,7 +14,6 @@ import * as _rimraf from 'rimraf';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
-import * as git from './git';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -317,16 +316,6 @@ export function ensureDir(dirPath: string): void {
 	fs.mkdirSync(dirPath);
 }
 
-export function getVersion(root: string): string | undefined {
-	let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-
-	if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
-		version = git.getVersion(root);
-	}
-
-	return version;
-}
-
 export function rebase(count: number): NodeJS.ReadWriteStream {
 	return rename(f => {
 		const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
@@ -382,7 +371,8 @@ export function acquireWebNodePaths() {
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
 		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-		let entryPoint: string = packageData.browser ?? packageData.main;
+		// Only cases where the browser is a string are handled
+		let entryPoint: string = typeof packageData.browser === 'string' ? packageData.browser : packageData.main;
 
 		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
 		if (!entryPoint) {

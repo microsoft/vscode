@@ -13,9 +13,9 @@
   "main": "./out/node/jsonServerMain",
   "dependencies": {
     "jsonc-parser": "^3.2.0",
-    "request-light": "^0.5.8",
-    "vscode-json-languageservice": "^5.1.1",
-    "vscode-languageserver": "^8.1.0-next.1",
+    "request-light": "^0.6.0",
+    "vscode-json-languageservice": "^5.1.3",
+    "vscode-languageserver": "^8.1.0-next.2",
     "vscode-uri": "^3.0.6"
   },
   "devDependencies": {

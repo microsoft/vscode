@@ -1,0 +1,16 @@
+{
+	"originalFileName": "./1.json",
+	"modifiedFileName": "./2.json",
+	"diffs": [
+		{
+			"originalRange": "[301,301)",
+			"modifiedRange": "[301,305)",
+			"innerChanges": [
+				{
+					"originalRange": "[301,1 -> 301,1]",
+					"modifiedRange": "[301,1 -> 305,1]"
+				}
+			]
+		}
+	]
+}

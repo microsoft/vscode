@@ -7,7 +7,6 @@ import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as nls from 'vs/nls';
@@ -26,7 +25,6 @@ import { AuthenticationProviderInformation, AuthenticationSession, Authenticatio
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -35,16 +33,6 @@ interface IAccountUsage {
 	extensionName: string;
 	lastUsed: number;
 }
-
-const FIRST_PARTY_ALLOWED_EXTENSIONS = [
-	'vscode.git',
-	'vscode.github',
-	'github.vscode-pull-request-github',
-	'github.remotehub',
-	'github.remotehub-insiders',
-	'github.codespaces',
-	'ms-vsliveshare.vsliveshare'
-];
 
 export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
 	const accountKey = `${providerId}-${accountName}-usages`;
@@ -92,13 +80,17 @@ export type AuthenticationSessionInfo = { readonly id: string; readonly accessTo
 export async function getCurrentAuthenticationSessionInfo(credentialsService: ICredentialsService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
 	const authenticationSessionValue = await credentialsService.getPassword(`${productService.urlProtocol}.login`, 'account');
 	if (authenticationSessionValue) {
-		const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
-		if (authenticationSessionInfo
-			&& isString(authenticationSessionInfo.id)
-			&& isString(authenticationSessionInfo.accessToken)
-			&& isString(authenticationSessionInfo.providerId)
-		) {
-			return authenticationSessionInfo;
+		try {
+			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
+			if (authenticationSessionInfo
+				&& isString(authenticationSessionInfo.id)
+				&& isString(authenticationSessionInfo.accessToken)
+				&& isString(authenticationSessionInfo.providerId)
+			) {
+				return authenticationSessionInfo;
+			}
+		} catch (e) {
+			// ignore as this is a best effort operation.
 		}
 	}
 	return undefined;
@@ -160,6 +152,13 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		description: nls.localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
 		type: 'array',
 		items: authenticationDefinitionSchema
+	},
+	activationEventsGenerator: (authenticationProviders, result) => {
+		for (const authenticationProvider of authenticationProviders) {
+			if (authenticationProvider.id) {
+				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+			}
+		}
 	}
 });
 
@@ -200,9 +199,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IActivityService private readonly activityService: IActivityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -388,21 +387,14 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				: true;
 		}
 
-		const remoteConnection = this.remoteAgentService.getConnection();
-		// Right now, this is hardcoded to only happen in Codespaces and on web.
-		// TODO: this should be determined by the embedder so that this logic isn't in core.
-		const allowedAllowedExtensions = remoteConnection !== null
-			? remoteConnection.remoteAuthority.startsWith('codespaces')
-			: isWeb;
-
-		if (allowedAllowedExtensions && FIRST_PARTY_ALLOWED_EXTENSIONS.includes(extensionId)) {
+		if (this.productService.trustedExtensionAuthAccess?.includes(extensionId)) {
 			return true;
 		}
 
 		return undefined;
 	}
 
-	async updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void> {
+	updateAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): void {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const index = allowList.findIndex(extension => extension.id === extensionId);
 		if (index === -1) {
@@ -411,8 +403,28 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			allowList[index].allowed = isAllowed;
 		}
 
-		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
 	}
+
+	//#region Session Preference
+
+	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void {
+		// The 3 parts of this key are important:
+		// * Extension id: The extension that has a preference
+		// * Provider id: The provider that the preference is for
+		// * The scopes: The subset of sessions that the preference applies to
+		this.storageService.store(`${extensionId}-${providerId}-${session.scopes.join(' ')}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined {
+		return this.storageService.get(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION, undefined);
+	}
+
+	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void {
+		this.storageService.remove(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION);
+	}
+
+	//#endregion
 
 	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const providerName = this.getLabel(providerId);
@@ -428,7 +440,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const cancelled = choice === 2;
 		const allowed = choice === 0;
 		if (!cancelled) {
-			this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
+			this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
 			this.removeAccessRequest(providerId, extensionId);
 		}
 
@@ -473,10 +485,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				const session = quickPick.selectedItems[0].session ?? await this.createSession(providerId, scopes);
 				const accountName = session.account.label;
 
-				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
-
+				this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, true);
+				this.updateSessionPreference(providerId, extensionId, session);
 				this.removeAccessRequest(providerId, extensionId);
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -566,9 +577,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
 			// provider is now in the map.
 			await new Promise<void>((resolve, _) => {
-				this.onDidRegisterAuthenticationProvider(e => {
+				const dispose = this.onDidRegisterAuthenticationProvider(e => {
 					if (e.id === providerId) {
 						provider = this._authenticationProviders.get(providerId);
+						dispose.dispose();
 						resolve();
 					}
 				});
@@ -609,14 +621,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			id: commandId,
 			handler: async (accessor) => {
 				const authenticationService = accessor.get(IAuthenticationService);
-				const storageService = accessor.get(IStorageService);
 				const session = await authenticationService.createSession(providerId, scopes);
 
-				// Add extension to allow list since user explicitly signed in on behalf of it
-				this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
-
-				// And also set it as the preferred account for the extension
-				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.updateAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
+				this.updateSessionPreference(providerId, extensionId, session);
 			}
 		});
 

@@ -20,6 +20,7 @@ import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/view
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IView } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { VIEWPANE_FILTER_ACTION } from 'vs/workbench/browser/parts/views/viewPane';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 
@@ -89,7 +90,11 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		if (this.viewPaneContainer?.menuActions) {
 			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
 			if (this.viewPaneContainer.isViewMergedWithContainer()) {
-				result.push(...this.viewPaneContainer.panes[0].menuActions.getPrimaryActions());
+				const viewPane = this.viewPaneContainer.panes[0];
+				if (viewPane.shouldShowFilterInHeader()) {
+					result.push(VIEWPANE_FILTER_ACTION);
+				}
+				result.push(...viewPane.menuActions.getPrimaryActions());
 			}
 		}
 		return result;

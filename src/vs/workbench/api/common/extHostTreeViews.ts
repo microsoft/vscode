@@ -122,11 +122,13 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				if (ExtHostViewBadge.isViewBadge(badge)) {
+				if ((badge !== undefined) && ExtHostViewBadge.isViewBadge(badge)) {
 					treeView.badge = {
 						value: Math.floor(Math.abs(badge.value)),
 						tooltip: badge.tooltip
 					};
+				} else if (badge === undefined) {
+					treeView.badge = undefined;
 				}
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
@@ -955,5 +957,6 @@ class ExtHostTreeView<T> extends Disposable {
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();
+		this.proxy.$disposeTree(this.viewId);
 	}
 }

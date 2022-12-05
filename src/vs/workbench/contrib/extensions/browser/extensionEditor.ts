@@ -63,13 +63,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { errorIcon, infoIcon, preReleaseIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'vs/base/common/semver/semver';
+import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class NavBar extends Disposable {
 
@@ -264,7 +264,7 @@ export class ExtensionEditor extends EditorPane {
 		return this._scopedContextKeyService.value;
 	}
 
-	createEditor(parent: HTMLElement): void {
+	protected createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
 		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
 		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
@@ -323,7 +323,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ReloadAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
@@ -442,7 +442,7 @@ export class ExtensionEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			this.render(input.extension, this.template, !!options?.preserveFocus);
+			await this.render(input.extension, this.template, !!options?.preserveFocus);
 		}
 	}
 
@@ -593,7 +593,7 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.dependencies.length) {
 			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 		}
-		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExensionPack(manifest)) {
+		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExtensionPack(manifest)) {
 			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
@@ -675,13 +675,12 @@ export class ExtensionEditor extends EditorPane {
 
 	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
-			const body = await this.renderMarkdown(cacheResult, container);
+			const body = await this.renderMarkdown(cacheResult, container, token);
 			if (token.isCancellationRequested) {
 				return Promise.resolve(null);
 			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
-				id: generateUuid(),
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
@@ -742,13 +741,21 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement) {
+	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement, token?: CancellationToken): Promise<string> {
 		const contents = await this.loadContents(() => cacheResult, container);
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService);
+		if (token?.isCancellationRequested) {
+			return '';
+		}
+
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, true, false, token);
+		if (token?.isCancellationRequested) {
+			return '';
+		}
+
 		return this.renderBody(content);
 	}
 
-	private async renderBody(body: string): Promise<string> {
+	private renderBody(body: string): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -819,7 +826,7 @@ export class ExtensionEditor extends EditorPane {
 
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
-		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
+		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
 			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
 		} else {
 			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
@@ -829,7 +836,7 @@ export class ExtensionEditor extends EditorPane {
 		return activeElement;
 	}
 
-	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
+	private shallRenderAsExtensionPack(manifest: IExtensionManifest): boolean {
 		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
 	}
 
@@ -1189,7 +1196,7 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('setting name', "Name")),
+					$('th', undefined, localize('setting name', "ID")),
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
@@ -1370,7 +1377,7 @@ export class ExtensionEditor extends EditorPane {
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('authentication.label', "Label")),
-					$('th', undefined, localize('authentication.id', "Id"))
+					$('th', undefined, localize('authentication.id', "ID"))
 				),
 				...authentication.map(action =>
 					$('tr', undefined,
@@ -1452,7 +1459,7 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('colors', "Colors ({0})", colors.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('colorId', "Id")),
+					$('th', undefined, localize('colorId', "ID")),
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('defaultDark', "Dark Default")),
 					$('th', undefined, localize('defaultLight', "Light Default")),
@@ -1548,9 +1555,8 @@ export class ExtensionEditor extends EditorPane {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			const kbl = new KeybindingLabel(element, OS);
+			const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
 			kbl.set(keybinding);
-			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 
@@ -1558,8 +1564,8 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('commands', "Commands ({0})", commands.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('command name', "Name")),
-					$('th', undefined, localize('description', "Description")),
+					$('th', undefined, localize('command name', "ID")),
+					$('th', undefined, localize('command title', "Title")),
 					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
 					$('th', undefined, localize('menuContexts', "Menu Contexts"))
 				),
@@ -1669,7 +1675,7 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('Notebooks', "Notebooks ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
-					$('th', undefined, localize('Notebook id', "Id")),
+					$('th', undefined, localize('Notebook id', "ID")),
 					$('th', undefined, localize('Notebook name', "Name")),
 				),
 				...contrib.map(d => $('tr', undefined,

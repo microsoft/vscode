@@ -120,7 +120,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				type: 'object',
 				default: { 'untitledEditors': true, 'notebookEditors': true },
 				tags: ['experimental'],
-				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
+				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a Status bar Quick Fix when the editor language doesn't match detected content language."),
 				additionalProperties: false,
 				properties: {
 					untitledEditors: {
@@ -187,17 +187,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
-				'description': localize('enablePreview', "Controls whether opened editors show as preview editors. Preview editors do not stay open, are reused until explicitly set to be kept open (e.g. via double click or editing), and show file names in italics."),
+				'description': localize('enablePreview', "Controls whether opened editors show as preview editors. Preview editors do not stay open, are reused until explicitly set to be kept open (via double click or editing), and show file names in italics."),
 				'default': true
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -224,7 +224,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',
-				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
@@ -245,13 +245,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the {0} setting to use the last known view state across all editor groups in case no previous view state was found for a editor group.", '`#workbench.editor.sharedViewState#`'),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (such as scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the {0} setting to use the last known view state across all editor groups in case no previous view state was found for a editor group.", '`#workbench.editor.sharedViewState#`'),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.sharedViewState': {
 				'type': 'boolean',
-				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
+				'description': localize('sharedViewState', "Preserves the most recent editor view state (such as scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
 				'default': false
 			},
 			'workbench.editor.splitInGroupLayout': {
@@ -368,7 +368,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems) in a new workspace. It can either show at the bottom, right, or left of the editor area."),
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (Terminal, Debug Console, Output, Problems) in a new workspace. It can either show at the bottom, right, or left of the editor area."),
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
@@ -448,12 +448,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
 				],
 				default: 'auto',
+				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
 			'workbench.layoutControl.enabled': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
+				'markdownDescription': isWeb ?
+					localize('layoutControlEnabledWeb', "Controls whether the layout control in the title bar is shown.") :
+					localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout control is shown in the custom title bar. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'workbench.layoutControl.type': {
 				'type': 'string',
@@ -465,26 +468,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
-			},
-			'workbench.experimental.layoutControl.enabled': {
-				'type': 'boolean',
-				'tags': ['experimental'],
-				'default': false,
-				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
-				'markdownDeprecationMessage': localize({ key: 'layoutControlEnabledDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.enabled#`')
-			},
-			'workbench.experimental.layoutControl.type': {
-				'type': 'string',
-				'enum': ['menu', 'toggles', 'both'],
-				'enumDescriptions': [
-					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
-					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
-					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
-				],
-				'tags': ['experimental'],
-				'default': 'both',
-				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
-				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
 		}
 	});
@@ -540,7 +523,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				type: 'boolean',
 				default: false,
 				tags: ['experimental'],
-				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
+				markdownDescription: isWeb ?
+					localize('window.commandCenterWeb', "Show command launcher together with the window title.") :
+					localize({ key: 'window.commandCenter', comment: ['{0} is a placeholder for a setting identifier.'] }, "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -552,7 +537,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
 						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
+					isWeb ?
+						localize('window.menuBarVisibility.compact.web', "Menu is displayed as a compact button in the side bar.") :
+						localize({ key: 'window.menuBarVisibility.compact', comment: ['{0} is a placeholder for a setting identifier.'] }, "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
@@ -667,12 +654,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'zenMode.restore': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
+				'description': localize('zenMode.restore', "Controls whether a window should restore to Zen Mode if it was exited in Zen Mode.")
 			},
 			'zenMode.silentNotifications': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in zen mode. If true, only error notifications will pop out.")
+				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in Zen Mode. If true, only error notifications will pop out.")
 			}
 		}
 	});

@@ -30,14 +30,14 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 	}
 }
 
-export type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
+type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
 type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
 
 /**
  * Copied from src\vs\workbench\services\hover\browser\hover.ts
  * @deprecated Use IHoverService
  */
-export interface IHoverAction {
+interface IHoverAction {
 	label: string;
 	commandId: string;
 	iconClass?: string;

@@ -19,6 +19,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "telemetryLogger"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -166,7 +169,7 @@
     }
   },
   "dependencies": {
-    "vscode-nls": "^5.2.0"
+    "@vscode/extension-telemetry": "0.7.1-preview"
   },
   "devDependencies": {
     "@types/node": "16.x"

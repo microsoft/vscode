@@ -16,10 +16,15 @@ mod protocol;
 #[cfg_attr(windows, path = "tunnels/server_bridge_windows.rs")]
 mod server_bridge;
 mod service;
+#[cfg(target_os = "linux")]
+mod service_linux;
+#[cfg(target_os = "macos")]
+mod service_macos;
 #[cfg(target_os = "windows")]
 mod service_windows;
+mod socket_signal;
 
 pub use control_server::serve;
 pub use service::{
-    create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,
+	create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,
 };

@@ -132,6 +132,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
+		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
@@ -163,6 +164,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 			coreTranslations: []
 		});
 
@@ -313,6 +315,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 			coreTranslations: []
 		});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
@@ -1439,6 +1442,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		manifest: null,
 		readme: null,
 		repository: null,
+		signature: null,
 		coreTranslations: []
 	};
 

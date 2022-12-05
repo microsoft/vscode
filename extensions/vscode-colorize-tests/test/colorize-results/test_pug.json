@@ -112,9 +112,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -253,14 +253,14 @@
 	},
 	{
 		"c": ".",
-		"t": "text.pug",
+		"t": "text.pug storage.type.function.pug.dot-block-dot",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -436,9 +436,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -577,14 +577,14 @@
 	},
 	{
 		"c": ".",
-		"t": "text.pug",
+		"t": "text.pug storage.type.function.pug.dot-block-dot",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -964,9 +964,9 @@
 		"t": "text.pug entity.other.attribute-name.class.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1009,14 +1009,14 @@
 	},
 	{
 		"c": ".",
-		"t": "text.pug",
+		"t": "text.pug storage.type.function.pug.dot-block-dot",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -1132,9 +1132,9 @@
 		"t": "text.pug entity.other.attribute-name.class.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1180,9 +1180,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1228,9 +1228,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1276,9 +1276,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1360,9 +1360,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1408,9 +1408,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1492,9 +1492,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1540,9 +1540,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1624,9 +1624,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1672,9 +1672,9 @@
 		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}

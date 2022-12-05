@@ -12,12 +12,13 @@ const nodeUtil = require('util');
 const es = require('event-stream');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const watcher = require('./lib/watch');
 const createReporter = require('./lib/reporter').createReporter;
 const glob = require('glob');
 const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const plumber = require('gulp-plumber');
 const ext = require('./lib/extensions');
 
@@ -63,6 +64,7 @@ const compilations = [
 	'references-view/tsconfig.json',
 	'simple-browser/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
+	'typescript-language-features/web/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
