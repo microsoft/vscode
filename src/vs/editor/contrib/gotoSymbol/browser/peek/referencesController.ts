@@ -238,9 +238,7 @@ export abstract class ReferencesController implements IEditorContribution {
 	}
 
 	private _gotoReference(ref: Location): Promise<any> {
-		if (this._widget) {
-			this._widget.hide();
-		}
+		this._widget?.hide();
 
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();

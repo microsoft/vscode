@@ -14,10 +14,9 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryI
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-sandbox/workbenchCommonProperties';
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IObservableValue } from 'vs/base/common/observableValue';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -58,24 +57,24 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get telemetryLevel(): IObservableValue<TelemetryLevel> {
+	get telemetryLevel(): TelemetryLevel {
 		return this.impl.telemetryLevel;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+		return this.impl.publicLog(eventName, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
 		return this.impl.publicLogError(errorEventName, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as ITelemetryData);
 	}
 
 
@@ -84,4 +83,4 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	}
 }
 
-registerSingleton(ITelemetryService, TelemetryService);
+registerSingleton(ITelemetryService, TelemetryService, InstantiationType.Delayed);

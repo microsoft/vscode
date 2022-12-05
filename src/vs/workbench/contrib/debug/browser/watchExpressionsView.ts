@@ -25,7 +25,6 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -79,7 +78,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -176,7 +175,7 @@ export class WatchExpressionsView extends ViewPane {
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
@@ -214,12 +213,11 @@ export class WatchExpressionsView extends ViewPane {
 		const actions: IAction[] = [];
 		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
 		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0 || !!element?.presentationHint?.lazy);
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
+		createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
-			onHide: () => dispose(actionsDisposable)
 		});
 	}
 }
@@ -265,7 +263,7 @@ class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExp
 }
 
 
-export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
+class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	static readonly ID = 'watchexpression';
 
@@ -274,9 +272,8 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	get templateId() {
@@ -337,13 +334,13 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		};
 	}
 
-	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
+	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
 		const contextKeyService = getContextForWatchExpressionMenu(this.contextKeyService);
 		const menu = this.menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
 
 		const primary: IAction[] = [];
 		const context = expression;
-		data.elementDisposable.push(createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline'));
+		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;

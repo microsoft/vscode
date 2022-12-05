@@ -5,8 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { Action2, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -16,13 +16,24 @@ import { IOutputService, registerLogChannel } from 'vs/workbench/services/output
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { isLoggingOnly, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
 
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SetLogLevelAction.ID,
+			title: SetLogLevelAction.TITLE,
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run();
+	}
+});
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -38,12 +49,16 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	private registerCommonContributions(): void {
 		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
-		this.registerLogChannel(Constants.editSessionsLogChannelId, nls.localize('editSessionsLog', "Edit Sessions"), this.environmentService.editSessionsLogResource);
+		this.registerLogChannel(Constants.editSessionsLogChannelId, nls.localize('cloudChangesLog', "Cloud Changes"), this.environmentService.editSessionsLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 
 		const registerTelemetryChannel = () => {
 			if (supportsTelemetry(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
-				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
+				// Not a perfect check, but a nice way to indicate if we only have logging enabled for debug purposes and nothing is actually being sent
+				const justLoggingAndNotSending = isLoggingOnly(this.productService, this.environmentService);
+				const logSuffix = justLoggingAndNotSending ? ' (Not Sent)' : '';
+				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry{0}", logSuffix), this.environmentService.telemetryLogResource);
+				this.registerLogChannel(Constants.extensionTelemetryLogChannelId, nls.localize('extensionTelemetryLog', "Extension Telemetry{0}", logSuffix), this.environmentService.extHostTelemetryLogFile);
 				return true;
 			}
 			return false;
@@ -61,7 +76,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				super({
 					id: Constants.showWindowLogActionId,
 					title: { value: nls.localize('show window log', "Show Window Log"), original: 'Show Window Log' },
-					category: CATEGORIES.Developer,
+					category: Categories.Developer,
 					f1: true
 				});
 			}

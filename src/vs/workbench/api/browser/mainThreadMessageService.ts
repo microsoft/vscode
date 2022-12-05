@@ -5,15 +5,13 @@
 
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -43,28 +41,15 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number | undefined>(resolve => {
 
-			const primaryActions: MessageItemAction[] = [];
-
-			class MessageItemAction extends Action {
-				constructor(id: string, label: string, handle: number) {
-					super(id, label, undefined, true, () => {
-						resolve(handle);
-						return Promise.resolve();
-					});
+			const primaryActions: IAction[] = commands.map(command => toAction({
+				id: `_extension_message_handle_${command.handle}`,
+				label: command.title,
+				enabled: true,
+				run: () => {
+					resolve(command.handle);
+					return Promise.resolve();
 				}
-			}
-
-			class ManageExtensionAction extends Action {
-				constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
-					super(id.value, label, undefined, true, () => {
-						return commandService.executeCommand('_extensions.manage', id.value);
-					});
-				}
-			}
-
-			commands.forEach(command => {
-				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
-			});
+			}));
 
 			let source: string | { label: string; id: string } | undefined;
 			if (options.source) {
@@ -80,7 +65,13 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			const secondaryActions: IAction[] = [];
 			if (options.source) {
-				secondaryActions.push(new ManageExtensionAction(options.source.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+				secondaryActions.push(toAction({
+					id: options.source.identifier.value,
+					label: nls.localize('manageExtension', "Manage Extension"),
+					run: () => {
+						return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
+					}
+				}));
 			}
 
 			const messageHandle = this._notificationService.notify({
@@ -93,8 +84,6 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
 			Event.once(messageHandle.onDidClose)(() => {
-				dispose(primaryActions);
-				dispose(secondaryActions);
 				resolve(undefined);
 			});
 		});

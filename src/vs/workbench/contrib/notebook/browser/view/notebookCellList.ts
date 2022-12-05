@@ -68,11 +68,6 @@ function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
 	return result;
 }
 
-export interface IFocusNextPreviousDelegate {
-	onFocusNext(applyFocusNext: () => void): void;
-	onFocusPrevious(applyFocusPrevious: () => void): void;
-}
-
 export const NOTEBOOK_WEBVIEW_BOUNDARY = 5000;
 
 function validateWebviewBoundary(element: HTMLElement) {
@@ -147,7 +142,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	constructor(
 		private listUser: string,
-		parentContainer: HTMLElement,
 		container: HTMLElement,
 		viewContext: ViewContext,
 		delegate: IListVirtualDelegate<CellViewModel>,
@@ -487,7 +481,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._updateElementsInWebview(viewDiffs);
 	}
 
-	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
+	splice2(start: number, deleteCount: number, elements: readonly CellViewModel[] = []): void {
 		// we need to convert start and delete count based on hidden ranges
 		if (start < 0 || start > this.view.length) {
 			return;
@@ -939,7 +933,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.view.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	isElementAboveViewport(index: number) {

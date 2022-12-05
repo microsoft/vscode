@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/model';
-import * as types from 'vs/base/common/types';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IModelService } from 'vs/editor/common/services/model';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
@@ -92,7 +92,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private _getForeignProxy(): Promise<T> {
 		if (!this._foreignProxy) {
 			this._foreignProxy = this._getProxy().then((proxy) => {
-				const foreignHostMethods = this._foreignModuleHost ? types.getAllMethodNames(this._foreignModuleHost) : [];
+				const foreignHostMethods = this._foreignModuleHost ? getAllMethodNames(this._foreignModuleHost) : [];
 				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
 					this._foreignModuleCreateData = null;
 

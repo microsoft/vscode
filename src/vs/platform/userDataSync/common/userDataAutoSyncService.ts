@@ -17,21 +17,22 @@ import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type AutoSyncClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the sources triggering auto sync';
-	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Source that triggered auto sync' };
+	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source that triggered auto sync' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Auth provider id used for sync' };
 };
 
 type AutoSyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that causes auto sync to fail';
 	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings sync service for which this error has occurred' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings sync service for which this error has occurred' };
 };
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
@@ -204,8 +205,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				await this.userDataSyncService.resetLocal();
 			}
 		} catch (error) {
+			this.logService.error(error);
 			if (softTurnOffOnError) {
-				this.logService.error(error);
 				this.updateEnablement(false);
 			} else {
 				throw error;
@@ -354,7 +355,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
 			this.logService.trace('activity sources', ...this.sources);
-			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
+			const providerId = this.userDataSyncAccountService.account?.authenticationProviderId || '';
+			this.telemetryService.publicLog2<{ sources: string[]; providerId: string }, AutoSyncClassification>('sync/triggered', { sources: this.sources, providerId });
 			this.sources = [];
 			if (this.autoSync.value) {
 				await this.autoSync.value.sync('Activity', disableCache);
@@ -384,7 +386,7 @@ class AutoSync extends Disposable {
 	readonly onDidFinishSync = this._onDidFinishSync.event;
 
 	private manifest: IUserDataManifest | null = null;
-	private syncTask: ISyncTask | undefined;
+	private syncTask: IUserDataSyncTask | undefined;
 	private syncPromise: CancelablePromise<void> | undefined;
 
 	constructor(
@@ -408,12 +410,9 @@ class AutoSync extends Disposable {
 				this.logService.info('Auto sync: Cancelled sync that is in progress');
 				this.syncPromise = undefined;
 			}
-			if (this.syncTask) {
-				this.syncTask.stop();
-			}
+			this.syncTask?.stop();
 			this.logService.info('Auto Sync: Stopped');
 		}));
-		this.logService.info('Auto Sync: Started');
 		this.sync(AutoSync.INTERVAL_SYNCING, false);
 	}
 

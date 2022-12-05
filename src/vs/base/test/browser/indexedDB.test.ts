@@ -16,9 +16,7 @@ flakySuite('IndexedDB', () => {
 	});
 
 	teardown(() => {
-		if (indexedDB) {
-			indexedDB.close();
-		}
+		indexedDB?.close();
 	});
 
 	test('runInTransaction', async () => {

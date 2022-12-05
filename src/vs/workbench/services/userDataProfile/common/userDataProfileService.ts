@@ -7,7 +7,7 @@ import { Promises } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
@@ -29,15 +29,6 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		super();
 		this._currentProfile = currentProfile;
 		this._register(userDataProfilesService.onDidChangeProfiles(e => {
-			/**
-			 * If the current profile is default profile, then reset it because,
-			 * In Desktop the extensions resource will be set/unset in the default profile when profiles are changed.
-			 */
-			if (this._currentProfile.isDefault) {
-				this._currentProfile = userDataProfilesService.defaultProfile;
-				return;
-			}
-
 			const updatedCurrentProfile = e.updated.find(p => this._currentProfile.id === p.id);
 			if (updatedCurrentProfile) {
 				this._currentProfile = updatedCurrentProfile;
@@ -63,4 +54,18 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		});
 		await Promises.settled(joiners);
 	}
+
+	getShortName(profile: IUserDataProfile): string {
+		if (profile.isDefault) {
+			return `$(${defaultUserDataProfileIcon.id})`;
+		}
+		if (profile.shortName) {
+			return profile.shortName;
+		}
+		if (profile.isTransient) {
+			return `T${profile.name.charAt(profile.name.length - 1)}`;
+		}
+		return profile.name.substring(0, 2).toUpperCase();
+	}
+
 }

@@ -16,7 +16,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { stripIcons } from 'vs/base/common/iconLabels';
 import { Schemas } from 'vs/base/common/network';
 import { Iterable } from 'vs/base/common/iterator';
 
@@ -155,13 +154,10 @@ export class SCMStatusController implements IWorkbenchContribution {
 			const command = commands[index];
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
-			let ariaLabel = stripIcons(command.title).trim();
-			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
-
 			disposables.add(this.statusbarService.addEntry({
 				name: localize('status.scm', "Source Control"),
 				text: command.title,
-				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
+				ariaLabel: tooltip,
 				tooltip,
 				command: command.id ? command : undefined
 			}, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000 - index));

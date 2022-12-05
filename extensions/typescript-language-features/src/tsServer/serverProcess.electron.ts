@@ -8,7 +8,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Readable } from 'stream';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
@@ -17,7 +16,6 @@ import { TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
 
-const localize = nls.loadMessageBundle();
 
 const defaultSize: number = 8192;
 const contentLength: string = 'Content-Length: ';
@@ -259,7 +257,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		let tsServerPath = version.tsServerPath;
 
 		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath));
+			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath"));
 			versionManager.reset();
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}

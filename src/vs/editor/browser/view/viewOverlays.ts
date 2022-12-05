@@ -8,7 +8,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { IVisibleLine, IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
@@ -175,7 +175,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			const dynamicOverlay = this._dynamicOverlays[i];
@@ -189,13 +189,13 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		sb.appendASCIIString('<div style="position:absolute;top:');
-		sb.appendASCIIString(String(deltaTop));
-		sb.appendASCIIString('px;width:100%;height:');
-		sb.appendASCIIString(String(this._lineHeight));
-		sb.appendASCIIString('px;">');
-		sb.appendASCIIString(result);
-		sb.appendASCIIString('</div>');
+		sb.appendString('<div style="position:absolute;top:');
+		sb.appendString(String(deltaTop));
+		sb.appendString('px;width:100%;height:');
+		sb.appendString(String(this._lineHeight));
+		sb.appendString('px;">');
+		sb.appendString(result);
+		sb.appendString('</div>');
 
 		return true;
 	}

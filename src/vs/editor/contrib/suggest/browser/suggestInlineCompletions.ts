@@ -8,7 +8,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -259,4 +259,4 @@ class EditorContribution implements IEditorContribution {
 	}
 }
 
-registerEditorContribution('suggest.inlineCompletionsProvider', EditorContribution);
+registerEditorContribution('suggest.inlineCompletionsProvider', EditorContribution, EditorContributionInstantiation.Eager); // eager because the contribution is used as a way to ONCE access a service to which a provider is registered

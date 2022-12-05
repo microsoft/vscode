@@ -43,8 +43,8 @@
 
 .test-explorer .monaco-list-row:hover .monaco-action-bar,
 .test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
-.test-explorer .monaco-list-row:focus .monaco-action-bar,
-.test-output-peek-tree .monaco-list-row:focus .monaco-action-bar {
+.test-explorer .monaco-list-row.focused .monaco-action-bar,
+.test-output-peek-tree .monaco-list-row.focused .monaco-action-bar {
 	display: initial;
 }
 
@@ -54,7 +54,7 @@
 }
 
 .test-explorer .monaco-list-row:hover .codicon-testing-hidden,
-.test-explorer .monaco-list-row:focus .codicon-testing-hidden {
+.test-explorer .monaco-list-row.focused .codicon-testing-hidden {
 	display: none;
 }
 
@@ -74,6 +74,11 @@
 .test-explorer .computed-state,
 .test-output-peek-tree .computed-state {
 	margin-right: 0.25em;
+}
+
+.test-explorer .computed-state.retired,
+.testing-run-glyph.retired {
+	opacity: 0.7  !important;
 }
 
 .test-explorer .test-is-hidden {
@@ -158,7 +163,7 @@
 }
 
 /** -- filter  */
-.testing-filter-action-bar {
+.monaco-action-bar.testing-filter-action-bar {
 	flex-shrink: 0;
 	margin: 4px 12px;
 	height: auto;

@@ -3,78 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .action-item.markers-panel-action-filter-container {
-	cursor: default;
-	display: flex;
-}
-
-.monaco-action-bar .markers-panel-action-filter {
-	display: flex;
-	align-items: center;
-	flex: 1;
-}
-
-.monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
-	height: 24px;
-	font-size: 12px;
-	flex: 1;
-}
-
-.pane-header .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
-	height: 20px;
-	line-height: 18px;
-}
-
-.monaco-workbench.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
-	height: 25px;
-}
-
-.markers-panel-action-filter > .markers-panel-filter-controls {
-	position: absolute;
-	top: 0px;
-	bottom: 0;
-	right: 0px;
-	display: flex;
-	align-items: center;
-}
-
-.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
-	margin: 4px 0px;
-	padding: 0px 8px;
-	border-radius: 2px;
-}
-
-.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
-.markers-panel-action-filter.small > .markers-panel-filter-controls > .markers-panel-filter-badge {
-	display: none;
-}
-
-.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
-	padding: 2px;
-}
-
-.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
-	max-width: 400px;
-	min-width: 300px;
-	margin-right: 10px;
-}
-
-.markers-panel-container .monaco-action-bar.markers-panel-filter-container .action-item.markers-panel-action-filter-container,
-.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container.grow {
-	flex: 1;
-}
-
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
 
 .markers-panel .hide {
 	display: none;
-}
-
-.markers-panel-container .monaco-action-bar.markers-panel-filter-container {
-	margin: 10px 20px;
-	height: initial;
 }
 
 .markers-panel .markers-panel-container .message-box-container {

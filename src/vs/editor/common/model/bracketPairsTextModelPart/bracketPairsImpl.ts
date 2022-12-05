@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CallbackIterable, compareBy } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree';
-import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
-import { RichEditBrackets, BracketsUtils, RichEditBracket } from 'vs/editor/common/languages/supports/richEditBrackets';
-import { compareBy, findLast, findLastMaxBy } from 'vs/base/common/arrays';
 import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
+import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
@@ -102,22 +102,22 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 	 * Returns all bracket pairs that intersect the given range.
 	 * The result is sorted by the start position.
 	*/
-	public getBracketPairsInRange(range: Range): BracketPairInfo[] {
+	public getBracketPairsInRange(range: Range): CallbackIterable<BracketPairInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, false) || [];
+		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, false) || CallbackIterable.empty;
 	}
 
-	public getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentationInfo[] {
+	public getBracketPairsInRangeWithMinIndentation(range: Range): CallbackIterable<BracketPairWithMinIndentationInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, true) || [];
+		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, true) || CallbackIterable.empty;
 	}
 
-	public getBracketsInRange(range: Range): BracketInfo[] {
+	public getBracketsInRange(range: Range): CallbackIterable<BracketInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketsInRange(range) || [];
+		return this.bracketPairsTree.value?.object.getBracketsInRange(range) || CallbackIterable.empty;
 	}
 
 	public findMatchingBracketUp(_bracket: string, _position: IPosition, maxDuration?: number): Range | null {
@@ -133,7 +133,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 				return null;
 			}
 
-			const bracketPair = findLast(this.getBracketPairsInRange(Range.fromPositions(_position, _position)) || [], (b) =>
+			const bracketPair = this.getBracketPairsInRange(Range.fromPositions(_position, _position)).findLast((b) =>
 				closingBracketInfo.closes(b.openingBracketInfo)
 			);
 
@@ -163,7 +163,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 	public matchBracket(position: IPosition, maxDuration?: number): [Range, Range] | null {
 		if (this.canBuildAST) {
-			const bracketPair = findLastMaxBy(
+			const bracketPair =
 				this.getBracketPairsInRange(
 					Range.fromPositions(position, position)
 				).filter(
@@ -171,15 +171,15 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 						item.closingBracketRange !== undefined &&
 						(item.openingBracketRange.containsPosition(position) ||
 							item.closingBracketRange.containsPosition(position))
-				),
-				compareBy(
-					(item) =>
-						item.openingBracketRange.containsPosition(position)
-							? item.openingBracketRange
-							: item.closingBracketRange,
-					Range.compareRangesUsingStarts
-				)
-			);
+				).findLastMaxBy(
+					compareBy(
+						(item) =>
+							item.openingBracketRange.containsPosition(position)
+								? item.openingBracketRange
+								: item.closingBracketRange,
+						Range.compareRangesUsingStarts
+					)
+				);
 			if (bracketPair) {
 				return [bracketPair.openingBracketRange, bracketPair.closingBracketRange!];
 			}
@@ -674,10 +674,10 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 		if (this.canBuildAST) {
 			const range = Range.fromPositions(position);
-			const bracketPair = findLast(
-				this.getBracketPairsInRange(Range.fromPositions(position, position)),
-				(item) => item.closingBracketRange !== undefined && item.range.strictContainsRange(range)
-			);
+			const bracketPair =
+				this.getBracketPairsInRange(Range.fromPositions(position, position)).findLast(
+					(item) => item.closingBracketRange !== undefined && item.range.strictContainsRange(range)
+				);
 			if (bracketPair) {
 				return [bracketPair.openingBracketRange, bracketPair.closingBracketRange!];
 			}

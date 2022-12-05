@@ -62,24 +62,6 @@
 						]
 					}
 				},
-				"containerEnv": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					},
-					"description": "Container environment variables."
-				},
-				"containerUser": {
-					"type": "string",
-					"description": "The user the container will be started with. The default is the user on the Docker image."
-				},
-				"mounts": {
-					"type": "array",
-					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
-					"items": {
-						"type": "string"
-					}
-				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -278,6 +260,83 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {
@@ -305,51 +364,101 @@
 				"onCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"updateContentCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postStartCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postAttachCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"waitFor": {
@@ -400,6 +509,39 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"oneOf": [
+								{
+									"type": [
+										"boolean",
+										"string"
+									],
+									"enum": [
+										true,
+										false,
+										"optional"
+									],
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
+								},
+								{
+									"type": "object",
+									"properties": {
+										"cores": {
+											"type": "integer",
+											"minimum": 1,
+											"description": "Number of required cores."
+										},
+										"memory": {
+											"type": "string",
+											"pattern": "^\\d+([tgmk]b)?$",
+											"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+										}
+									},
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements.",
+									"additionalProperties": false
+								}
+							]
 						}
 					},
 					"additionalProperties": false
@@ -600,6 +742,13 @@
 										}
 									},
 									"additionalProperties": false
+								},
+								"openFiles": {
+									"type": "array",
+									"description": "The paths to the files to open when the codespace is created. Paths are relative to the workspace.",
+									"items": {
+										"type": "string"
+									}
 								}
 							},
 							"additionalProperties": false
@@ -672,24 +821,6 @@
 						]
 					}
 				},
-				"containerEnv": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					},
-					"description": "Container environment variables."
-				},
-				"containerUser": {
-					"type": "string",
-					"description": "The user the container will be started with. The default is the user on the Docker image."
-				},
-				"mounts": {
-					"type": "array",
-					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
-					"items": {
-						"type": "string"
-					}
-				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -888,6 +1019,83 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {
@@ -915,51 +1123,101 @@
 				"onCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"updateContentCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postStartCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postAttachCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"waitFor": {
@@ -1010,6 +1268,39 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"oneOf": [
+								{
+									"type": [
+										"boolean",
+										"string"
+									],
+									"enum": [
+										true,
+										false,
+										"optional"
+									],
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
+								},
+								{
+									"type": "object",
+									"properties": {
+										"cores": {
+											"type": "integer",
+											"minimum": 1,
+											"description": "Number of required cores."
+										},
+										"memory": {
+											"type": "string",
+											"pattern": "^\\d+([tgmk]b)?$",
+											"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+										}
+									},
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements.",
+									"additionalProperties": false
+								}
+							]
 						}
 					},
 					"additionalProperties": false
@@ -1210,6 +1501,13 @@
 										}
 									},
 									"additionalProperties": false
+								},
+								"openFiles": {
+									"type": "array",
+									"description": "The paths to the files to open when the codespace is created. Paths are relative to the workspace.",
+									"items": {
+										"type": "string"
+									}
 								}
 							},
 							"additionalProperties": false
@@ -1248,24 +1546,6 @@
 						]
 					}
 				},
-				"containerEnv": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					},
-					"description": "Container environment variables."
-				},
-				"containerUser": {
-					"type": "string",
-					"description": "The user the container will be started with. The default is the user on the Docker image."
-				},
-				"mounts": {
-					"type": "array",
-					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
-					"items": {
-						"type": "string"
-					}
-				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -1464,6 +1744,83 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {
@@ -1491,51 +1848,101 @@
 				"onCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"updateContentCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postStartCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postAttachCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"waitFor": {
@@ -1586,6 +1993,39 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"oneOf": [
+								{
+									"type": [
+										"boolean",
+										"string"
+									],
+									"enum": [
+										true,
+										false,
+										"optional"
+									],
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
+								},
+								{
+									"type": "object",
+									"properties": {
+										"cores": {
+											"type": "integer",
+											"minimum": 1,
+											"description": "Number of required cores."
+										},
+										"memory": {
+											"type": "string",
+											"pattern": "^\\d+([tgmk]b)?$",
+											"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+										}
+									},
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements.",
+									"additionalProperties": false
+								}
+							]
 						}
 					},
 					"additionalProperties": false
@@ -1786,6 +2226,13 @@
 										}
 									},
 									"additionalProperties": false
+								},
+								"openFiles": {
+									"type": "array",
+									"description": "The paths to the files to open when the codespace is created. Paths are relative to the workspace.",
+									"items": {
+										"type": "string"
+									}
 								}
 							},
 							"additionalProperties": false
@@ -2014,6 +2461,83 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {
@@ -2041,51 +2565,101 @@
 				"onCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"updateContentCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postStartCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postAttachCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"waitFor": {
@@ -2136,6 +2710,39 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"oneOf": [
+								{
+									"type": [
+										"boolean",
+										"string"
+									],
+									"enum": [
+										true,
+										false,
+										"optional"
+									],
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
+								},
+								{
+									"type": "object",
+									"properties": {
+										"cores": {
+											"type": "integer",
+											"minimum": 1,
+											"description": "Number of required cores."
+										},
+										"memory": {
+											"type": "string",
+											"pattern": "^\\d+([tgmk]b)?$",
+											"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+										}
+									},
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements.",
+									"additionalProperties": false
+								}
+							]
 						}
 					},
 					"additionalProperties": false
@@ -2336,6 +2943,13 @@
 										}
 									},
 									"additionalProperties": false
+								},
+								"openFiles": {
+									"type": "array",
+									"description": "The paths to the files to open when the codespace is created. Paths are relative to the workspace.",
+									"items": {
+										"type": "string"
+									}
 								}
 							},
 							"additionalProperties": false
@@ -2529,6 +3143,83 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {
@@ -2556,51 +3247,101 @@
 				"onCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"updateContentCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postCreateCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postStartCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"postAttachCommand": {
 					"type": [
 						"string",
-						"array"
+						"array",
+						"object"
 					],
-					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell. Alternatively an object with the property keys as labels and the values as either strings or arrays of strings can be used to configure multiple commands.",
 					"items": {
 						"type": "string"
+					},
+					"additionalProperties": {
+						"type": [
+							"string",
+							"array"
+						],
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"waitFor": {
@@ -2651,6 +3392,39 @@
 							"type": "string",
 							"pattern": "^\\d+([tgmk]b)?$",
 							"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+						},
+						"gpu": {
+							"oneOf": [
+								{
+									"type": [
+										"boolean",
+										"string"
+									],
+									"enum": [
+										true,
+										false,
+										"optional"
+									],
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements."
+								},
+								{
+									"type": "object",
+									"properties": {
+										"cores": {
+											"type": "integer",
+											"minimum": 1,
+											"description": "Number of required cores."
+										},
+										"memory": {
+											"type": "string",
+											"pattern": "^\\d+([tgmk]b)?$",
+											"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+										}
+									},
+									"description": "Indicates whether a GPU is required. The string \"optional\" indicates that a GPU is optional. An object value can be used to configure more detailed requirements.",
+									"additionalProperties": false
+								}
+							]
 						}
 					},
 					"additionalProperties": false
@@ -2851,6 +3625,13 @@
 										}
 									},
 									"additionalProperties": false
+								},
+								"openFiles": {
+									"type": "array",
+									"description": "The paths to the files to open when the codespace is created. Paths are relative to the workspace.",
+									"items": {
+										"type": "string"
+									}
 								}
 							},
 							"additionalProperties": false

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, ChildProcessWithoutNullStreams, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, resolve, join } from 'vs/base/common/path';
+import { isAbsolute, resolve, join, dirname } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
@@ -19,12 +19,11 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
-import { dirname } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
@@ -50,6 +49,32 @@ export async function main(argv: string[]): Promise<any> {
 		return;
 	}
 
+	if (args.tunnel) {
+		if (!product.tunnelApplicationName) {
+			console.error(`'tunnel' command not supported in ${product.applicationName}`);
+			return;
+		}
+		return new Promise((resolve, reject) => {
+			let tunnelProcess: ChildProcessWithoutNullStreams;
+			if (process.env['VSCODE_DEV']) {
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...argv.slice(5)], { cwd: join(getAppRoot(), 'cli') });
+			} else {
+				const appPath = process.platform === 'darwin'
+					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
+					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
+					: dirname(process.execPath);
+				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+				const tunnelArgs = argv.slice(3);
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs]);
+			}
+
+			tunnelProcess.stdout.pipe(process.stdout);
+			tunnelProcess.stderr.pipe(process.stderr);
+			tunnelProcess.on('exit', resolve);
+			tunnelProcess.on('error', reject);
+		});
+	}
+
 	// Help
 	if (args.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
@@ -71,9 +96,11 @@ export async function main(argv: string[]): Promise<any> {
 			case 'pwsh': file = 'shellIntegration.ps1'; break;
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
+			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management
@@ -179,7 +206,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);
@@ -218,7 +245,7 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = createWaitMarkerFile(verbose);
+			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
@@ -332,7 +359,7 @@ export async function main(argv: string[]): Promise<any> {
 									return false;
 								}
 								if (target.type === 'page') {
-									return target.url.indexOf('workbench/workbench.html') > 0;
+									return target.url.indexOf('workbench/workbench.html') > 0 || target.url.indexOf('workbench/workbench-dev.html') > 0;
 								} else {
 									return true;
 								}
@@ -463,6 +490,10 @@ export async function main(argv: string[]): Promise<any> {
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}
+}
+
+function getAppRoot() {
+	return dirname(FileAccess.asFileUri('').fsPath);
 }
 
 function eventuallyExit(code: number): void {

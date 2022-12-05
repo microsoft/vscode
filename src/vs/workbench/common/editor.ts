@@ -19,10 +19,10 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/window/common/window';
-import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -484,6 +484,8 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+
 /**
  * A resource merge editor input compares multiple editors
  * highlighting the differences for merging.
@@ -496,12 +498,12 @@ export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The one changed version of the file.
 	 */
-	readonly input1: IResourceEditorInput | ITextResourceEditorInput;
+	readonly input1: IResourceMergeEditorInputSide;
 
 	/**
 	 * The second changed version of the file.
 	 */
-	readonly input2: IResourceEditorInput | ITextResourceEditorInput;
+	readonly input2: IResourceMergeEditorInputSide;
 
 	/**
 	 * The base common ancestor of the file to merge.
@@ -559,6 +561,12 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 	}
 
 	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+}
+
+const UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /Untitled-\d+/;
+
+export function isUntitledWithAssociatedResource(resource: URI): boolean {
+	return resource.scheme === Schemas.untitled && resource.path.length > 1 && !UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX.test(resource.path);
 }
 
 export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {
@@ -1380,20 +1388,22 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService, logService: ILogService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
 	if (!paths || !paths.length) {
 		return [];
 	}
 
-	const editors = await Promise.all(paths.map(async path => {
+	return await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
 		if (!resource) {
-			return;
+			logService.info('Cannot resolve the path because it is not valid.', path);
+			return undefined;
 		}
 
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
-			return;
+			logService.info('Cannot resolve the path because it cannot be handled', path);
+			return undefined;
 		}
 
 		let exists = path.exists;
@@ -1402,17 +1412,20 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			try {
 				type = (await fileService.stat(resource)).isDirectory ? FileType.Directory : FileType.Unknown;
 				exists = true;
-			} catch {
+			} catch (error) {
+				logService.error(error);
 				exists = false;
 			}
 		}
 
 		if (!exists && path.openOnlyIfExists) {
-			return;
+			logService.info('Cannot resolve the path because it does not exist', path);
+			return undefined;
 		}
 
 		if (type === FileType.Directory) {
-			return;
+			logService.info('Cannot resolve the path because it is a directory', path);
+			return undefined;
 		}
 
 		const options: IEditorOptions = {
@@ -1420,17 +1433,12 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		};
 
-		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
-			input = { resource, options, forceUntitled: true };
-		} else {
-			input = { resource, options };
+			return { resource, options, forceUntitled: true };
 		}
 
-		return input;
+		return { resource, options };
 	}));
-
-	return coalesce(editors);
 }
 
 export const enum EditorsOrder {
