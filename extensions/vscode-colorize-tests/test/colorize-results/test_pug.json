@@ -302,7 +302,9 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0F4A85"
+			"dark_plus_experimental": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_plus_experimental": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -678,7 +680,9 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0F4A85"
+			"dark_plus_experimental": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_plus_experimental": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -1180,7 +1184,9 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0F4A85"
+			"dark_plus_experimental": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_plus_experimental": "storage.type: #0000FF"
 		}
 	},
 	{
