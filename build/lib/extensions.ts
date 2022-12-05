@@ -185,7 +185,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 function fromLocalNormal(extensionPath: string): Stream {
 	const result = es.through();
 
-	const vsce = require('vsce') as typeof import('vsce');
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
 		.then(fileNames => {
