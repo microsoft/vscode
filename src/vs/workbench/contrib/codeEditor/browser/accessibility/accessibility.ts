@@ -21,13 +21,13 @@ import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOpti
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
@@ -120,7 +120,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KeyE)) {
 				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
 
-				this._configurationService.updateValue('editor.accessibilitySupport', 'on');
+				this._configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 
 				e.preventDefault();
 				e.stopPropagation();
@@ -339,9 +339,9 @@ class ToggleScreenReaderMode extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const accessibiiltyService = accessor.get(IAccessibilityService);
 		const configurationService = accessor.get(IConfigurationService);
-		const value = configurationService.getValue('editor.accessibilitySupport');
-		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on');
+		configurationService.updateValue('editor.accessibilitySupport', accessibiiltyService.isScreenReaderOptimized() ? 'off' : 'on', ConfigurationTarget.USER);
 	}
 }
 
