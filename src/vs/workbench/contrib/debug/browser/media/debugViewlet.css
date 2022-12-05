@@ -54,6 +54,7 @@
 	line-height: inherit;
 	padding-top: 0;
 	padding-bottom: 0;
+	box-sizing: border-box; /* See #167894 */
 
 	/* The debug view title is crowded, let this one get narrower than others */
 	min-width: 70px;
