@@ -100,7 +100,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 		}
 	}
 
-	const vsce = require('vsce') as typeof import('vsce');
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const webpack = require('webpack');
 	const webpackGulp = require('webpack-stream');
 
