@@ -227,9 +227,7 @@ export class IssueMainService implements IIssueMainService {
 					product
 				});
 
-				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
-				);
+				this.issueReporterWindow.loadURL('chrome://accessibility');
 
 				this.issueReporterWindow.on('close', () => {
 					this.issueReporterWindow = null;
