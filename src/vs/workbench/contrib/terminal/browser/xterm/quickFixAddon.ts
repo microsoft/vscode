@@ -291,7 +291,6 @@ export async function getQuickFixesForCommand(
 ): Promise<ITerminalAction[] | undefined> {
 	const fixes: ITerminalAction[] = [];
 	const newCommand = terminalCommand.command;
-	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
 			if (option.exitStatus === (terminalCommand.exitCode !== 0)) {
@@ -339,13 +338,12 @@ export async function getQuickFixesForCommand(
 									run: () => {
 										onDidRequestRerunCommand?.fire({
 											command: fix.terminalCommand,
-											addNewLine: fix.addNewLine
+											addNewLine: fix.addNewLine ?? true
 										});
 									},
 									tooltip: label,
 									command: fix.terminalCommand
-								} as ITerminalAction;
-								expectedCommands.push(fix.terminalCommand);
+								};
 								break;
 							}
 							case TerminalQuickFixType.Opener: {
@@ -365,7 +363,7 @@ export async function getQuickFixesForCommand(
 									run: () => openerService.open(fix.uri),
 									tooltip: label,
 									uri: fix.uri
-								} as ITerminalAction;
+								};
 								break;
 							}
 						}

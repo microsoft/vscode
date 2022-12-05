@@ -3647,22 +3647,6 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) notebook edits for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: readonly NotebookEdit[]): void;
-
-		/**
-		 * Set (and replace) notebook edits with metadata for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
-
-		/**
 		 * Set (and replace) text edits or snippet edits for a resource.
 		 *
 		 * @param uri A resource identifier.
@@ -3677,6 +3661,22 @@ declare module 'vscode' {
 		 * @param edits An array of edits.
 		 */
 		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) notebook edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.

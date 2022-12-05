@@ -27,7 +27,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
@@ -339,9 +339,9 @@ class ToggleScreenReaderMode extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const accessibiiltyService = accessor.get(IAccessibilityService);
 		const configurationService = accessor.get(IConfigurationService);
-		const value = configurationService.getValue('editor.accessibilitySupport');
-		configurationService.updateValue('editor.accessibilitySupport', value === 'on' ? 'off' : 'on', ConfigurationTarget.USER);
+		configurationService.updateValue('editor.accessibilitySupport', accessibiiltyService.isScreenReaderOptimized() ? 'off' : 'on', ConfigurationTarget.USER);
 	}
 }
 
