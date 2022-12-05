@@ -106,7 +106,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-	const regex = new RegExp(mark + '(.*)' + mark);
+	const regex = new RegExp(mark + '({.*})' + mark);
 
 	const env = {
 		...process.env,
