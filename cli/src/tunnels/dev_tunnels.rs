@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 use crate::auth;
 use crate::constants::{
-	CONTROL_PORT, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX, TUNNEL_SERVICE_USER_AGENT,
+	CONTROL_PORT, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX, TUNNEL_SERVICE_USER_AGENT, IS_INTERACTIVE_CLI,
 };
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
@@ -659,7 +659,7 @@ impl DevTunnels {
 		}
 
 		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
-		if use_random_name {
+		if use_random_name || !*IS_INTERACTIVE_CLI {
 			while !is_name_free(&placeholder_name) {
 				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
 			}

@@ -36,7 +36,6 @@ import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/brow
 import { RunOnceScheduler } from 'vs/base/common/async';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
-export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 interface IPath {
 	join(...paths: string[]): string;
