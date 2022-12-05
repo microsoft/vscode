@@ -10,6 +10,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
+import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
@@ -18,8 +19,10 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class ExtensionsDownloader extends Disposable {
 
@@ -30,10 +33,12 @@ export class ExtensionsDownloader extends Disposable {
 	private readonly cleanUpPromise: Promise<void>;
 
 	constructor(
+		private readonly targetPlatform: Promise<TargetPlatform>,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -54,7 +59,7 @@ export class ExtensionsDownloader extends Disposable {
 		}
 
 		let verified: boolean = false;
-		if (extension.isSigned && this.configurationService.getValue('extensions.verifySignature') === true) {
+		if (await this.checkForVerification(extension)) {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			try {
 				verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
@@ -67,6 +72,22 @@ export class ExtensionsDownloader extends Disposable {
 		}
 
 		return { location, verified };
+	}
+
+	private async checkForVerification(extension: IGalleryExtension): Promise<boolean> {
+		if (!extension.isSigned) {
+			return false;
+		}
+		const targetPlatform = await this.targetPlatform;
+		// Signing module has issue in this platform - https://github.com/microsoft/vscode/issues/164726
+		if (targetPlatform === TargetPlatform.LINUX_ARMHF) {
+			return false;
+		}
+		const value = this.configurationService.getValue('extensions.verifySignature');
+		if (isBoolean(value)) {
+			return value;
+		}
+		return this.productService.quality !== 'stable';
 	}
 
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {

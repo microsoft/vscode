@@ -5,9 +5,9 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
+import { ActionSet, IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -188,12 +188,13 @@ export class CodeActionCommandArgs {
 	) { }
 }
 
-export class CodeActionItem {
+export class CodeActionItem implements IActionItem {
 
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
-	) { }
+	) {
+	}
 
 	async resolve(token: CancellationToken): Promise<this> {
 		if (this.provider?.resolveCodeAction && !this.action.edit) {
@@ -211,11 +212,14 @@ export class CodeActionItem {
 	}
 }
 
-export interface CodeActionSet extends IDisposable {
+export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
-	readonly hasAutoFix: boolean;
 
-	readonly documentation: readonly languages.Command[];
+	readonly documentation: readonly {
+		id: string;
+		title: string;
+		tooltip?: string;
+		commandArguments?: any[];
+	}[];
 }
-

@@ -15,6 +15,13 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
 const { DefinePlugin, optimize } = require('webpack');
 
+const tsLoaderOptions = {
+	compilerOptions: {
+		'sourceMap': true,
+	},
+	onlyCompileBundledFiles: true,
+};
+
 function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	/** @type WebpackConfig */
 	const defaultConfig = {
@@ -42,18 +49,21 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 					// configure TypeScript loader:
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
+					options: tsLoaderOptions
+				}, {
+					loader: path.resolve(__dirname, 'mangle-loader.js'),
 					options: {
-						compilerOptions: {
-							'sourceMap': true,
-						}
-					}
-				}]
+						configFile: path.join(extConfig.context, 'tsconfig.json')
+					},
+				},]
 			}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
+			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
+			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
+			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
 		},
 		output: {
 			// all output goes into `dist`.
@@ -118,18 +128,25 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 						// * enable sources maps for end-to-end source maps
 						loader: 'ts-loader',
 						options: {
-							compilerOptions: {
-								'sourceMap': true,
-							},
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
+							...tsLoaderOptions,
+							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
 						}
-					}]
+					},
+					{
+						loader: path.resolve(__dirname, 'mangle-loader.js'),
+						options: {
+							configFile: path.join(extConfig.context, additionalOptions?.configFile ?? 'tsconfig.json')
+						},
+					},
+				]
 			}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
+			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
+			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
+			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
 		},
 		performance: {
 			hints: false

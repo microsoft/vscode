@@ -14,7 +14,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	constants::QUALITY_DOWNLOAD_URIS,
+	constants::{QUALITYLESS_PRODUCT_NAME, QUALITY_DOWNLOAD_URIS},
 	log,
 	options::{self, Quality},
 	state::{LauncherPaths, PersistedState},
@@ -249,7 +249,10 @@ impl CodeVersionManager {
 /// Shows a nice UI prompt to users asking them if they want to install the
 /// requested version.
 pub fn prompt_to_install(version: &RequestedVersion) {
-	println!("No installation of VS Code {} was found.", version);
+	println!(
+		"No installation of {} {} was found.",
+		QUALITYLESS_PRODUCT_NAME, version
+	);
 
 	if let RequestedVersion::Quality(quality) = version {
 		if let Some(uri) = QUALITY_DOWNLOAD_URIS.as_ref().and_then(|m| m.get(quality)) {
@@ -265,14 +268,14 @@ pub fn prompt_to_install(version: &RequestedVersion) {
 	}
 
 	println!();
-	println!("If you already installed VS Code and we didn't detect it, run `{} --install-dir /path/to/installation`", version.get_command());
+	println!("If you already installed {} and we didn't detect it, run `{} --install-dir /path/to/installation`", QUALITYLESS_PRODUCT_NAME, version.get_command());
 }
 
 #[cfg(target_os = "macos")]
 fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<Vec<PathBuf>> {
 	// easy, fast detection for where apps are usually installed
 	let mut probable = PathBuf::from("/Applications");
-	let app_name = quality.get_macos_app_name();
+	let app_name = quality.get_long_name();
 	probable.push(format!("{}.app", app_name));
 	if probable.exists() {
 		probable.extend(["Contents/Resources", "app", "bin", "code"]);
@@ -318,17 +321,11 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 				}
 			}
 			State::LookingForLocation => {
-				if line.starts_with(LOCATION_PREFIX) {
+				if let Some(suffix) = line.strip_prefix(LOCATION_PREFIX) {
 					output.push(
-						[
-							&line[LOCATION_PREFIX.len()..].trim(),
-							"Contents/Resources",
-							"app",
-							"bin",
-							"code",
-						]
-						.iter()
-						.collect(),
+						[suffix.trim(), "Contents/Resources", "app", "bin", "code"]
+							.iter()
+							.collect(),
 					);
 					state = State::LookingForName;
 				}
@@ -338,7 +335,7 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 
 	// Sort shorter paths to the front, preferring "more global" installs, and
 	// incidentally preferring local installs over Parallels 'installs'.
-	output.sort_by(|a, b| a.as_os_str().len().cmp(&b.as_os_str().len()));
+	output.sort_by_key(|a| a.as_os_str().len());
 
 	Ok(output)
 }
@@ -384,11 +381,7 @@ fn detect_installed_program(_log: &log::Logger, quality: Quality) -> io::Result<
 						[
 							location.as_str(),
 							"bin",
-							match quality {
-								Quality::Exploration => "code-exploration.cmd",
-								Quality::Insiders => "code-insiders.cmd",
-								Quality::Stable => "code.cmd",
-							},
+							&format!("{}.cmd", quality.get_application_name()),
 						]
 						.iter()
 						.collect(),
@@ -413,7 +406,7 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 		}
 	};
 
-	let name = quality.get_commandline_name();
+	let name = quality.get_application_name();
 	let current_exe = std::env::current_exe().expect("expected to read current exe");
 	let mut output = vec![];
 	for dir in path.split(':') {

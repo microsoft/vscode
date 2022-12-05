@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::auth;
-use crate::constants::{CONTROL_PORT, TUNNEL_SERVICE_USER_AGENT};
+use crate::constants::{
+	CONTROL_PORT, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX, TUNNEL_SERVICE_USER_AGENT, IS_INTERACTIVE_CLI,
+};
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
 	wrap, AnyError, DevTunnelError, InvalidTunnelName, TunnelCreationFailed, WrappedError,
@@ -12,6 +14,7 @@ use crate::util::input::prompt_placeholder;
 use crate::{debug, info, log, spanf, trace, warning};
 use async_trait::async_trait;
 use futures::TryFutureExt;
+use lazy_static::lazy_static;
 use rand::prelude::IteratorRandom;
 use regex::Regex;
 use reqwest::StatusCode;
@@ -121,7 +124,7 @@ impl AccessTokenProvider for LookupAccessTokenProvider {
 
 		match tunnel_lookup {
 			Ok(tunnel) => Ok(get_host_token_from_tunnel(&tunnel)),
-			Err(e) => Err(wrap(e, "failed to lookup tunnel")),
+			Err(e) => Err(wrap(e, "failed to lookup tunnel for host token")),
 		}
 	}
 }
@@ -137,6 +140,8 @@ pub struct DevTunnels {
 pub struct ActiveTunnel {
 	/// Name of the tunnel
 	pub name: String,
+	/// Underlying dev tunnels ID
+	pub id: String,
 	manager: ActiveTunnelManager,
 }
 
@@ -212,6 +217,14 @@ fn is_valid_name(name: &str) -> Result<(), InvalidTunnelName> {
 	Ok(())
 }
 
+lazy_static! {
+	static ref HOST_TUNNEL_REQUEST_OPTIONS: TunnelRequestOptions = TunnelRequestOptions {
+		include_ports: true,
+		token_scopes: vec!["host".to_string()],
+		..Default::default()
+	};
+}
+
 /// Structure optionally passed into `start_existing_tunnel` to forward an existing tunnel.
 #[derive(Clone, Debug)]
 pub struct ExistingTunnel {
@@ -260,6 +273,7 @@ impl DevTunnels {
 		Ok(())
 	}
 
+	/// Renames the current tunnel to the new name.
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
 		is_valid_name(name)?;
 
@@ -269,7 +283,7 @@ impl DevTunnels {
 			Some(t) => t,
 			None => {
 				debug!(self.log, "No code server tunnel found, creating new one");
-				let (persisted, _) = self.create_tunnel(name).await?;
+				let (persisted, _) = self.create_tunnel(name, NO_REQUEST_OPTIONS).await?;
 				self.launcher_tunnel.save(Some(persisted))?;
 				return Ok(());
 			}
@@ -282,7 +296,7 @@ impl DevTunnels {
 			self.log.span("dev-tunnel.tag.get"),
 			self.client.get_tunnel(&locator, NO_REQUEST_OPTIONS)
 		)
-		.map_err(|e| wrap(e, "failed to lookup tunnel"))?;
+		.map_err(|e| wrap(e, "failed to lookup original tunnel"))?;
 
 		full_tunnel.tags = vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
 		spanf!(
@@ -297,6 +311,70 @@ impl DevTunnels {
 		Ok(())
 	}
 
+	/// Updates the name of the existing persisted tunnel to the new name.
+	/// Gracefully creates a new tunnel if the previous one was deleted.
+	async fn update_tunnel_name(
+		&mut self,
+		persisted: PersistedTunnel,
+		name: &str,
+	) -> Result<(Tunnel, PersistedTunnel), AnyError> {
+		self.check_is_name_free(name).await?;
+
+		debug!(self.log, "Tunnel name changed, applying updates...");
+
+		let (mut full_tunnel, mut persisted, is_new) = self
+			.get_or_create_tunnel(persisted, Some(name), NO_REQUEST_OPTIONS)
+			.await?;
+		if is_new {
+			return Ok((full_tunnel, persisted));
+		}
+
+		full_tunnel.tags = vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
+
+		let new_tunnel = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.tag.update"),
+			self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
+		)
+		.map_err(|e| wrap(e, "failed to rename tunnel"))?;
+
+		persisted.name = name.to_string();
+		self.launcher_tunnel.save(Some(persisted.clone()))?;
+
+		Ok((new_tunnel, persisted))
+	}
+
+	/// Gets the persisted tunnel from the service, or creates a new one.
+	/// If `create_with_new_name` is given, the new tunnel has that name
+	/// instead of the one previously persisted.
+	async fn get_or_create_tunnel(
+		&mut self,
+		persisted: PersistedTunnel,
+		create_with_new_name: Option<&str>,
+		options: &TunnelRequestOptions,
+	) -> Result<(Tunnel, PersistedTunnel, /* is_new */ bool), AnyError> {
+		let tunnel_lookup = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.tag.get"),
+			self.client.get_tunnel(&persisted.locator(), options)
+		);
+
+		match tunnel_lookup {
+			Ok(ft) => Ok((ft, persisted, false)),
+			Err(HttpError::ResponseError(e))
+				if e.status_code == StatusCode::NOT_FOUND
+					|| e.status_code == StatusCode::FORBIDDEN =>
+			{
+				let (persisted, tunnel) = self
+					.create_tunnel(create_with_new_name.unwrap_or(&persisted.name), options)
+					.await?;
+				self.launcher_tunnel.save(Some(persisted.clone()))?;
+				Ok((tunnel, persisted, true))
+			}
+			Err(e) => Err(wrap(e, "failed to lookup tunnel").into()),
+		}
+	}
+
 	/// Starts a new tunnel for the code server on the port. Unlike `start_new_tunnel`,
 	/// this attempts to reuse or create a tunnel of a preferred name or of a generated friendly tunnel name.
 	pub async fn start_new_launcher_tunnel(
@@ -304,72 +382,37 @@ impl DevTunnels {
 		preferred_name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
-		let (tunnel, persisted) = match self.launcher_tunnel.load() {
+		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
 				if let Some(name) = preferred_name {
 					if persisted.name.ne(&name) {
-						self.check_is_name_free(&name).await?;
-						let mut full_tunnel = spanf!(
-							self.log,
-							self.log.span("dev-tunnel.tag.get"),
-							self.client
-								.get_tunnel(&persisted.locator(), NO_REQUEST_OPTIONS)
-						)
-						.map_err(|e| wrap(e, "failed to lookup tunnel"))?;
-
-						info!(self.log, "Updating name of existing tunnel");
-
-						full_tunnel.tags =
-							vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
-						if spanf!(
-							self.log,
-							self.log.span("dev-tunnel.tag.update"),
-							self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
-						)
-						.is_ok()
-						{
-							persisted.name = name.to_string();
-							self.launcher_tunnel.save(Some(persisted.clone()))?;
-						}
+						(_, persisted) = self.update_tunnel_name(persisted, &name).await?;
 					}
 				}
 
-				let tunnel_lookup = spanf!(
-					self.log,
-					self.log.span("dev-tunnel.tag.get"),
-					self.client.get_tunnel(
-						&persisted.locator(),
-						&TunnelRequestOptions {
-							include_ports: true,
-							token_scopes: vec!["host".to_string()],
-							..Default::default()
-						}
-					)
-				);
-
-				match tunnel_lookup {
-					Ok(ft) => (ft, persisted),
-					Err(HttpError::ResponseError(e))
-						if e.status_code == StatusCode::NOT_FOUND
-							|| e.status_code == StatusCode::FORBIDDEN =>
-					{
-						let (persisted, tunnel) = self.create_tunnel(&persisted.name).await?;
-						self.launcher_tunnel.save(Some(persisted.clone()))?;
-						(tunnel, persisted)
-					}
-					Err(e) => return Err(AnyError::from(wrap(e, "failed to lookup tunnel"))),
-				}
+				let (tunnel, persisted, _) = self
+					.get_or_create_tunnel(persisted, None, &HOST_TUNNEL_REQUEST_OPTIONS)
+					.await?;
+				(tunnel, persisted)
 			}
 			None => {
 				debug!(self.log, "No code server tunnel found, creating new one");
 				let name = self
 					.get_name_for_tunnel(preferred_name, use_random_name)
 					.await?;
-				let (persisted, full_tunnel) = self.create_tunnel(&name).await?;
+				let (persisted, full_tunnel) = self
+					.create_tunnel(&name, &HOST_TUNNEL_REQUEST_OPTIONS)
+					.await?;
 				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				(full_tunnel, persisted)
 			}
 		};
+
+		if !tunnel.tags.iter().any(|t| t == PROTOCOL_VERSION_TAG) {
+			tunnel = self
+				.update_protocol_version_tag(tunnel, &HOST_TUNNEL_REQUEST_OPTIONS)
+				.await?;
+		}
 
 		let locator = TunnelLocator::try_from(&tunnel).unwrap();
 		let host_token = get_host_token_from_tunnel(&tunnel);
@@ -419,13 +462,21 @@ impl DevTunnels {
 		.await
 	}
 
-	async fn create_tunnel(&mut self, name: &str) -> Result<(PersistedTunnel, Tunnel), AnyError> {
+	async fn create_tunnel(
+		&mut self,
+		name: &str,
+		options: &TunnelRequestOptions,
+	) -> Result<(PersistedTunnel, Tunnel), AnyError> {
 		info!(self.log, "Creating tunnel with the name: {}", name);
 
 		let mut tried_recycle = false;
 
 		let new_tunnel = Tunnel {
-			tags: vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()],
+			tags: vec![
+				name.to_string(),
+				PROTOCOL_VERSION_TAG.to_string(),
+				VSCODE_CLI_TUNNEL_TAG.to_string(),
+			],
 			..Default::default()
 		};
 
@@ -433,7 +484,7 @@ impl DevTunnels {
 			let result = spanf!(
 				self.log,
 				self.log.span("dev-tunnel.create"),
-				self.client.create_tunnel(&new_tunnel, NO_REQUEST_OPTIONS)
+				self.client.create_tunnel(&new_tunnel, options)
 			);
 
 			match result {
@@ -446,9 +497,9 @@ impl DevTunnels {
 					}
 
 					return Err(AnyError::from(TunnelCreationFailed(
-                        name.to_string(),
-                        "You've exceeded the 10 machine limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
-                    )));
+						name.to_string(),
+						"You've exceeded the 10 machine limit for the port fowarding service. Please remove other machines before trying to add this machine.".to_string(),
+					)));
 				}
 				Err(e) => {
 					return Err(AnyError::from(TunnelCreationFailed(
@@ -468,6 +519,40 @@ impl DevTunnels {
 				}
 			}
 		}
+	}
+
+	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
+	/// other version tags.
+	async fn update_protocol_version_tag(
+		&self,
+		tunnel: Tunnel,
+		options: &TunnelRequestOptions,
+	) -> Result<Tunnel, AnyError> {
+		debug!(
+			self.log,
+			"Updating tunnel protocol version tag to {}", PROTOCOL_VERSION_TAG
+		);
+		let mut new_tags: Vec<String> = tunnel
+			.tags
+			.into_iter()
+			.filter(|t| !t.starts_with(PROTOCOL_VERSION_TAG_PREFIX))
+			.collect();
+		new_tags.push(PROTOCOL_VERSION_TAG.to_string());
+
+		let tunnel_update = Tunnel {
+			tags: new_tags,
+			tunnel_id: tunnel.tunnel_id.clone(),
+			cluster_id: tunnel.cluster_id.clone(),
+			..Default::default()
+		};
+
+		let result = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.protocol-tag-update"),
+			self.client.update_tunnel(&tunnel_update, options)
+		);
+
+		result.map_err(|e| wrap(e, "tunnel tag update failed").into())
 	}
 
 	/// Tries to delete an unused tunnel, and then creates a tunnel with the
@@ -574,7 +659,7 @@ impl DevTunnels {
 		}
 
 		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
-		if use_random_name {
+		if use_random_name || !*IS_INTERACTIVE_CLI {
 			while !is_name_free(&placeholder_name) {
 				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
 			}
@@ -653,6 +738,7 @@ impl DevTunnels {
 
 		Ok(ActiveTunnel {
 			name: tunnel_details.name.clone(),
+			id: tunnel_details.id.clone(),
 			manager,
 		})
 	}

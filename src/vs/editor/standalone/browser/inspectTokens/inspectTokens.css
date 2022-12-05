@@ -8,11 +8,14 @@
 	user-select: text;
 	-webkit-user-select: text;
 	padding: 10px;
+	color: var(--vscode-editorHoverWidget-foreground);
+	background-color: var(--vscode-editorHoverWidget-background);
 }
 
-.tokens-inspect-separator {
+.monaco-editor .tokens-inspect-widget .tokens-inspect-separator {
 	height: 1px;
 	border: 0;
+	background-color: var(--vscode-editorHoverWidget-border);
 }
 
 .monaco-editor .tokens-inspect-widget .tm-token {

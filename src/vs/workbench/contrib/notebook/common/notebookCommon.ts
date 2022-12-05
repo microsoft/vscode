@@ -124,15 +124,15 @@ export interface NotebookCellDefaultCollapseConfig {
 
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
-export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type CellContentMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
+export type TransientCellMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { readonly [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
-	transientOutputs: boolean;
-	transientCellMetadata: TransientCellMetadata;
-	transientDocumentMetadata: TransientDocumentMetadata;
-	cellContentMetadata: CellContentMetadata;
+	readonly transientOutputs: boolean;
+	readonly transientCellMetadata: TransientCellMetadata;
+	readonly transientDocumentMetadata: TransientDocumentMetadata;
+	readonly cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */
@@ -697,6 +697,7 @@ export class MimeTypeDisplayOrder {
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 
@@ -925,7 +926,9 @@ export const NotebookSetting = {
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily'
+	outputFontFamily: 'notebook.outputFontFamily',
+	kernelPickerType: 'notebook.kernelPicker.type',
+	outputScrolling: 'notebook.experimental.outputScrolling',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1049,4 +1052,11 @@ function formatStreamText(buffer: VSBuffer): VSBuffer {
 	}
 	// Do the same thing jupyter is doing
 	return VSBuffer.fromString(fixCarriageReturn(fixBackspace(textDecoder.decode(buffer.buffer))));
+}
+
+export interface INotebookKernelSourceAction {
+	readonly label: string;
+	readonly description?: string;
+	readonly detail?: string;
+	readonly command?: string | Command;
 }

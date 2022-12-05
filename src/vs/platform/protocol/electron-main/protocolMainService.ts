@@ -127,7 +127,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// 2.) Use `FileAccess.asFileUri` to convert back from a
 		//     `vscode-file:` URI to a `file:` URI.
-		const unnormalizedFileUri = FileAccess.asFileUri(requestUri);
+		const unnormalizedFileUri = FileAccess.uriToFileUri(requestUri);
 
 		// 3.) Strip anything from the URI that could result in
 		//     relative paths (such as "..") by using `normalize`

@@ -53,7 +53,7 @@ suite('Terminal history', () => {
 			instantiationService.set(IConfigurationService, configurationService);
 			instantiationService.set(IStorageService, storageService);
 
-			history = instantiationService.createInstance(TerminalPersistedHistory, 'test');
+			history = instantiationService.createInstance(TerminalPersistedHistory<number>, 'test');
 		});
 
 		test('should support adding items to the cache and respect LRU', () => {

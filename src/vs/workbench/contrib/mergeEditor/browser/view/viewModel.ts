@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,6 +25,8 @@ export class MergeEditorViewModel extends Disposable {
 		{ range: ModifiedBaseRange | undefined; counter: number }
 	>('manuallySetActiveModifiedBaseRange', { range: undefined, counter: 0 });
 
+	private readonly attachedHistory = this._register(new AttachedHistory(this.model.resultTextModel));
+
 	constructor(
 		public readonly model: MergeEditorModel,
 		public readonly inputCodeEditorView1: InputCodeEditorView,
@@ -32,24 +35,53 @@ export class MergeEditorViewModel extends Disposable {
 		public readonly baseCodeEditorView: IObservable<BaseCodeEditorView | undefined>,
 		public readonly showNonConflictingChanges: IObservable<boolean>,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
 		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
-			if (this.model.isApplyingEditInResult) {
+			if (this.model.isApplyingEditInResult || e.isRedoing || e.isUndoing) {
 				return;
 			}
-			transaction(tx => {
-				/** @description Mark conflicts touched by manual edits as handled */
-				for (const change of e.changes) {
-					const rangeInBase = this.model.translateResultRangeToBase(Range.lift(change.range));
-					const baseRanges = this.model.findModifiedBaseRangesInRange(new LineRange(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
-					if (baseRanges.length === 1) {
-						this.model.setHandled(baseRanges[0], true, tx);
+
+			const baseRangeStates: ModifiedBaseRange[] = [];
+
+			for (const change of e.changes) {
+				const rangeInBase = this.model.translateResultRangeToBase(Range.lift(change.range));
+				const baseRanges = this.model.findModifiedBaseRangesInRange(new LineRange(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
+				if (baseRanges.length === 1) {
+					const isHandled = this.model.isHandled(baseRanges[0]).get();
+					if (!isHandled) {
+						baseRangeStates.push(baseRanges[0]);
 					}
 				}
-			});
+			}
+
+			if (baseRangeStates.length === 0) {
+				return;
+			}
+
+			const element = {
+				model: this.model,
+				redo() {
+					transaction(tx => {
+						/** @description Mark conflicts touched by manual edits as handled */
+						for (const r of baseRangeStates) {
+							this.model.setHandled(r, true, tx);
+						}
+					});
+				},
+				undo() {
+					transaction(tx => {
+						/** @description Mark conflicts touched by manual edits as handled */
+						for (const r of baseRangeStates) {
+							this.model.setHandled(r, false, tx);
+						}
+					});
+				},
+			};
+			this.attachedHistory.pushAttachedHistoryElement(element);
+			element.redo();
 		}));
 	}
 
@@ -254,4 +286,57 @@ export class MergeEditorViewModel extends Disposable {
 			}
 		});
 	}
+}
+
+class AttachedHistory extends Disposable {
+	private readonly attachedHistory: { element: IAttachedHistoryElement; altId: number }[] = [];
+	private previousAltId: number = this.model.getAlternativeVersionId();
+
+	constructor(private readonly model: ITextModel) {
+		super();
+
+		this._register(model.onDidChangeContent((e) => {
+			const currentAltId = model.getAlternativeVersionId();
+
+			if (e.isRedoing) {
+				for (const item of this.attachedHistory) {
+					if (this.previousAltId < item.altId && item.altId <= currentAltId) {
+						item.element.redo();
+					}
+				}
+			} else if (e.isUndoing) {
+				for (let i = this.attachedHistory.length - 1; i >= 0; i--) {
+					const item = this.attachedHistory[i];
+					if (currentAltId < item.altId && item.altId <= this.previousAltId) {
+						item.element.undo();
+					}
+				}
+
+			} else {
+				// The user destroyed the redo stack by performing a non redo/undo operation.
+				// Thus we also need to remove all history elements after the last version id.
+				while (
+					this.attachedHistory.length > 0
+					&& this.attachedHistory[this.attachedHistory.length - 1]!.altId > this.previousAltId
+				) {
+					this.attachedHistory.pop();
+				}
+			}
+
+			this.previousAltId = currentAltId;
+		}));
+	}
+
+	/**
+	 * Pushes an history item that is tied to the last text edit (or an extension of it).
+	 * When the last text edit is undone/redone, so is is this history item.
+	 */
+	public pushAttachedHistoryElement(element: IAttachedHistoryElement): void {
+		this.attachedHistory.push({ altId: this.model.getAlternativeVersionId(), element });
+	}
+}
+
+interface IAttachedHistoryElement {
+	undo(): void;
+	redo(): void;
 }

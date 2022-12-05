@@ -6,6 +6,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -161,7 +162,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const origin = this.webviewOriginStore.getOrigin(viewType, extension.id);
 
 		const webview = this._webviewWorkbenchService.openWebview({
-			id: handle,
 			origin,
 			providedViewType: viewType,
 			options: reviveWebviewOptions(initData.panelOptions),
@@ -261,7 +261,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					return;
 				}
 
-				const handle = webviewInput.id;
+				const handle = generateUuid();
 
 				this.addWebviewInput(handle, webviewInput, options);
 

@@ -20,7 +20,7 @@ let client: BaseLanguageClient | undefined;
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 	const clientPackageJSON = await getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
 
 	const outputChannel = window.createOutputChannel(languageServerDescription);
 
