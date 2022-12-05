@@ -82,6 +82,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'replace': return this.service.replace(reviewSyncResourceHandle(args[0]));
 			case 'getAssociatedResources': return this.service.getAssociatedResources(reviewSyncResourceHandle(args[0]));
 			case 'getMachineId': return this.service.getMachineId(reviewSyncResourceHandle(args[0]));
+			case 'cleanUpRemoteData': return this.service.cleanUpRemoteData();
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 		}
@@ -95,7 +96,7 @@ export class UserDataSyncChannel implements IServerChannel {
 
 			switch (manualSyncTaskCommand) {
 				case 'merge': return manualSyncTask.merge();
-				case 'apply': return manualSyncTask.apply().finally(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
+				case 'apply': return manualSyncTask.apply().then(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
 				case 'stop': return manualSyncTask.stop().finally(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
 			}
 		}
@@ -244,6 +245,10 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
 		return this.channel.call<string | undefined>('getMachineId', [syncResourceHandle]);
+	}
+
+	cleanUpRemoteData(): Promise<void> {
+		return this.channel.call('cleanUpRemoteData');
 	}
 
 	replace(syncResourceHandle: ISyncResourceHandle): Promise<void> {
