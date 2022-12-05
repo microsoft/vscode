@@ -110,7 +110,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			const hintMsg = localize({
 				key: 'message',
 				comment: [
-					'Presereve double-square brackets and their order',
+					'Preserve double-square brackets and their order',
 					'language refers to a programming language'
 				]
 			}, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
