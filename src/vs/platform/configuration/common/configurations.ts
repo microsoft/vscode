@@ -107,6 +107,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
+		this.logService.trace('PolicyConfiguration#initialize');
 		this.update(await this.updatePolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.updatePolicyDefinitions(properties), true)));
@@ -114,6 +115,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	private async updatePolicyDefinitions(properties: string[]): Promise<string[]> {
+		this.logService.trace('PolicyConfiguration#updatePolicyDefinitions', properties);
 		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 		const keys: string[] = [];
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
@@ -143,12 +145,14 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
+		this.logService.trace('PolicyConfiguration#onDidChangePolicies', policyNames);
 		const policyConfigurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getPolicyConfigurations();
 		const keys = coalesce(policyNames.map(policyName => policyConfigurations.get(policyName)));
 		this.update(keys, true);
 	}
 
 	private update(keys: string[], trigger: boolean): void {
+		this.logService.trace('PolicyConfiguration#update', keys);
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const changed: [string, PolicyValue | undefined][] = [];
 		const wasEmpty = this._configurationModel.isEmpty();
@@ -168,6 +172,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		}
 
 		if (changed.length) {
+			this.logService.trace('PolicyConfiguration#changed', changed);
 			const old = this._configurationModel;
 			this._configurationModel = new ConfigurationModel();
 			for (const key of old.keys) {

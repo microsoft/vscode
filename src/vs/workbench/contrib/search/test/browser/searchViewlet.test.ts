@@ -177,7 +177,7 @@ suite('Search - Viewlet', () => {
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
 		const searchModel = instantiation.createInstance(SearchModel);
 		return instantiation.createInstance(FolderMatch, createFileUriFromPathFromRoot(path), path, index, {
-			type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
 		}, parent ?? aSearchResult().folderMatches()[0], searchModel, null);
@@ -186,7 +186,7 @@ suite('Search - Viewlet', () => {
 	function aSearchResult(): SearchResult {
 		const searchModel = instantiation.createInstance(SearchModel);
 		searchModel.searchResult.query = {
-			type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
 		};
