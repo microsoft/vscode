@@ -94,9 +94,9 @@
 		"getting-started": {"assign": ["bhavyaus"]},
 		"ghost-text": {"assign": ["hediet"]},
 		"git": {"assign": ["lszomoru"]},
-		"github": {"assign": []},
+		"github": {"assign": ["lszomoru"]},
 		"github-authentication": {"assign": []},
-		"github-repositories": {"assign": []},
+		"github-repositories": {"assign": ["lszomoru"]},
 		"gpu": {"assign": ["deepak1556"]},
 		"grammar": {"assign": ["mjbvz"]},
 		"grid-widget": {"assign": ["joaomoreno"]},
@@ -307,7 +307,7 @@
 		"workbench-zen": {"assign": ["sbatten"]},
 		"workspace-edit": {"assign": ["jrieken"]},
 		"workspace-symbols": {"assign": []},
-		"workspace-trust": {"assign": []},
+		"workspace-trust": {"assign": ["lszomoru", "sbatten"]},
 		"zoom": {"assign": ["alexdima"] }
 	}
 }
