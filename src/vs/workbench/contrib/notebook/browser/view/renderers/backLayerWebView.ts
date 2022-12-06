@@ -215,7 +215,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _logRendererDebugMessage(msg: string) {
-		this._renderLogger.debug(`${this.id} - ${msg}`);
+		this._renderLogger.debug(`${this.documentUri} (${this.id}) - ${msg}`);
 	}
 
 	private _updateStyles() {

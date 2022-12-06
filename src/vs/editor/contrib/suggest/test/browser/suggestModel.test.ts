@@ -253,7 +253,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return Promise.all([
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true, shy: false });
+					model.trigger({ auto: true });
 				}, function (event) {
 					assert.strictEqual(event.auto, true);
 
@@ -265,13 +265,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true, shy: false });
+					model.trigger({ auto: true });
 				}, function (event) {
 					assert.strictEqual(event.auto, true);
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: false, shy: false });
+					model.trigger({ auto: false });
 				}, function (event) {
 					assert.strictEqual(event.auto, false);
 				})
@@ -287,12 +287,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(model => {
 			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
-					model.trigger({ auto: true, shy: false });
+					model.trigger({ auto: true });
 				}, function (event) {
 					assert.strictEqual(event.retrigger, false);
 				}),
 				assertEvent(model.onDidSuggest, function () {
-					model.trigger({ auto: false, shy: false });
+					model.trigger({ auto: false });
 				}, function (event) {
 					assert.strictEqual(event.auto, false);
 					assert.strictEqual(event.isFrozen, false);
@@ -343,7 +343,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			return assertEvent(model.onDidSuggest, () => {
 				// make sure completionModel starts here!
-				model.trigger({ auto: true, shy: false });
+				model.trigger({ auto: true });
 			}, event => {
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -456,7 +456,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
 				assert.strictEqual(event.isFrozen, false);
@@ -481,7 +481,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
 				assert.strictEqual(event.isFrozen, false);
@@ -518,10 +518,10 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
-				assert.strictEqual(event.completionModel.incomplete.size, 1);
+				assert.strictEqual(event.completionModel.getIncompleteProvider().size, 1);
 				assert.strictEqual(event.completionModel.items.length, 1);
 
 				return assertEvent(model.onDidCancel, () => {
@@ -555,10 +555,10 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
-				assert.strictEqual(event.completionModel.incomplete.size, 1);
+				assert.strictEqual(event.completionModel.getIncompleteProvider().size, 1);
 				assert.strictEqual(event.completionModel.items.length, 1);
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -568,7 +568,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					editor.trigger('keyboard', Handler.Type, { text: ';' });
 				}, event => {
 					assert.strictEqual(event.auto, false);
-					assert.strictEqual(event.completionModel.incomplete.size, 1);
+					assert.strictEqual(event.completionModel.getIncompleteProvider().size, 1);
 					assert.strictEqual(event.completionModel.items.length, 1);
 
 				});
@@ -714,7 +714,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });
-				sugget.trigger({ auto: false, shy: false });
+				sugget.trigger({ auto: false });
 			}, event => {
 
 				assert.strictEqual(event.completionModel.items.length, 1);
@@ -938,6 +938,61 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}, event => {
 				assert.strictEqual(event.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
+			});
+		});
+	});
+
+	test('Unexpected suggest scoring #167242', async function () {
+		disposables.add(registry.register('*', {
+			// word-based
+			provideCompletionItems(doc, pos) {
+				const word = doc.getWordUntilPosition(pos);
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'pull',
+						insertText: 'pull',
+						range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn)
+					}],
+				};
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, {
+			// JSON-based
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'git.pull',
+						insertText: 'git.pull',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async function (model, editor) {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('gi');
+				editor.setSelection(new Selection(1, 3, 1, 3));
+				editor.trigger('keyboard', Handler.Type, { text: 't' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 1);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'git.pull');
+			});
+
+			editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: 'p' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 1);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'git.pull');
 			});
 		});
 	});

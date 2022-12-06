@@ -620,7 +620,7 @@ export interface IEditorOptions {
 	/**
 	 * The font family
 	 */
-	fontFamily?: string | string[];
+	fontFamily?: string;
 	/**
 	 * The font weight
 	 */
@@ -1193,13 +1193,13 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
-					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached"),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader"),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached"),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -1611,44 +1611,6 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 			return EditorFontLigatures.ON;
 		}
 		return EditorFontLigatures.OFF;
-	}
-}
-
-//#endregion
-
-//#region fontFamily
-/**
- * @internal
- */
-export class EditorFontFamily extends BaseEditorOption<EditorOption.fontFamily, string | string[], string> {
-	constructor() {
-		super(
-			EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
-			{
-				anyOf: [
-					{
-						type: 'string',
-					},
-					{
-						type: 'array',
-						items: {
-							type: 'string',
-						},
-					}
-				],
-				description: nls.localize('fontFamily', "Controls the font family."),
-				default: EDITOR_FONT_DEFAULTS.fontFamily
-			}
-		);
-	}
-	public validate(input: any): string {
-		if (typeof input === 'string') {
-			return input;
-		}
-		if (Array.isArray(input) && input.length > 0) {
-			return input.map((f: string) => { return JSON.stringify(f); }).join(',');
-		}
-		return this.defaultValue;
 	}
 }
 
@@ -5140,7 +5102,10 @@ export const EditorOptions = {
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
 		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
 	)),
-	fontFamily: register(new EditorFontFamily()),
+	fontFamily: register(new EditorStringOption(
+		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
+		{ description: nls.localize('fontFamily', "Controls the font family.") }
+	)),
 	fontInfo: register(new EditorFontInfo()),
 	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),

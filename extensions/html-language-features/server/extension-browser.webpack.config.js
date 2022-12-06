@@ -13,7 +13,7 @@ const path = require('path');
 const serverConfig = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/browser/htmlServerMain.ts',
+		extension: './src/browser/htmlServerWorkerMain.ts',
 	},
 	output: {
 		filename: 'htmlServerMain.js',

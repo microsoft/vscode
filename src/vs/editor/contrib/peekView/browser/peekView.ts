@@ -14,7 +14,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import 'vs/css!./media/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -76,7 +76,7 @@ class PeekContextController implements IEditorContribution {
 	dispose(): void { }
 }
 
-registerEditorContribution(PeekContextController.ID, PeekContextController);
+registerEditorContribution(PeekContextController.ID, PeekContextController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
 	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();

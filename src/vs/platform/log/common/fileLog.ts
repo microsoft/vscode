@@ -9,11 +9,11 @@ import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { AbstractLogger, AbstractLoggerService, format, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
-export class FileLogger extends AbstractLogger implements ILogger {
+export class FileLogger extends AbstractMessageLogger implements ILogger {
 
 	private readonly initializePromise: Promise<void>;
 	private readonly queue: Queue<void>;
@@ -32,45 +32,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		this.initializePromise = this.initialize();
 	}
 
-	trace(): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this._log(LogLevel.Trace, format(arguments));
-		}
-	}
-
-	debug(): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this._log(LogLevel.Debug, format(arguments));
-		}
-	}
-
-	info(): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this._log(LogLevel.Info, format(arguments));
-		}
-	}
-
-	warn(): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this._log(LogLevel.Warning, format(arguments));
-		}
-	}
-
-	error(): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			const arg = arguments[0];
-
-			if (arg instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = arg.stack;
-				this._log(LogLevel.Error, format(array));
-			} else {
-				this._log(LogLevel.Error, format(arguments));
-			}
-		}
-	}
-
-	flush(): void {
+	override flush(): void {
 	}
 
 	private async initialize(): Promise<void> {
@@ -83,7 +45,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	private _log(level: LogLevel, message: string): void {
+	protected log(level: LogLevel, message: string): void {
 		this.queue.queue(async () => {
 			await this.initializePromise;
 			let content = await this.loadContent();

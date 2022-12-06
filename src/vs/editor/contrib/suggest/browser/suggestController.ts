@@ -94,6 +94,7 @@ class LineSuffix {
 }
 
 const enum InsertFlags {
+	None = 0,
 	NoBeforeUndoStop = 1,
 	NoAfterUndoStop = 2,
 	KeepAlternativeSuggestions = 4,
@@ -146,7 +147,7 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
 			this._toDispose.add(widget);
-			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, 0), this));
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, InsertFlags.None), this));
 
 			// Wire up logic to accept a suggestion on certain characters
 			const commitCharacterController = new CommitCharacterController(this.editor, widget, this.model, item => this._insertSuggestion(item, InsertFlags.NoAfterUndoStop));
@@ -404,7 +405,7 @@ export class SuggestController implements IEditorContribution {
 		if (item.completion.command) {
 			if (item.completion.command.id === TriggerSuggestAction.id) {
 				// retigger
-				this.model.trigger({ auto: true, shy: false }, true);
+				this.model.trigger({ auto: true, retrigger: true });
 			} else {
 				// exec command, done
 				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
@@ -499,7 +500,10 @@ export class SuggestController implements IEditorContribution {
 
 	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
+			this.model.trigger({
+				auto: auto ?? false,
+				completionOptions: { providerFilter: onlyFrom, kindFilter: noFilter ? new Set() : undefined }
+			});
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
@@ -726,7 +730,7 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(SuggestController.ID, SuggestController, EditorContributionInstantiation.Eager); // eager because it needs to listen to editor typing event
+registerEditorContribution(SuggestController.ID, SuggestController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerSuggestAction);
 
 const weight = KeybindingWeight.EditorContrib + 90;

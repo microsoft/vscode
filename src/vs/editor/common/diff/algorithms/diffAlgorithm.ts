@@ -46,6 +46,10 @@ export class OffsetRange {
 	public toString() {
 		return `[${this.start}, ${this.endExclusive})`;
 	}
+
+	public join(other: OffsetRange): OffsetRange {
+		return new OffsetRange(Math.min(this.start, other.start), Math.max(this.endExclusive, other.endExclusive));
+	}
 }
 
 export interface ISequence {

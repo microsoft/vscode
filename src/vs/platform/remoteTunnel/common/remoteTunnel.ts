@@ -25,6 +25,8 @@ export interface IRemoteTunnelService {
 	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
 	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<TunnelStatus>;
 
+	getHostName(): Promise<string | undefined>;
+
 }
 
 export type TunnelStatus = TunnelStates.Connected | TunnelStates.Disconnected | TunnelStates.Connecting | TunnelStates.Uninitialized;
@@ -56,7 +58,6 @@ export interface ConnectionInfo {
 	link: string;
 	domain: string;
 	hostName: string;
-	extensionId: string;
 }
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';

@@ -15,7 +15,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -141,7 +141,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			}
 
 			// the actual command handlers...
-			const languageOnClickOrTap = async (e: MouseEvent) => {
+			const languageOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
@@ -149,7 +149,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 			};
 
-			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+			const chooseEditorOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 
 				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
@@ -192,4 +192,4 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	}
 }
 
-registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution);
+registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message

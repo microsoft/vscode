@@ -128,7 +128,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				// bin = /usr/share/code-insiders/bin
 				binParentLocation = dirname(dirname(this.environmentService.appRoot));
 			}
-			this._tunnelCommand = join(binParentLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''} `);
+			this._tunnelCommand = join(binParentLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 		}
 		return this._tunnelCommand;
 	}
@@ -171,7 +171,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			return;
 		}
 
-		const hostName = this.getHostName();
+		const hostName = this._getHostName();
 		if (hostName) {
 			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.openTunnelWithName', comment: ['{0} is a host name'] }, 'Opening tunnel for {0}', hostName)));
 		} else {
@@ -191,7 +191,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			}
 			const m = message.match(/^\s*Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
-				const info: ConnectionInfo = { link: m[1], domain: m[2], extensionId: 'ms-vscode.remote-server', hostName: m[4] };
+				const info: ConnectionInfo = { link: m[1], domain: m[2], hostName: m[4] };
 				this.setTunnelStatus(TunnelStates.connected(info));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();
@@ -279,7 +279,11 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	private getHostName() {
+	public async getHostName(): Promise<string | undefined> {
+		return this._getHostName();
+	}
+
+	private _getHostName(): string | undefined {
 		let name = this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname();
 		name = name.replace(/[^\w-]/g, '').substring(0, 20);
 		return name || undefined;
