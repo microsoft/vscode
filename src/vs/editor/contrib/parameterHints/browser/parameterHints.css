@@ -36,6 +36,7 @@
 	display: block;
 	height: 100%;
 	position: absolute;
+	opacity: 0.5;
 	border-left: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
@@ -64,6 +65,7 @@
 	left: 0;
 	width: 100%;
 	padding-top: 4px;
+	opacity: 0.5;
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
