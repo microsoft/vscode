@@ -167,6 +167,7 @@ export class CompletionOptions {
 		readonly snippetSortOrder = SnippetSortOrder.Bottom,
 		readonly kindFilter = new Set<languages.CompletionItemKind>(),
 		readonly providerFilter = new Set<languages.CompletionItemProvider>(),
+		readonly providerItemsToReuse: ReadonlyMap<languages.CompletionItemProvider, CompletionItem[]> = new Map<languages.CompletionItemProvider, CompletionItem[]>(),
 		readonly showDeprecated = true
 	) { }
 }
@@ -281,6 +282,14 @@ export async function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
+			// we have items from a previous session that we can reuse
+			if (options.providerItemsToReuse.has(provider)) {
+				const items = options.providerItemsToReuse.get(provider)!;
+				items.forEach(item => result.push(item));
+				didAddResult = didAddResult || items.length > 0;
+				return;
+			}
+			// check if this provider is filtered out
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return;
 			}
