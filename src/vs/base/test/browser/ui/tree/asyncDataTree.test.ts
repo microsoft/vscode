@@ -492,4 +492,51 @@ suite('AsyncDataTree', function () {
 		assert(tree.isCollapsible(a), 'a is still collapsible');
 		assert(!tree.isCollapsed(a), 'a is expanded');
 	});
+
+	test('issue #62214 - no feedback on expanded child', async () => {
+		const container = document.createElement('div');
+
+		let startTime: number | undefined = undefined;
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element) {
+				if (element.id === 'root' && element.children) {
+					startTime = new Date().getTime();
+					return element.children;
+				} else if (element.children) {
+					return new Promise<Element[]>(resolve => {
+						setTimeout(() => resolve(element.children!), 2000);
+					});
+				} else {
+					return Iterable.empty();
+				}
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa'
+				}]
+			}]
+		});
+
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, {
+			identityProvider: new IdentityProvider(),
+			collapseByDefault: (): boolean => {
+				return false;
+			},
+		});
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		// presumably if we can collapse the root less than 1 second then we didn't get stuck.
+		tree.collapse(model.root);
+		const testTime = new Date().getTime();
+		assert(startTime, 'The root should be fetched.');
+		assert(testTime - startTime <= 1000, 'The root should be collapsable within 1 second.');
+	});
 });
