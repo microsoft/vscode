@@ -155,7 +155,7 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 			return matches.map(m => {
 				return {
 					range: m.range,
-					kind: DocumentHighlightKind.Text
+					kind: DocumentHighlightKind.Read
 				};
 			});
 		});
