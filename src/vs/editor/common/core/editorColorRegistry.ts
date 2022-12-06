@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { activeContrastBorder, editorBackground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 /**
  * Definition of the editor colors
@@ -88,15 +87,5 @@ registerThemingParticipant((theme, collector) => {
 	const imeBackground = (lineHighlight && !lineHighlight.isTransparent() ? lineHighlight : background);
 	if (imeBackground) {
 		collector.addRule(`.monaco-editor .inputarea.ime-input { background-color: ${imeBackground}; }`);
-	}
-
-	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
-	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${rangeHighlightBorder}; box-sizing: border-box; }`);
-	}
-
-	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
-	if (symbolHighlightBorder) {
-		collector.addRule(`.monaco-editor .symbolHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${symbolHighlightBorder}; }`);
 	}
 });
