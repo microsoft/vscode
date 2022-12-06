@@ -10,6 +10,7 @@ import { LogLevelService as CommonLogLevelService } from 'vs/workbench/contrib/l
 import { remotePtyHostLog, remoteServerLog, sharedLogChannelId, userDataSyncLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { LOG_CHANNEL_ID as remoteTunnelLogChannelId } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 
 export class LogLevelService extends CommonLogLevelService {
 
@@ -32,7 +33,7 @@ export class LogLevelService extends CommonLogLevelService {
 		const resource = channel?.log ? channel.file : undefined;
 
 		LogLevelChannelClient.setLevel(this.mainProcessService.getChannel('logLevel'), logLevel, resource);
-		if (id === sharedLogChannelId || id === userDataSyncLogChannelId) {
+		if (id === sharedLogChannelId || id === userDataSyncLogChannelId || id === remoteTunnelLogChannelId) {
 			LogLevelChannelClient.setLevel(this.sharedProcessService.getChannel('logLevel'), logLevel, resource);
 			return true;
 		}

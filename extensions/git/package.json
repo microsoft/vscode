@@ -625,13 +625,8 @@
         "enablement": "isMergeEditor"
       },
       {
-        "command": "git.addSafeDirectoryAndOpenRepository",
-        "title": "%command.addSafeDirectoryAndOpenRepository%",
-        "category": "Git"
-      },
-      {
-        "command": "git.api.getUnsafeRepositories",
-        "title": "%command.api.getUnsafeRepositories%",
+        "command": "git.manageUnsafeRepositories",
+        "title": "%command.manageUnsafeRepositories%",
         "category": "Git"
       }
     ],
@@ -1058,15 +1053,11 @@
           "when": "false"
         },
         {
-          "command": "git.api.getUnsafeRepositories",
-          "when": "false"
-        },
-        {
           "command": "git.openMergeEditor",
           "when": "false"
         },
         {
-          "command": "git.addSafeDirectoryAndOpenRepository",
+          "command": "git.manageUnsafeRepositories",
           "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
         }
       ],

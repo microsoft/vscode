@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -16,8 +17,14 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
+
+export const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
+	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
+	type: 'boolean'
+});
 
 interface IResourceCommentThreadEvent {
 	resource: URI;
@@ -145,15 +152,18 @@ export class CommentService extends Disposable implements ICommentService {
 	private _commentControls = new Map<string, ICommentController>();
 	private _commentMenus = new Map<string, CommentMenus>();
 	private _isCommentingEnabled: boolean = true;
+	private _workspaceHasCommenting: IContextKey<boolean>;
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this._handleConfiguration();
 		this._handleZenMode();
+		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
 	}
 
 	private _handleConfiguration() {
@@ -209,10 +219,16 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
+		if (commentInfos.length) {
+			this._workspaceHasCommenting.set(true);
+		}
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void {
+		if (commentsByResource.length) {
+			this._workspaceHasCommenting.set(true);
+		}
 		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: commentsByResource });
 	}
 
@@ -280,6 +296,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	updateCommentingRanges(ownerId: string) {
+		this._workspaceHasCommenting.set(true);
 		this._onDidUpdateCommentingRanges.fire({ owner: ownerId });
 	}
 

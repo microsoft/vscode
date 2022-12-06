@@ -187,6 +187,7 @@ export class CodeActionUi extends Disposable {
 
 		this._actionWidgetService.show(
 			'codeActionWidget',
+			true,
 			toMenuItems(actionsToShow, this._shouldShowHeaders()),
 			delegate,
 			anchor,

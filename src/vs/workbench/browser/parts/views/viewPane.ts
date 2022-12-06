@@ -45,8 +45,6 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -85,25 +83,14 @@ class ViewWelcomeController {
 
 	private defaultItem: IItem | undefined;
 	private items: IItem[] = [];
-	get contents(): Promise<IViewContentDescriptor[]> {
+	get contents(): IViewContentDescriptor[] {
 		const visibleItems = this.items.filter(v => v.visible);
 
 		if (visibleItems.length === 0 && this.defaultItem) {
-			return Promise.resolve([this.defaultItem.descriptor]);
+			return [this.defaultItem.descriptor];
 		}
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceFolder = workspace.folders.length > 0 ? workspace.folders[0] : undefined;
-
-		return Promise.all(visibleItems.map(async (v) => {
-			return {
-				content: await this.configurationResolverService.resolveWithInteractionReplace(workspaceFolder, v.descriptor.content),
-				when: v.descriptor.when,
-				group: v.descriptor.group,
-				order: v.descriptor.order,
-				precondition: v.descriptor.precondition
-			};
-		}));
+		return visibleItems.map(v => v.descriptor);
 	}
 
 	private disposables = new DisposableStore();
@@ -111,8 +98,6 @@ class ViewWelcomeController {
 	constructor(
 		private id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
@@ -243,7 +228,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
-		this.viewWelcomeController = this.instantiationService.createInstance(ViewWelcomeController, this.id);
+		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	override get headerVisible(): boolean {
@@ -564,7 +549,7 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private async updateViewWelcome(): Promise<void> {
+	private updateViewWelcome(): void {
 		this.viewWelcomeDisposable.dispose();
 
 		if (!this.shouldShowWelcome()) {
@@ -574,7 +559,7 @@ export abstract class ViewPane extends Pane implements IView {
 			return;
 		}
 
-		const contents = await this.viewWelcomeController.contents;
+		const contents = this.viewWelcomeController.contents;
 
 		if (contents.length === 0) {
 			this.bodyContainer.classList.remove('welcome');

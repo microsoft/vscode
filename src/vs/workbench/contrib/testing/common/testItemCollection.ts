@@ -673,7 +673,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 
 			for (const item of items) {
 				if (!(item instanceof checkCtor)) {
-					throw new InvalidTestItemError(item.id);
+					throw new InvalidTestItemError((item as ITestItemLike).id);
 				}
 
 				const itemController = getApi(item).controllerId;
@@ -705,7 +705,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 		/** @inheritdoc */
 		add(item: T) {
 			if (!(item instanceof checkCtor)) {
-				throw new InvalidTestItemError(item.id);
+				throw new InvalidTestItemError((item as ITestItemLike).id);
 			}
 
 			mapped.set(item.id, item);

@@ -100,15 +100,17 @@ if (locale) {
 }
 
 // Pass in the locale to Electron so that the
-// Windows Control Overlay is rendered correctly on Windows,
-// and so that the traffic lights are rendered properly
-// on macOS when using a custom titlebar.
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
 // If the locale is `qps-ploc`, the Microsoft
 // Pseudo Language Language Pack is being used.
 // In that case, use `en` as the Electron locale.
 
-const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
-app.commandLine.appendSwitch('lang', electronLocale);
+if (process.platform === 'win32') {
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+	app.commandLine.appendSwitch('lang', electronLocale);
+}
 
 // Load our code once ready
 app.once('ready', function () {
@@ -181,7 +183,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 

@@ -15,22 +15,18 @@ import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiff
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
-import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
+import { ICommentInfo, ICommentService, WorkspaceHasCommenting } from 'vs/workbench/contrib/comments/browser/commentService';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -47,7 +43,6 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
-import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
@@ -314,11 +309,6 @@ const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorH
 	type: 'boolean'
 });
 
-const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
-	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
-	type: 'boolean'
-});
-
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -337,7 +327,6 @@ export class CommentController implements IEditorContribution {
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
-	private _workspaceHasCommenting: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -356,7 +345,6 @@ export class CommentController implements IEditorContribution {
 		this._pendingCommentCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
-		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -388,11 +376,6 @@ export class CommentController implements IEditorContribution {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetAllCommentThreads(e => {
-			if (e.commentThreads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
-		}));
 
 		this.globalToDispose.add(this.commentService.onDidChangeCommentingEnabled(e => {
 			if (e) {
@@ -408,7 +391,8 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
@@ -624,7 +608,7 @@ export class CommentController implements IEditorContribution {
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
-	public onModelChanged(e: IModelChangedEvent): void {
+	public onModelChanged(): void {
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
@@ -951,7 +935,6 @@ export class CommentController implements IEditorContribution {
 		});
 
 		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
-			this._workspaceHasCommenting.set(true);
 			this._commentingRangeSpaceReserved = true;
 			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
 			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
@@ -975,9 +958,6 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
-			if (info.threads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
 			const providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
@@ -1227,104 +1207,3 @@ function getActiveController(accessor: ServicesAccessor): CommentController | un
 	return controller;
 }
 
-registerThemingParticipant((theme, collector) => {
-	const peekViewBackground = theme.getColor(peekViewResultsBackground);
-	if (peekViewBackground) {
-		collector.addRule(
-			`.monaco-editor .review-widget,` +
-			`.monaco-editor .review-widget {` +
-			`	background-color: ${peekViewBackground};` +
-			`}`);
-	}
-
-	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
-	if (monacoEditorBackground) {
-		collector.addRule(
-			`.review-widget .body .comment-form .review-thread-reply-button {` +
-			`	background-color: ${monacoEditorBackground}` +
-			`}`
-		);
-	}
-
-	const monacoEditorForeground = theme.getColor(editorForeground);
-	if (monacoEditorForeground) {
-		collector.addRule(
-			`.review-widget .body .monaco-editor {` +
-			`	color: ${monacoEditorForeground}` +
-			`}` +
-			`.review-widget .body .comment-form .review-thread-reply-button {` +
-			`	color: ${monacoEditorForeground};` +
-			`	font-size: inherit` +
-			`}`
-		);
-	}
-
-	const selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
-
-	if (selectionBackground) {
-		collector.addRule(
-			`@keyframes monaco-review-widget-focus {` +
-			`	0% { background: ${selectionBackground}; }` +
-			`	100% { background: transparent; }` +
-			`}` +
-			`.review-widget .body .review-comment.focus {` +
-			`	animation: monaco-review-widget-focus 3s ease 0s;` +
-			`}`
-		);
-	}
-
-	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
-	if (commentingRangeForeground) {
-		collector.addRule(`
-			.monaco-editor .comment-diff-added,
-			.monaco-editor .comment-range-glyph.multiline-add {
-				border-left-color: ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-diff-added:before,
-			.monaco-editor .comment-range-glyph.line-hover:before {
-				background: ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-thread:before {
-				background: ${commentingRangeForeground};
-			}
-		`);
-	}
-
-	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
-	if (statusBarItemHoverBackground) {
-		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
-	}
-
-	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
-	if (statusBarItemActiveBackground) {
-		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
-	}
-
-	const commentThreadRangeBackgroundColor = theme.getColor(commentThreadRangeBackground);
-	if (commentThreadRangeBackgroundColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range { background-color: ${commentThreadRangeBackgroundColor};}`);
-	}
-
-	const commentThreadRangeBorderColor = theme.getColor(commentThreadRangeBorder);
-	if (commentThreadRangeBorderColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range {
-		border-color: ${commentThreadRangeBorderColor};
-		border-width: 1px;
-		border-style: solid;
-		box-sizing: border-box; }`);
-	}
-
-	const commentThreadRangeActiveBackgroundColor = theme.getColor(commentThreadRangeActiveBackground);
-	if (commentThreadRangeActiveBackgroundColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range-current { background-color: ${commentThreadRangeActiveBackgroundColor};}`);
-	}
-
-	const commentThreadRangeActiveBorderColor = theme.getColor(commentThreadRangeActiveBorder);
-	if (commentThreadRangeActiveBorderColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range-current {
-		border-color: ${commentThreadRangeActiveBorderColor};
-		border-width: 1px;
-		border-style: solid;
-		box-sizing: border-box; }`);
-	}
-});

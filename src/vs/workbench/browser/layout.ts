@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
-import { onDidChangeFullscreen, isFullscreen, isWCOVisible } from 'vs/base/browser/browser';
+import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
@@ -1089,7 +1089,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// if WCO is visible, we have to show the title bar
-		if (isWCOVisible()) {
+		if (isWCOEnabled() && !this.state.runtime.fullscreen) {
 			return true;
 		}
 
@@ -1110,7 +1110,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private shouldShowBannerFirst(): boolean {
-		return isWeb && !isWCOVisible();
+		return isWeb && !isWCOEnabled();
 	}
 
 	focus(): void {
