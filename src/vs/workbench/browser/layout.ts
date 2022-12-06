@@ -31,7 +31,7 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined, isNumber } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -683,23 +683,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return {
 				layout: defaultLayout.layout?.editors,
 				filesToOpenOrCreate: defaultLayout?.editors?.map(editor => {
-					// TODO@bpasero remove me eventually
-					const editor2 = editor as any;
-					const legacySelection = editor2.selection && editor2.selection.start && isNumber(editor2.selection.start.line) ? {
-						startLineNumber: editor2.selection.start.line,
-						startColumn: isNumber(editor2.selection.start.column) ? editor2.selection.start.column : 1,
-						endLineNumber: isNumber(editor2.selection.end.line) ? editor2.selection.end.line : undefined,
-						endColumn: isNumber(editor2.selection.end.line) ? (isNumber(editor2.selection.end.column) ? editor2.selection.end.column : 1) : undefined,
-					} : undefined;
-
 					return {
 						viewColumn: editor.viewColumn,
 						fileUri: URI.revive(editor.uri),
 						openOnlyIfExists: editor.openOnlyIfExists,
-						options: {
-							selection: legacySelection,
-							...editor.options // keep at the end to override legacy selection/override that may be `undefined`
-						}
+						options: editor.options
 					};
 				})
 			};
