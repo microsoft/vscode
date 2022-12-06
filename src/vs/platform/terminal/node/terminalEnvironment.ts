@@ -160,6 +160,19 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			return { newArgs, envMixin };
 		}
+		case 'fish': {
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = []
+			} else if (Array.isArray(originalArgs)) {
+				newArgs = originalArgs
+			} else {
+				newArgs = [originalArgs]
+			}
+			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share'
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data')
+			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`
+			return { newArgs, envMixin };
+		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
