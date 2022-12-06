@@ -275,6 +275,7 @@
 		"webview": {"assign": ["mjbvz"]},
 		"webview-views": {"assign": []},
 		"workbench-actions": {"assign": ["bpasero"]},
+		"workbench-banner": {"assign": ["lszomoru", "sbatten"]},
 		"workbench-cli": {"assign": ["bpasero"]},
 		"workbench-diagnostics": {"assign": ["Tyriar"]},
 		"workbench-dnd": {"assign": ["bpasero"]},
