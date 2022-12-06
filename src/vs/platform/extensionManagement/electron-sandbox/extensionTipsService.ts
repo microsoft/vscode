@@ -298,11 +298,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			const exePaths: string[] = [];
 			if (isWindows) {
 				if (extensionTip.windowsPath) {
-					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', env['USERPROFILE']!)
-						.replace('%ProgramFiles(x86)%', env['ProgramFiles(x86)']!)
-						.replace('%ProgramFiles%', env['ProgramFiles']!)
-						.replace('%APPDATA%', env['APPDATA']!)
-						.replace('%WINDIR%', env['WINDIR']!));
+					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', () => env['USERPROFILE']!)
+						.replace('%ProgramFiles(x86)%', () => env['ProgramFiles(x86)']!)
+						.replace('%ProgramFiles%', () => env['ProgramFiles']!)
+						.replace('%APPDATA%', () => env['APPDATA']!)
+						.replace('%WINDIR%', () => env['WINDIR']!));
 				}
 			} else {
 				exePaths.push(join('/usr/local/bin', exeName));

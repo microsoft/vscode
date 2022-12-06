@@ -116,7 +116,7 @@ const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
 			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
-			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
+			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', () => builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
 		}
 
 		return content;

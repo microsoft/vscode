@@ -1193,13 +1193,13 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
-					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached"),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader"),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached"),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}

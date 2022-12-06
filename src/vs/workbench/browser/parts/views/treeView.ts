@@ -1543,6 +1543,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		this.dragCancellationToken = new CancellationTokenSource();
 		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.handleDragAndLog(this.dndController, itemHandles, uuid, this.dragCancellationToken.token));
 		this.treeItemsTransfer.setData([new DraggedTreeItemsIdentifier(uuid)], DraggedTreeItemsIdentifier.prototype);
+		originalEvent.dataTransfer.clearData(Mimes.text);
 		if (this.dndController.dragMimeTypes.find((element) => element === Mimes.uriList)) {
 			// Add the type that the editor knows
 			originalEvent.dataTransfer?.setData(DataTransfers.RESOURCES, '');
