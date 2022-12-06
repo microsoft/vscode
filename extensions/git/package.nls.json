@@ -157,7 +157,7 @@
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
 	"config.decorations.enabled": "Controls whether Git contributes colors and badges to the Explorer and the Open Editors view.",
 	"config.enableStatusBarSync": "Controls whether the Git Sync command appears in the status bar.",
-	"config.followTagsWhenSync": "Follow push all tags when running the sync command.",
+	"config.followTagsWhenSync": "Push all annotated tags when running the sync command.",
 	"config.promptToSaveFilesBeforeStash": "Controls whether Git should check for unsaved files before stashing changes.",
 	"config.promptToSaveFilesBeforeStash.always": "Check for any unsaved files.",
 	"config.promptToSaveFilesBeforeStash.staged": "Check only for unsaved staged files.",
