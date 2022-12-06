@@ -47,7 +47,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
 				const { manifest } = extension;
 				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+				const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
 				const isBuiltin = extension.type === ExtensionType.System;
 				return {
 					name: manifest.name,
@@ -162,4 +162,4 @@ function getColor(theme: IColorTheme, key: string): string | undefined {
 	return color ? color.toString() : undefined;
 }
 
-registerMainProcessRemoteService(IIssueService, 'issue', { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(IIssueService, 'issue');

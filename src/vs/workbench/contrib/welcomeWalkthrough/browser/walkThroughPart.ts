@@ -85,7 +85,7 @@ export class WalkThroughPart extends EditorPane {
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, textResourceConfigurationService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
-	createEditor(container: HTMLElement): void {
+	protected createEditor(container: HTMLElement): void {
 		this.content = document.createElement('div');
 		this.content.classList.add('welcomePageFocusElement');
 		this.content.tabIndex = 0;
@@ -220,8 +220,7 @@ export class WalkThroughPart extends EditorPane {
 	private updateSizeClasses() {
 		const innerContent = this.content.firstElementChild;
 		if (this.size && innerContent) {
-			const classList = innerContent.classList;
-			classList[this.size.height <= 685 ? 'add' : 'remove']('max-height-685px');
+			innerContent.classList.toggle('max-height-685px', this.size.height <= 685);
 		}
 	}
 
@@ -486,7 +485,7 @@ export class WalkThroughPart extends EditorPane {
 
 // theming
 
-export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
+const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
 
 registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hcDark: null, hcLight: null });

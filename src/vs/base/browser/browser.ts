@@ -194,7 +194,7 @@ export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
 let standalone = false;
 if (window.matchMedia) {
-	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone)');
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
 	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
 	standalone = standaloneMatchMedia.matches;
 	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
@@ -209,4 +209,11 @@ if (window.matchMedia) {
 }
 export function isStandalone(): boolean {
 	return standalone;
+}
+
+// Visible means that the feature is enabled, not necessarily being rendered
+// e.g. visible is true even in fullscreen mode where the controls are hidden
+// See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
+export function isWCOEnabled(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
 }

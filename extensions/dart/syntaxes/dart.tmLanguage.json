@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/45065882c9f699149cb181a5960c05295b4bfbc6",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/bd5cbdfe533c455a7ff7875923c4a94a5b497382",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -230,7 +230,15 @@
 		"class-identifier": {
 			"patterns": [
 				{
-					"match": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?|bool\\b|num\\b|int\\b|double\\b|dynamic\\b|(void)\\b)",
+					"name": "storage.type.primitive.dart",
+					"match": "\\bvoid\\b"
+				},
+				{
+					"name": "support.class.dart",
+					"match": "\\b(bool|num|int|double|dynamic)\\b"
+				},
+				{
+					"match": "\\b([_$]*[A-Z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?",
 					"captures": {
 						"1": {
 							"name": "support.class.dart"
@@ -241,9 +249,6 @@
 									"include": "#type-args"
 								}
 							]
-						},
-						"3": {
-							"name": "storage.type.primitive.dart"
 						}
 					}
 				}

@@ -3,15 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AppInsightsCore, IExtendedConfiguration } from '@microsoft/1ds-core-js';
+import type { IExtendedConfiguration, IExtendedTelemetryItem, ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
+// Interface type which is a subset of @microsoft/1ds-core-js AppInsightsCore.
+// Allows us to more easily build mock objects for testing as the interface is quite large and we only need a few properties.
+export interface IAppInsightsCore {
+	pluginVersionString: string;
+	track(item: ITelemetryItem | IExtendedTelemetryItem): void;
+	unload(isAsync: boolean, unloadComplete: (unloadState: ITelemetryUnloadState) => void): void;
+}
+
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 
-async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<AppInsightsCore> {
+async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
 	const postPlugin = await import('@microsoft/1ds-post-js');
 	const appInsightsCore = new oneDs.AppInsightsCore();
@@ -57,15 +65,15 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 // TODO @lramos15 maybe make more in line with src/vs/platform/telemetry/browser/appInsightsAppender.ts with caching support
 export abstract class AbstractOneDataSystemAppender implements ITelemetryAppender {
 
-	protected _aiCoreOrKey: AppInsightsCore | string | undefined;
-	private _asyncAiCore: Promise<AppInsightsCore> | null;
+	protected _aiCoreOrKey: IAppInsightsCore | string | undefined;
+	private _asyncAiCore: Promise<IAppInsightsCore> | null;
 	protected readonly endPointUrl = endpointUrl;
 
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
-		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
+		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 		private _xhrOverride?: IXHROverride
 	) {
 		if (!this._defaultData) {
@@ -80,7 +88,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		this._asyncAiCore = null;
 	}
 
-	private _withAIClient(callback: (aiCore: AppInsightsCore) => void): void {
+	private _withAIClient(callback: (aiCore: IAppInsightsCore) => void): void {
 		if (!this._aiCoreOrKey) {
 			return;
 		}

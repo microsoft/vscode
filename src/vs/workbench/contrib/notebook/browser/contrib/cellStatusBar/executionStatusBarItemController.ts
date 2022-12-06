@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -55,13 +55,13 @@ export class NotebookStatusBarController extends Disposable {
 			return;
 		}
 
-		for (const newCell of e.added) {
-			this._visibleCells.set(newCell.handle, this._itemFactory(vm, newCell));
-		}
-
 		for (const oldCell of e.removed) {
 			this._visibleCells.get(oldCell.handle)?.dispose();
 			this._visibleCells.delete(oldCell.handle);
+		}
+
+		for (const newCell of e.added) {
+			this._visibleCells.set(newCell.handle, this._itemFactory(vm, newCell));
 		}
 	}
 
@@ -94,7 +94,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	private _currentItemIds: string[] = [];
 
 	private _showedExecutingStateTime: number | undefined;
-	private _clearExecutingStateTimer: IDisposable | undefined;
+	private _clearExecutingStateTimer = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
@@ -130,10 +130,10 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		} else if (runState?.state !== NotebookCellExecutionState.Executing && typeof this._showedExecutingStateTime === 'number') {
 			const timeUntilMin = ExecutionStateCellStatusBarItem.MIN_SPINNER_TIME - (Date.now() - this._showedExecutingStateTime);
 			if (timeUntilMin > 0) {
-				if (!this._clearExecutingStateTimer) {
-					this._clearExecutingStateTimer = disposableTimeout(() => {
+				if (!this._clearExecutingStateTimer.value) {
+					this._clearExecutingStateTimer.value = disposableTimeout(() => {
 						this._showedExecutingStateTime = undefined;
-						this._clearExecutingStateTimer = undefined;
+						this._clearExecutingStateTimer.clear();
 						this._update();
 					}, timeUntilMin);
 				}

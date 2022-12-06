@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/968325a4021b61832f0c46e12625319f3a884e58",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/002278bd5484c278587a2aa3cafc1616538a20bc",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -2772,7 +2772,24 @@
 					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "string.other.link.title.markdown",
+					"patterns": [
+						{
+							"include": "#raw"
+						},
+						{
+							"include": "#bold"
+						},
+						{
+							"include": "#italic"
+						},
+						{
+							"include": "#strikethrough"
+						},
+						{
+							"include": "#image-inline"
+						}
+					]
 				},
 				"4": {
 					"name": "punctuation.definition.link.title.end.markdown"
@@ -2832,7 +2849,24 @@
 					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "string.other.link.title.markdown",
+					"patterns": [
+						{
+							"include": "#raw"
+						},
+						{
+							"include": "#bold"
+						},
+						{
+							"include": "#italic"
+						},
+						{
+							"include": "#strikethrough"
+						},
+						{
+							"include": "#image-inline"
+						}
+					]
 				},
 				"4": {
 					"name": "punctuation.definition.link.title.end.markdown"
@@ -2963,7 +2997,7 @@
 					"name": "punctuation.definition.strikethrough.markdown"
 				}
 			},
-			"match": "(~{2,})((?:[^~]|(?!(?<!~)\\1(?!~))~)*+)(\\1)",
+			"match": "(?<!\\\\)(~{2,})((?:[^~]|(?!(?<![~\\\\])\\1(?!~))~)*+)(\\1)",
 			"name": "markup.strikethrough.markdown"
 		}
 	}

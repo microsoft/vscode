@@ -12,6 +12,7 @@ import * as Parser from 'tree-sitter';
 import fetch from 'node-fetch';
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
+const packageJson = require('../../package.json');
 
 type NlsString = { value: string; nlsKey: string };
 
@@ -587,17 +588,13 @@ const Languages = {
 type LanguageTranslations = { [moduleName: string]: { [nlsKey: string]: string } };
 type Translations = { languageId: string; languageTranslations: LanguageTranslations }[];
 
-async function getLatestStableVersion(updateUrl: string) {
-	const res = await fetch(`${updateUrl}/api/update/darwin/stable/latest`);
-	const { name: version } = await res.json() as { name: string };
-	return version;
-}
+type Version = [number, number, number];
 
-async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: string) {
+async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version) {
 	const resource = {
 		publisher: 'ms-ceintl',
 		name: `vscode-language-pack-${languageId}`,
-		version,
+		version: `${version[0]}.${version[1]}.${version[2]}`,
 		path: 'extension/translations/main.i18n.json'
 	};
 
@@ -612,32 +609,50 @@ async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, v
 	return result;
 }
 
-function previousVersion(version: string): string {
-	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)$/.exec(version)!;
-	return `${major}.${parseInt(minor) - 1}.${patch}`;
+function parseVersion(version: string): Version {
+	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
+	return [parseInt(major), parseInt(minor), parseInt(patch)];
 }
 
-async function getNLS(resourceUrlTemplate: string, languageId: string, version: string) {
-	try {
-		return await getSpecificNLS(resourceUrlTemplate, languageId, version);
-	} catch (err) {
-		if (/\[404\]/.test(err.message)) {
-			const thePreviousVersion = previousVersion(version);
-			console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version ${thePreviousVersion}...`);
-			try {
-				return await getSpecificNLS(resourceUrlTemplate, languageId, thePreviousVersion);
-			} catch (err) {
-				if (/\[404\]/.test(err.message)) {
-					console.warn(`Language pack ${languageId}@${thePreviousVersion} is missing. Downloading previous version...`);
-					return await getSpecificNLS(resourceUrlTemplate, languageId, previousVersion(thePreviousVersion));
-				} else {
-					throw err;
-				}
-			}
-		} else {
-			throw err;
-		}
+function compareVersions(a: Version, b: Version): number {
+	if (a[0] !== b[0]) { return a[0] - b[0]; }
+	if (a[1] !== b[1]) { return a[1] - b[1]; }
+	return a[2] - b[2];
+}
+
+async function queryVersions(serviceUrl: string, languageId: string): Promise<Version[]> {
+	const res = await fetch(`${serviceUrl}/extensionquery`, {
+		method: 'POST',
+		headers: {
+			'Accept': 'application/json;api-version=3.0-preview.1',
+			'Content-Type': 'application/json',
+			'User-Agent': 'VS Code Build',
+		},
+		body: JSON.stringify({
+			filters: [{ criteria: [{ filterType: 7, value: `ms-ceintl.vscode-language-pack-${languageId}` }] }],
+			flags: 0x1
+		})
+	});
+
+	if (res.status !== 200) {
+		throw new Error(`[${res.status}] Error querying for extension: ${languageId}`);
 	}
+
+	const result = await res.json() as { results: [{ extensions: { versions: { version: string }[] }[] }] };
+	return result.results[0].extensions[0].versions.map(v => parseVersion(v.version)).sort(compareVersions);
+}
+
+async function getNLS(extensionGalleryServiceUrl: string, resourceUrlTemplate: string, languageId: string, version: Version) {
+	const versions = await queryVersions(extensionGalleryServiceUrl, languageId);
+	const nextMinor: Version = [version[0], version[1] + 1, 0];
+	const compatibleVersions = versions.filter(v => compareVersions(v, nextMinor) < 0);
+	const latestCompatibleVersion = compatibleVersions.at(-1)!; // order is newest to oldest
+
+	if (!latestCompatibleVersion) {
+		throw new Error(`No compatible language pack found for ${languageId} for version ${version}`);
+	}
+
+	return await getSpecificNLS(resourceUrlTemplate, languageId, latestCompatibleVersion);
 }
 
 async function parsePolicies(): Promise<Policy[]> {
@@ -659,10 +674,10 @@ async function parsePolicies(): Promise<Policy[]> {
 }
 
 async function getTranslations(): Promise<Translations> {
-	const updateUrl = product.updateUrl;
+	const extensionGalleryServiceUrl = product.extensionsGallery?.serviceUrl;
 
-	if (!updateUrl) {
-		console.warn(`Skipping policy localization: No 'updateUrl' found in 'product.json'.`);
+	if (!extensionGalleryServiceUrl) {
+		console.warn(`Skipping policy localization: No 'extensionGallery.serviceUrl' found in 'product.json'.`);
 		return [];
 	}
 
@@ -673,11 +688,11 @@ async function getTranslations(): Promise<Translations> {
 		return [];
 	}
 
-	const version = await getLatestStableVersion(updateUrl);
+	const version = parseVersion(packageJson.version);
 	const languageIds = Object.keys(Languages);
 
 	return await Promise.all(languageIds.map(
-		languageId => getNLS(resourceUrlTemplate, languageId, version)
+		languageId => getNLS(extensionGalleryServiceUrl, resourceUrlTemplate, languageId, version)
 			.then(languageTranslations => ({ languageId, languageTranslations }))
 	));
 }

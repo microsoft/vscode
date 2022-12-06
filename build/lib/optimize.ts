@@ -153,7 +153,7 @@ function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.
 	}));
 }
 
-export interface IOptimizeTaskOpts {
+export interface IOptimizeAMDTaskOpts {
 	/**
 	 * The folder to read files from.
 	 */
@@ -184,11 +184,7 @@ export interface IOptimizeTaskOpts {
 	 */
 	bundleInfo: boolean;
 	/**
-	 * (out folder name)
-	 */
-	out: string;
-	/**
-	 * (out folder name)
+	 * Language configuration.
 	 */
 	languages?: Language[];
 	/**
@@ -205,67 +201,164 @@ const DEFAULT_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
+function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
-	const out = opts.out;
 	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
-	return function () {
-		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
-		const bundlesStream = es.through(); // this stream will contain the bundled files
-		const resourcesStream = es.through(); // this stream will contain the resources
-		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
+	const bundlesStream = es.through(); // this stream will contain the bundled files
+	const resourcesStream = es.through(); // this stream will contain the resources
+	const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
-		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-			if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
+	bundle.bundle(entryPoints, loaderConfig, function (err, result) {
+		if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
-			toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
+		toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
 
-			// Remove css inlined resources
-			const filteredResources = resources.slice();
-			result.cssInlinedResources.forEach(function (resource) {
-				if (process.env['VSCODE_BUILD_VERBOSE']) {
-					log('optimizer', 'excluding inlined: ' + resource);
-				}
-				filteredResources.push('!' + resource);
-			});
-			gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
-
-			const bundleInfoArray: VinylFile[] = [];
-			if (opts.bundleInfo) {
-				bundleInfoArray.push(new VinylFile({
-					path: 'bundleInfo.json',
-					base: '.',
-					contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
-				}));
+		// Remove css inlined resources
+		const filteredResources = resources.slice();
+		result.cssInlinedResources.forEach(function (resource) {
+			if (process.env['VSCODE_BUILD_VERBOSE']) {
+				log('optimizer', 'excluding inlined: ' + resource);
 			}
-			es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+			filteredResources.push('!' + resource);
 		});
+		gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
 
-		const result = es.merge(
-			loader(src, bundledFileHeader, bundleLoader, opts.externalLoaderInfo),
-			bundlesStream,
-			resourcesStream,
-			bundleInfoStream
-		);
+		const bundleInfoArray: VinylFile[] = [];
+		if (opts.bundleInfo) {
+			bundleInfoArray.push(new VinylFile({
+				path: 'bundleInfo.json',
+				base: '.',
+				contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
+			}));
+		}
+		es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+	});
 
-		return result
-			.pipe(sourcemaps.write('./', {
-				sourceRoot: undefined,
-				addComment: true,
-				includeContent: true
-			}))
-			.pipe(opts.languages && opts.languages.length ? processNlsFiles({
-				fileHeader: bundledFileHeader,
-				languages: opts.languages
-			}) : es.through())
-			.pipe(gulp.dest(out));
+	const result = es.merge(
+		loader(src, bundledFileHeader, false, opts.externalLoaderInfo),
+		bundlesStream,
+		resourcesStream,
+		bundleInfoStream
+	);
+
+	return result
+		.pipe(sourcemaps.write('./', {
+			sourceRoot: undefined,
+			addComment: true,
+			includeContent: true
+		}))
+		.pipe(opts.languages && opts.languages.length ? processNlsFiles({
+			fileHeader: bundledFileHeader,
+			languages: opts.languages
+		}) : es.through());
+}
+
+export interface IOptimizeCommonJSTaskOpts {
+	/**
+	 * The paths to consider for optimizing.
+	 */
+	entryPoints: string[];
+	/**
+	 * The folder to read files from.
+	 */
+	src: string;
+	/**
+	 * ESBuild `platform` option: https://esbuild.github.io/api/#platform
+	 */
+	platform: 'browser' | 'node' | 'neutral';
+	/**
+	 * ESBuild `external` option: https://esbuild.github.io/api/#external
+	 */
+	external: string[];
+}
+
+function optimizeCommonJSTask(opts: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
+	const esbuild = require('esbuild') as typeof import('esbuild');
+
+	const src = opts.src;
+	const entryPoints = opts.entryPoints;
+
+	return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
+		.pipe(es.map((f: any, cb) => {
+			esbuild.build({
+				entryPoints: [f.path],
+				bundle: true,
+				platform: opts.platform,
+				write: false,
+				external: opts.external
+			}).then(res => {
+				const jsFile = res.outputFiles[0];
+				f.contents = Buffer.from(jsFile.contents);
+
+				cb(undefined, f);
+			});
+		}));
+}
+
+export interface IOptimizeManualTaskOpts {
+	/**
+	 * The paths to consider for concatenation. The entries
+	 * will be concatenated in the order they are provided.
+	 */
+	src: string[];
+	/**
+	 * Destination target to concatenate the entryPoints into.
+	 */
+	out: string;
+}
+
+function optimizeManualTask(options: IOptimizeManualTaskOpts[]): NodeJS.ReadWriteStream {
+	const concatenations = options.map(opt => {
+		return gulp
+			.src(opt.src)
+			.pipe(concat(opt.out));
+	});
+
+	return es.merge(...concatenations);
+}
+
+export function optimizeLoaderTask(src: string, out: string, bundleLoader: boolean, bundledFileHeader = '', externalLoaderInfo?: any): () => NodeJS.ReadWriteStream {
+	return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
+}
+
+export interface IOptimizeTaskOpts {
+	/**
+	 * Destination folder for the optimized files.
+	 */
+	out: string;
+	/**
+	 * Optimize AMD modules (using our AMD loader).
+	 */
+	amd: IOptimizeAMDTaskOpts;
+	/**
+	 * Optimize CommonJS modules (using esbuild).
+	 */
+	commonJS?: IOptimizeCommonJSTaskOpts;
+	/**
+	 * Optimize manually by concatenating files.
+	 */
+	manual?: IOptimizeManualTaskOpts[];
+}
+
+export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
+	return function () {
+		const optimizers = [optimizeAMDTask(opts.amd)];
+		if (opts.commonJS) {
+			optimizers.push(optimizeCommonJSTask(opts.commonJS));
+		}
+
+		if (opts.manual) {
+			optimizers.push(optimizeManualTask(opts.manual));
+		}
+
+		return es.merge(...optimizers).pipe(gulp.dest(opts.out));
 	};
 }
 
