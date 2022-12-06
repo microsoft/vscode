@@ -92,7 +92,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos assignee:@me is:open type:issue -label:bug -label:\"info-needed\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream -label:polish -label:testplan-item -label:error-telemetry"
+    "value": "$repos assignee:@me is:open type:issue -label:bug -label:\"info-needed\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream -label:polish -label:testplan-item -label:error-telemetry -label:engineering"
   },
   {
     "kind": 1,
