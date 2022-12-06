@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { activeContrastBorder, editorBackground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 /**
  * Definition of the editor colors
@@ -28,6 +27,7 @@ export const editorLineNumbers = registerColor('editorLineNumber.foreground', { 
 
 const deprecatedEditorActiveLineNumber = registerColor('editorActiveLineNumber.foreground', { dark: '#c6c6c6', light: '#0B216F', hcDark: activeContrastBorder, hcLight: activeContrastBorder }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'), false, nls.localize('deprecatedEditorActiveLineNumber', 'Id is deprecated. Use \'editorLineNumber.activeForeground\' instead.'));
 export const editorActiveLineNumber = registerColor('editorLineNumber.activeForeground', { dark: deprecatedEditorActiveLineNumber, light: deprecatedEditorActiveLineNumber, hcDark: deprecatedEditorActiveLineNumber, hcLight: deprecatedEditorActiveLineNumber }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'));
+export const editorDimmedLineNumber = registerColor('editorLineNumber.dimmedForeground', { dark: null, light: null, hcDark: null, hcLight: null }, nls.localize('editorDimmedLineNumber', 'Color of the final editor line when editor.renderFinalNewline is set to dimmed.'));
 
 export const editorRuler = registerColor('editorRuler.foreground', { dark: '#5A5A5A', light: Color.lightgrey, hcDark: Color.white, hcLight: '#292929' }, nls.localize('editorRuler', 'Color of the editor rulers.'));
 
@@ -88,15 +88,5 @@ registerThemingParticipant((theme, collector) => {
 	const imeBackground = (lineHighlight && !lineHighlight.isTransparent() ? lineHighlight : background);
 	if (imeBackground) {
 		collector.addRule(`.monaco-editor .inputarea.ime-input { background-color: ${imeBackground}; }`);
-	}
-
-	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
-	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${rangeHighlightBorder}; box-sizing: border-box; }`);
-	}
-
-	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
-	if (symbolHighlightBorder) {
-		collector.addRule(`.monaco-editor .symbolHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${symbolHighlightBorder}; }`);
 	}
 });

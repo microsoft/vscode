@@ -29,9 +29,19 @@
 }
 .monaco-editor .rangeHighlight {
 	background-color: var(--vscode-editor-rangeHighlightBackground);
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-editor-rangeHighlightBorder);
+}
+.monaco-editor.hc-black .rangeHighlight, .monaco-editor.hc-light .rangeHighlight {
+	border-style: dotted;
 }
 .monaco-editor .symbolHighlight {
 	background-color: var(--vscode-editor-symbolHighlightBackground);
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-editor-symbolHighlightBorder);
+}
+.monaco-editor.hc-black .symbolHighlight, .monaco-editor.hc-light .symbolHighlight {
+	border-style: dotted;
 }
 
 /* -------------------- Misc -------------------- */
