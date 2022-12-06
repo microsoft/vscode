@@ -97,9 +97,9 @@ export interface IEditorOptions {
 	cursorSurroundingLinesStyle?: 'default' | 'all';
 	/**
 	 * Render last line number when the file ends with a newline.
-	 * Defaults to true.
+	 * Defaults to 'on' for Windows and macOS and 'dimmed' for Linux.
 	*/
-	renderFinalNewline?: boolean;
+	renderFinalNewline?: 'on' | 'off' | 'dimmed';
 	/**
 	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * Defaults to 'prompt'.
@@ -5262,8 +5262,10 @@ export const EditorOptions = {
 		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
 		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
 	)),
-	renderFinalNewline: register(new EditorBooleanOption(
-		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
+	renderFinalNewline: register(new EditorStringEnumOption(
+		EditorOption.renderFinalNewline, 'renderFinalNewline',
+		(platform.isLinux ? 'dimmed' : 'on') as 'off' | 'on' | 'dimmed',
+		['off', 'on', 'dimmed'] as const,
 		{ description: nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.") }
 	)),
 	renderLineHighlight: register(new EditorStringEnumOption(
