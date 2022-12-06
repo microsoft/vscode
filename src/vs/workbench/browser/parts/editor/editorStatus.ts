@@ -359,12 +359,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				[{
 					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on');
+						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 					}
 				}, {
 					label: localize('screenReaderDetectedExplanation.answerNo', "No"),
 					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off');
+						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 					}
 				}],
 				{ sticky: true }

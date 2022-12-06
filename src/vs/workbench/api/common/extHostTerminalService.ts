@@ -248,7 +248,7 @@ export class ExtHostTerminal {
 	}
 }
 
-export class ExtHostPseudoterminal implements ITerminalChildProcess {
+class ExtHostPseudoterminal implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
 
@@ -861,7 +861,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 }
 
-export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
 	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
 	private _persistent: boolean = true;
 

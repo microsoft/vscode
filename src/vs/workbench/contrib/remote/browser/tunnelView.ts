@@ -30,7 +30,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
@@ -1774,17 +1774,10 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		isForwardedOrDetectedExpr)
 }));
 
-const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
+registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcLight: STATUS_BAR_HOST_NAME_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
-registerThemingParticipant((theme, collector) => {
-	const portWithRunningProcessColor = theme.getColor(portWithRunningProcessForeground);
-	if (portWithRunningProcessColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(forwardedPortWithProcessIcon)} { color: ${portWithRunningProcessColor} ; }`);
-	}
-
-});

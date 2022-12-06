@@ -24,15 +24,15 @@ import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/us
 type AutoSyncClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the sources triggering auto sync';
-	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Source that triggered auto sync' };
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Auth provider id used for sync' };
+	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source that triggered auto sync' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Auth provider id used for sync' };
 };
 
 type AutoSyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that causes auto sync to fail';
 	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings sync service for which this error has occurred' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings sync service for which this error has occurred' };
 };
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';

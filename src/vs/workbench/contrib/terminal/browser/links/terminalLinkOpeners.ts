@@ -173,7 +173,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		});
 		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator)?.[0] || text;
 		}
 
 		// Try open the cwd resolved link first

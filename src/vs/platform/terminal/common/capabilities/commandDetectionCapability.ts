@@ -649,7 +649,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
+function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
