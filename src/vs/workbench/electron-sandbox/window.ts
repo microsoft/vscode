@@ -271,6 +271,7 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:initialAccessibilityEnabled', (event: unknown, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
+
 		// Zoom level changes
 		this.updateWindowZoomLevel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

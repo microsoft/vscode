@@ -761,6 +761,8 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
+		this.lifecycleMainService.onWillLoadWindow(() => this.windowsMainService?.sendToAll('vscode:initialAccessibilityEnabled', app.isAccessibilitySupportEnabled()));
+
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
@@ -945,7 +947,6 @@ export class CodeApplication extends Disposable {
 				return false;
 			}
 		});
-
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = this._register(new ActiveWindowManager({
 			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
@@ -1138,6 +1139,8 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
+
+
 	}
 
 	private async installMutex(): Promise<void> {
