@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { UnicodeHighlighterOptions, UnicodeTextModelHighlighter } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('UnicodeTextModelHighlighter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function t(text: string, options: UnicodeHighlighterOptions): unknown {
 		const m = createTextModel(text);
 		const r = UnicodeTextModelHighlighter.computeUnicodeHighlights(m, options);
+		m.dispose();
 
 		return {
 			...r,
