@@ -22,7 +22,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 
@@ -266,4 +266,4 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	}
 }
 
-registerSingleton(ITextEditorService, TextEditorService, false /* do not change: https://github.com/microsoft/vscode/issues/137675 */);
+registerSingleton(ITextEditorService, TextEditorService, InstantiationType.Eager /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

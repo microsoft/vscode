@@ -12,16 +12,23 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { coalesce } from 'vs/base/common/arrays';
+import { Event } from 'vs/base/common/event';
 
-export class DynamicEditorResolverConfigurations extends Disposable implements IWorkbenchContribution {
+export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 
 	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>(['terminalEditor']);
 
 	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
 
-		// Any webview editor is not a registered editor but we
-		// still want to support auto-locking for them, so we
-		// manually add them here...
+		// List some editor input identifiers that are not
+		// registered yet via the editor resolver infrastructure
+
+		{
+			id: 'workbench.input.interactive',
+			label: localize('interactiveWindow', 'Interactive Window'),
+			priority: RegisteredEditorPriority.builtin
+		},
 		{
 			id: 'mainThreadWebview-markdown.preview',
 			label: localize('markdownPreview', "Markdown Preview"),
@@ -29,10 +36,21 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 		}
 	];
 
-	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	private static readonly AUTO_LOCK_REMOVE_EDITORS = new Set<string>([
+
+		// List some editor types that the above `AUTO_LOCK_EXTRA_EDITORS`
+		// already covers to avoid duplicates.
+
+		'vscode-interactive-input',
+		'interactive',
+		'vscode.markdown.preview.editor'
+	]);
+
+	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
 	private autoLockConfigurationNode: IConfigurationNode | undefined;
 	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
-	private editorAssociationsConfiguratioNnode: IConfigurationNode | undefined;
+	private editorAssociationsConfigurationNode: IConfigurationNode | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -42,24 +60,24 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 
 		// Editor configurations are getting updated very aggressively
 		// (atleast 20 times) while the extensions are getting registered.
-		// As such push out the dynamic editor auto lock configuration
-		// until after extensions registered.
+		// As such push out the dynamic configuration until after extensions
+		// are registered.
 		(async () => {
 			await extensionService.whenInstalledExtensionsRegistered();
 
-			this.updateConfiguration();
+			this.updateDynamicEditorConfigurations();
 			this.registerListeners();
 		})();
 	}
 
 	private registerListeners(): void {
 
-		// Registered editors
-		this._register(this.editorResolverService.onDidChangeEditorRegistrations(() => this.updateConfiguration()));
+		// Registered editors (debounced to reduce perf overhead)
+		Event.debounce(this.editorResolverService.onDidChangeEditorRegistrations, (_, e) => e)(() => this.updateDynamicEditorConfigurations());
 	}
 
-	private updateConfiguration(): void {
-		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorResolverConfigurations.AUTO_LOCK_EXTRA_EDITORS];
+	private updateDynamicEditorConfigurations(): void {
+		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS].filter(e => !DynamicEditorConfigurations.AUTO_LOCK_REMOVE_EDITORS.has(e.id));
 		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(e => e.id);
 
 		// Build config from registered editors
@@ -67,7 +85,7 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 		for (const editor of lockableEditors) {
 			autoLockGroupConfiguration[editor.id] = {
 				type: 'boolean',
-				default: DynamicEditorResolverConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id),
+				default: DynamicEditorConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id),
 				description: editor.label
 			};
 		}
@@ -75,17 +93,17 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 		// Build default config too
 		const defaultAutoLockGroupConfiguration = Object.create(null);
 		for (const editor of lockableEditors) {
-			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorResolverConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
+			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
 		}
 
-		// Register settng for auto locking groups
+		// Register setting for auto locking groups
 		const oldAutoLockConfigurationNode = this.autoLockConfigurationNode;
 		this.autoLockConfigurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
 				'workbench.editor.autoLockGroups': {
 					type: 'object',
-					description: localize('workbench.editor.autoLockGroups', "If an editor matching one of the listed types is opened as the first in an editor group and more than one group is open, the group is automatically locked. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
+					description: localize('workbench.editor.autoLockGroups', "If an editor matching one of the listed types is opened as the first in an editor group and more than one group is open, the group is automatically locked. Locked groups will only be used for opening editors when explicitly chosen by a user gesture (for example drag and drop), but not by default. Consequently, the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
 					properties: autoLockGroupConfiguration,
 					default: defaultAutoLockGroupConfiguration,
 					additionalProperties: false
@@ -103,19 +121,19 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 					default: '',
 					// This allows for intellisense autocompletion
 					enum: [...binaryEditorCandidates, ''],
-					description: localize('workbench.editor.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
+					description: localize('workbench.editor.defaultBinaryEditor', "The default editor for files detected as binary. If undefined, the user will be presented with a picker."),
 				}
 			}
 		};
 
 		// Registers setting for editorAssociations
-		const oldEditorAssociationsConfigurationNode = this.editorAssociationsConfiguratioNnode;
-		this.editorAssociationsConfiguratioNnode = {
+		const oldEditorAssociationsConfigurationNode = this.editorAssociationsConfigurationNode;
+		this.editorAssociationsConfigurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
 				'workbench.editorAssociations': {
 					type: 'object',
-					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
 					patternProperties: {
 						'.*': {
 							type: 'string',
@@ -126,8 +144,17 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 			}
 		};
 
-		this.configurationRegistry.updateConfigurations({ add: [this.autoLockConfigurationNode], remove: oldAutoLockConfigurationNode ? [oldAutoLockConfigurationNode] : [] });
-		this.configurationRegistry.updateConfigurations({ add: [this.defaultBinaryEditorConfigurationNode], remove: oldDefaultBinaryEditorConfigurationNode ? [oldDefaultBinaryEditorConfigurationNode] : [] });
-		this.configurationRegistry.updateConfigurations({ add: [this.editorAssociationsConfiguratioNnode], remove: oldEditorAssociationsConfigurationNode ? [oldEditorAssociationsConfigurationNode] : [] });
+		this.configurationRegistry.updateConfigurations({
+			add: [
+				this.autoLockConfigurationNode,
+				this.defaultBinaryEditorConfigurationNode,
+				this.editorAssociationsConfigurationNode
+			],
+			remove: coalesce([
+				oldAutoLockConfigurationNode,
+				oldDefaultBinaryEditorConfigurationNode,
+				oldEditorAssociationsConfigurationNode
+			])
+		});
 	}
 }

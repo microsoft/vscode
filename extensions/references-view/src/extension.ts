@@ -22,5 +22,9 @@ export function activate(context: vscode.ExtensionContext): SymbolTree {
 		tree.setInput(input);
 	}
 
-	return { setInput };
+	function getInput(): SymbolTreeInput<unknown> | undefined {
+		return tree.getInput();
+	}
+
+	return { setInput, getInput };
 }

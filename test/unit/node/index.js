@@ -56,6 +56,15 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 }
 
 function main() {
+
+	// VSCODE_GLOBALS: node_modules
+	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
+
+	// VSCODE_GLOBALS: package/product.json
+	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
+	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
+
+
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
 	});
@@ -94,7 +103,6 @@ function main() {
 
 	const loaderConfig = {
 		nodeRequire: require,
-		nodeMain: __filename,
 		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
 		catchError: true
 	};

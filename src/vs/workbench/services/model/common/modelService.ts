@@ -10,7 +10,7 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -42,4 +42,4 @@ export class WorkbenchModelService extends ModelService {
 	}
 }
 
-registerSingleton(IModelService, WorkbenchModelService, true);
+registerSingleton(IModelService, WorkbenchModelService, InstantiationType.Delayed);

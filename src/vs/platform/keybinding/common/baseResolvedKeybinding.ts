@@ -11,9 +11,9 @@ import { OperatingSystem } from 'vs/base/common/platform';
 export abstract class BaseResolvedKeybinding<T extends IBaseKeybinding> extends ResolvedKeybinding {
 
 	protected readonly _os: OperatingSystem;
-	protected readonly _parts: T[];
+	protected readonly _parts: readonly T[];
 
-	constructor(os: OperatingSystem, parts: T[]) {
+	constructor(os: OperatingSystem, parts: readonly T[]) {
 		super();
 		if (parts.length === 0) {
 			throw illegalArgument(`parts`);

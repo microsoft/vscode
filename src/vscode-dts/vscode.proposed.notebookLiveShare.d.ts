@@ -14,8 +14,7 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		// SPECIAL overload with NotebookRegistrationData
-		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
+
 		// SPECIAL overload with NotebookRegistrationData
 		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions, registration?: NotebookRegistrationData): Disposable;
 	}

@@ -200,10 +200,6 @@ export class MarkerService implements IMarkerService {
 			tags,
 		} = data;
 
-		if (unsupportedSchemas.has(resource.scheme)) {
-			return undefined;
-		}
-
 		if (!message) {
 			return undefined;
 		}

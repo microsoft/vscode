@@ -36,13 +36,13 @@ export interface IToolBarOptions {
  */
 export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
-	private actionBar: ActionBar;
+	protected readonly actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
-	private lookupKeybindings: boolean;
-	private element: HTMLElement;
+	private readonly lookupKeybindings: boolean;
+	private readonly element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
@@ -140,6 +140,10 @@ export class ToolBar extends Disposable {
 		return this.element;
 	}
 
+	focus(): void {
+		this.actionBar.focus();
+	}
+
 	getItemsWidth(): number {
 		let itemsWidth = 0;
 		for (let i = 0; i < this.actionBar.length(); i++) {
@@ -148,8 +152,8 @@ export class ToolBar extends Disposable {
 		return itemsWidth;
 	}
 
-	getItemAction(index: number) {
-		return this.actionBar.getAction(index);
+	getItemAction(indexOrElement: number | HTMLElement) {
+		return this.actionBar.getAction(indexOrElement);
 	}
 
 	getItemWidth(index: number): number {
@@ -179,6 +183,10 @@ export class ToolBar extends Disposable {
 		primaryActionsToSet.forEach(action => {
 			this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
 		});
+	}
+
+	isEmpty(): boolean {
+		return this.actionBar.isEmpty();
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {

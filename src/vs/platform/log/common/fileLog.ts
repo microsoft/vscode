@@ -8,20 +8,19 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { AbstractLogger, AbstractLoggerService, format, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
-export class FileLogger extends AbstractLogger implements ILogger {
+export class FileLogger extends AbstractMessageLogger implements ILogger {
 
 	private readonly initializePromise: Promise<void>;
 	private readonly queue: Queue<void>;
 	private backupIndex: number = 1;
 
 	constructor(
-		private readonly name: string,
+		name: string,
 		private readonly resource: URI,
 		level: LogLevel,
 		private readonly donotUseFormatters: boolean,
@@ -33,51 +32,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		this.initializePromise = this.initialize();
 	}
 
-	trace(): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this._log(LogLevel.Trace, format(arguments));
-		}
-	}
-
-	debug(): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this._log(LogLevel.Debug, format(arguments));
-		}
-	}
-
-	info(): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this._log(LogLevel.Info, format(arguments));
-		}
-	}
-
-	warn(): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this._log(LogLevel.Warning, format(arguments));
-		}
-	}
-
-	error(): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			const arg = arguments[0];
-
-			if (arg instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = arg.stack;
-				this._log(LogLevel.Error, format(array));
-			} else {
-				this._log(LogLevel.Error, format(arguments));
-			}
-		}
-	}
-
-	critical(): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, format(arguments));
-		}
-	}
-
-	flush(): void {
+	override flush(): void {
 	}
 
 	private async initialize(): Promise<void> {
@@ -90,7 +45,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	private _log(level: LogLevel, message: string): void {
+	protected log(level: LogLevel, message: string): void {
 		this.queue.queue(async () => {
 			await this.initializePromise;
 			let content = await this.loadContent();
@@ -101,7 +56,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 			if (this.donotUseFormatters) {
 				content += message;
 			} else {
-				content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+				content += `${this.getCurrentTimestamp()} [${this.stringifyLogLevel(level)}] ${message}\n`;
 			}
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
 		});
@@ -130,7 +85,6 @@ export class FileLogger extends AbstractLogger implements ILogger {
 
 	private stringifyLogLevel(level: LogLevel): string {
 		switch (level) {
-			case LogLevel.Critical: return 'critical';
 			case LogLevel.Debug: return 'debug';
 			case LogLevel.Error: return 'error';
 			case LogLevel.Info: return 'info';
@@ -146,7 +100,6 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	constructor(
 		@ILogService logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super(logService.getLevel(), logService.onDidChangeLogLevel);
@@ -154,7 +107,7 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters));
+		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = new FileLogger(options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
 		return logger;
 	}
 }

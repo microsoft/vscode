@@ -1,0 +1,17 @@
+name: 'Telemetry'
+on:
+  pull_request:
+jobs:
+  check-metdata:
+    name: 'Check metadata'
+    runs-on: 'ubuntu-latest'
+
+    steps:
+      - uses: 'actions/checkout@v3'
+
+      - uses: 'actions/setup-node@v3'
+        with:
+          node-version: 'lts/*'
+
+      - name: 'Run vscode-telemetry-extractor'
+        run: 'npx --package=@vscode/telemetry-extractor --yes vscode-telemetry-extractor -s .'
