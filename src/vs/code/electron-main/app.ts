@@ -550,6 +550,7 @@ export class CodeApplication extends Disposable {
 			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
+		this.windowsMainService?.sendToAll('vscode:initialAccessibilityEnabled', app.isAccessibilitySupportEnabled());
 	}
 
 	private setUpHandlers(instantiationService: IInstantiationService): void {
