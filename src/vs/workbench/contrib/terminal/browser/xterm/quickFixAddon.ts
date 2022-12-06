@@ -87,6 +87,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
+		for (const commandSelector of this._terminalContributionService.quickFixes) {
+			this.registerCommandSelector(commandSelector);
+		}
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
@@ -96,9 +99,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					this._registerCommandHandlers();
 				}
 			});
-		}
-		for (const commandSelector of this._terminalContributionService.quickFixes) {
-			this.registerCommandSelector(commandSelector);
 		}
 		this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result)));
 		this._quickFixService.onDidUnregisterProvider(id => this._commandListeners.delete(id));
