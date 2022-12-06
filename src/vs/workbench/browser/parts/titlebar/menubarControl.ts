@@ -121,7 +121,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	title: {
 		value: 'Preferences',
 		original: 'Preferences',
-		mnemonicTitle: localize('mPreferences', "Preferences")
+		mnemonicTitle: localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "Preferences")
 	},
 	when: IsMacNativeContext,
 	order: 9

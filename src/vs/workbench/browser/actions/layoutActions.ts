@@ -362,7 +362,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			toggled: {
 				condition: SideBarVisibleContext,
 				title: localize('primary sidebar', "Primary Side Bar"),
-				mnemonicTitle: localize('primary sidebar mnemonic', "&&Primary Side Bar"),
+				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 			},
 			category: Categories.View,
 			f1: true,
@@ -521,7 +521,7 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.toggleZenMode',
 			title: {
 				value: localize('toggleZenMode', "Toggle Zen Mode"),
-				mnemonicTitle: localize('miToggleZenMode', "Zen Mode"),
+				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
 			category: Categories.View,
