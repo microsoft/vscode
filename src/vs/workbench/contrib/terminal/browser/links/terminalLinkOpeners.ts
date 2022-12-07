@@ -24,6 +24,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { basename } from 'vs/base/common/path';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -300,6 +301,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -310,7 +312,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		// It's important to use the raw string value here to avoid converting pre-encoded values
 		// from the URL like `%2B` -> `+`.
 		this._openerService.open(link.text, {
-			allowTunneling: this._isRemote,
+			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
 			allowContributedOpeners: true,
 		});
 	}

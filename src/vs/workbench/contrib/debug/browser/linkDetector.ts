@@ -17,6 +17,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -45,7 +46,8 @@ export class LinkDetector {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPathService private readonly pathService: IPathService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		// noop
 	}
@@ -140,7 +142,7 @@ export class LinkDetector {
 				return;
 			}
 
-			this.openerService.open(url, { allowTunneling: !!this.environmentService.remoteAuthority });
+			this.openerService.open(url, { allowTunneling: (!!this.environmentService.remoteAuthority && this.configurationService.getValue('remote.forwardOnOpen')) });
 		});
 
 		return link;

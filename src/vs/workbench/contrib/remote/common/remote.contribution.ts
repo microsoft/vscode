@@ -363,6 +363,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				],
 				default: 'process'
 			},
+			'remote.forwardOnOpen': {
+				type: 'boolean',
+				description: localize('remote.forwardOnClick', "Controls whether local URLs with a port will be forwarded when opened from the terminal and the debug console."),
+				default: true
+			},
 			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
 			// and extensions\configuration-editing\schemas\attachContainer.schema.json
 			// to keep in sync with devcontainer.json schema.
