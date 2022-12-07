@@ -50,9 +50,9 @@ export interface ITerminalQuickFixAddon {
 	showMenu(): void;
 	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 	/**
- * Registers a listener on onCommandFinished scoped to a particular command or regular
- * expression and provides a callback to be executed for commands that match.
- */
+	 * Registers a listener on onCommandFinished scoped to a particular command or regular
+	 * expression and provides a callback to be executed for commands that match.
+	 */
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void;
 }
 
@@ -293,7 +293,7 @@ export async function getQuickFixesForCommand(
 	const newCommand = terminalCommand.command;
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
-			if ((option.matchOnCommandResult === 'success' && terminalCommand.exitCode) || (option.matchOnCommandResult === 'error' && !terminalCommand.exitCode)) {
+			if ((option.matchOnCommandResult === 'success' && terminalCommand.exitCode !== 0) || (option.matchOnCommandResult === 'error' && terminalCommand.exitCode === 0)) {
 				continue;
 			}
 			let quickFixes;
