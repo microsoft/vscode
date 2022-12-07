@@ -1139,8 +1139,6 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
-
-
 	}
 
 	private async installMutex(): Promise<void> {
