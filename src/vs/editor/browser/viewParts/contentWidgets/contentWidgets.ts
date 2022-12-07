@@ -63,19 +63,19 @@ export class ViewContentWidgets extends ViewPart {
 		return true;
 	}
 	public override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].onLineMappingChanged(e);
-		}
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		this._updateAnchorsViewPositions();
 		return true;
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
@@ -86,6 +86,13 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	// ---- end view event handlers
+
+	private _updateAnchorsViewPositions(): void {
+		const keys = Object.keys(this._widgets);
+		for (const widgetId of keys) {
+			this._widgets[widgetId].updateAnchorViewPosition();
+		}
+	}
 
 	public addWidget(_widget: IContentWidget): void {
 		const myWidget = new Widget(this._context, this._viewDomNode, _widget);
@@ -235,7 +242,7 @@ class Widget {
 		}
 	}
 
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): void {
+	public updateAnchorViewPosition(): void {
 		this._setPosition(this._affinity, this._primaryAnchor.modelPosition, this._secondaryAnchor.modelPosition);
 	}
 

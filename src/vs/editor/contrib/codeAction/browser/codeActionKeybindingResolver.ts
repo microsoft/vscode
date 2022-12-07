@@ -8,7 +8,6 @@ import { Lazy } from 'vs/base/common/lazy';
 import { CodeAction } from 'vs/editor/common/languages';
 import { codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import { IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface ResolveCodeActionKeybinding {
@@ -17,7 +16,7 @@ interface ResolveCodeActionKeybinding {
 	readonly resolvedKeybinding: ResolvedKeybinding;
 }
 
-export class CodeActionKeybindingResolver implements IActionKeybindingResolver {
+export class CodeActionKeybindingResolver {
 	private static readonly codeActionCommands: readonly string[] = [
 		refactorCommandId,
 		codeActionCommandId,
@@ -27,7 +26,7 @@ export class CodeActionKeybindingResolver implements IActionKeybindingResolver {
 	];
 
 	constructor(
-		private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
 	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {

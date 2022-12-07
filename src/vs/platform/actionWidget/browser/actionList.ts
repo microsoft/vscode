@@ -8,11 +8,12 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Codicon } from 'vs/base/common/codicons';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
-import { IActionItem, IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
+import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
@@ -25,12 +26,14 @@ export interface IRenderDelegate {
 }
 
 export interface IListMenuItem<T extends IActionItem> {
-	item?: T;
-	kind: ActionListItemKind;
-	group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
-	disabled?: boolean;
-	label?: string;
-	description?: string;
+	readonly item?: T;
+	readonly kind: ActionListItemKind;
+	readonly group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
+	readonly disabled?: boolean;
+	readonly label?: string;
+	readonly description?: string;
+
+	readonly keybinding?: ResolvedKeybinding;
 }
 
 interface IActionMenuTemplateData {
@@ -64,10 +67,7 @@ class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRende
 	}
 
 	renderElement(element: IListMenuItem<IActionItem>, _index: number, templateData: IHeaderTemplateData): void {
-		if (!element.group) {
-			return;
-		}
-		templateData.text.textContent = element.group?.title;
+		templateData.text.textContent = element.group?.title ?? '';
 	}
 
 	disposeTemplate(_templateData: IHeaderTemplateData): void {
@@ -77,10 +77,10 @@ class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRende
 
 class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IActionMenuTemplateData> {
 
-	get templateId(): string { return 'action'; }
+	get templateId(): string { return ActionListItemKind.Action; }
 
 	constructor(
-		private readonly _keybindingResolver: IActionKeybindingResolver | undefined,
+		private readonly _supportsPreview: boolean,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
 
@@ -108,18 +108,17 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 			data.icon.className = Codicon.lightBulb.classNames;
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
+
 		if (!element.item || !element.label) {
 			return;
 		}
-		data.text.textContent = stripNewlines(element.label);
-		const binding = this._keybindingResolver?.getResolver()(element.item);
-		if (binding) {
-			data.keybinding.set(binding);
-		}
 
-		if (!binding) {
+		data.text.textContent = stripNewlines(element.label);
+
+		if (!element.keybinding) {
 			dom.hide(data.keybinding.element);
 		} else {
+			data.keybinding.set(element.keybinding);
 			dom.show(data.keybinding.element);
 		}
 
@@ -129,10 +128,15 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+			if (this._supportsPreview) {
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+			} else {
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
+			}
 		} else {
 			data.container.title = '';
 		}
+
 		if (element.description) {
 			const label = new HighlightedLabel(dom.append(data.container, dom.$('span.label-description')));
 			label.element.classList.add('action-list-description');
@@ -154,13 +158,13 @@ export class ActionList<T extends IActionItem> extends Disposable {
 	private readonly _actionLineHeight = 24;
 	private readonly _headerLineHeight = 26;
 
-	private readonly _allMenuItems: IListMenuItem<IActionItem>[];
+	private readonly _allMenuItems: readonly IListMenuItem<IActionItem>[];
 
 	constructor(
 		user: string,
-		items: IListMenuItem<T>[],
+		preview: boolean,
+		items: readonly IListMenuItem<T>[],
 		private readonly _delegate: IRenderDelegate,
-		resolver: IActionKeybindingResolver | undefined,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -169,11 +173,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
-			getHeight: element => element.kind === 'header' ? this._headerLineHeight : this._actionLineHeight,
+			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(resolver, this._keybindingService), new HeaderRenderer()], {
-			keyboardSupport: true,
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService), new HeaderRenderer()], {
+			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === 'action') {
@@ -189,7 +193,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getRole: () => 'option',
 				getWidgetRole: () => user
 			},
-		});
+		}));
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));

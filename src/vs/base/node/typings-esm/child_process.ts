@@ -15,6 +15,7 @@ import * as _child_process from 'child_process';
 export type ForkOptions = import('child_process').ForkOptions;
 export type SpawnOptions = import('child_process').SpawnOptions;
 export type ChildProcess = import('child_process').ChildProcess;
+export type ChildProcessWithoutNullStreams = import('child_process').ChildProcessWithoutNullStreams;
 export const exec = _child_process.exec;
 export const execFile = _child_process.execFile;
 export const execFileSync = _child_process.execFileSync;

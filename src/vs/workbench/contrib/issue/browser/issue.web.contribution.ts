@@ -19,7 +19,7 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 
 class RegisterIssueContribution implements IWorkbenchContribution {
 
-	constructor(@IProductService readonly productService: IProductService) {
+	constructor(@IProductService productService: IProductService) {
 		if (productService.reportIssueUrl) {
 			const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 

@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export interface IActivationEventsGenerator<T> {
-	(contribution: T, result: { push(item: string): void }): void;
+	(contributions: T[], result: { push(item: string): void }): void;
 }
 
 export class ImplicitActivationEventsImpl {
@@ -19,10 +19,13 @@ export class ImplicitActivationEventsImpl {
 	}
 
 	public updateManifest(manifest: IExtensionManifest) {
-		if (!Array.isArray(manifest.activationEvents) || !manifest.contributes) {
+		if (typeof manifest.main === 'undefined' && typeof manifest.browser === 'undefined') {
 			return;
 		}
-		if (typeof manifest.main === 'undefined' && typeof manifest.browser === 'undefined') {
+		if (manifest.activationEvents === undefined) {
+			Object.assign(manifest, { activationEvents: [] });
+		}
+		if (!Array.isArray(manifest.activationEvents) || !manifest.contributes) {
 			return;
 		}
 
