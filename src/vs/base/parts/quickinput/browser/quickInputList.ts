@@ -190,10 +190,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				matches: detailHighlights,
 				title: element.saneDetail
 			});
-		} /* else {
-			// TODO investigate potential detail bleeding into next quickpicks
+		} else {
 			data.detail.setLabel('');
-		} */
+		}
 
 		// Separator
 		if (element.item && element.separator && element.separator.label) {
