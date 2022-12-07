@@ -306,6 +306,7 @@ export class LabelService extends Disposable implements ILabelService {
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
 		}
+
 		// Workspace: Multi Root
 		if (isWorkspaceIdentifier(workspace)) {
 			return this.doGetWorkspaceLabel(workspace.configPath, options);
@@ -335,7 +336,8 @@ export class LabelService extends Disposable implements ILabelService {
 		let label: string;
 		switch (options?.verbose) {
 			case Verbosity.SHORT:
-				label = localize('workspaceNameShort', "{0}", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+				label = filename;
+				break;
 			case Verbosity.LONG:
 				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
 				break;
@@ -345,11 +347,29 @@ export class LabelService extends Disposable implements ILabelService {
 				break;
 		}
 
+		if (options?.verbose === Verbosity.SHORT) {
+			return label;
+		}
+
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
 	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: Verbosity }): string {
-		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || posix.sep;
+		let label: string;
+		switch (options?.verbose) {
+			case Verbosity.LONG:
+				label = this.getUriLabel(folderUri);
+				break;
+			case Verbosity.SHORT:
+			case Verbosity.MEDIUM:
+			default:
+				label = basename(folderUri) || posix.sep;
+				break;
+		}
+
+		if (options?.verbose === Verbosity.SHORT) {
+			return label;
+		}
 
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}
