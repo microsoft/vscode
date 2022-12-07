@@ -10,7 +10,7 @@ Language server host for typescript using vscode's sync-api in the browser
   - known schemes are in utils/fileSchemes.ts, but don't include vscode-test-web
   - adding vscode-test-web in a couple places didn't help, maybe I need to be hackier
   - nope, another predicate is `isWeb`, so I had to change place(s) it's used too
-- [ ] cancellation
+- [x] cancellation
 
 ### Cleanup
 
@@ -21,23 +21,23 @@ Language server host for typescript using vscode's sync-api in the browser
     In any case it'll need to get shut down before then, which may not be possible without changing Typescript.
   - LATER: Turns out you can skip the existing server by depending on tsserverlibrary instead of tsserver.
 - [x] figure out a webpack-native way to generate tsserver.web.js if possible
-- [ ] fill in missing environment files like lib.dom.d.ts
 - [ ] path rewriting is pretty loosey-goosey; likely to be incorrect some of the time
    - invert the logic from TypeScriptServiceClient.normalizedPath for requests
    - invert the function from webServer.ts for responses (maybe)
    - something with getWorkspaceRootForResource (or anything else that checks `resouce.scheme`)
+- [ ] fill in missing environment files like lib.dom.d.ts
 - [ ] cancellation should only retain one cancellation checker
    - the one that matches the current request id
    - but that means tracking (or retrieving from tsserver) the request id (aka seq?)
    - and correctly setting/resetting it on the cancellation token too.
+- [ ] create multiple watchers
+   - on-demand instead of watching everything and checking on watch firing
 
 ### Final
 
-- [ ] rewrite paths in all other request/response messages
 - [ ] put files one level down from virtual root
-- [ ] shut down listener created by tsserver
 - [ ] think about implementing all the other ServerHost methods
-- [ ] add tests, dprint, etc to repo
+- [ ] organise webServer.ts into multiple files
 
 ### Done
 - [x] need to update 0.2 -> 0.7.* API (once it's working properly)

@@ -6,6 +6,5 @@
 import * as vscode from 'vscode';
 
 export function isWeb(): boolean {
-	// @ts-expect-error
 	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
 }

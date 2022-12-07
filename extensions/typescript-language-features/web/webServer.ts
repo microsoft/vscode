@@ -386,6 +386,7 @@ class WorkerSession extends ts.server.Session<{}> {
 	constructor(
 		host: ts.server.ServerHost,
 		options: StartSessionOptions,
+		public port: MessagePort,
 		logger: ts.server.Logger,
 		cancellationToken: ts.server.ServerCancellationToken,
 		hrtime: ts.server.SessionOptions["hrtime"]
@@ -414,7 +415,7 @@ class WorkerSession extends ts.server.Session<{}> {
 		if (this.logger.hasLevel(ts.server.LogLevel.verbose)) {
 			this.logger.info(`${msg.type}:${indent(JSON.stringify(msg))}`);
 		}
-		postMessage(msg);
+		this.port.postMessage(msg)
 	}
 	protected override parseMessage(message: {}): ts.server.protocol.Request {
 		return message as ts.server.protocol.Request;
@@ -427,13 +428,14 @@ class WorkerSession extends ts.server.Session<{}> {
 		this.projectService.closeLog();
 		close();
 	}
-	// TODO: Unused right now, but maybe someday
 	listen(port: MessagePort) {
-		this.logger.info('SHOULD BE UNUSED: starting to listen for messages on "message"...')
-		port.addEventListener("message", (message: any) => {
+		this.logger.info('webServer.ts: tsserver starting to listen for messages on "message"...')
+		port.onmessage = (message: any) => {
 			this.logger.info(`host msg: ${JSON.stringify(message.data)}`)
-			this.onMessage(message.data);
-		});
+			// TODO: Not sure whether this should be `message` or `message.data`
+			wasmCancellationToken.add(Cancellation.retrieveCheck(message.data))
+			this.onMessage(translateRequest(message.data))
+		};
 	}
 }
 // END webServer/webServer.ts
@@ -454,11 +456,13 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(options: StartSessionOptions, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), cancellationToken: ts.server.ServerCancellationToken) {
-	session = new WorkerSession(createWebSystem(connection, logger), options, logger, cancellationToken, hrtime)
+function startSession(options: StartSessionOptions, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), cancellationToken: ts.server.ServerCancellationToken) {
+	session = new WorkerSession(createWebSystem(connection, logger), options, tsserver, logger, cancellationToken, hrtime)
+	session.listen(tsserver)
 }
 // END tsserver/webServer.ts
 // BEGIN tsserver/server.ts
+// TODO: 1. Get rid of function signature and inline JSON.stringifys 2. Make a createLogger and call it inside initializeSession
 const serverLogger: ts.server.Logger & ((x: any) => void) = (x: any) => postMessage({ type: "log", body: JSON.stringify(x) + '\n' }) as any
 serverLogger.close = () => { }
 serverLogger.hasLevel = level => level <= ts.server.LogLevel.verbose
@@ -469,7 +473,8 @@ serverLogger.msg = s => postMessage({ type: "log", body: s + '\n' })
 serverLogger.startGroup = () => { }
 serverLogger.endGroup = () => { }
 serverLogger.getLogFileName = () => "tsserver.log"
-function initializeSession(args: string[], platform: string, connection: ClientConnection<Requests>): void {
+function initializeSession(args: string[], platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>): void {
+	// TODO: Parse args for partial semantic mode -- need to have both but right now both start in semantic mode.
 	// webServer.ts
 	// getWebPath
 	// ScriptInfo.ts:isDynamicFilename <-- better predicate than trimHat
@@ -491,6 +496,7 @@ function initializeSession(args: string[], platform: string, connection: ClientC
 		syntaxOnly: false,
 		serverMode
 	},
+		tsserver,
 		connection,
 		serverLogger,
 		wasmCancellationToken);
@@ -527,9 +533,11 @@ function callWatcher(event: "create" | "change" | "delete", path: string, logger
 let init: Promise<any> | undefined;
 const listener = async (e: any) => {
 	if (!init) {
-		if ('args' in e.data && 'port' in e.data) {
-			const connection = new ClientConnection<Requests>(e.data.port);
-			init = connection.serviceReady().then(() => initializeSession(e.data.args, "web-sync-api", connection))
+		if ('args' in e.data) {
+			const [sync, tsserver] = e.ports as MessagePort[]
+			// tsserver.postMessage("TEST") // WORKS
+			const connection = new ClientConnection<Requests>(sync);
+			init = connection.serviceReady().then(() => initializeSession(e.data.args, "web-sync-api", tsserver, connection))
 		}
 		else {
 			console.error('init message not yet received, got ' + JSON.stringify(e.data))
@@ -537,25 +545,13 @@ const listener = async (e: any) => {
 		return
 	}
 	await init // TODO: Not strictly necessary since I can check session instead
-	// TODO: Instead of reusing this listener and passing its messages on to session.onMessage, I could receive another port in the setup message
-	// and close removeEventListener on this listener
-	if (!!session) {
-		if (e.data.type === 'watch') {
-			// call watcher
-			callWatcher(e.data.event, e.data.path, serverLogger)
-		}
-		else {
-			// TODO: Not sure whether this should be `e` or `e.data`
-			wasmCancellationToken.add(Cancellation.retrieveCheck(e.data))
-			// ok, now you have a function to call that returns true if we're cancelled.
-			// how does typescript use that?
-			session.onMessage(translateRequest(e.data))
-		}
+	if (e.data.type === 'watch') {
+		// call watcher
+		callWatcher(e.data.event, e.data.path, serverLogger)
 	}
 	else {
-		console.error('Init is done, but session is not available yet')
+		console.error(`unexpected tsserver request on main channel: ${JSON.stringify(e)}`)
 	}
-
 };
 addEventListener('message', listener);
 // END tsserver/server.ts
