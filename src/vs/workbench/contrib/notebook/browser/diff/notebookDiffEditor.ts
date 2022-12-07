@@ -140,10 +140,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	constructor(
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
@@ -890,7 +890,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return undefined;
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 	}
 

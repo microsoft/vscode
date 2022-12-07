@@ -2066,7 +2066,9 @@ declare module 'vscode' {
 	export class RelativePattern {
 
 		/**
-		 * A base file path to which this pattern will be matched against relatively.
+		 * A base file path to which this pattern will be matched against relatively. The
+		 * file path must be absolute, should not have any trailing path separators and
+		 * not include any relative segments (`.` or `..`).
 		 */
 		baseUri: Uri;
 
@@ -3645,22 +3647,6 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) notebook edits for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: readonly NotebookEdit[]): void;
-
-		/**
-		 * Set (and replace) notebook edits with metadata for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
-
-		/**
 		 * Set (and replace) text edits or snippet edits for a resource.
 		 *
 		 * @param uri A resource identifier.
@@ -3675,6 +3661,22 @@ declare module 'vscode' {
 		 * @param edits An array of edits.
 		 */
 		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) notebook edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -6466,7 +6468,7 @@ declare module 'vscode' {
 	/**
 	 * A channel for containing log output.
 	 *
-	 * To get an instance of an `LogOutputChannel` use
+	 * To get an instance of a `LogOutputChannel` use
 	 * {@link window.createOutputChannel createOutputChannel}.
 	 */
 	export interface LogOutputChannel extends OutputChannel {
@@ -11823,7 +11825,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be deleted.
 	 *
 	 * To make modifications to the workspace before the files are deleted,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillDeleteEvent {
@@ -11883,7 +11885,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be renamed.
 	 *
 	 * To make modifications to the workspace before the files are renamed,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {

@@ -187,7 +187,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 			}
 		}
 
-		if (!objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
+		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 			updateMetadata.attachments = markdownAttachmentsInUse;
 			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(cell.index, updateMetadata);

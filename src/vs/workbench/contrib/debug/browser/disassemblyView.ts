@@ -581,7 +581,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUriIdentityService readonly uriService: IUriIdentityService,
+		@IUriIdentityService private readonly uriService: IUriIdentityService,
 	) {
 		super();
 

@@ -816,7 +816,7 @@ CommandsRegistry.registerCommand({
 
 			return editor.invokeWithinContext(accessor => {
 				const command = new class extends GenericGoToLocationAction {
-					override _getNoResultFoundMessage(info: IWordAtPosition | null) {
+					protected override _getNoResultFoundMessage(info: IWordAtPosition | null) {
 						return noResultsMessage || super._getNoResultFoundMessage(info);
 					}
 				}({

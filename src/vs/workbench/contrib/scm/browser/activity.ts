@@ -40,7 +40,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -203,7 +202,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 	private repositoryDisposables = new Set<IDisposable>();
 
 	constructor(
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService

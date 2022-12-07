@@ -382,7 +382,7 @@ suite('Instantiation Service', () => {
 		// and then Servce2 should not be created a second time
 		const Service21 = createDecorator<any>('service21');
 		class Service21Impl {
-			constructor(@Service2 readonly service2: Service2Impl, @Service1 readonly service1: Service1Impl) { }
+			constructor(@Service2 public readonly service2: Service2Impl, @Service1 public readonly service1: Service1Impl) { }
 		}
 
 		const insta = new InstantiationService(new ServiceCollection(
@@ -403,7 +403,7 @@ suite('Instantiation Service', () => {
 		interface B { _serviceBrand: undefined; b(): boolean }
 
 		class BConsumer {
-			constructor(@B readonly b: B) {
+			constructor(@B private readonly b: B) {
 
 			}
 			doIt() {
@@ -493,7 +493,7 @@ suite('Instantiation Service', () => {
 		), true, undefined, true);
 
 		class Consumer {
-			constructor(@A readonly a: A) {
+			constructor(@A public readonly a: A) {
 				// eager subscribe -> NO service instance
 			}
 		}

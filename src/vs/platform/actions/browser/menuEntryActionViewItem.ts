@@ -37,19 +37,18 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): void {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): void {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryAction, primaryMaxCount, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
+	fillInActions(groups, target, false, isPrimaryAction, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
 }
 
 function fillInActions(
 	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[] },
 	useAlternativeActions: boolean,
 	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
-	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
 	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,
 	useSeparatorsInPrimaryActions: boolean = false
 ): void {
@@ -101,15 +100,9 @@ function fillInActions(
 		// inlining submenus with length 0 or 1 is easy,
 		// larger submenus need to be checked with the overall limit
 		const submenuActions = action.actions;
-		if ((submenuActions.length <= 1 || target.length + submenuActions.length - 2 <= primaryMaxCount) && shouldInlineSubmenu(action, group, target.length)) {
+		if (submenuActions.length <= 1 && shouldInlineSubmenu(action, group, target.length)) {
 			target.splice(index, 1, ...submenuActions);
 		}
-	}
-
-	// overflow items from the primary group into the secondary bucket
-	if (primaryBucket !== secondaryBucket && primaryBucket.length > primaryMaxCount) {
-		const overflow = primaryBucket.splice(primaryMaxCount, primaryBucket.length - primaryMaxCount);
-		secondaryBucket.unshift(...overflow, new Separator());
 	}
 }
 
@@ -195,13 +188,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	override getTooltip() {
+	protected override getTooltip() {
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -222,7 +215,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		return title;
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._menuItemAction) {
 				if (this._menuItemAction.alt) {
@@ -382,7 +375,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) });
 		this._defaultAction.actionRunner = new class extends ActionRunner {
-			override async runAction(action: IAction, context?: unknown): Promise<void> {
+			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);
 			}
 		}();

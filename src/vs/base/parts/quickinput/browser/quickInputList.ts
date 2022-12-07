@@ -794,7 +794,7 @@ export class QuickInputList {
 	}
 }
 
-export function matchesContiguousIconAware(query: string, target: IParsedLabelWithIcons): IMatch[] | null {
+function matchesContiguousIconAware(query: string, target: IParsedLabelWithIcons): IMatch[] | null {
 
 	const { text, iconOffsets } = target;
 
