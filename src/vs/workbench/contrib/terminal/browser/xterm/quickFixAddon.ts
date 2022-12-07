@@ -146,7 +146,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			type: 'unresolved',
 			commandLineMatcher: selector.commandLineMatcher,
 			outputMatcher: selector.outputMatcher,
-			exitStatus: selector.exitStatus
+			matchOnCommandResult: selector.matchOnCommandResult
 		});
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
@@ -196,7 +196,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._logService.warn('No provider when trying to resolve terminal quick fix for provider: ', id);
 				return;
 			}
-			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, exitStatus: selector.exitStatus, id: selector.id }, new CancellationTokenSource().token);
+			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, matchOnCommandResult: selector.matchOnCommandResult, id: selector.id }, new CancellationTokenSource().token);
 		};
 		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
@@ -293,7 +293,7 @@ export async function getQuickFixesForCommand(
 	const newCommand = terminalCommand.command;
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
-			if (option.exitStatus === (terminalCommand.exitCode !== 0)) {
+			if (option.matchOnCommandResult === 'success' === (terminalCommand.exitCode === 0)) {
 				continue;
 			}
 			let quickFixes;
