@@ -248,7 +248,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = renderMarkdown(md).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" title="command:doFoo">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" title="command:doFoo">command1</a> <a data-href="command:doFoo">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {
