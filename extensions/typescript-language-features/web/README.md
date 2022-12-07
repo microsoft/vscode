@@ -15,7 +15,7 @@ Language server host for typescript using vscode's sync-api in the browser
 ### Cleanup
 
 - [x] point webpack hack to node_modules; link those files to locally built ones
-- [ ] create one or more MessageChannels for various communication
+- [x] create one or more MessageChannels for various communication
 - [x] shut down normal listener
   - starting the server currently crashes because ts.sys isn't defined -- I think it's a race condition.
     In any case it'll need to get shut down before then, which may not be possible without changing Typescript.

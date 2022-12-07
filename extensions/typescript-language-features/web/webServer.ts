@@ -514,7 +514,7 @@ function findArgument(args: readonly string[], name: string): string | undefined
 		? args[index + 1]
 		: undefined;
 }
-function callWatcher(event: "create" | "change" | "delete", path: string, logger: ts.server.Logger) {
+function updateWatch(event: "create" | "change" | "delete", path: string, logger: ts.server.Logger) {
 	logger.info(`checking for watch on ${path}: event=${event}`)
 	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
 		: event === 'change' ? ts.FileWatcherEventKind.Changed
@@ -529,29 +529,21 @@ function callWatcher(event: "create" | "change" | "delete", path: string, logger
 		watchDirectories.get(watch)!.callback(path)
 	}
 }
-// Get args from first message
-let init: Promise<any> | undefined;
+let initial: Promise<any> | undefined;
 const listener = async (e: any) => {
-	if (!init) {
+	if (!initial) {
 		if ('args' in e.data) {
-			const [sync, tsserver] = e.ports as MessagePort[]
-			// tsserver.postMessage("TEST") // WORKS
+			const [sync, tsserver, watcher] = e.ports as MessagePort[];
+			watcher.onmessage = (e: any) => updateWatch(e.data.event, e.data.path, serverLogger);
 			const connection = new ClientConnection<Requests>(sync);
-			init = connection.serviceReady().then(() => initializeSession(e.data.args, "web-sync-api", tsserver, connection))
+			initial = connection.serviceReady().then(() => initializeSession(e.data.args, "web-sync-api", tsserver, connection));
 		}
 		else {
-			console.error('init message not yet received, got ' + JSON.stringify(e.data))
+			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
 		}
-		return
+		return;
 	}
-	await init // TODO: Not strictly necessary since I can check session instead
-	if (e.data.type === 'watch') {
-		// call watcher
-		callWatcher(e.data.event, e.data.path, serverLogger)
-	}
-	else {
-		console.error(`unexpected tsserver request on main channel: ${JSON.stringify(e)}`)
-	}
-};
+	console.error(`unexpected message on main channel: ${JSON.stringify(e)}`)
+}
 addEventListener('message', listener);
 // END tsserver/server.ts

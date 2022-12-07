@@ -36,18 +36,24 @@ export class WorkerServerProcess implements TsServerProcess {
 	private readonly _onDataHandlers = new Set<(data: Proto.Response) => void>();
 	private readonly _onErrorHandlers = new Set<(err: Error) => void>();
 	private readonly _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
+	/** For communicating with TS server synchronously */
 	private readonly tsserver: MessagePort;
+	/** For communicating watches asynchronously */
+	private readonly watcher: MessagePort;
+	/** For communicating with filesystem synchronously */
+	private readonly syncFs: MessagePort;
 
 	public constructor(
+		/** For logging and initial setup */
 		private readonly mainChannel: Worker,
 		args: readonly string[],
 	) {
-		// 1. worker (for initial setup, can be closed afterward, or not, in which case the top-level listener should assert or something)
-		// 2. sync:  (for communicating with FS synchronously)
-		// 3. watcher: watcher channel
-		// 4. tsserver: (for communicating with TS server synchronously)
 		const tsserverChannel = new MessageChannel();
+		const watcherChannel = new MessageChannel();
+		const syncChannel = new MessageChannel();
 		this.tsserver = tsserverChannel.port2;
+		this.watcher = watcherChannel.port2;
+		this.syncFs = syncChannel.port1;
 		this.tsserver.onmessage = (event) => {
 			if (event.data.type === 'log') {
 				console.error(`unexpected log message on tsserver channel: ${JSON.stringify(event)}`);
@@ -56,6 +62,9 @@ export class WorkerServerProcess implements TsServerProcess {
 			for (const handler of this._onDataHandlers) {
 				handler(event.data);
 			}
+		};
+		this.watcher.onmessage = (event) => {
+			console.error(`unexpected message on watcher channel: ${JSON.stringify(event)}`);
 		};
 		mainChannel.onmessage = (msg: any) => {
 			// for logging only
@@ -79,13 +88,12 @@ export class WorkerServerProcess implements TsServerProcess {
 		// TODO: For prototyping, create one watcher ahead of time and send messages using the worker.
 		// For the real thing, it makes more sense to create a third MessageChannel and listen on it; the host
 		// can then send messages to tell the extension to create a new filesystemwatcher for each file/directory
-		const watcher = vscode.workspace.createFileSystemWatcher('**/*');
-		watcher.onDidChange(e => mainChannel.postMessage({ type: 'watch', event: 'change', path: e.path }));
-		watcher.onDidCreate(e => mainChannel.postMessage({ type: 'watch', event: 'create', path: e.path }));
-		watcher.onDidDelete(e => mainChannel.postMessage({ type: 'watch', event: 'delete', path: e.path }));
+		const fsWatcher = vscode.workspace.createFileSystemWatcher('**/*');
+		fsWatcher.onDidChange(e => this.watcher.postMessage({ type: 'watch', event: 'change', path: e.path }));
+		fsWatcher.onDidCreate(e => this.watcher.postMessage({ type: 'watch', event: 'create', path: e.path }));
+		fsWatcher.onDidDelete(e => this.watcher.postMessage({ type: 'watch', event: 'delete', path: e.path }));
 		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
-		const syncChannel = new MessageChannel();
-		mainChannel.postMessage({ args }, [syncChannel.port2, tsserverChannel.port1]);
+		mainChannel.postMessage({ args }, [syncChannel.port2, tsserverChannel.port1, watcherChannel.port1]);
 		const connection = new ServiceConnection<Requests>(syncChannel.port1);
 		new ApiService('vscode-wasm-typescript', connection);
 		connection.signalReady();
@@ -117,6 +125,8 @@ export class WorkerServerProcess implements TsServerProcess {
 	kill(): void {
 		this.mainChannel.terminate();
 		this.tsserver.close();
+		this.watcher.close();
+		this.syncFs.close();
 	}
 }
 
