@@ -20,6 +20,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import 'vs/css!./stickyScroll';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -57,6 +58,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._layoutInfo = this._editor.getLayoutInfo();
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.className = 'sticky-widget';
+		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 		this._lineNumbers = [];
 		this._lastLineRelativePosition = 0;
