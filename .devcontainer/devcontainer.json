@@ -34,7 +34,7 @@
 	},
 
 	// Optionally loads a cached yarn install for the repo
-	"postCreateCommand": ".devcontainer/cache/restore-diff.sh",
+	"postCreateCommand": ".devcontainer/cache/restore-diff.sh && yarn && yarn watchd",
 
 	"remoteUser": "node",
 
