@@ -13,7 +13,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenuItems';
+import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
+import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
 import { IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
@@ -30,8 +31,11 @@ export interface IActionShowOptions {
 }
 
 export class CodeActionUi extends Disposable {
+
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
+
+	private readonly _resolver: CodeActionKeybindingResolver;
 
 	#disposed = false;
 
@@ -44,8 +48,8 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
@@ -56,6 +60,8 @@ export class CodeActionUi extends Disposable {
 			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
+
+		this._resolver = instantiationService.createInstance(CodeActionKeybindingResolver);
 
 		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
 	}
@@ -188,7 +194,7 @@ export class CodeActionUi extends Disposable {
 		this._actionWidgetService.show(
 			'codeActionWidget',
 			true,
-			toMenuItems(actionsToShow, this._shouldShowHeaders()),
+			toMenuItems(actionsToShow, this._shouldShowHeaders(), this._resolver.getResolver()),
 			delegate,
 			anchor,
 			editorDom,
