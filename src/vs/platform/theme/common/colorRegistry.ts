@@ -511,12 +511,6 @@ export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.ac
 export const breadcrumbsPickerBackground = registerColor('breadcrumbPicker.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('breadcrumbsSelectedBackground', "Background color of breadcrumb item picker."));
 
 /**
- * welcomeOverlay background color.
- */
-export const welcomeOverlayBackground = registerColor('welcomeOverlay.background', { light: '#FFFFFF85', dark: '#00000085', hcDark: null, hcLight: null }, nls.localize('welcomeOverlayBackground', "welcomeOverlay Background color."));
-
-
-/**
  * Merge-conflict colors
  */
 

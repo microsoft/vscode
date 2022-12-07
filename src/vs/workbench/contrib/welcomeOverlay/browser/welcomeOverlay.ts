@@ -19,6 +19,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -30,6 +31,7 @@ interface Key {
 	arrowLast?: boolean;
 	withEditor?: boolean;
 }
+
 
 const keys: Key[] = [
 	{
@@ -102,6 +104,12 @@ const keys: Key[] = [
 ];
 
 const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);
+
+/**
+ * welcomeOverlay background color.
+ */
+export const welcomeOverlayBackground = registerColor('welcomeOverlay.background', { light: '#FFFFFF85', dark: '#00000085', hcDark: null, hcLight: null }, localize('welcomeOverlayBackground', "welcomeOverlay Background color."));
+
 
 let welcomeOverlay: WelcomeOverlay;
 
