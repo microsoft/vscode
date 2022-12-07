@@ -22,7 +22,7 @@ export interface ITerminalQuickFixOptions {
 	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	matchOnCommandResult: 'success' | 'error';
+	commandResult: 'success' | 'error';
 }
 
 export interface ITerminalQuickFix {
@@ -45,7 +45,7 @@ export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
 export interface ITerminalCommandSelector {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	matchOnCommandResult: 'success' | 'error';
+	commandResult: 'success' | 'error';
 }
 
 export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
