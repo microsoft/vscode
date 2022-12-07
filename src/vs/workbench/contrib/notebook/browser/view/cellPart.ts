@@ -35,7 +35,7 @@ export abstract class CellContentPart extends Disposable {
 		this.didRenderCell(element);
 	}
 
-	protected didRenderCell(element: ICellViewModel): void { }
+	didRenderCell(element: ICellViewModel): void { }
 
 	/**
 	 * Dispose any disposables generated from `didRenderCell`
@@ -94,7 +94,7 @@ export abstract class CellOverlayPart extends Disposable {
 		this.didRenderCell(element);
 	}
 
-	protected didRenderCell(element: ICellViewModel): void { }
+	didRenderCell(element: ICellViewModel): void { }
 
 	/**
 	 * Dispose any disposables generated from `didRenderCell`

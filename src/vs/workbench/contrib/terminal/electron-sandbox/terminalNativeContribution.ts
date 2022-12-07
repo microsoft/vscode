@@ -7,7 +7,6 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { INativeOpenFileRequest } from 'vs/platform/window/common/window';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -21,9 +20,8 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
-		@INativeHostService readonly nativeHostService: INativeHostService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@INativeHostService nativeHostService: INativeHostService
 	) {
 		super();
 

@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-registerEditorContribution(CodeActionController.ID, CodeActionController, EditorContributionInstantiation.Idle);
+registerEditorContribution(CodeActionController.ID, CodeActionController, EditorContributionInstantiation.Eventually);
 registerEditorAction(QuickFixAction);
 registerEditorAction(RefactorAction);
 registerEditorAction(RefactorPreview);

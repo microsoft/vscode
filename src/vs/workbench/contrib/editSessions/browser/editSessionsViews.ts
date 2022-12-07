@@ -56,13 +56,9 @@ export class EditSessionsDataViews extends Disposable {
 
 		viewsRegistry.registerViewWelcomeContent(viewId, {
 			content: localize(
-				'noEditSessions',
-				'You have no stored edit sessions to display.\n{0}',
-				localize(
-					{ key: 'storeEditSessionCommand', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
-					'[{0}](command:workbench.editSessions.actions.store)',
-					localize('storeEditSessionTitle', 'Store Edit Session')
-				)
+				'noStoredChanges',
+				'You have no stored changes in the cloud to display.\n{0}',
+				`[${localize('storeWorkingChangesTitle', 'Store Working Changes')}](command:workbench.editSessions.actions.store)`,
 			),
 			when: ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0),
 			order: 1
@@ -72,7 +68,7 @@ export class EditSessionsDataViews extends Disposable {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resume',
-					title: localize('workbench.editSessions.actions.resume', "Resume Edit Session"),
+					title: localize('workbench.editSessions.actions.resume.v2', "Resume Working Changes"),
 					icon: Codicon.desktopDownload,
 					menu: {
 						id: MenuId.ViewItemContext,
@@ -94,7 +90,7 @@ export class EditSessionsDataViews extends Disposable {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.store',
-					title: localize('workbench.editSessions.actions.store', "Store Edit Session"),
+					title: localize('workbench.editSessions.actions.store.v2', "Store Working Changes"),
 					icon: Codicon.cloudUpload,
 				});
 			}
@@ -110,7 +106,7 @@ export class EditSessionsDataViews extends Disposable {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.delete',
-					title: localize('workbench.editSessions.actions.delete', "Delete Edit Session"),
+					title: localize('workbench.editSessions.actions.delete.v2', "Delete Working Changes"),
 					icon: Codicon.trash,
 					menu: {
 						id: MenuId.ViewItemContext,
@@ -125,7 +121,7 @@ export class EditSessionsDataViews extends Disposable {
 				const dialogService = accessor.get(IDialogService);
 				const editSessionStorageService = accessor.get(IEditSessionsStorageService);
 				const result = await dialogService.confirm({
-					message: localize('confirm delete', 'Are you sure you want to permanently delete the edit session with ref {0}? You cannot undo this action.', editSessionId),
+					message: localize('confirm delete.v2', 'Are you sure you want to permanently delete your working changes with ref {0}? You cannot undo this action.', editSessionId),
 					type: 'warning',
 					title: EDIT_SESSIONS_TITLE
 				});

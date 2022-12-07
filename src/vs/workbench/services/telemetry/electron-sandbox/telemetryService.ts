@@ -17,7 +17,6 @@ import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } fro
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IObservableValue } from 'vs/base/common/observableValue';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -58,7 +57,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get telemetryLevel(): IObservableValue<TelemetryLevel> {
+	get telemetryLevel(): TelemetryLevel {
 		return this.impl.telemetryLevel;
 	}
 

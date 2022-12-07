@@ -365,10 +365,6 @@ export interface IFsProvider {
 	readFile(path: string): Promise<Buffer>;
 }
 
-export interface IProfileVariableResolver {
-	resolve(text: string[]): Promise<string[]>;
-}
-
 interface IPotentialTerminalProfile {
 	profileName: string;
 	paths: string[];

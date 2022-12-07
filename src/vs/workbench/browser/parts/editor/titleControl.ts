@@ -188,7 +188,8 @@ export abstract class TitleControl extends Themable {
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
-			resetMenu: MenuId.EditorTitle
+			resetMenu: MenuId.EditorTitle,
+			maxNumberOfItems: 9
 		}));
 
 		// Context
@@ -270,7 +271,6 @@ export abstract class TitleControl extends Themable {
 				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
 				{ primary, secondary },
 				'navigation',
-				9,
 				shouldInlineGroup
 			);
 		}

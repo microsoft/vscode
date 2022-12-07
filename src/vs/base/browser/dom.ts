@@ -825,6 +825,12 @@ export interface EventLike {
 	stopPropagation(): void;
 }
 
+export function isEventLike(obj: unknown): obj is EventLike {
+	const candidate = obj as EventLike | undefined;
+
+	return !!(candidate && typeof candidate.preventDefault === 'function' && typeof candidate.stopPropagation === 'function');
+}
+
 export const EventHelper = {
 	stop: <T extends EventLike>(e: T, cancelBubble?: boolean): T => {
 		e.preventDefault();
@@ -1204,6 +1210,21 @@ export function asCSSUrl(uri: URI | null | undefined): string {
 
 export function asCSSPropertyValue(value: string) {
 	return `'${value.replace(/'/g, '%27')}'`;
+}
+
+export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt: string): string {
+	if (cssPropertyValue !== undefined) {
+		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
+		if (variableMatch) {
+			const varArguments = variableMatch[1].split(',', 2);
+			if (varArguments.length === 2) {
+				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
+			}
+			return `var(${varArguments[0]}, ${dflt})`;
+		}
+		return cssPropertyValue;
+	}
+	return dflt;
 }
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {

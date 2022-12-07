@@ -38,7 +38,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 			id: ShowCurrentReleaseNotesActionId,
 			title: {
 				value: localize('showReleaseNotes', "Show Release Notes"),
-				mnemonicTitle: localize('mshowReleaseNotes', "Show &&Release Notes"),
+				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
 				original: 'Show Release Notes'
 			},
 			category: { value: product.nameShort, original: product.nameShort },
