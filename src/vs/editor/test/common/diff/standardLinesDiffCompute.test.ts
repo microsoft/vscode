@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { lineRangeMappingFromRangeMappings, StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
@@ -76,7 +76,7 @@ suite('standardLinesDiffCompute', () => {
 		}
 `.split('\n');
 
-		const diff = c.computeDiff(lines1, lines2, { maxComputationTime: 1000, ignoreTrimWhitespace: false });
+		const diff = c.computeDiff(lines1, lines2, { maxComputationTimeMs: 1000, ignoreTrimWhitespace: false });
 
 		// TODO this diff should only have one inner, not two.
 		assert.deepStrictEqual(
@@ -85,8 +85,7 @@ suite('standardLinesDiffCompute', () => {
 				{
 					main: "{[5,6)->[5,8)}",
 					inner: [
-						"{[5,41 -> 5,41]->[5,41 -> 5,42]}",
-						"{[6,1 -> 6,1]->[6,1 -> 8,1]}",
+						"{[5,41 -> 5,41]->[5,41 -> 7,28]}"
 					]
 				}
 			]

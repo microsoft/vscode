@@ -18,9 +18,7 @@
     "findTextInFiles",
     "fsChunks",
     "notebookCellExecutionState",
-    "notebookContentProvider",
     "notebookControllerKind",
-    "notebookDebugOptions",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
@@ -34,6 +32,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "tunnels",
     "envShellEvent",
     "testCoverage",
     "testObserver",
@@ -43,8 +42,7 @@
     "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry",
-    "localization"
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 import { Position } from 'vs/editor/common/core/position';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ISnippetsService } from "vs/workbench/contrib/snippets/browser/snippets";
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';

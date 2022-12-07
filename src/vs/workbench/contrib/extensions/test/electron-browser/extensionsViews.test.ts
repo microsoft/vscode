@@ -169,6 +169,7 @@ suite('ExtensionsViews Tests', () => {
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
+		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(galleryEnabledLanguage));
 		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', galleryEnabledLanguage);
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [galleryEnabledLanguage]);
@@ -197,7 +198,7 @@ suite('ExtensionsViews Tests', () => {
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
 	});
 
 	teardown(() => {
@@ -539,7 +540,7 @@ suite('ExtensionsViews Tests', () => {
 
 		testableView.resetSearchExperiments();
 		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
 
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
@@ -566,7 +567,7 @@ suite('ExtensionsViews Tests', () => {
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
 
 		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
 
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];

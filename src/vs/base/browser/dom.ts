@@ -417,7 +417,12 @@ export class Dimension implements IDimension {
 	}
 }
 
-export function getTopLeftOffset(element: HTMLElement): { left: number; top: number } {
+export interface IDomPosition {
+	readonly left: number;
+	readonly top: number;
+}
+
+export function getTopLeftOffset(element: HTMLElement): IDomPosition {
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
@@ -820,6 +825,12 @@ export interface EventLike {
 	stopPropagation(): void;
 }
 
+export function isEventLike(obj: unknown): obj is EventLike {
+	const candidate = obj as EventLike | undefined;
+
+	return !!(candidate && typeof candidate.preventDefault === 'function' && typeof candidate.stopPropagation === 'function');
+}
+
 export const EventHelper = {
 	stop: <T extends EventLike>(e: T, cancelBubble?: boolean): T => {
 		e.preventDefault();
@@ -963,8 +974,6 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		throw new Error('Bad use of emmet');
 	}
 
-	attrs = { ...(attrs || {}) };
-
 	const tagName = match[1] || 'div';
 	let result: T;
 
@@ -981,24 +990,24 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs).forEach(name => {
-		const value = attrs![name];
-
-		if (typeof value === 'undefined') {
-			return;
-		}
-
-		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = value;
-		} else if (name === 'selected') {
-			if (value) {
-				result.setAttribute(name, 'true');
+	if (attrs) {
+		Object.entries(attrs).forEach(([name, value]) => {
+			if (typeof value === 'undefined') {
+				return;
 			}
 
-		} else {
-			result.setAttribute(name, value);
-		}
-	});
+			if (/^on\w+$/.test(name)) {
+				(<any>result)[name] = value;
+			} else if (name === 'selected') {
+				if (value) {
+					result.setAttribute(name, 'true');
+				}
+
+			} else {
+				result.setAttribute(name, value);
+			}
+		});
+	}
 
 	result.append(...children);
 
@@ -1196,11 +1205,26 @@ export function asCSSUrl(uri: URI | null | undefined): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.uriToBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
 export function asCSSPropertyValue(value: string) {
 	return `'${value.replace(/'/g, '%27')}'`;
+}
+
+export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt: string): string {
+	if (cssPropertyValue !== undefined) {
+		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
+		if (variableMatch) {
+			const varArguments = variableMatch[1].split(',', 2);
+			if (varArguments.length === 2) {
+				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
+			}
+			return `var(${varArguments[0]}, ${dflt})`;
+		}
+		return cssPropertyValue;
+	}
+	return dflt;
 }
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
@@ -1434,20 +1458,21 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'wbr',
 ]);
 
+const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED_TYPE: true }>({
+	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
+	RETURN_DOM: false,
+	RETURN_DOM_FRAGMENT: false,
+	RETURN_TRUSTED_TYPE: true
+});
+
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
-	const options: dompurify.Config = {
-		ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
-		RETURN_DOM: false,
-		RETURN_DOM_FRAGMENT: false,
-	};
-
 	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
-		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
+		const html = dompurify.sanitize(value, defaultDomPurifyConfig);
 		node.innerHTML = html as unknown as string;
 	} finally {
 		hook.dispose();
@@ -1704,18 +1729,6 @@ export class DragAndDropObserver extends Disposable {
 			this.callbacks.onDrop(e);
 		}));
 	}
-}
-
-export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly, clipper: HTMLElement) {
-	const frameRect = (elementOrRect instanceof HTMLElement ? elementOrRect.getBoundingClientRect() : elementOrRect);
-	const rootRect = clipper.getBoundingClientRect();
-
-	const top = Math.max(rootRect.top - frameRect.top, 0);
-	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
-	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
-	const left = Math.max(rootRect.left - frameRect.left, 0);
-
-	return { top, right, bottom, left };
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

@@ -7,7 +7,7 @@ import { IEvent, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfigHelper, ITerminalConfiguration, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -30,10 +30,11 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-class TestWebglAddon {
+class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
 	static isEnabled = false;
 	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
+	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
@@ -92,7 +93,7 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let viewDescriptorService: TestViewDescriptorService;
 	let xterm: TestXtermTerminal;
-	let configHelper: ITerminalConfigHelper;
+	let configHelper: TerminalConfigHelper;
 
 	setup(() => {
 		configurationService = new TestConfigurationService({

@@ -251,7 +251,18 @@ type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
 const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewExtensionPointType>({
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
-	jsonSchema: viewsContribution
+	jsonSchema: viewsContribution,
+	activationEventsGenerator: (viewExtensionPointTypeArray, result) => {
+		for (const viewExtensionPointType of viewExtensionPointTypeArray) {
+			for (const viewDescriptors of Object.values(viewExtensionPointType)) {
+				for (const viewDescriptor of viewDescriptors) {
+					if (viewDescriptor.id) {
+						result.push(`onView:${viewDescriptor.id}`);
+					}
+				}
+			}
+		}
+	}
 });
 
 const CUSTOM_VIEWS_START_ORDER = 7;
@@ -573,6 +584,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has(ExtensionIdentifier.toKey((v as ICustomViewDescriptor).extensionId)));
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
+				for (const view of removedViews) {
+					const anyView = view as ICustomTreeViewDescriptor;
+					if (anyView.treeView) {
+						anyView.treeView.dispose();
+					}
+				}
 			}
 		}
 	}

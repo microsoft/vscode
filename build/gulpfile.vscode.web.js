@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const product = require('../product.json');
@@ -26,7 +27,7 @@ const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
@@ -70,6 +71,7 @@ const vscodeWebEntryPoints = _.flatten([
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
+	buildfile.workerProfileAnalysis,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb
 ]);
@@ -94,7 +96,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 				commit,
 				date: buildDate
 			});
-			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
+			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}
 
 		return content;
@@ -114,7 +116,7 @@ const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
 			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
-			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
+			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', () => builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
 		}
 
 		return content;

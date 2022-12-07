@@ -55,8 +55,8 @@ export const rowHoverBackground = registerColor('settings.rowHoverBackground', {
 }, localize('settings.rowHoverBackground', "The background color of a settings row when hovered."));
 
 export const focusedRowBorder = registerColor('settings.focusedRowBorder', {
-	dark: Color.white.transparent(0.12),
-	light: Color.black.transparent(0.12),
+	dark: focusBorder,
+	light: focusBorder,
 	hcDark: focusBorder,
 	hcLight: focusBorder
 }, localize('settings.focusedRowBorder', "The color of the row's top and bottom border when the row is focused."));

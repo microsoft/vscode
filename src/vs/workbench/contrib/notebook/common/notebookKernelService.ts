@@ -7,8 +7,10 @@ import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { INotebookKernelSourceAction } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface ISelectedNotebooksChangeEvent {
 	notebook: URI;
@@ -66,12 +68,26 @@ export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEv
 	connectionState?: true;
 }
 
+export interface INotebookKernelDetectionTask {
+	readonly notebookType: string;
+}
+
 export interface ISourceAction {
 	readonly action: IAction;
 	readonly onDidChangeState: Event<void>;
 	readonly isPrimary?: boolean;
 	execution: Promise<void> | undefined;
 	runAction: () => Promise<void>;
+}
+
+export interface INotebookSourceActionChangeEvent {
+	notebook?: URI;
+	viewType: string;
+}
+
+export interface IKernelSourceActionProvider {
+	readonly viewType: string;
+	provideKernelSourceActions(): Promise<INotebookKernelSourceAction[]>;
 }
 
 export interface INotebookTextModelLike { uri: URI; viewType: string }
@@ -110,9 +126,24 @@ export interface INotebookKernelService {
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
 
-	//#region Kernel source actions
-	readonly onDidChangeSourceActions: Event<void>;
-	getSourceActions(): ISourceAction[];
-	getRunningSourceActions(): ISourceAction[];
+	//#region Kernel detection tasks
+	readonly onDidChangeKernelDetectionTasks: Event<string>;
+	registerNotebookKernelDetectionTask(task: INotebookKernelDetectionTask): IDisposable;
+	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[];
 	//#endregion
+
+	//#region Kernel source actions
+	readonly onDidChangeSourceActions: Event<INotebookSourceActionChangeEvent>;
+	getSourceActions(notebook: INotebookTextModelLike, contextKeyService: IContextKeyService | undefined): ISourceAction[];
+	getRunningSourceActions(notebook: INotebookTextModelLike): ISourceAction[];
+	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable;
+	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]>;
+	//#endregion
+}
+
+export const INotebookKernelHistoryService = createDecorator<INotebookKernelHistoryService>('INotebookKernelHistoryService');
+export interface INotebookKernelHistoryService {
+	_serviceBrand: undefined;
+	getKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; all: INotebookKernel[] };
+	addMostRecentKernel(kernel: INotebookKernel): void;
 }

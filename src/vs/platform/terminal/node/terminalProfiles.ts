@@ -208,7 +208,7 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
 		],
-		args: ['--login']
+		args: ['--login', '-i']
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
@@ -363,10 +363,6 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>;
 	readFile(path: string): Promise<Buffer>;
-}
-
-export interface IProfileVariableResolver {
-	resolve(text: string[]): Promise<string[]>;
 }
 
 interface IPotentialTerminalProfile {

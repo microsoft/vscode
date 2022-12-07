@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { isSupportedLanguageMode } from '../utils/languageIds';
 import * as typeConverters from '../utils/typeConverters';
-
-const localize = nls.loadMessageBundle();
 
 
 class SourceDefinitionCommand implements Command {
@@ -27,32 +24,32 @@ class SourceDefinitionCommand implements Command {
 
 	public async execute() {
 		if (this.client.apiVersion.lt(SourceDefinitionCommand.minVersion)) {
-			vscode.window.showErrorMessage(localize('error.unsupportedVersion', "Go to Source Definition failed. Requires TypeScript 4.7+."));
+			vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. Requires TypeScript 4.7+."));
 			return;
 		}
 
 		const activeEditor = vscode.window.activeTextEditor;
 		if (!activeEditor) {
-			vscode.window.showErrorMessage(localize('error.noResource', "Go to Source Definition failed. No resource provided."));
+			vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. No resource provided."));
 			return;
 		}
 
 		const resource = activeEditor.document.uri;
 		const document = await vscode.workspace.openTextDocument(resource);
 		if (!isSupportedLanguageMode(document)) {
-			vscode.window.showErrorMessage(localize('error.unsupportedLanguage', "Go to Source Definition failed. Unsupported file type."));
+			vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. Unsupported file type."));
 			return;
 		}
 
 		const openedFiledPath = this.client.toOpenedFilePath(document);
 		if (!openedFiledPath) {
-			vscode.window.showErrorMessage(localize('error.unknownFile', "Go to Source Definition failed. Unknown file type."));
+			vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. Unknown file type."));
 			return;
 		}
 
 		await vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
-			title: localize('progress.title', "Finding source definitions")
+			title: vscode.l10n.t("Finding source definitions")
 		}, async (_progress, token) => {
 
 			const position = activeEditor.selection.anchor;
@@ -74,7 +71,7 @@ class SourceDefinitionCommand implements Command {
 				}
 			}
 
-			vscode.window.showErrorMessage(localize('error.noReferences', "No source definitions found."));
+			vscode.window.showErrorMessage(vscode.l10n.t("No source definitions found."));
 		});
 	}
 }

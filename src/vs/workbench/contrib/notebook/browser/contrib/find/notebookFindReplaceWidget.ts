@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { FindInput, IFindInputOptions, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { IReplaceInputStyles, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
+import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -18,16 +18,14 @@ import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Action, ActionRunner, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenu } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
@@ -37,6 +35,8 @@ import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contr
 import { isSafari } from 'vs/base/common/platform';
 import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -81,7 +81,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 		const markdownInput: IAction = {
 			checked: this.filters.markupInput,
 			class: undefined,
-			enabled: !this.filters.markupPreview,
+			enabled: true,
 			id: 'findInMarkdownInput',
 			label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
 			run: async () => {
@@ -144,7 +144,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }
@@ -154,6 +154,7 @@ class NotebookFindInput extends FindInput {
 	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;
 	private _filtersAction: IAction;
+	private _toggleStyles: IToggleStyles;
 
 	constructor(
 		readonly filters: NotebookFindFilters,
@@ -165,6 +166,8 @@ class NotebookFindInput extends FindInput {
 		options: IFindInputOptions
 	) {
 		super(parent, contextViewProvider, options);
+
+		this._toggleStyles = options.toggleStyles;
 
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
@@ -181,7 +184,7 @@ class NotebookFindInput extends FindInput {
 			}
 		}));
 
-		this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() + this.getFilterWidth();
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
 	}
 
 	private getFilterWidth() {
@@ -203,32 +206,34 @@ class NotebookFindInput extends FindInput {
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
 		if (enabled && !this._filterChecked) {
-			this.regex.enable();
+			this.regex?.enable();
 		} else {
-			this.regex.disable();
+			this.regex?.disable();
 		}
 	}
 
 	updateFilterState(changed: boolean) {
 		this._filterChecked = changed;
-		if (this._filterChecked) {
-			this.regex.disable();
-			this.regex.domNode.tabIndex = -1;
-			this.regex.domNode.classList.toggle('disabled', true);
-		} else {
-			this.regex.enable();
-			this.regex.domNode.tabIndex = 0;
-			this.regex.domNode.classList.toggle('disabled', false);
+		if (this.regex) {
+			if (this._filterChecked) {
+				this.regex.disable();
+				this.regex.domNode.tabIndex = -1;
+				this.regex.domNode.classList.toggle('disabled', true);
+			} else {
+				this.regex.enable();
+				this.regex.domNode.tabIndex = 0;
+				this.regex.domNode.classList.toggle('disabled', false);
+			}
 		}
 		this.applyStyles();
 	}
 
-	override applyStyles(): void {
-		super.applyStyles();
+	private applyStyles(): void {
+		const toggleStyles = this._toggleStyles;
 
-		this._filterButtonContainer.style.borderColor = this._filterChecked && this.inputActiveOptionBorder ? this.inputActiveOptionBorder.toString() : '';
-		this._filterButtonContainer.style.color = this._filterChecked && this.inputActiveOptionForeground ? this.inputActiveOptionForeground.toString() : 'inherit';
-		this._filterButtonContainer.style.backgroundColor = this._filterChecked && this.inputActiveOptionBackground ? this.inputActiveOptionBackground.toString() : '';
+		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
+		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
+		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -275,11 +280,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@IMenuService readonly menuService: IMenuService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
 		protected readonly _notebookEditor: INotebookEditor,
 	) {
@@ -298,26 +301,29 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
 		const progressContainer = dom.$('.find-replace-progress');
-		this._progressBar = new ProgressBar(progressContainer);
-		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
+		this._progressBar = new ProgressBar(progressContainer, defaultProgressBarStyles);
 		this._domNode.appendChild(progressContainer);
 
+		const isInteractiveWindow = contextKeyService.getContextKeyValue('notebookType') === 'interactive';
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
 			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
 			className: 'codicon toggle left',
-			onTrigger: () => {
-				this._isReplaceVisible = !this._isReplaceVisible;
-				this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-				if (this._isReplaceVisible) {
-					this._innerReplaceDomNode.style.display = 'flex';
-				} else {
-					this._innerReplaceDomNode.style.display = 'none';
+			onTrigger: isInteractiveWindow ? () => { } :
+				() => {
+					this._isReplaceVisible = !this._isReplaceVisible;
+					this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
+					if (this._isReplaceVisible) {
+						this._innerReplaceDomNode.style.display = 'flex';
+					} else {
+						this._innerReplaceDomNode.style.display = 'none';
+					}
 				}
-			}
 		}));
+		this._toggleReplaceBtn.setEnabled(!isInteractiveWindow);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
+
 
 
 		this._innerFindDomNode = document.createElement('div');
@@ -347,7 +353,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 					}
 				},
 				flexibleWidth: true,
-				showCommonFindToggles: true
+				showCommonFindToggles: true,
+				inputBoxStyles: defaultInputBoxStyles,
+				toggleStyles: defaultToggleStyles
 			}
 		));
 
@@ -448,7 +456,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: []
+			history: [],
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles
 		}, contextKeyService, false));
 		this._innerReplaceDomNode.appendChild(this._replaceInput.domNode);
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
@@ -575,45 +585,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public get focusTracker(): dom.IFocusTracker {
 		return this._focusTracker;
-	}
-
-	public updateTheme(theme: IColorTheme): void {
-		const inputStyles: IFindInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
-		};
-		this._findInput.style(inputStyles);
-		const replaceStyles: IReplaceInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
-		};
-		this._replaceInput.style(replaceStyles);
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
@@ -760,41 +731,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 // theming
 registerThemingParticipant((theme, collector) => {
-	const findWidgetBGColor = theme.getColor(editorWidgetBackground);
-	if (findWidgetBGColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { background-color: ${findWidgetBGColor} !important; }`);
-	}
-
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetForeground) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { color: ${widgetForeground}; }`);
-	}
-
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
-	}
-
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
-
-	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder) ?? theme.getColor(editorWidgetBorder);
-	if (resizeBorderBackground) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper .monaco-sash { background-color: ${resizeBorderBackground}; }`);
-	}
-
 	collector.addRule(`
-	:root {
+	.notebook-editor {
 		--notebook-find-width: ${NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH}px;
 		--notebook-find-horizontal-padding: ${NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING}px;
 	}

@@ -26,12 +26,6 @@ export interface IColumnSelectData {
 	toViewVisualColumn: number;
 }
 
-export const enum RevealTarget {
-	Primary = 0,
-	TopMost = 1,
-	BottomMost = 2
-}
-
 /**
  * This is an operation type that will be recorded for undo/redo purposes.
  * The goal is to introduce an undo stop when the controller switches between different operation types.
@@ -48,9 +42,6 @@ export const enum EditOperationType {
 export interface CharacterMap {
 	[char: string]: string;
 }
-export interface MultipleCharacterMap {
-	[char: string]: string[];
-}
 
 const autoCloseAlways = () => true;
 const autoCloseNever = () => false;
@@ -66,12 +57,14 @@ export class CursorConfiguration {
 	public readonly stickyTabStops: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
+	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
 	public readonly emptySelectionClipboard: boolean;
 	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly multiCursorPaste: 'spread' | 'full';
+	public readonly multiCursorLimit: number;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
@@ -92,13 +85,14 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.emptySelectionClipboard)
 			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
 			|| e.hasChanged(EditorOption.multiCursorPaste)
+			|| e.hasChanged(EditorOption.multiCursorLimit)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
 			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
 			|| e.hasChanged(EditorOption.autoSurround)
 			|| e.hasChanged(EditorOption.useTabStops)
-			|| e.hasChanged(EditorOption.lineHeight)
+			|| e.hasChanged(EditorOption.fontInfo)
 			|| e.hasChanged(EditorOption.readOnly)
 		);
 	}
@@ -113,13 +107,15 @@ export class CursorConfiguration {
 
 		const options = configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this.readOnly = options.get(EditorOption.readOnly);
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
-		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.lineHeight = fontInfo.lineHeight;
+		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
 		this.useTabStops = options.get(EditorOption.useTabStops);
 		this.wordSeparators = options.get(EditorOption.wordSeparators);
@@ -127,6 +123,7 @@ export class CursorConfiguration {
 		this.copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.multiCursorMergeOverlapping = options.get(EditorOption.multiCursorMergeOverlapping);
 		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
+		this.multiCursorLimit = options.get(EditorOption.multiCursorLimit);
 		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
 		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);

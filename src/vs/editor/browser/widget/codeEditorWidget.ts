@@ -24,7 +24,6 @@ import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { CursorsController } from 'vs/editor/common/cursor/cursor';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -38,15 +37,15 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
-import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
+import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -60,6 +59,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
 
 let EDITOR_ID = 0;
 
@@ -118,6 +118,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	//#region Eventing
 
 	private readonly _deliveryQueue = new EventDeliveryQueue();
+	protected readonly _contributions: CodeEditorContributions = this._register(new CodeEditorContributions());
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
@@ -152,7 +153,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidChangeCursorSelection: Emitter<ICursorSelectionChangedEvent> = this._register(new Emitter<ICursorSelectionChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
 
-	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new InteractionEmitter<void>(this._contributions, this._deliveryQueue));
 	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
 
 	private readonly _onDidLayoutChange: Emitter<EditorLayoutInfo> = this._register(new Emitter<EditorLayoutInfo>({ deliveryQueue: this._deliveryQueue }));
@@ -166,55 +167,55 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
 
-	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onWillType: Emitter<string> = this._register(new InteractionEmitter<string>(this._contributions, this._deliveryQueue));
 	public readonly onWillType = this._onWillType.event;
 
-	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onDidType: Emitter<string> = this._register(new InteractionEmitter<string>(this._contributions, this._deliveryQueue));
 	public readonly onDidType = this._onDidType.event;
 
-	private readonly _onDidCompositionStart: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onDidCompositionStart: Emitter<void> = this._register(new InteractionEmitter<void>(this._contributions, this._deliveryQueue));
 	public readonly onDidCompositionStart = this._onDidCompositionStart.event;
 
-	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new InteractionEmitter<void>(this._contributions, this._deliveryQueue));
 	public readonly onDidCompositionEnd = this._onDidCompositionEnd.event;
 
-	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new Emitter<editorBrowser.IPasteEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new InteractionEmitter<editorBrowser.IPasteEvent>(this._contributions, this._deliveryQueue));
 	public readonly onDidPaste = this._onDidPaste.event;
 
-	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = this._onMouseUp.event;
 
-	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDown.event;
 
-	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrag.event;
 
-	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IPartialEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseDrop: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseDrop.event;
 
-	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new InteractionEmitter<void>(this._contributions, this._deliveryQueue));
 	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
 
-	private readonly _onDropIntoEditor = this._register(new Emitter<{ readonly position: IPosition; readonly event: DragEvent }>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onDropIntoEditor = this._register(new InteractionEmitter<{ readonly position: IPosition; readonly event: DragEvent }>(this._contributions, this._deliveryQueue));
 	public readonly onDropIntoEditor = this._onDropIntoEditor.event;
 
-	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
 
-	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMove.event;
 
-	private readonly _onMouseLeave: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseLeave: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IPartialEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseLeave: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeave.event;
 
-	private readonly _onMouseWheel: Emitter<IMouseWheelEvent> = this._register(new Emitter<IMouseWheelEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onMouseWheel: Emitter<IMouseWheelEvent> = this._register(new InteractionEmitter<IMouseWheelEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseWheel: Event<IMouseWheelEvent> = this._onMouseWheel.event;
 
-	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new InteractionEmitter<IKeyboardEvent>(this._contributions, this._deliveryQueue));
 	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
-	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>({ deliveryQueue: this._deliveryQueue }));
+	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new InteractionEmitter<IKeyboardEvent>(this._contributions, this._deliveryQueue));
 	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>({ deliveryQueue: this._deliveryQueue }));
@@ -241,8 +242,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution };
-	protected _actions: { [key: string]: editorCommon.IEditorAction };
+	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -318,9 +318,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._modelData = null;
 
-		this._contributions = {};
-		this._actions = {};
-
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._register(this._focusTracker.onChange(() => {
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
@@ -335,23 +332,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			contributions = EditorExtensionsRegistry.getEditorContributions();
 		}
-		for (const desc of contributions) {
-			if (this._contributions[desc.id]) {
-				onUnexpectedError(new Error(`Cannot have two contributions with the same id ${desc.id}`));
-				continue;
-			}
-			try {
-				const contribution = this._instantiationService.createInstance(desc.ctor, this);
-				this._contributions[desc.id] = contribution;
-			} catch (err) {
-				onUnexpectedError(err);
-			}
-		}
+		this._contributions.initialize(this, contributions, this._instantiationService);
 
-		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
-			if (this._actions[action.id]) {
+		for (const action of EditorExtensionsRegistry.getEditorActions()) {
+			if (this._actions.has(action.id)) {
 				onUnexpectedError(new Error(`Cannot have two actions with the same id ${action.id}`));
-				return;
+				continue;
 			}
 			const internalAction = new InternalEditorAction(
 				action.id,
@@ -365,8 +351,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				},
 				this._contextKeyService
 			);
-			this._actions[internalAction.id] = internalAction;
-		});
+			this._actions.set(internalAction.id, internalAction);
+		}
 
 		const isDropIntoEnabled = () => {
 			return !this._configuration.options.get(EditorOption.readOnly)
@@ -409,7 +395,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			},
 		}));
 
-
 		this._codeEditorService.addCodeEditor(this);
 	}
 
@@ -429,14 +414,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.removeCodeEditor(this);
 
 		this._focusTracker.dispose();
-
-		const keys = Object.keys(this._contributions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const contributionId = keys[i];
-			this._contributions[contributionId].dispose();
-		}
-		this._contributions = {};
-		this._actions = {};
+		this._actions.clear();
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
 
@@ -533,6 +511,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._removeDecorationTypes();
 		this._onDidChangeModel.fire(e);
 		this._postDetachModelCleanup(detachedModel);
+
+		this._contributions.onAfterModelAttached();
 	}
 
 	private _removeDecorationTypes(): void {
@@ -999,16 +979,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		const contributionsState: { [key: string]: any } = {};
-
-		const keys = Object.keys(this._contributions);
-		for (const id of keys) {
-			const contribution = this._contributions[id];
-			if (typeof contribution.saveViewState === 'function') {
-				contributionsState[id] = contribution.saveViewState();
-			}
-		}
-
+		const contributionsState = this._contributions.saveViewState();
 		const cursorState = this._modelData.viewModel.saveCursorState();
 		const viewState = this._modelData.viewModel.saveState();
 		return {
@@ -1034,16 +1005,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				this._modelData.viewModel.restoreCursorState([<editorCommon.ICursorState>cursorState]);
 			}
 
-			const contributionsState = codeEditorState.contributionsState || {};
-			const keys = Object.keys(this._contributions);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				const id = keys[i];
-				const contribution = this._contributions[id];
-				if (typeof contribution.restoreViewState === 'function') {
-					contribution.restoreViewState(contributionsState[id]);
-				}
-			}
-
+			this._contributions.restoreViewState(codeEditorState.contributionsState || {});
 			const reducedState = this._modelData.viewModel.reduceRestoreState(codeEditorState.viewState);
 			this._modelData.view.restoreState(reducedState);
 		}
@@ -1059,19 +1021,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T | null {
-		return <T>(this._contributions[id] || null);
+		return this._contributions.get(id) as T | null;
 	}
 
 	public getActions(): editorCommon.IEditorAction[] {
-		const result: editorCommon.IEditorAction[] = [];
-
-		const keys = Object.keys(this._actions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const id = keys[i];
-			result.push(this._actions[id]);
-		}
-
-		return result;
+		return Array.from(this._actions.values());
 	}
 
 	public getSupportedActions(): editorCommon.IEditorAction[] {
@@ -1082,8 +1036,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return result;
 	}
 
-	public getAction(id: string): editorCommon.IEditorAction {
-		return this._actions[id] || null;
+	public getAction(id: string): editorCommon.IEditorAction | null {
+		return this._actions.get(id) || null;
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
@@ -1662,7 +1616,25 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.CursorStateChanged: {
 					if (e.reachedMaxCursorCount) {
-						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", CursorsController.MAX_CURSOR_COUNT));
+
+						const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
+						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes or increase the editor multi cursor limit setting.", multiCursorLimit);
+						this._notificationService.prompt(Severity.Warning, message, [
+							{
+								label: 'Find and Replace',
+								run: () => {
+									this._commandService.executeCommand('editor.action.startFindReplaceAction');
+								}
+							},
+							{
+								label: nls.localize('goToSetting', 'Increase Multi Cursor Limit'),
+								run: () => {
+									this._commandService.executeCommand('workbench.action.openSettings2', {
+										query: 'editor.multiCursorLimit'
+									});
+								}
+							}
+						]);
 					}
 
 					const positions: Position[] = [];
@@ -1911,6 +1883,24 @@ export class BooleanEventEmitter extends Disposable {
 		} else if (this._value === BooleanEventValue.False) {
 			this._onDidChangeToFalse.fire();
 		}
+	}
+}
+
+/**
+ * A regular event emitter that also makes sure contributions are instantiated if necessary
+ */
+class InteractionEmitter<T> extends Emitter<T> {
+
+	constructor(
+		private readonly _contributions: CodeEditorContributions,
+		deliveryQueue: EventDeliveryQueue
+	) {
+		super({ deliveryQueue });
+	}
+
+	override fire(event: T): void {
+		this._contributions.onBeforeInteractionEvent();
+		super.fire(event);
 	}
 }
 
@@ -2262,64 +2252,24 @@ function getDotDotDotSVGData(color: Color) {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const errorBorderColor = theme.getColor(editorErrorBorder);
-	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
-	}
 	const errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
-	}
-	const errorBackground = theme.getColor(editorErrorBackground);
-	if (errorBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${errorBackground}; }`);
-	}
-
-	const warningBorderColor = theme.getColor(editorWarningBorder);
-	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	const warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
-	const warningBackground = theme.getColor(editorWarningBackground);
-	if (warningBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${warningBackground}; }`);
-	}
-
-	const infoBorderColor = theme.getColor(editorInfoBorder);
-	if (infoBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
-	}
 	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
-	}
-	const infoBackground = theme.getColor(editorInfoBackground);
-	if (infoBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${infoBackground}; }`);
-	}
-
-	const hintBorderColor = theme.getColor(editorHintBorder);
-	if (hintBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
 	const hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
-
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
 		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
-
-	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
-	if (unnecessaryBorder) {
-		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
-	}
-
-	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';
-	collector.addRule(`.monaco-editor.showDeprecated .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; text-decoration-color: ${deprecatedForeground}}`);
 });

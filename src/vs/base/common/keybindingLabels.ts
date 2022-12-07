@@ -30,7 +30,7 @@ export class ModifierLabelProvider {
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel<T extends Modifiers>(OS: OperatingSystem, parts: T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
+	public toLabel<T extends Modifiers>(OS: OperatingSystem, parts: readonly T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
 		if (parts.length === 0) {
 			return null;
 		}

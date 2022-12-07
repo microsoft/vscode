@@ -10,7 +10,7 @@ import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -18,8 +18,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
+	/** This toolbar doesn't support hiding*/
+	NoHide = -1,
+	/** Hidden items aren't shown anywhere */
 	Ignore = 0,
-	RenderInSecondaryGroup = 1
+	/** Hidden items move into the secondary group */
+	RenderInSecondaryGroup = 1,
 }
 
 export type IWorkbenchToolBarOptions = IToolBarOptions & {
@@ -55,6 +59,11 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 
 	/** This is controlled by the WorkbenchToolBar */
 	allowContextMenu?: never;
+
+	/**
+	 * Maximun number of items that can shown. Extra items will be shown in the overflow menu.
+	 */
+	maxNumberOfItems?: number;
 };
 
 /**
@@ -103,38 +112,53 @@ export class WorkbenchToolBar extends ToolBar {
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
 
+		const extraSecondary: IAction[] = [];
+
 		let someAreHidden = false;
+		// unless disabled, move all hidden items to secondary group or ignore them
+		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
+			for (let i = 0; i < primary.length; i++) {
+				const action = primary[i];
+				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
+					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
+					continue;
+				}
+				if (!action.hideActions) {
+					continue;
+				}
 
-		// move all hidden items to secondary group or ignore them
-		let shouldPrependSeparator = secondary.length > 0;
-		for (let i = 0; i < primary.length; i++) {
-			const action = primary[i];
-			if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
-				// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
-				continue;
-			}
-			if (!action.hideActions) {
-				continue;
-			}
+				// collect all toggle actions
+				toggleActions.push(action.hideActions.toggle);
 
-			// collect all toggle actions
-			toggleActions.push(action.hideActions.toggle);
-
-			// hidden items move into overflow or ignore
-			if (action.hideActions.isHidden) {
-				someAreHidden = true;
-				primary[i] = undefined!;
-				if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
-					if (shouldPrependSeparator) {
-						shouldPrependSeparator = false;
-						secondary.unshift(new Separator());
+				// hidden items move into overflow or ignore
+				if (action.hideActions.isHidden) {
+					someAreHidden = true;
+					primary[i] = undefined!;
+					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
+						extraSecondary[i] = action;
 					}
-					secondary.unshift(action);
 				}
 			}
 		}
+
+		// count for max
+		if (this._options?.maxNumberOfItems !== undefined) {
+			let count = 0;
+			for (let i = 0; i < primary.length; i++) {
+				const action = primary[i];
+				if (!action) {
+					continue;
+				}
+				if (++count >= this._options.maxNumberOfItems) {
+					primary[i] = undefined!;
+					extraSecondary[i] = action;
+				}
+			}
+		}
+
 		coalesceInPlace(primary);
-		super.setActions(primary, secondary);
+		coalesceInPlace(extraSecondary);
+		super.setActions(primary, Separator.join(extraSecondary, secondary));
 
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
@@ -182,24 +206,13 @@ export class WorkbenchToolBar extends ToolBar {
 					}));
 				}
 
-				// add context menu actions (iff appicable)
-				if (this._options?.contextMenu) {
-					const menu = this._menuService.createMenu(this._options.contextMenu, this._contextKeyService);
-					const contextMenuActions: IAction[] = [];
-					createAndFillInContextMenuActions(menu, { ...this._options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
-					menu.dispose();
-
-					if (contextMenuActions.length > 0) {
-						actions = [...actions, new Separator(), ...contextMenuActions];
-					}
-				}
-
-				// this.getElement().classList.toggle('config', true);
-
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
-					onHide: () => this.getElement().classList.toggle('config', false),
+					// add context menu actions (iff appicable)
+					menuId: this._options?.contextMenu,
+					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					contextKeyService: this._contextKeyService,
 				});
 			}));
 		}
@@ -215,12 +228,6 @@ export interface IToolBarRenderOptions {
 	 * group are rendered with buttons and the rest is rendered in the secondary popup-menu.
 	 */
 	primaryGroup?: string | ((actionGroup: string) => boolean);
-
-	/**
-	 * Limits the number of items that make it in the primary group. The rest overflows into the
-	 * secondary menu.
-	 */
-	primaryMaxCount?: number;
 
 	/**
 	 * Inlinse submenus with just a single item
@@ -267,7 +274,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
 		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const updateToolbar = () => {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
@@ -275,7 +282,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				menu,
 				options?.menuOptions,
 				{ primary, secondary },
-				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.primaryMaxCount, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
+				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			super.setActions(primary, secondary);
 		};

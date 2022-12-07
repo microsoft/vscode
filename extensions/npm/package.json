@@ -12,6 +12,9 @@
   "categories": [
     "Other"
   ],
+  "enabledApiProposals": [
+    "terminalQuickFixProvider"
+  ],
   "scripts": {
     "compile": "gulp compile-extension:npm",
     "watch": "gulp watch-extension:npm"
@@ -22,7 +25,6 @@
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
     "request-light": "^0.5.7",
-    "vscode-nls": "^5.2.0",
     "which": "^2.0.2",
     "which-pm": "^2.0.0"
   },
@@ -44,7 +46,10 @@
     "onView:npm"
   ],
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "%virtualWorkspaces%"
+    },
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust%"
@@ -335,7 +340,23 @@
         },
         "when": "shellExecutionSupported"
       }
-    ]
+    ],
+    "terminal": {
+      "quickFixes": [
+        {
+          "id": "ms-vscode.npm-command",
+          "commandLineMatcher": "npm",
+          "exitStatus": false,
+          "outputMatcher": {
+            "anchor": "bottom",
+            "length": 8,
+            "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
+            "offset": 2,
+            "multipleMatches": true
+          }
+        }
+      ]
+    }
   },
   "repository": {
     "type": "git",

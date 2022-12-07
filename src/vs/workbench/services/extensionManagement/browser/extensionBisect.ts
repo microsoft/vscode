@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 // --- bisect service
 
@@ -161,7 +162,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 	}
 }
 
-registerSingleton(IExtensionBisectService, ExtensionBisectService, true);
+registerSingleton(IExtensionBisectService, ExtensionBisectService, InstantiationType.Delayed);
 
 // --- bisect UI
 
@@ -219,7 +220,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.start',
 			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
-			category: CATEGORIES.Help,
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
 			menu: {
@@ -235,11 +236,10 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const extensionManagement = accessor.get(IExtensionManagementService);
-		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
+		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 
-		const disabled = new Set(extensionEnablementService.getDisabledExtensions().map(id => id.id));
-		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => !disabled.has(ext.identifier.id));
+		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => extensionEnablementService.isEnabled(ext));
 
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),
@@ -259,7 +259,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.next',
 			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});
@@ -346,7 +346,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.stop',
 			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});

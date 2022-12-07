@@ -319,10 +319,10 @@ export class NativeWindow extends Disposable {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
-			this.updateDocumentEdited(gotDirty);
+			this.updateDocumentEdited(gotDirty ? true : undefined);
 		}));
 
-		this.updateDocumentEdited();
+		this.updateDocumentEdited(undefined);
 
 		// Detect minimize / maximize
 		this._register(Event.any(
@@ -511,11 +511,18 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
-		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
-			this.isDocumentedEdited = isDirty;
+	private updateDocumentEdited(documentEdited: true | undefined): void {
+		let setDocumentEdited: boolean;
+		if (typeof documentEdited === 'boolean') {
+			setDocumentEdited = documentEdited;
+		} else {
+			setDocumentEdited = this.workingCopyService.hasDirty;
+		}
 
-			this.nativeHostService.setDocumentEdited(isDirty);
+		if ((!this.isDocumentedEdited && setDocumentEdited) || (this.isDocumentedEdited && !setDocumentEdited)) {
+			this.isDocumentedEdited = setDocumentEdited;
+
+			this.nativeHostService.setDocumentEdited(setDocumentEdited);
 		}
 	}
 
@@ -640,7 +647,7 @@ export class NativeWindow extends Disposable {
 	private async handleWarnings(): Promise<void> {
 
 		// Check for cyclic dependencies
-		if (require.hasDependencyCycle()) {
+		if (typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
 			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
@@ -769,13 +776,16 @@ export class NativeWindow extends Disposable {
 								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
 							}
 						} : undefined;
-						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
+						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
+						if (!tunnel) {
+							tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
+						}
 						if (tunnel) {
 							const addressAsUri = URI.parse(tunnel.localAddress);
 							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
 								resolved,
-								dispose: () => tunnel.dispose(),
+								dispose: () => tunnel?.dispose(),
 							};
 						}
 					}
@@ -895,7 +905,7 @@ export class NativeWindow extends Disposable {
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 		const mergeMode = !!(request.filesToMerge && (request.filesToMerge.length === 4));
 
-		const inputs = coalesce(await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService));
+		const inputs = coalesce(await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService, this.logService));
 		if (inputs.length) {
 			const openedEditorPanes = await this.openResources(inputs, diffMode, mergeMode);
 

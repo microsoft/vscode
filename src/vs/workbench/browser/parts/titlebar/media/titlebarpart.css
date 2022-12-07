@@ -97,7 +97,19 @@
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center.hide {
-	display: none;
+	visibility: hidden;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item>.action-label {
+	color: var(--vscode-titleBar-foreground);
+}
+
+.monaco-workbench .part.titlebar.inactive>.titlebar-container>.window-title>.command-center .action-item>.action-label {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .codicon {
+	color: inherit;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center {
@@ -113,42 +125,30 @@
 	border-top-right-radius: 6px;
 	border-bottom-right-radius: 6px;
 
-
 	width: 38vw;
 	max-width: 600px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left {
-	display: inline-flex;
-	justify-content: center;
-	width: 100%;
-	margin: auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-workbench .part.titlebar.inactive>.titlebar-container>.window-title>.command-center .action-item.command-center {
+	color: var(--vscode-titleBar-inactiveForeground);
+	border-color: var(--vscode-commandCenter-inactiveBorder) !important;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left .search-icon {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .search-icon {
 	font-size: 14px;
 	opacity: .8;
 	margin: auto 3px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left .search-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .search-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .right {
-	margin-left: auto;
-	padding: 2px 2px 0 0;
-	width: 16px;
-	flex-shrink: 0;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .left:HOVER,
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center .right:HOVER {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.command-center:HOVER {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder);
 }
 
 /* Menubar */
@@ -157,6 +157,10 @@
 	z-index: 2500;
 	min-width: 36px;
 	flex-wrap: nowrap;
+}
+
+.monaco-workbench.web .part.titlebar>.titlebar-container>.menubar {
+	margin-left: 4px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container.counter-zoom > .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container {
@@ -234,10 +238,14 @@
 
 .monaco-workbench.mac .part.titlebar>.window-controls-container {
 	width: 70px;
-	height: env(titlebar-area-width, 28px);
+	height: env(titlebar-area-height, 28px);
 }
 
-.monaco-workbench.web .part.titlebar>.window-controls-container,
+.monaco-workbench.web .part.titlebar>.window-controls-container {
+	width: calc(100% - env(titlebar-area-width, 100%));
+	height: env(titlebar-area-height, 35px);
+}
+
 .monaco-workbench.fullscreen .part.titlebar>.window-controls-container {
 	display: none;
 	background-color: transparent;

@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -20,8 +20,6 @@ import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages
 import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import type { IGrammar, IToken, StackElement } from 'vscode-textmate';
@@ -31,7 +29,6 @@ import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateTh
 import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -668,18 +665,5 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController);
+registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectEditorTokens);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
-		collector.addRule(`.monaco-editor .token-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .token-inspect-widget .tiw-metadata-separator { background-color: ${border}; }`);
-	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .token-inspect-widget { background-color: ${background}; }`);
-	}
-});

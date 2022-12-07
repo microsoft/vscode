@@ -58,37 +58,37 @@ tas-client-umd@0.1.6:
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.6.tgz#a0cf70a68f50d406773457630666224f0eb545a6"
   integrity sha512-eOz5IK4cuNmSZI9QlqlT0FdvgfnnHDB6rjqleFaYAbzYE4RdJzYNiM28zFIXgmOVEgESvfabMFxG8WX5M4z3HA==
 
-vscode-oniguruma@1.6.1:
-  version "1.6.1"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.6.1.tgz#2bf4dfcfe3dd2e56eb549a3068c8ee39e6c30ce5"
-  integrity sha512-vc4WhSIaVpgJ0jJIejjYxPvURJavX6QG41vu0mGhqywMkQqulezEqEQ3cO3gc8GvcOpX6ycmKGqRoROEMBNXTQ==
+vscode-oniguruma@1.7.0:
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.7.0.tgz#439bfad8fe71abd7798338d1cd3dc53a8beea94b"
+  integrity sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==
 
 vscode-textmate@7.0.1:
   version "7.0.1"
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-7.0.1.tgz#8118a32b02735dccd14f893b495fa5389ad7de79"
   integrity sha512-zQ5U/nuXAAMsh691FtV0wPz89nSkHbs+IQV8FDk+wew9BlSDhf4UmWGlWJfTR2Ti6xZv87Tj5fENzKf6Qk7aLw==
 
-xterm-addon-canvas@0.3.0-beta.1:
-  version "0.3.0-beta.1"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.3.0-beta.1.tgz#17a65f5da65416b01d620ddef6247ff5013ffc15"
-  integrity sha512-34PKhrkvK1RtlOOmni4i5GUIyoFKGMph8fWFvA2d52IDTKmX9YoLzZfU73D/sUAx+/GKobCE8sr14CuBZctgNw==
+xterm-addon-canvas@0.3.0-beta.27:
+  version "0.3.0-beta.27"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.3.0-beta.27.tgz#8b530a71473b2c2497e04ae27aa06aba213fef7c"
+  integrity sha512-8NZYm8mZXQms4aIMZFBwufakQQomnvzkwCUw3cPlJ5emErGD7OmXvV9zgJbSmhD1rnLOF5Z8AAIUqIvM3e+KUw==
 
-xterm-addon-search@0.11.0-beta.1:
-  version "0.11.0-beta.1"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.11.0-beta.1.tgz#fe7178d70246cde73550447c5524672575467499"
-  integrity sha512-fKj8KnnhH1nC4oZpKsgnhtgxkTctoa9kGLMpTJjsNzFu0VvXvLGIRezTPI75UEIQdEdaxcwB7/aKelQTO+72LA==
+xterm-addon-search@0.11.0-beta.7:
+  version "0.11.0-beta.7"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.11.0-beta.7.tgz#d90bcbe9e8f9238c18ba6145bd7ec2f8e3240052"
+  integrity sha512-i/c774V0/Eon3BIFRsRR3OjKTnMGkccBo12yDkOa40tnAD4aa8FjspE3bxW/Hh1mUEhCSgBSLnMDlK/GwnUC+g==
 
-xterm-addon-unicode11@0.5.0-beta.1:
-  version "0.5.0-beta.1"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0-beta.1.tgz#8a9e9356018e082318abbe2be1f9599fcc6b46a2"
-  integrity sha512-uAErX4gwhW6N524stLG6oZR3yBGgPnFmZ2Tv4vyYy7tcgDuHRoc22xYSCDgO1ohz1FLlOm8JGXRjXliwO9ic3A==
+xterm-addon-unicode11@0.5.0-beta.5:
+  version "0.5.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0-beta.5.tgz#6992a6f56349e67b903201d52b1ad41ba3469d93"
+  integrity sha512-MaqnU34WTHCUAo7moB4KhynGn03RckI0JJ8E/gXe96EzuCP6bVJIKSc5pc9iFeLF4BX1SuemOqIHYl2Q3u3NTA==
 
-xterm-addon-webgl@0.14.0-beta.8:
-  version "0.14.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.14.0-beta.8.tgz#486ae22b2eb88a12ebded366c4019ee26409cbb8"
-  integrity sha512-G0F70f6zGWtXuZxKiTn9BQswaVz85wcCuadnWRdPFDBlgdEfcboCvVZgQetklOIkluVpt8tYYK013/25iMRKTA==
+xterm-addon-webgl@0.14.0-beta.40:
+  version "0.14.0-beta.40"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.14.0-beta.40.tgz#8152b293c07f921db3a7cd3c4996dfd4d90f340c"
+  integrity sha512-6E3KGqAFkTU6A32c6gUjkwCX+DfohN6y+j1IcTjwh5Cu92TWn4tMr5KwJlaULfmtO0e9BKZlhmucmuHTWi1F9w==
 
-xterm@5.1.0-beta.15:
-  version "5.1.0-beta.15"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.15.tgz#146b70c81fd286dbb003d18449918326fa355b6b"
-  integrity sha512-fO87pEPFMr+h7eo51+6+ew3OhzLm2wwSYz6w/y5lH986rD1lgAeEqFuzjr64pjBzwAihnoaTpumYg5lTZDQpSA==
+xterm@5.1.0-beta.63:
+  version "5.1.0-beta.63"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.63.tgz#c811680494922eab873bd36ac6fd9f5404a9e944"
+  integrity sha512-ar7SMARh6j3GUXb4tRgbqAO+kiNu4JTPx5FYXSDHr+HHt0jBgZ+lPh4AqIFwwG1pc90lRx2cvczpE5cJhG9sdw==

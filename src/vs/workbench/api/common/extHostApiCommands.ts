@@ -139,17 +139,17 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyItem.to))
+		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A promise that resolves to an array of CallHierarchyItem-instances', v => v.map(typeConverters.CallHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideIncomingCalls', '_executeProvideIncomingCalls', 'Compute incoming calls for an item',
 		[ApiCommandArgument.CallHierarchyItem],
-		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
+		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A promise that resolves to an array of CallHierarchyIncomingCall-instances', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
 	),
 	new ApiCommand(
 		'vscode.provideOutgoingCalls', '_executeProvideOutgoingCalls', 'Compute outgoing calls for an item',
 		[ApiCommandArgument.CallHierarchyItem],
-		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
+		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A promise that resolves to an array of CallHierarchyOutgoingCall-instances', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
 	),
 	// --- rename
 	new ApiCommand(
@@ -419,17 +419,17 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A promise that resolves to an array of TypeHierarchyItem-instances', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideSupertypes', '_executeProvideSupertypes', 'Compute supertypes for an item',
 		[ApiCommandArgument.TypeHierarchyItem],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A promise that resolves to an array of TypeHierarchyItem-instances', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideSubtypes', '_executeProvideSubtypes', 'Compute subtypes for an item',
 		[ApiCommandArgument.TypeHierarchyItem],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A promise that resolves to an array of TypeHierarchyItem-instances', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
 	// --- testing
 	new ApiCommand(
@@ -441,6 +441,15 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
 		[ApiCommandArgument.Uri.with('workspaceUri', 'The target workspace to continue the current edit session in')],
+		ApiCommandResult.Void
+	),
+	// --- context keys
+	new ApiCommand(
+		'setContext', '_setContext', 'Set a custom context key value that can be used in when clauses.',
+		[
+			ApiCommandArgument.String.with('name', 'The context key name'),
+			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
+		],
 		ApiCommandResult.Void
 	)
 ];
