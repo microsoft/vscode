@@ -6108,6 +6108,26 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(3, 7, 4, 7));
 		});
 	});
+
+	test('issue #158236: Shift click selection does not work on line number indicator', () => {
+		const model = createTextModel(
+			[
+				'just some text',
+				'and another line',
+				'and another one',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			CoreNavigationCommands.MoveTo.runEditorCommand(null, editor, {
+				position: new Position(3, 5)
+			});
+			CoreNavigationCommands.LineSelectDrag.runEditorCommand(null, editor, {
+				position: new Position(2, 1)
+			});
+			assertCursor(viewModel, new Selection(3, 5, 2, 1));
+		});
+	});
 });
 
 suite('Undo stops', () => {
