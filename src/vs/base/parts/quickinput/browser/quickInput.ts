@@ -1724,7 +1724,11 @@ export class QuickInputController extends Disposable {
 			const focusChanged = !this.ui?.container.contains(document.activeElement);
 			this.controller = null;
 			this.onHideEmitter.fire();
-			this.getUI().container.style.display = 'none';
+
+			const ui = this.getUI();
+			ui.container.style.display = 'none';
+			ui.list.setElements([]);
+
 			if (!focusChanged) {
 				let currentElement = this.previousFocusElement;
 				while (currentElement && !currentElement.offsetParent) {
