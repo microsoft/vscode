@@ -947,6 +947,7 @@ export class CodeApplication extends Disposable {
 				return false;
 			}
 		});
+
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = this._register(new ActiveWindowManager({
 			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
