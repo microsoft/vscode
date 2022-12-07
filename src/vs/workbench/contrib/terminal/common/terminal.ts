@@ -781,9 +781,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 								}
 							}
 						},
-						exitStatus: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "True if the exit code is non-zero"),
-							type: 'boolean',
+						matchOnCommandResult: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.matchOnCommandResult', "The command result to match on"),
+							enum: ['success', 'error'],
+							enumDescriptions: ['zero exit code', 'non-zero exit code']
 						}
 					},
 				}

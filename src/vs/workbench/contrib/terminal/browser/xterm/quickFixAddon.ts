@@ -397,7 +397,7 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		type: 'resolved',
 		commandLineMatcher: selectorProvider.selector.commandLineMatcher,
 		outputMatcher: selectorProvider.selector.outputMatcher,
-		exitStatus: selectorProvider.selector.exitStatus,
+		matchOnCommandResult: selectorProvider.selector.matchOnCommandResult,
 		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes
 	};
 }
