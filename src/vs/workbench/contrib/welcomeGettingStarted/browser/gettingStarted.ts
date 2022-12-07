@@ -696,7 +696,7 @@ export class GettingStartedPage extends EditorPane {
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
 	}
 
-	createEditor(parent: HTMLElement) {
+	protected createEditor(parent: HTMLElement) {
 		if (this.detailsPageScrollbar) { this.detailsPageScrollbar.dispose(); }
 		if (this.categoriesPageScrollbar) { this.categoriesPageScrollbar.dispose(); }
 
@@ -1115,7 +1115,7 @@ export class GettingStartedPage extends EditorPane {
 
 		if (toSide && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT, { activate: true });
 
 				const gettingStartedSize = Math.floor(fullSize.width / 2);
 

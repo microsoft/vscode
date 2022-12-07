@@ -8,7 +8,7 @@ import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -623,9 +623,9 @@ export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }));
+	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }));
+	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }));
 
 	constructor() {
 		super();

@@ -200,8 +200,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const map = model.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem; resultItem: TestResultItem | undefined }>();
-			for (const test of this.testService.collection.all) {
-				if (!test.item.range || test.item.uri?.toString() !== uriStr) {
+			for (const test of this.testService.collection.getNodeByUrl(model.uri)) {
+				if (!test.item.range) {
 					continue;
 				}
 

@@ -109,7 +109,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			}
 
 			const matches = this._findModel.findMatches;
-			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.modelMatchCount < match.matches.length) === undefined);
+			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.webviewMatches.length > 0) === undefined);
 
 			if (e.filters) {
 				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
@@ -200,13 +200,9 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		const cellFindMatches = this._findModel.findMatches;
 		const replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
-			const findMatches = cellFindMatch.matches;
-			findMatches.forEach((findMatch, index) => {
-				if (index < cellFindMatch.modelMatchCount) {
-					const match = findMatch as FindMatch;
-					const matches = match.matches;
-					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
-				}
+			cellFindMatch.contentMatches.forEach(match => {
+				const matches = match.matches;
+				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
 			});
 		});
 

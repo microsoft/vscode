@@ -290,7 +290,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	override renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 

@@ -20,6 +20,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Promises } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { isString } from 'vs/base/common/types';
 
 /**
  * Flags to indicate whether to use the default profile or not.
@@ -229,7 +230,16 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	protected _profilesObject: UserDataProfilesObject | undefined;
 	protected get profilesObject(): UserDataProfilesObject {
 		if (!this._profilesObject) {
-			const profiles = this.enabled ? this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags })) : [];
+			const profiles = [];
+			if (this.enabled) {
+				for (const storedProfile of this.getStoredProfiles()) {
+					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
+						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
+						continue;
+					}
+					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
+				}
+			}
 			let emptyWindow: IUserDataProfile | undefined;
 			const workspaces = new ResourceMap<IUserDataProfile>();
 			const defaultProfile = toUserDataProfile(hash(this.environmentService.userRoamingDataHome.path).toString(16), localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
@@ -288,6 +298,9 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	private async doCreateProfile(id: string, name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile> {
+		if (!isString(name) || !name) {
+			throw new Error('Name of the profile is mandatory and must be of type `string`');
+		}
 		let profileCreationPromise = this.profileCreationPromises.get(name);
 		if (!profileCreationPromise) {
 			profileCreationPromise = (async () => {

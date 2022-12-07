@@ -61,8 +61,8 @@
 			]
 		},
 		{
-			"originalRange": "[86,98)",
-			"modifiedRange": "[88,101)",
+			"originalRange": "[86,99)",
+			"modifiedRange": "[88,102)",
 			"innerChanges": [
 				{
 					"originalRange": "[86,1 -> 86,1]",
@@ -114,7 +114,11 @@
 				},
 				{
 					"originalRange": "[98,1 -> 98,1]",
-					"modifiedRange": "[100,1 -> 101,1]"
+					"modifiedRange": "[100,1 -> 100,2]"
+				},
+				{
+					"originalRange": "[99,1 -> 99,1]",
+					"modifiedRange": "[101,1 -> 102,1]"
 				}
 			]
 		}

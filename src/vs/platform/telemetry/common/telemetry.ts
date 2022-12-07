@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { IObservableValue } from 'vs/base/common/observableValue';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -53,7 +52,7 @@ export interface ITelemetryService {
 
 	setExperimentProperty(name: string, value: string): void;
 
-	readonly telemetryLevel: IObservableValue<TelemetryLevel>;
+	readonly telemetryLevel: TelemetryLevel;
 }
 
 export interface ITelemetryEndpoint {
