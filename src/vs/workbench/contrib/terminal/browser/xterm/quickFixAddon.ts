@@ -293,7 +293,7 @@ export async function getQuickFixesForCommand(
 	const newCommand = terminalCommand.command;
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
-			if (option.matchOnCommandResult === 'success' === (terminalCommand.exitCode === 0)) {
+			if ((option.matchOnCommandResult === 'success' && terminalCommand.exitCode) || (option.matchOnCommandResult === 'error' && !terminalCommand.exitCode)) {
 				continue;
 			}
 			let quickFixes;
