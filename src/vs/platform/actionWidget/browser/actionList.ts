@@ -149,6 +149,14 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 	}
 }
 
+class AcceptSelectedEvent extends UIEvent {
+	constructor() { super('acceptSelectedAction'); }
+}
+
+class PreviewSelectedEvent extends UIEvent {
+	constructor() { super('previewSelectedAction'); }
+}
+
 export class ActionList<T extends IActionItem> extends Disposable {
 
 	public readonly domNode: HTMLElement;
@@ -263,7 +271,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			return;
 		}
 
-		const event = new UIEvent(preview ? 'previewSelectedCodeAction' : 'acceptSelectedCodeAction');
+		const event = preview ? new PreviewSelectedEvent() : new AcceptSelectedEvent();
 		this._list.setSelection([focusIndex], event);
 	}
 
@@ -274,7 +282,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		const element = e.elements[0];
 		if (element.item && this.focusCondition(element)) {
-			this._delegate.onSelect(element.item, e.browserEvent?.type === 'previewSelectedEventType');
+			this._delegate.onSelect(element.item, e.browserEvent instanceof PreviewSelectedEvent);
 		} else {
 			this._list.setSelection([]);
 		}
