@@ -336,7 +336,7 @@ export class LabelService extends Disposable implements ILabelService {
 		let label: string;
 		switch (options?.verbose) {
 			case Verbosity.SHORT:
-				label = filename;
+				label = filename; // skip suffix for short label
 				break;
 			case Verbosity.LONG:
 				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
@@ -348,7 +348,7 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (options?.verbose === Verbosity.SHORT) {
-			return label;
+			return label; // skip suffix for short label
 		}
 
 		return this.appendWorkspaceSuffix(label, workspaceUri);
@@ -368,7 +368,7 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (options?.verbose === Verbosity.SHORT) {
-			return label;
+			return label; // skip suffix for short label
 		}
 
 		return this.appendWorkspaceSuffix(label, folderUri);
