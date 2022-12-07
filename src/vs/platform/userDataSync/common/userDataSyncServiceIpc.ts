@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,7 +27,7 @@ function reviewSyncResourceHandle(syncResourceHandle: ISyncResourceHandle): ISyn
 
 export class UserDataSyncChannel implements IServerChannel {
 
-	private readonly manualSyncTasks = new Map<string, { manualSyncTask: IUserDataManualSyncTask; disposables: DisposableStore }>();
+	private readonly manualSyncTasks = new Map<string, IUserDataManualSyncTask>();
 	private readonly onManualSynchronizeResources = new Emitter<ManualSyncTaskEvent<[SyncResource, URI[]][]>>();
 
 	constructor(
@@ -82,6 +82,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'replace': return this.service.replace(reviewSyncResourceHandle(args[0]));
 			case 'getAssociatedResources': return this.service.getAssociatedResources(reviewSyncResourceHandle(args[0]));
 			case 'getMachineId': return this.service.getMachineId(reviewSyncResourceHandle(args[0]));
+			case 'cleanUpRemoteData': return this.service.cleanUpRemoteData();
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 		}
@@ -95,9 +96,8 @@ export class UserDataSyncChannel implements IServerChannel {
 
 			switch (manualSyncTaskCommand) {
 				case 'merge': return manualSyncTask.merge();
-				case 'apply': return manualSyncTask.apply();
-				case 'stop': return manualSyncTask.stop();
-				case 'dispose': return this.disposeManualSyncTask(manualSyncTask);
+				case 'apply': return manualSyncTask.apply().then(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
+				case 'stop': return manualSyncTask.stop().finally(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
 			}
 		}
 
@@ -105,25 +105,17 @@ export class UserDataSyncChannel implements IServerChannel {
 	}
 
 	private getManualSyncTask(manualSyncTaskId: string): IUserDataManualSyncTask {
-		const value = this.manualSyncTasks.get(this.createKey(manualSyncTaskId));
-		if (!value) {
+		const manualSyncTask = this.manualSyncTasks.get(this.createKey(manualSyncTaskId));
+		if (!manualSyncTask) {
 			throw new Error(`Manual sync taks not found: ${manualSyncTaskId}`);
 		}
-		return value.manualSyncTask;
+		return manualSyncTask;
 	}
 
 	private async createManualSyncTask(): Promise<string> {
-		const disposables = new DisposableStore();
-		const manualSyncTask = disposables.add(await this.service.createManualSyncTask());
-		this.manualSyncTasks.set(this.createKey(manualSyncTask.id), { manualSyncTask, disposables });
+		const manualSyncTask = await this.service.createManualSyncTask();
+		this.manualSyncTasks.set(this.createKey(manualSyncTask.id), manualSyncTask);
 		return manualSyncTask.id;
-	}
-
-	private disposeManualSyncTask(manualSyncTask: IUserDataManualSyncTask): void {
-		manualSyncTask.dispose();
-		const key = this.createKey(manualSyncTask.id);
-		this.manualSyncTasks.get(key)?.disposables.dispose();
-		this.manualSyncTasks.delete(key);
 	}
 
 	private createKey(manualSyncTaskId: string): string { return `manualSyncTask-${manualSyncTaskId}`; }
@@ -253,6 +245,10 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
 		return this.channel.call<string | undefined>('getMachineId', [syncResourceHandle]);
+	}
+
+	cleanUpRemoteData(): Promise<void> {
+		return this.channel.call('cleanUpRemoteData');
 	}
 
 	replace(syncResourceHandle: ISyncResourceHandle): Promise<void> {

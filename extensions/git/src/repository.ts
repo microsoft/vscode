@@ -11,7 +11,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
+import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
@@ -541,7 +541,6 @@ class FileEventLogger {
 
 	private onDidChangeLogLevel(logLevel: LogLevel): void {
 		this.eventDisposable.dispose();
-		this.logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
 
 		if (logLevel > LogLevel.Debug) {
 			return;
@@ -1231,12 +1230,8 @@ export class Repository implements Disposable {
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
-		const operation = optimisticUpdate ? Operation.AddNoProgress : Operation.Add;
-
 		await this.run(
-			operation,
+			this.optimisticUpdateEnabled() ? Operation.AddNoProgress : Operation.Add,
 			async () => {
 				await this.repository.add(resources.map(r => r.fsPath), opts);
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
@@ -1286,12 +1281,8 @@ export class Repository implements Disposable {
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
-		const operation = optimisticUpdate ? Operation.RevertFilesNoProgress : Operation.RevertFiles;
-
 		await this.run(
-			operation,
+			this.optimisticUpdateEnabled() ? Operation.RevertFilesNoProgress : Operation.RevertFiles,
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
 				this.closeDiffEditors([...resources.length !== 0 ?
@@ -1299,6 +1290,9 @@ export class Repository implements Disposable {
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
 			},
 			() => {
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+
 				const resourcePaths = resources.length === 0 ?
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
 
@@ -1320,10 +1314,13 @@ export class Repository implements Disposable {
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Add resource(s) to working group
-				const workingTreeGroup = [...this.workingTreeGroup.resourceStates, ...trackedResources];
+				const workingTreeGroup = untrackedChanges === 'mixed' ?
+					[...this.workingTreeGroup.resourceStates, ...trackedResources, ...untrackedResources] :
+					[...this.workingTreeGroup.resourceStates, ...trackedResources];
 
 				// Add resource(s) to untracked group
-				const untrackedGroup = [...this.untrackedGroup.resourceStates, ...untrackedResources];
+				const untrackedGroup = untrackedChanges === 'separate' ?
+					[...this.untrackedGroup.resourceStates, ...untrackedResources] : undefined;
 
 				return { indexGroup, workingTreeGroup, untrackedGroup };
 			});
@@ -1401,12 +1398,8 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const optimisticUpdate = config.get<boolean>('optimisticUpdate') === true;
-		const operation = optimisticUpdate ? Operation.CleanNoProgress : Operation.Clean;
-
 		await this.run(
-			operation,
+			this.optimisticUpdateEnabled() ? Operation.CleanNoProgress : Operation.Clean,
 			async () => {
 				const toClean: string[] = [];
 				const toCheckout: string[] = [];
@@ -1463,7 +1456,7 @@ export class Repository implements Disposable {
 			});
 	}
 
-	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
+	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
@@ -1665,10 +1658,26 @@ export class Repository implements Disposable {
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+					this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
 				}
 			});
 		});
+	}
+
+	private async _pullAndHandleTagConflict(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+		try {
+			await this.repository.pull(rebase, remote, branch, options);
+		}
+		catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.TagConflict) {
+				throw err;
+			}
+
+			// Handle tag(s) conflict
+			if (await this.handleTagConflict(remote, err.stderr)) {
+				await this.repository.pull(rebase, remote, branch, options);
+			}
+		}
 	}
 
 	@throttle
@@ -1684,7 +1693,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
 	}
 
-	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
+	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
@@ -1731,7 +1740,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+						this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
 					}
 				};
 
@@ -1974,7 +1983,7 @@ export class Repository implements Disposable {
 		return ignored;
 	}
 
-	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
+	private async _push(remote?: string, refspec?: string, setUpstream = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		try {
 			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
@@ -2016,10 +2025,7 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
-				const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-				const optimisticUpdate = scopedConfig.get<boolean>('optimisticUpdate') === true;
-
-				await this.updateModelState(optimisticUpdate ? getOptimisticResourceGroups() : undefined);
+				await this.updateModelState(this.optimisticUpdateEnabled() ? getOptimisticResourceGroups() : undefined);
 			}
 
 			return result;
@@ -2481,7 +2487,44 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
+	private optimisticUpdateEnabled(): boolean {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		return config.get<boolean>('optimisticUpdate') === true;
+	}
+
+	private async handleTagConflict(remote: string | undefined, raw: string): Promise<boolean> {
+		// Ensure there is a remote
+		remote = remote ?? this.HEAD?.upstream?.remote;
+		if (!remote) {
+			throw new Error('Unable to resolve tag conflict due to missing remote.');
+		}
+
+		// Extract tag names from message
+		const tags: string[] = [];
+		for (const match of raw.matchAll(/^ ! \[rejected\]\s+([^\s]+)\s+->\s+([^\s]+)\s+\(would clobber existing tag\)$/gm)) {
+			if (match.length === 3) {
+				tags.push(match[1]);
+			}
+		}
+		if (tags.length === 0) {
+			throw new Error(`Unable to extract tag names from error message: ${raw}`);
+		}
+
+		// Notification
+		const replaceLocalTags = l10n.t('Replace Local Tag(s)');
+		const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
+		const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags);
+
+		if (choice !== replaceLocalTags) {
+			return false;
+		}
+
+		// Force fetch tags
+		await this.repository.fetchTags({ remote, tags, force: true });
+		return true;
+	}
+
+	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
 		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
 	}
 

@@ -442,6 +442,11 @@ export interface IWatchOptions {
 export const enum FileSystemProviderCapabilities {
 
 	/**
+	 * No capabilities.
+	 */
+	None = 0,
+
+	/**
 	 * Provider supports unbuffered read/write.
 	 */
 	FileReadWrite = 1 << 1,

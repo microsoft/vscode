@@ -35,7 +35,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -55,7 +55,7 @@ import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -473,8 +473,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 	constructor(
 		private readonly table: WorkspaceTrustedUrisTable,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 	}
 
@@ -485,12 +484,11 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 		const pathInput = new InputBox(element, this.contextViewService, {
 			validationOptions: {
 				validation: value => this.table.validateUri(value, this.currentItem)
-			}
+			},
+			inputBoxStyles: defaultInputBoxStyles
 		});
 
 		const disposables = new DisposableStore();
-		disposables.add(attachInputBoxStyler(pathInput, this.themeService));
-
 		const renderDisposables = disposables.add(new DisposableStore());
 
 		return {
@@ -750,7 +748,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		this.registerListeners();
-		this.render();
+		await this.render();
 	}
 
 	private registerListeners(): void {

@@ -194,6 +194,14 @@ class FetchAllRemotesItem implements QuickPickItem {
 	}
 }
 
+class UnsafeRepositoryItem implements QuickPickItem {
+	get label(): string {
+		return `$(repo) ${this.path}`;
+	}
+
+	constructor(public readonly path: string) { }
+}
+
 interface ScmCommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -3017,6 +3025,7 @@ export class CommandCenter {
 		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
 			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			{ modal: true },
 			yes
 		);
 		if (result !== yes) {
@@ -3041,7 +3050,7 @@ export class CommandCenter {
 			l10n.t('Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.') :
 			l10n.t('Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.', stashes.length);
 
-		const result = await window.showWarningMessage(question, yes);
+		const result = await window.showWarningMessage(question, { modal: true }, yes);
 		if (result !== yes) {
 			return;
 		}
@@ -3181,6 +3190,51 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.manageUnsafeRepositories')
+	async manageUnsafeRepositories(): Promise<void> {
+		const unsafeRepositories: string[] = [];
+
+		const quickpick = window.createQuickPick();
+		quickpick.title = l10n.t('Manage Unsafe Repositories');
+		quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.values()).sort().map(r => new UnsafeRepositoryItem(r));
+
+		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		quickpick.show();
+		const repositoryItem = await new Promise<UnsafeRepositoryItem | QuickPickItem | undefined>(
+			resolve => {
+				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
+				quickpick.onDidHide(() => resolve(undefined));
+			});
+		quickpick.hide();
+
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem.label === allRepositoriesLabel) {
+			// All Repositories
+			unsafeRepositories.push(...this.model.unsafeRepositories.values());
+		} else {
+			// One Repository
+			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
+		}
+
+		for (const unsafeRepository of unsafeRepositories) {
+			// Mark as Safe
+			await this.git.addSafeDirectory(unsafeRepository);
+
+			// Open Repository
+			await this.model.openRepository(unsafeRepository);
+			this.model.unsafeRepositories.delete(unsafeRepository);
+		}
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -3265,10 +3319,12 @@ export class CommandCenter {
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
 						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
 						message = l10n.t('There were merge conflicts while applying the stash.');
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						type = 'warning';
 						options.modal = false;
 						break;

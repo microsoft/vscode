@@ -17,10 +17,7 @@
     "ui",
     "workspace"
   ],
-  "activationEvents": [
-    "onAuthenticationRequest:github",
-    "onAuthenticationRequest:github-enterprise"
-  ],
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -66,7 +63,7 @@
   },
   "dependencies": {
     "node-fetch": "2.6.7",
-    "@vscode/extension-telemetry": "0.7.0-preview",
+    "@vscode/extension-telemetry": "0.7.1-preview",
     "vscode-tas-client": "^0.1.47"
   },
   "devDependencies": {

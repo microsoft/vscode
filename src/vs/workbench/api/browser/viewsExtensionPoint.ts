@@ -251,7 +251,18 @@ type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
 const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewExtensionPointType>({
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
-	jsonSchema: viewsContribution
+	jsonSchema: viewsContribution,
+	activationEventsGenerator: (viewExtensionPointTypeArray, result) => {
+		for (const viewExtensionPointType of viewExtensionPointTypeArray) {
+			for (const viewDescriptors of Object.values(viewExtensionPointType)) {
+				for (const viewDescriptor of viewDescriptors) {
+					if (viewDescriptor.id) {
+						result.push(`onView:${viewDescriptor.id}`);
+					}
+				}
+			}
+		}
+	}
 });
 
 const CUSTOM_VIEWS_START_ORDER = 7;

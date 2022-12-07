@@ -9,7 +9,7 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debug.contribution';
 import 'vs/css!./media/debugHover';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import * as nls from 'vs/nls';
 import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
@@ -90,9 +90,9 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Debug Consoles"), commandId: SELECT_DEBUG_CONSOLE_ID }]
 });
 
-registerEditorContribution('editor.contrib.callStack', LazyCallStackEditorContribution);
-registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, LazyBreakpointEditorContribution);
-registerEditorContribution(EDITOR_CONTRIBUTION_ID, LazyDebugEditorContribution);
+registerEditorContribution('editor.contrib.callStack', LazyCallStackEditorContribution, EditorContributionInstantiation.Eager);
+registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, LazyBreakpointEditorContribution, EditorContributionInstantiation.Eager);
+registerEditorContribution(EDITOR_CONTRIBUTION_ID, LazyDebugEditorContribution, EditorContributionInstantiation.Eager);
 
 const registerDebugCommandPaletteItem = (id: string, title: ICommandActionTitle, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -456,14 +456,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
-			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible."),
+			enumDescriptions: [nls.localize('never', "Never show debug in Status bar"), nls.localize('always', "Always show debug in Status bar"), nls.localize('onFirstSessionStart', "Show debug in Status bar only after debug was started for the first time")],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug Status bar should be visible."),
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.console.closeOnEnd': {
 			type: 'boolean',
-			description: nls.localize('debug.console.closeOnEnd', "Controls if the debug console should be automatically closed when the debug session ends."),
+			description: nls.localize('debug.console.closeOnEnd', "Controls if the Debug Console should be automatically closed when the debug session ends."),
 			default: false
 		},
 		'debug.terminal.clearBeforeReusing': {
@@ -483,37 +483,37 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.console.fontSize': {
 			type: 'number',
-			description: nls.localize('debug.console.fontSize', "Controls the font size in pixels in the debug console."),
+			description: nls.localize('debug.console.fontSize', "Controls the font size in pixels in the Debug Console."),
 			default: isMacintosh ? 12 : 14,
 		},
 		'debug.console.fontFamily': {
 			type: 'string',
-			description: nls.localize('debug.console.fontFamily', "Controls the font family in the debug console."),
+			description: nls.localize('debug.console.fontFamily', "Controls the font family in the Debug Console."),
 			default: 'default'
 		},
 		'debug.console.lineHeight': {
 			type: 'number',
-			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the debug console. Use 0 to compute the line height from the font size."),
+			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the Debug Console. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
 		'debug.console.wordWrap': {
 			type: 'boolean',
-			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
+			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the Debug Console."),
 			default: true
 		},
 		'debug.console.historySuggestions': {
 			type: 'boolean',
-			description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
+			description: nls.localize('debug.console.historySuggestions', "Controls if the Debug Console should suggest previously typed input."),
 			default: true
 		},
 		'debug.console.collapseIdenticalLines': {
 			type: 'boolean',
-			description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the debug console should collapse identical lines and show a number of occurrences with a badge."),
+			description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the Debug Console should collapse identical lines and show a number of occurrences with a badge."),
 			default: true
 		},
 		'debug.console.acceptSuggestionOnEnter': {
 			enum: ['off', 'on'],
-			description: nls.localize('debug.console.acceptSuggestionOnEnter', "Controls whether suggestions should be accepted on enter in the debug console. enter is also used to evaluate whatever is typed in the debug console."),
+			description: nls.localize('debug.console.acceptSuggestionOnEnter', "Controls whether suggestions should be accepted on Enter in the Debug Console. Enter is also used to evaluate whatever is typed in the Debug Console."),
 			default: 'off'
 		},
 		'launch': {

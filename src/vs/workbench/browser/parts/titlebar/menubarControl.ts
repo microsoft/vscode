@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -103,8 +103,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 		original: 'Terminal',
 		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
 	},
-	order: 7,
-	when: ContextKeyExpr.has('terminalProcessSupported')
+	order: 7
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
@@ -122,7 +121,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	title: {
 		value: 'Preferences',
 		original: 'Preferences',
-		mnemonicTitle: localize('mPreferences', "Preferences")
+		mnemonicTitle: localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "Preferences")
 	},
 	when: IsMacNativeContext,
 	order: 9
