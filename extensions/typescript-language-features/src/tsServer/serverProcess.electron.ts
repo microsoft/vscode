@@ -257,7 +257,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		let tsServerPath = version.tsServerPath;
 
 		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath"));
+			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath));
 			versionManager.reset();
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
