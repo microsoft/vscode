@@ -2048,7 +2048,6 @@ export class CommandCenter {
 				} else if (choice === stash) {
 					await this.stash(repository);
 					await item.run(opts);
-					await this.stashPopLatest(repository);
 				}
 			}
 		}
