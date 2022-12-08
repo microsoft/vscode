@@ -172,7 +172,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this._partOptions = newPartOptions;
 
-		// TODO: couldn't think of better method to propagate this change
 		this.centeredLayoutWidget.setFixedWidth(this._partOptions.centeredLayoutFixedWidth ?? false);
 
 		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
