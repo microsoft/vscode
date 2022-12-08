@@ -4,10 +4,6 @@
 # ---------------------------------------------------------------------------------------------
 builtin autoload -Uz add-zsh-hook
 
-if [[  "$VSCODE_INJECTION" == "1"  && -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
-	HISTFILE=$USER_ZDOTDIR/.zsh_history
-fi
-
 # Prevent the script recursing when setting up
 if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
 	ZDOTDIR=$USER_ZDOTDIR
@@ -18,11 +14,18 @@ fi
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
+# Set HISTFILE to the default location before the user's .zshrc is sourced
+# to prevent the value of HISTFILE from defaulting to VSCODE_ZDOTDIR/.zsh_history
+if [[  "$VSCODE_INJECTION" == "1"  && -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
+	HISTFILE=$USER_ZDOTDIR/.zsh_history
+fi
+
 # Only fix up ZDOTDIR if shell integration was injected (not manually installed) and has not been called yet
 if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
 		VSCODE_ZDOTDIR=$ZDOTDIR
 		ZDOTDIR=$USER_ZDOTDIR
+		# A user's custom HISTFILE location might be set when their .zshrc file is sourced below
 		. $USER_ZDOTDIR/.zshrc
 	fi
 fi
