@@ -94,7 +94,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 	private readonly testViewProg = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly updateCountsEmitter = new Emitter<CountSummary>();
 	private readonly updateTextEmitter = new Emitter<string>();
-	private lastRunSoFar = 0;
+	private lastProgress = 0;
 
 	public readonly onCountChange = this.updateCountsEmitter.event;
 	public readonly onTextChange = this.updateTextEmitter.event;
@@ -122,7 +122,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 			this.windowProg.clear();
 			this.testViewProg.clear();
-			this.lastRunSoFar = 0;
+			this.lastProgress = 0;
 			return;
 		}
 
@@ -133,7 +133,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 			});
 			this.testViewProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
 				location: Testing.ViewletId,
-				total: 100,
+				total: 1000,
 			});
 		}
 
@@ -143,8 +143,10 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		const message = getTestProgressText(true, collected);
 		this.updateTextEmitter.fire(message);
 		this.windowProg.value.report({ message });
-		this.testViewProg.value!.report({ increment: collected.runSoFar - this.lastRunSoFar, total: collected.totalWillBeRun });
-		this.lastRunSoFar = collected.runSoFar;
+		const nextProgress = collected.runSoFar / collected.totalWillBeRun;
+		console.log({ increment: nextProgress - this.lastProgress, total: 1 });
+		this.testViewProg.value!.report({ increment: (nextProgress - this.lastProgress) * 1000, total: 1 });
+		this.lastProgress = nextProgress;
 	}
 }
 

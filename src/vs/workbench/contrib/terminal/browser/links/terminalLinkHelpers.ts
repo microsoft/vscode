@@ -77,9 +77,14 @@ export function convertLinkRangeToBuffer(
 			break;
 		}
 		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
-			const cell = line.getCell(x)!;
-			const width = cell.getWidth();
+			const cell = line.getCell(x);
+			// This is unexpected but it means the character doesn't exist, so we shouldn't add to
+			// the offset
+			if (!cell) {
+				break;
+			}
 			// Offset for 0 cells following wide characters
+			const width = cell.getWidth();
 			if (width === 2) {
 				lineOffset++;
 			}
@@ -124,7 +129,7 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is
 	// more of a sanity check as the wrapped line should already be trimmed down at this point.
-	const maxLineLength = Math.max(2048 / cols * 2);
+	const maxLineLength = Math.max(2048, cols * 2);
 	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {

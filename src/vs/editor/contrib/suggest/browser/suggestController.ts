@@ -405,7 +405,7 @@ export class SuggestController implements IEditorContribution {
 		if (item.completion.command) {
 			if (item.completion.command.id === TriggerSuggestAction.id) {
 				// retigger
-				this.model.trigger({ auto: true, shy: false }, true);
+				this.model.trigger({ auto: true, retrigger: true });
 			} else {
 				// exec command, done
 				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
@@ -500,7 +500,10 @@ export class SuggestController implements IEditorContribution {
 
 	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
+			this.model.trigger({
+				auto: auto ?? false,
+				completionOptions: { providerFilter: onlyFrom, kindFilter: noFilter ? new Set() : undefined }
+			});
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}

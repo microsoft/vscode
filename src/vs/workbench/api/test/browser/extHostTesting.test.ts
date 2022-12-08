@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import * as editorRange from 'vs/editor/common/core/range';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostTestItemCollection, TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import type { TestItem, TestRunRequest } from 'vscode';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as editorRange from 'vs/editor/common/core/range';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -620,12 +621,12 @@ suite('ExtHost Testing', () => {
 
 		test('tracks a run started from a main thread request', () => {
 			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
-			assert.strictEqual(tracker.isRunning, false);
+			assert.strictEqual(tracker.hasRunningTasks, false);
 
 			const task1 = c.createTestRun('ctrl', single, req, 'run1', true);
 			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
 			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task1.appendOutput('hello');
 			const taskId = proxy.$appendOutputToRun.args[0]?.[1];
@@ -633,19 +634,65 @@ suite('ExtHost Testing', () => {
 			task1.end();
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task2.end();
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, false);
+			assert.strictEqual(tracker.hasRunningTasks, false);
+		});
+
+		test('run cancel force ends after a timeout', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+				const task = c.createTestRun('ctrl', single, req, 'run1', true);
+				const onEnded = sinon.stub();
+				tracker.onEnd(onEnded);
+
+				assert.strictEqual(task.token.isCancellationRequested, false);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+				tracker.cancel();
+
+				assert.strictEqual(task.token.isCancellationRequested, true);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+
+				clock.tick(9999);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+				assert.strictEqual(onEnded.called, false);
+
+				clock.tick(1);
+				assert.strictEqual(onEnded.called, true);
+				assert.strictEqual(tracker.hasRunningTasks, false);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('run cancel force ends on second cancellation request', () => {
+			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			const task = c.createTestRun('ctrl', single, req, 'run1', true);
+			const onEnded = sinon.stub();
+			tracker.onEnd(onEnded);
+
+			assert.strictEqual(task.token.isCancellationRequested, false);
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			tracker.cancel();
+
+			assert.strictEqual(task.token.isCancellationRequested, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			assert.strictEqual(onEnded.called, false);
+			tracker.cancel();
+
+			assert.strictEqual(tracker.hasRunningTasks, false);
+			assert.strictEqual(onEnded.called, true);
 		});
 
 		test('tracks a run started from an extension request', () => {
 			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
 
 			const tracker = Iterable.first(c.trackers)!;
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
 				[{
 					profile: { group: 2, id: 42 },
@@ -662,11 +709,11 @@ suite('ExtHost Testing', () => {
 
 			task1.end();
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task2.end();
 			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
-			assert.strictEqual(tracker.isRunning, false);
+			assert.strictEqual(tracker.hasRunningTasks, false);
 
 			task3Detached.end();
 		});

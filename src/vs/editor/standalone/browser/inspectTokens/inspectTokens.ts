@@ -19,10 +19,7 @@ import { FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/en
 import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 
 class InspectTokensController extends Disposable implements IEditorContribution {
@@ -331,11 +328,3 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 
 registerEditorContribution(InspectTokensController.ID, InspectTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectTokens);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-	}
-});
