@@ -210,7 +210,10 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
-		this.focusNext();
+
+		if (this._list.length) {
+			this.focusNext();
+		}
 	}
 
 	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
