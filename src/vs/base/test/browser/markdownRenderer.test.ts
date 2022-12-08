@@ -161,7 +161,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -181,7 +181,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -248,7 +248,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = renderMarkdown(md).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" title="command:doFoo">command1</a> <a data-href="command:doFoo">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {
