@@ -10,13 +10,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { timeout } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -164,7 +164,7 @@ class ToggleScreencastModeAction extends Action2 {
 			keyboardMarker.style.bottom = `${clamp(configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
-		let keyboardMarkerTimeout: number;
+		let keyboardMarkerTimeout!: number;
 		const updateKeyboardMarkerTimeout = () => {
 			keyboardMarkerTimeout = clamp(configurationService.getValue<number>('screencastMode.keyboardOverlayTimeout') || 800, 500, 5000);
 		};
@@ -196,11 +196,40 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
-		let keyboardTimeout: IDisposable = Disposable.None;
+		const onCompositionUpdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
+		const onCompositionEnd = disposables.add(new DomEmitter(window, 'compositionend', true));
+
 		let length = 0;
+		let composing: Element | undefined = undefined;
+
+		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+			keyboardMarker.textContent = '';
+			composing = undefined;
+			length = 0;
+		}, keyboardMarkerTimeout);
+
+		disposables.add(onCompositionUpdate.event(e => {
+			if (e.data) {
+				composing = composing ?? append(keyboardMarker, $('span.key'));
+				composing.textContent = e.data;
+			}
+
+			clearKeyboardScheduler.schedule();
+		}));
+
+		disposables.add(onCompositionEnd.event(e => {
+			composing = undefined;
+		}));
 
 		disposables.add(onKeyDown.event(e => {
-			keyboardTimeout.dispose();
+			if (e.key === 'Process') {
+				if (!e.code.includes('Key')) {
+					composing = undefined;
+					clearKeyboardScheduler.cancel();
+				}
+
+				return;
+			}
 
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
@@ -248,13 +277,7 @@ class ToggleScreencastModeAction extends Action2 {
 				length++;
 			}
 
-			const promise = timeout(keyboardMarkerTimeout);
-			keyboardTimeout = toDisposable(() => promise.cancel());
-
-			promise.then(() => {
-				keyboardMarker.textContent = '';
-				length = 0;
-			});
+			clearKeyboardScheduler.schedule();
 		}));
 
 		ToggleScreencastModeAction.disposable = disposables;
