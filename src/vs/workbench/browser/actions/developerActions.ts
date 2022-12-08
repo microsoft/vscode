@@ -262,9 +262,11 @@ class ToggleScreencastModeAction extends Action2 {
 					}
 
 					if (shortcut?.commandId) {
-						const fullKeyLabel = keybindingService.lookupKeybinding(shortcut.commandId);
-						if (fullKeyLabel) {
-							keyLabel = fullKeyLabel.getLabel();
+						const keybindings = keybindingService.lookupKeybindings(shortcut.commandId)
+							.filter(k => k.getLabel()?.endsWith(keyLabel ?? ''));
+
+						if (keybindings.length > 0) {
+							keyLabel = keybindings[keybindings.length - 1].getLabel();
 						}
 					}
 				}
