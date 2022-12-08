@@ -755,6 +755,30 @@ function getWellFormedFileName(filename: string): string {
 	return filename;
 }
 
+export class NewUntitledDiffAction extends Action2 {
+
+	static readonly ID = 'workbench.files.action.newUntitledDiff';
+	static readonly LABEL = nls.localize('newUntitledDiff', "New Untitled Diff");
+
+	constructor() {
+		super({
+			id: NewUntitledDiffAction.ID,
+			title: { value: NewUntitledDiffAction.LABEL, original: 'New Untitled Diff' },
+			f1: true,
+			category: fileCategory
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({
+			original: { resource: undefined },
+			modified: { resource: undefined },
+			options: { pinned: true }
+		});
+	}
+}
+
 export class CompareWithClipboardAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
