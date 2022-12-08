@@ -728,6 +728,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
 				return vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'browser', 'typescript', filepath.slice(1));
 			}
+			const resource = vscode.Uri.from({ scheme: 'vscode-test-web', authority: 'mount', path: filepath });
+			return this.bufferSyncSupport.toVsCodeResource(resource);
 		}
 
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {

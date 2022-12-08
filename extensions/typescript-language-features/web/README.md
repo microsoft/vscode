@@ -21,11 +21,15 @@ Language server host for typescript using vscode's sync-api in the browser
     In any case it'll need to get shut down before then, which may not be possible without changing Typescript.
   - LATER: Turns out you can skip the existing server by depending on tsserverlibrary instead of tsserver.
 - [x] figure out a webpack-native way to generate tsserver.web.js if possible
-- [ ] path rewriting is pretty loosey-goosey; likely to be incorrect some of the time
+- [x] path rewriting is pretty loosey-goosey; likely to be incorrect some of the time
    - invert the logic from TypeScriptServiceClient.normalizedPath for requests
    - invert the function from webServer.ts for responses (maybe)
    - something with getWorkspaceRootForResource (or anything else that checks `resouce.scheme`)
 - [ ] fill in missing environment files like lib.dom.d.ts
+   - toResource's isWeb branch *probably* knows where to find this, just need to put it in the virtual FS
+   - I guess during setup in serverProcess.browser.ts.
+   - Not sure whether it needs to have the data or just a fs entry.
+   - Wait, I don't know how files get added to the FS normally.
 - [ ] cancellation should only retain one cancellation checker
    - the one that matches the current request id
    - but that means tracking (or retrieving from tsserver) the request id (aka seq?)
@@ -35,12 +39,20 @@ Language server host for typescript using vscode's sync-api in the browser
    - looks like `isWeb()` is a way to check for being on the web
 - [ ] create multiple watchers
    - on-demand instead of watching everything and checking on watch firing
+- [ ] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
+- [ ] clear out TODOs
 
 ### Bugs
 
 - [ ] Response `seq` is always 0.
-- [ ] renaming a file throws a No Project error to the console.
-- [ ] gotodef in another file throws and the editor has a special UI for it.
+- [ ] problems pane doesn't clear problems issued on tsconfig.
+- [x] renaming a file throws a No Project error to the console.
+- [x] gotodef in another file throws and the editor has a special UI for it.
+  - definitionProviderBase.getSymbolLocations calls toOpenedFilePath which eventually calls the new / code
+  - then it calls client.execute which appears to actually request/response to the tsserver
+  - then the response body is mapped over location.file >> client.toResource >> fromTextSpan
+  - toResource has isWeb support, as well as (now unused) inMemoryResourcePrefix support
+  - so I can just redo whatever that did and it'll be fine
 
 ### Final
 

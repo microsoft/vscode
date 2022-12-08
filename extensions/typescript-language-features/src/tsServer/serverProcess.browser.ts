@@ -12,8 +12,6 @@ import { TypeScriptVersion } from './versionProvider';
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { Requests, ApiService } from '@vscode/sync-api-service';
 
-
-// slightly more detailed webworker types
 export class WorkerServerProcess implements TsServerProcess {
 
 	public static fork(
