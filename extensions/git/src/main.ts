@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -85,7 +85,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
 		env: environment,
-	}, telemetryReporter);
+	});
 	const model = new Model(git, askpass, context.globalState, logger, telemetryReporter);
 	disposables.push(model);
 
@@ -106,7 +106,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const cc = new CommandCenter(git, model, logger, telemetryReporter);
+	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
 		new GitFileSystemProvider(model),
@@ -178,8 +178,14 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	const logger = window.createOutputChannel('Git', { log: true });
 	disposables.push(logger);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
-	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
+	const onDidChangeLogLevel = (logLevel: LogLevel) => {
+		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+	};
+	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
+	onDidChangeLogLevel(logger.logLevel);
+
+	const { aiKey } = require('../package.json') as { aiKey: string };
+	const telemetryReporter = new TelemetryReporter(aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
 	const config = workspace.getConfiguration('git', null);

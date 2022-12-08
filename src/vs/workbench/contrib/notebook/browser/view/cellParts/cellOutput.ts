@@ -24,7 +24,7 @@ import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -427,7 +427,7 @@ class OutputEntryViewHandler {
 	}
 }
 
-export class CellOutputContainer extends CellPart {
+export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 
 	get renderedOutputEntries() {

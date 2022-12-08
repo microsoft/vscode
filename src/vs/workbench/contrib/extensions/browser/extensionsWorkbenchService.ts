@@ -46,7 +46,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb, language } from 'vs/base/common/platform';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 interface IExtensionStateProvider<T> {
@@ -174,7 +174,7 @@ export class Extension implements IExtension {
 
 	private get localIconUrl(): string | null {
 		if (this.local && this.local.manifest.icon) {
-			return FileAccess.asBrowserUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
+			return FileAccess.uriToBrowserUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
 		}
 		return null;
 	}
@@ -191,10 +191,10 @@ export class Extension implements IExtension {
 		if (this.type === ExtensionType.System && this.local) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
-					return FileAccess.asBrowserUri('./media/theme-icon.png', require).toString(true);
+					return FileAccess.asBrowserUri('vs/workbench/contrib/extensions/browser/media/theme-icon.png').toString(true);
 				}
 				if (Array.isArray(this.local.manifest.contributes.grammars) && this.local.manifest.contributes.grammars.length) {
-					return FileAccess.asBrowserUri('./media/language-icon.svg', require).toString(true);
+					return FileAccess.asBrowserUri('vs/workbench/contrib/extensions/browser/media/language-icon.svg').toString(true);
 				}
 			}
 		}
@@ -718,7 +718,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super();
@@ -774,8 +773,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this.queryLocal().then(() => {
 			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
-				this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+				if (!this._store.isDisposed) {
+					this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
+					this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+				}
 			});
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
@@ -1237,8 +1238,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && (!installed.local?.identifier.uuid || (!isWeb && this.productService.quality === 'stable'))) {
-				// Skip checking updates for a builtin extension if it does not has Marketplace identifier or the current product is VS Code Desktop stable.
+			if (installed.isBuiltin && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
+				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
@@ -1377,7 +1378,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		const locale = this.languagePackService.getLocale(extension.gallery);
+		const locale = getLocale(extension.gallery);
 		if (!locale) {
 			return false;
 		}
@@ -1389,7 +1390,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.canSetLanguage(extension)) {
 			throw new Error('Can not set language');
 		}
-		const locale = this.languagePackService.getLocale(extension.gallery!);
+		const locale = getLocale(extension.gallery!);
 		if (locale === language) {
 			return;
 		}

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import { OrganizeImportsMode } from '../protocol.const';
@@ -17,20 +16,18 @@ import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 interface OrganizeImportsCommandMetadata {
 	readonly ids: readonly string[];
 	readonly title: string;
-	readonly minVersion: API;
+	readonly minVersion?: API;
 	readonly kind: vscode.CodeActionKind;
 	readonly mode: OrganizeImportsMode;
 }
 
 const organizeImportsCommand: OrganizeImportsCommandMetadata = {
 	ids: ['typescript.organizeImports'],
-	minVersion: API.v280,
-	title: localize('organizeImportsAction.title', "Organize Imports"),
+	title: vscode.l10n.t("Organize Imports"),
 	kind: vscode.CodeActionKind.SourceOrganizeImports,
 	mode: OrganizeImportsMode.All,
 };
@@ -38,7 +35,7 @@ const organizeImportsCommand: OrganizeImportsCommandMetadata = {
 const sortImportsCommand: OrganizeImportsCommandMetadata = {
 	ids: ['typescript.sortImports', 'javascript.sortImports'],
 	minVersion: API.v430,
-	title: localize('sortImportsAction.title', "Sort Imports"),
+	title: vscode.l10n.t("Sort Imports"),
 	kind: vscode.CodeActionKind.Source.append('sortImports'),
 	mode: OrganizeImportsMode.SortAndCombine,
 };
@@ -46,7 +43,7 @@ const sortImportsCommand: OrganizeImportsCommandMetadata = {
 const removeUnusedImportsCommand: OrganizeImportsCommandMetadata = {
 	ids: ['typescript.removeUnusedImports', 'javascript.removeUnusedImports'],
 	minVersion: API.v490,
-	title: localize('removeUnusedImportsAction.title', "Remove Unused Imports"),
+	title: vscode.l10n.t("Remove Unused Imports"),
 	kind: vscode.CodeActionKind.Source.append('removeUnusedImports'),
 	mode: OrganizeImportsMode.RemoveUnused,
 };
@@ -73,7 +70,7 @@ class OrganizeImportsCommand implements Command {
 		if (!file) {
 			const activeEditor = vscode.window.activeTextEditor;
 			if (!activeEditor) {
-				vscode.window.showErrorMessage(localize('error.organizeImports.noResource', "Organize Imports failed. No resource provided."));
+				vscode.window.showErrorMessage(vscode.l10n.t("Organize Imports failed. No resource provided."));
 				return;
 			}
 
@@ -81,7 +78,7 @@ class OrganizeImportsCommand implements Command {
 			const document = await vscode.workspace.openTextDocument(resource);
 			const openedFiledPath = this.client.toOpenedFilePath(document);
 			if (!openedFiledPath) {
-				vscode.window.showErrorMessage(localize('error.organizeImports.unknownFile', "Organize Imports failed. Unknown file type."));
+				vscode.window.showErrorMessage(vscode.l10n.t("Organize Imports failed. Unknown file type."));
 				return;
 			}
 
@@ -159,7 +156,7 @@ export function register(
 
 	for (const command of [organizeImportsCommand, sortImportsCommand, removeUnusedImportsCommand]) {
 		disposables.push(conditionalRegistration([
-			requireMinVersion(client, command.minVersion),
+			requireMinVersion(client, command.minVersion ?? API.defaultVersion),
 			requireSomeCapability(client, ClientCapability.Semantic),
 		], () => {
 			const provider = new ImportsCodeActionProvider(client, command, commandManager, fileConfigurationManager, telemetryReporter);

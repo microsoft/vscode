@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -194,6 +194,14 @@ class FetchAllRemotesItem implements QuickPickItem {
 	}
 }
 
+class UnsafeRepositoryItem implements QuickPickItem {
+	get label(): string {
+		return `$(repo) ${this.path}`;
+	}
+
+	constructor(public readonly path: string) { }
+}
+
 interface ScmCommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -351,6 +359,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
+		private globalState: Memento,
 		private logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
@@ -543,7 +552,7 @@ export class CommandCenter {
 				canSelectMany: false,
 				defaultUri: Uri.file(defaultCloneDirectory),
 				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select Repository Location')
+				openLabel: l10n.t('Select as Repository Destination')
 			});
 
 			if (!uris || uris.length === 0) {
@@ -1570,7 +1579,7 @@ export class CommandCenter {
 		repository: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
 		opts: CommitOptions
-	): Promise<boolean> {
+	): Promise<void> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
@@ -1610,7 +1619,7 @@ export class CommandCenter {
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 				} else if (pick !== commit) {
-					return false; // do not commit on cancel
+					return; // do not commit on cancel
 				}
 			}
 		}
@@ -1620,7 +1629,7 @@ export class CommandCenter {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
-				return false;
+				return;
 			}
 
 			// prompt the user if we want to commit all or not
@@ -1634,9 +1643,9 @@ export class CommandCenter {
 				config.update('enableSmartCommit', true, true);
 			} else if (pick === never) {
 				config.update('suggestSmartCommit', false, true);
-				return false;
+				return;
 			} else if (pick !== yes) {
-				return false; // do not commit on cancel
+				return; // do not commit on cancel
 			}
 		}
 
@@ -1682,7 +1691,7 @@ export class CommandCenter {
 			const answer = await window.showInformationMessage(l10n.t('There are no changes to commit.'), commitAnyway);
 
 			if (answer !== commitAnyway) {
-				return false;
+				return;
 			}
 
 			opts.empty = true;
@@ -1691,7 +1700,7 @@ export class CommandCenter {
 		if (opts.noVerify) {
 			if (!config.get<boolean>('allowNoVerifyCommit')) {
 				await window.showErrorMessage(l10n.t('Commits without verification are not allowed, please enable them with the "git.allowNoVerifyCommit" setting.'));
-				return false;
+				return;
 			}
 
 			if (config.get<boolean>('confirmNoVerifyCommit')) {
@@ -1703,7 +1712,7 @@ export class CommandCenter {
 				if (pick === neverAgain) {
 					config.update('confirmNoVerifyCommit', false, true);
 				} else if (pick !== yes) {
-					return false;
+					return;
 				}
 			}
 		}
@@ -1711,7 +1720,7 @@ export class CommandCenter {
 		const message = await getCommitMessage();
 
 		if (!message && !opts.amend && !opts.useEditor) {
-			return false;
+			return;
 		}
 
 		if (opts.all && smartCommitChanges === 'tracked') {
@@ -1737,12 +1746,12 @@ export class CommandCenter {
 			}
 
 			if (!pick) {
-				return false;
+				return;
 			} else if (pick === commitToNewBranch) {
 				const branchName = await this.promptForBranchName(repository);
 
 				if (!branchName) {
-					return false;
+					return;
 				}
 
 				await repository.branch(branchName, true);
@@ -1750,8 +1759,6 @@ export class CommandCenter {
 		}
 
 		await repository.commit(message, opts);
-
-		return true;
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
@@ -1789,11 +1796,7 @@ export class CommandCenter {
 			return _message;
 		};
 
-		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
-
-		if (message && didCommit) {
-			repository.inputBox.value = await repository.getInputTemplate();
-		}
+		await this.smartCommit(repository, getCommitMessage, opts);
 	}
 
 	@command('git.commit', { repository: true })
@@ -1833,7 +1836,8 @@ export class CommandCenter {
 
 	@command('git.commitMessageAccept')
 	async commitMessageAccept(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg && !window.activeTextEditor) { return; }
+		arg ??= window.activeTextEditor!.document.uri;
 
 		// Close the tab
 		this._closeEditorTab(arg);
@@ -1841,11 +1845,12 @@ export class CommandCenter {
 
 	@command('git.commitMessageDiscard')
 	async commitMessageDiscard(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg && !window.activeTextEditor) { return; }
+		arg ??= window.activeTextEditor!.document.uri;
 
 		// Clear the contents of the editor
 		const editors = window.visibleTextEditors
-			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg!.toString());
 
 		if (editors.length !== 1) { return; }
 
@@ -2045,7 +2050,6 @@ export class CommandCenter {
 				} else if (choice === stash) {
 					await this.stash(repository);
 					await item.run(opts);
-					await this.stashPopLatest(repository);
 				}
 			}
 		}
@@ -2544,12 +2548,20 @@ export class CommandCenter {
 					return;
 				}
 
-				const branchName = repository.HEAD.name;
-				const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
-				const yes = l10n.t('OK');
-				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				if (this.globalState.get<boolean>('confirmBranchPublish', true)) {
+					const branchName = repository.HEAD.name;
+					const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
+					const yes = l10n.t('OK');
+					const neverAgain = l10n.t('OK, Don\'t Ask Again');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
-				if (pick === yes) {
+					if (pick === yes || pick === neverAgain) {
+						if (pick === neverAgain) {
+							this.globalState.update('confirmBranchPublish', false);
+						}
+						await this.publish(repository);
+					}
+				} else {
 					await this.publish(repository);
 				}
 			}
@@ -2694,14 +2706,7 @@ export class CommandCenter {
 		if (!HEAD) {
 			return;
 		} else if (!HEAD.upstream) {
-			const branchName = HEAD.name;
-			const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName ?? '');
-			const yes = l10n.t('OK');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick === yes) {
-				await this.publish(repository);
-			}
+			this._push(repository, { pushType: PushType.Push });
 			return;
 		}
 
@@ -3021,6 +3026,7 @@ export class CommandCenter {
 		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
 			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			{ modal: true },
 			yes
 		);
 		if (result !== yes) {
@@ -3045,7 +3051,7 @@ export class CommandCenter {
 			l10n.t('Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.') :
 			l10n.t('Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.', stashes.length);
 
-		const result = await window.showWarningMessage(question, yes);
+		const result = await window.showWarningMessage(question, { modal: true }, yes);
 		if (result !== yes) {
 			return;
 		}
@@ -3185,6 +3191,51 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.manageUnsafeRepositories')
+	async manageUnsafeRepositories(): Promise<void> {
+		const unsafeRepositories: string[] = [];
+
+		const quickpick = window.createQuickPick();
+		quickpick.title = l10n.t('Manage Unsafe Repositories');
+		quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.values()).sort().map(r => new UnsafeRepositoryItem(r));
+
+		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		quickpick.show();
+		const repositoryItem = await new Promise<UnsafeRepositoryItem | QuickPickItem | undefined>(
+			resolve => {
+				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
+				quickpick.onDidHide(() => resolve(undefined));
+			});
+		quickpick.hide();
+
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem.label === allRepositoriesLabel) {
+			// All Repositories
+			unsafeRepositories.push(...this.model.unsafeRepositories.values());
+		} else {
+			// One Repository
+			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
+		}
+
+		for (const unsafeRepository of unsafeRepositories) {
+			// Mark as Safe
+			await this.git.addSafeDirectory(unsafeRepository);
+
+			// Open Repository
+			await this.model.openRepository(unsafeRepository);
+			this.model.unsafeRepositories.delete(unsafeRepository);
+		}
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -3269,10 +3320,12 @@ export class CommandCenter {
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
 						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
 						message = l10n.t('There were merge conflicts while applying the stash.');
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						type = 'warning';
 						options.modal = false;
 						break;

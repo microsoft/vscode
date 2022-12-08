@@ -35,6 +35,10 @@ export function asCssVariableName(colorIdent: ColorIdentifier): string {
 	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
+export function asCssValue(color: ColorIdentifier): string {
+	return `var(${asCssVariableName(color)})`;
+}
+
 export const enum ColorTransformType {
 	Darken,
 	Lighten,
@@ -217,7 +221,7 @@ export const errorForeground = registerColor('errorForeground', { dark: '#F48771
 export const descriptionForeground = registerColor('descriptionForeground', { light: '#717171', dark: transparent(foreground, 0.7), hcDark: transparent(foreground, 0.7), hcLight: transparent(foreground, 0.7) }, nls.localize('descriptionForeground', "Foreground color for description text providing additional information, for example for a label."));
 export const iconForeground = registerColor('icon.foreground', { dark: '#C5C5C5', light: '#424242', hcDark: '#FFFFFF', hcLight: '#292929' }, nls.localize('iconForeground', "The default color for icons in the workbench."));
 
-export const focusBorder = registerColor('focusBorder', { dark: '#007FD4', light: '#0090F1', hcDark: '#F38518', hcLight: '#0F4A85' }, nls.localize('focusBorder', "Overall border color for focused elements. This color is only used if not overridden by a component."));
+export const focusBorder = registerColor('focusBorder', { dark: '#007FD4', light: '#0090F1', hcDark: '#F38518', hcLight: '#006BBD' }, nls.localize('focusBorder', "Overall border color for focused elements. This color is only used if not overridden by a component."));
 
 export const contrastBorder = registerColor('contrastBorder', { light: null, dark: null, hcDark: '#6FC3DF', hcLight: '#0F4A85' }, nls.localize('contrastBorder', "An extra border around elements to separate them from others for greater contrast."));
 export const activeContrastBorder = registerColor('contrastActiveBorder', { light: null, dark: null, hcDark: focusBorder, hcLight: focusBorder }, nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
@@ -243,7 +247,7 @@ export const inputBorder = registerColor('input.border', { dark: null, light: nu
 export const inputActiveOptionBorder = registerColor('inputOption.activeBorder', { dark: '#007ACC00', light: '#007ACC00', hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
 export const inputActiveOptionHoverBackground = registerColor('inputOption.hoverBackground', { dark: '#5a5d5e80', light: '#b8b8b850', hcDark: null, hcLight: null }, nls.localize('inputOption.hoverBackground', "Background color of activated options in input fields."));
 export const inputActiveOptionBackground = registerColor('inputOption.activeBackground', { dark: transparent(focusBorder, 0.4), light: transparent(focusBorder, 0.2), hcDark: Color.transparent, hcLight: Color.transparent }, nls.localize('inputOption.activeBackground', "Background hover color of options in input fields."));
-export const inputActiveOptionForeground = registerColor('inputOption.activeForeground', { dark: Color.white, light: Color.black, hcDark: null, hcLight: foreground }, nls.localize('inputOption.activeForeground', "Foreground color of activated options in input fields."));
+export const inputActiveOptionForeground = registerColor('inputOption.activeForeground', { dark: Color.white, light: Color.black, hcDark: foreground, hcLight: foreground }, nls.localize('inputOption.activeForeground', "Foreground color of activated options in input fields."));
 export const inputPlaceholderForeground = registerColor('input.placeholderForeground', { light: transparent(foreground, 0.5), dark: transparent(foreground, 0.5), hcDark: transparent(foreground, 0.7), hcLight: transparent(foreground, 0.7) }, nls.localize('inputPlaceholderForeground', "Input box foreground color for placeholder text."));
 
 export const inputValidationInfoBackground = registerColor('inputValidation.infoBackground', { dark: '#063B49', light: '#D6ECF2', hcDark: Color.black, hcLight: Color.white }, nls.localize('inputValidationInfoBackground', "Input validation background color for information severity."));
@@ -261,14 +265,10 @@ export const selectListBackground = registerColor('dropdown.listBackground', { d
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hcDark: Color.white, hcLight: foreground }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
-export const checkboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hcDark: selectBackground, hcLight: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
-export const checkboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hcDark: selectForeground, hcLight: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
-export const checkboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hcDark: selectBorder, hcLight: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
-
 export const buttonForeground = registerColor('button.foreground', { dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
 export const buttonSeparator = registerColor('button.separator', { dark: transparent(buttonForeground, .4), light: transparent(buttonForeground, .4), hcDark: transparent(buttonForeground, .4), hcLight: transparent(buttonForeground, .4) }, nls.localize('buttonSeparator', "Button separator color."));
 export const buttonBackground = registerColor('button.background', { dark: '#0E639C', light: '#007ACC', hcDark: null, hcLight: '#0F4A85' }, nls.localize('buttonBackground', "Button background color."));
-export const buttonHoverBackground = registerColor('button.hoverBackground', { dark: lighten(buttonBackground, 0.2), light: darken(buttonBackground, 0.2), hcDark: null, hcLight: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
+export const buttonHoverBackground = registerColor('button.hoverBackground', { dark: lighten(buttonBackground, 0.2), light: darken(buttonBackground, 0.2), hcDark: buttonBackground, hcLight: buttonBackground }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
 export const buttonBorder = registerColor('button.border', { dark: contrastBorder, light: contrastBorder, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('buttonBorder', "Button border color."));
 
 export const buttonSecondaryForeground = registerColor('button.secondaryForeground', { dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: foreground }, nls.localize('buttonSecondaryForeground', "Secondary button foreground color."));
@@ -457,6 +457,15 @@ export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke', {
 export const tableColumnsBorder = registerColor('tree.tableColumnsBorder', { dark: '#CCCCCC20', light: '#61616120', hcDark: null, hcLight: null }, nls.localize('tableColumnsBorder', "Table border color between columns."));
 export const tableOddRowsBackgroundColor = registerColor('tree.tableOddRowsBackground', { dark: transparent(foreground, 0.04), light: transparent(foreground, 0.04), hcDark: null, hcLight: null }, nls.localize('tableOddRowsBackgroundColor', "Background color for odd table rows."));
 export const listDeemphasizedForeground = registerColor('list.deemphasizedForeground', { dark: '#8C8C8C', light: '#8E8E90', hcDark: '#A7A8A9', hcLight: '#666666' }, nls.localize('listDeemphasizedForeground', "List/Tree foreground color for items that are deemphasized. "));
+
+/**
+ * Checkboxes
+ */
+export const checkboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hcDark: selectBackground, hcLight: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
+export const checkboxSelectBackground = registerColor('checkbox.selectBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('checkbox.select.background', "Background color of checkbox widget when the element it's in is selected."));
+export const checkboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hcDark: selectForeground, hcLight: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
+export const checkboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hcDark: selectBorder, hcLight: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
+export const checkboxSelectBorder = registerColor('checkbox.selectBorder', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('checkbox.select.border', "Border color of checkbox widget when the element it's in is selected."));
 
 /**
  * Quick pick widget (dependent on List and tree colors)

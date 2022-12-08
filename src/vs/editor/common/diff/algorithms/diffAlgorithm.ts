@@ -46,6 +46,10 @@ export class OffsetRange {
 	public toString() {
 		return `[${this.start}, ${this.endExclusive})`;
 	}
+
+	public join(other: OffsetRange): OffsetRange {
+		return new OffsetRange(Math.min(this.start, other.start), Math.max(this.endExclusive, other.endExclusive));
+	}
 }
 
 export interface ISequence {
@@ -58,16 +62,4 @@ export interface ISequence {
 	 * Must not be negative.
 	*/
 	getBoundaryScore?(length: number): number;
-}
-
-export class SequenceFromIntArray implements ISequence {
-	constructor(private readonly arr: number[]) { }
-
-	getElement(offset: number): number {
-		return this.arr[offset];
-	}
-
-	get length(): number {
-		return this.arr.length;
-	}
 }

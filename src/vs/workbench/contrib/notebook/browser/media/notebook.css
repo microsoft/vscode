@@ -125,7 +125,6 @@
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
 	height: 0px;
-	font-size: var(--notebook-cell-output-font-size);
 	user-select: text;
 	-webkit-user-select: text;
 	cursor: auto;

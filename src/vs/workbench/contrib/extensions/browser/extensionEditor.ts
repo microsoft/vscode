@@ -17,7 +17,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -63,13 +63,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { errorIcon, infoIcon, preReleaseIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'vs/base/common/semver/semver';
+import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class NavBar extends Disposable {
 
@@ -264,7 +264,7 @@ export class ExtensionEditor extends EditorPane {
 		return this._scopedContextKeyService.value;
 	}
 
-	createEditor(parent: HTMLElement): void {
+	protected createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
 		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
 		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
@@ -442,7 +442,7 @@ export class ExtensionEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			this.render(input.extension, this.template, !!options?.preserveFocus);
+			await this.render(input.extension, this.template, !!options?.preserveFocus);
 		}
 	}
 
@@ -593,7 +593,7 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.dependencies.length) {
 			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 		}
-		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExensionPack(manifest)) {
+		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExtensionPack(manifest)) {
 			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
@@ -681,7 +681,6 @@ export class ExtensionEditor extends EditorPane {
 			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
-				id: generateUuid(),
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
@@ -827,7 +826,7 @@ export class ExtensionEditor extends EditorPane {
 
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
-		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
+		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
 			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
 		} else {
 			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
@@ -837,7 +836,7 @@ export class ExtensionEditor extends EditorPane {
 		return activeElement;
 	}
 
-	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
+	private shallRenderAsExtensionPack(manifest: IExtensionManifest): boolean {
 		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
 	}
 
@@ -1110,7 +1109,22 @@ export class ExtensionEditor extends EditorPane {
 
 		if (extensionStatus?.activationTimes) {
 			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-			append(element, $('div.activation-message', undefined, `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`));
+			const activationElement = append(element, $('div.activation-details'));
+
+			const activationReasonElement = append(activationElement, $('div.activation-element-entry'));
+			append(activationReasonElement, $('span.activation-message-title', undefined, localize('activation reason', "Activation Event:")));
+			append(activationReasonElement, $('code', undefined, extensionStatus.activationTimes.activationReason.startup ? localize('startup', "Startup") : extensionStatus.activationTimes.activationReason.activationEvent));
+
+			const activationTimeElement = append(activationElement, $('div.activation-element-entry'));
+			append(activationTimeElement, $('span.activation-message-title', undefined, localize('activation time', "Activation Time:")));
+			append(activationTimeElement, $('code', undefined, `${activationTime}ms`));
+
+
+			if (ExtensionIdentifier.toKey(extensionStatus.activationTimes.activationReason.extensionId) !== ExtensionIdentifier.toKey(extension.identifier.id)) {
+				const activatedByElement = append(activationElement, $('div.activation-element-entry'));
+				append(activatedByElement, $('span.activation-message-title', undefined, localize('activatedBy', "Activated By:")));
+				append(activatedByElement, $('span', undefined, extensionStatus.activationTimes.activationReason.extensionId.value));
+			}
 		}
 
 		else if (extension.local && (extension.local.manifest.main || extension.local.manifest.browser)) {
@@ -1556,9 +1570,8 @@ export class ExtensionEditor extends EditorPane {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			const kbl = new KeybindingLabel(element, OS);
+			const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
 			kbl.set(keybinding);
-			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 

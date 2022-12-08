@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
-import { onDidChangeFullscreen, isFullscreen, isWCOVisible } from 'vs/base/browser/browser';
+import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
@@ -31,7 +31,7 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined, isNumber } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -299,6 +299,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
+
+		// WCO changes
+		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
+			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
+		}
 	}
 
 	private onMenubarToggled(visible: boolean): void {
@@ -678,23 +683,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return {
 				layout: defaultLayout.layout?.editors,
 				filesToOpenOrCreate: defaultLayout?.editors?.map(editor => {
-					// TODO@bpasero remove me eventually
-					const editor2 = editor as any;
-					const legacySelection = editor2.selection && editor2.selection.start && isNumber(editor2.selection.start.line) ? {
-						startLineNumber: editor2.selection.start.line,
-						startColumn: isNumber(editor2.selection.start.column) ? editor2.selection.start.column : 1,
-						endLineNumber: isNumber(editor2.selection.end.line) ? editor2.selection.end.line : undefined,
-						endColumn: isNumber(editor2.selection.end.line) ? (isNumber(editor2.selection.end.column) ? editor2.selection.end.column : 1) : undefined,
-					} : undefined;
-
 					return {
 						viewColumn: editor.viewColumn,
 						fileUri: URI.revive(editor.uri),
 						openOnlyIfExists: editor.openOnlyIfExists,
-						options: {
-							selection: legacySelection,
-							...editor.options // keep at the end to override legacy selection/override that may be `undefined`
-						}
+						options: editor.options
 					};
 				})
 			};
@@ -1068,6 +1061,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
 			return !this.state.runtime.fullscreen;
@@ -1079,7 +1077,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// if WCO is visible, we have to show the title bar
-		if (isWCOVisible()) {
+		if (isWCOEnabled() && !this.state.runtime.fullscreen) {
 			return true;
 		}
 
@@ -1097,6 +1095,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default:
 				return isWeb ? false : !this.state.runtime.fullscreen || this.state.runtime.menuBar.toggled;
 		}
+	}
+
+	private shouldShowBannerFirst(): boolean {
+		return isWeb && !isWCOEnabled();
 	}
 
 	focus(): void {
@@ -2003,6 +2005,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
+	private onDidChangeWCO(): void {
+		const bannerFirst = this.workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Up, false).length > 0;
+		const shouldBannerBeFirst = this.shouldShowBannerFirst();
+
+		if (bannerFirst !== shouldBannerBeFirst) {
+			this.workbenchGrid.moveView(this.bannerPartView, Sizing.Distribute, this.titleBarPartView, shouldBannerBeFirst ? Direction.Up : Direction.Down);
+		}
+
+		this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+	}
+
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
 		if (!nodes.sideBar && !nodes.auxiliaryBar) {
 			nodes.editor.size = availableHeight;
@@ -2182,7 +2195,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				type: 'branch',
 				size: width,
 				data: [
-					...(isWeb ? titleAndBanner.reverse() : titleAndBanner),
+					...(this.shouldShowBannerFirst() ? titleAndBanner.reverse() : titleAndBanner),
 					{
 						type: 'branch',
 						data: middleSection,

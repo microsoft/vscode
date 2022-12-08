@@ -147,10 +147,10 @@ export class IconLabel extends Disposable {
 		if (description || this.descriptionNode) {
 			const descriptionNode = this.getOrCreateDescriptionNode();
 			if (descriptionNode instanceof HighlightedLabel) {
-				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
+				descriptionNode.set(description || '', options ? options.descriptionMatches : undefined, undefined, options?.labelEscapeNewLines);
 				this.setupHover(descriptionNode.element, options?.descriptionTitle);
 			} else {
-				descriptionNode.textContent = description || '';
+				descriptionNode.textContent = description && options?.labelEscapeNewLines ? HighlightedLabel.escapeNewLines(description, []) : (description || '');
 				this.setupHover(descriptionNode.element, options?.descriptionTitle || '');
 				descriptionNode.empty = !description;
 			}

@@ -72,7 +72,6 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any; // Comment out this line to fix type issues
 	createInstance<T>(descriptor: SyncDescriptor0<T>): T;
 	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
 	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
@@ -310,6 +309,9 @@ export class InstantiationService implements IInstantiationService {
 				set(_target: T, p: PropertyKey, value: any): boolean {
 					idle.value[p] = value;
 					return true;
+				},
+				getPrototypeOf(_target: T) {
+					return ctor.prototype;
 				}
 			});
 		}
@@ -328,7 +330,10 @@ export class InstantiationService implements IInstantiationService {
 //#region -- tracing ---
 
 const enum TraceType {
-	Creation, Invocation, Branch
+	None = 0,
+	Creation = 1,
+	Invocation = 2,
+	Branch = 3,
 }
 
 export class Trace {
@@ -336,7 +341,7 @@ export class Trace {
 	static all = new Set<string>();
 
 	private static readonly _None = new class extends Trace {
-		constructor() { super(-1, null); }
+		constructor() { super(TraceType.None, null); }
 		override stop() { }
 		override branch() { return this; }
 	};

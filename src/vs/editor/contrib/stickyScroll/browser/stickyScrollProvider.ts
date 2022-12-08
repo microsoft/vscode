@@ -91,7 +91,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	public getVersionId() {
-		return this._model?.version ?? -1;
+		return this._model?.version;
 	}
 
 	public async update(): Promise<void> {

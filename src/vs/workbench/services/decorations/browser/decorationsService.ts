@@ -20,7 +20,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
-import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
+import { asCssValue, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
@@ -136,7 +136,7 @@ class DecorationRule {
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
-			color: ${getColor(color)};
+			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
 			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
@@ -235,8 +235,8 @@ class DecorationDataRequest {
 	) { }
 }
 
-function getColor(color: string | undefined) {
-	return color ? `var(${asCssVariableName(color)})` : 'inherit';
+function getColor(color: ColorIdentifier | undefined) {
+	return color ? asCssValue(color) : 'inherit';
 }
 
 type DecorationEntry = Map<IDecorationsProvider, DecorationDataRequest | IDecorationData | null>;

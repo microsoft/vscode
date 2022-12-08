@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, EditorContributionInstantiation, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -169,7 +169,7 @@ class TypeHierarchyController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(TypeHierarchyController.Id, TypeHierarchyController);
+registerEditorContribution(TypeHierarchyController.Id, TypeHierarchyController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
 // Peek
 registerAction2(class extends EditorAction2 {
@@ -276,13 +276,11 @@ registerAction2(class extends EditorAction2 {
 			id: 'editor.closeTypeHierarchy',
 			title: localize('close', 'Close'),
 			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				_ctxTypeHierarchyVisible,
-				ContextKeyExpr.not('config.editor.stablePeek')
-			),
+			precondition: _ctxTypeHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.not('config.editor.stablePeek')
 			},
 			menu: {
 				id: TypeHierarchyTreePeekWidget.TitleMenu,

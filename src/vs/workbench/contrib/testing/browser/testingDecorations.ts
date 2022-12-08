@@ -200,8 +200,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const map = model.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem; resultItem: TestResultItem | undefined }>();
-			for (const test of this.testService.collection.all) {
-				if (!test.item.range || test.item.uri?.toString() !== uriStr) {
+			for (const test of this.testService.collection.getNodeByUrl(model.uri)) {
+				if (!test.item.range) {
 					continue;
 				}
 
@@ -356,19 +356,25 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(this.editor.onDidChangeModelContent(e => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this.currentUri || !model) {
 				return;
 			}
 
 			const currentDecorations = decorations.syncDecorations(this.currentUri);
-			for (const change of e.changes) {
-				const modelDecorations = model.getLinesDecorations(change.range.startLineNumber, change.range.endLineNumber);
-				for (const { id } of modelDecorations) {
-					const decoration = currentDecorations.get(id);
-					if (decoration instanceof TestMessageDecoration) {
-						decorations.invalidateResultMessage(decoration.testMessage);
+			if (!currentDecorations.size) {
+				return;
+			}
+
+			for (const e of evts) {
+				for (const change of e.changes) {
+					const modelDecorations = model.getLinesDecorations(change.range.startLineNumber, change.range.endLineNumber);
+					for (const { id } of modelDecorations) {
+						const decoration = currentDecorations.get(id);
+						if (decoration instanceof TestMessageDecoration) {
+							decorations.invalidateResultMessage(decoration.testMessage);
+						}
 					}
 				}
 			}

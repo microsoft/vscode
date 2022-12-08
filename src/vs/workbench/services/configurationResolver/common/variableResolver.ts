@@ -194,7 +194,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			const filePath = this._context.getFilePath();
 			if (filePath) {
-				return filePath;
+				return normalizeDriveLetter(filePath);
 			}
 			throw new VariableError(variableKind, (localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", match)));
 		};
@@ -206,7 +206,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			if (this._context.getWorkspaceFolderPathForFile) {
 				const folderPath = this._context.getWorkspaceFolderPathForFile();
 				if (folderPath) {
-					return folderPath;
+					return normalizeDriveLetter(folderPath);
 				}
 			}
 			throw new VariableError(variableKind, localize('canNotResolveFolderForFile', "Variable {0}: can not find workspace folder of '{1}'.", match, paths.basename(filePath)));
@@ -291,7 +291,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 					case 'workspaceRootFolderName':
 					case 'workspaceFolderBasename':
-						return paths.basename(this.fsPath(getFolderUri(VariableKind.WorkspaceFolderBasename)));
+						return normalizeDriveLetter(paths.basename(this.fsPath(getFolderUri(VariableKind.WorkspaceFolderBasename))));
 
 					case 'userHome': {
 						if (environment.userHome) {

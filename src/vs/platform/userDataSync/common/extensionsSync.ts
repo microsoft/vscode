@@ -31,7 +31,7 @@ import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAc
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { Change, IRemoteUserData, ISyncData, ISyncExtension, ISyncExtensionWithVersion, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
 
@@ -113,7 +113,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	constructor(
 		// profileLocation changes for default profile
-		public profile: IUserDataProfile,
+		profile: IUserDataProfile,
 		collection: string | undefined,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
@@ -128,7 +128,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionStorageService extensionStorageService: IExtensionStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IUserDataSyncProfilesStorageService userDataSyncProfilesStorageService: IUserDataSyncProfilesStorageService,
+		@IUserDataProfileStorageService userDataProfileStorageService: IUserDataProfileStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super({ syncResource: SyncResource.Extensions, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
@@ -137,7 +137,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			Event.any<any>(
 				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
-				Event.filter(userDataSyncProfilesStorageService.onDidChange, e => e.valueChanges.some(({ profile, changes }) => this.syncResource.profile.id === profile.id && changes.some(change => change.key === DISABLED_EXTENSIONS_STORAGE_PATH))),
+				Event.filter(userDataProfileStorageService.onDidChange, e => e.valueChanges.some(({ profile, changes }) => this.syncResource.profile.id === profile.id && changes.some(change => change.key === DISABLED_EXTENSIONS_STORAGE_PATH))),
 				extensionStorageService.onDidChangeExtensionStorageToSync)(() => this.triggerLocalChange()));
 	}
 
@@ -147,7 +147,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const builtinExtensions: IExtensionIdentifier[] = lastSyncUserData?.builtinExtensions || [];
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
-		const { localExtensions, ignoredExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.profile);
+		const { localExtensions, ignoredExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.syncResource.profile);
 
 		if (remoteExtensions) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote extensions with local extensions...`);
@@ -185,7 +185,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	protected async hasRemoteChanged(lastSyncUserData: ILastSyncUserData): Promise<boolean> {
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
-		const { localExtensions, ignoredExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.profile);
+		const { localExtensions, ignoredExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.syncResource.profile);
 		const { remote } = merge(localExtensions, lastSyncExtensions, lastSyncExtensions, lastSyncUserData.skippedExtensions || [], ignoredExtensions, lastSyncUserData.builtinExtensions || []);
 		return remote !== null;
 	}
@@ -239,7 +239,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	private async acceptLocal(resourcePreview: IExtensionResourcePreview): Promise<IExtensionResourceMergeResult> {
-		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.profile.location);
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.syncResource.profile.extensionsResource);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 		const mergeResult = merge(resourcePreview.localExtensions, null, null, resourcePreview.skippedExtensions, ignoredExtensions, resourcePreview.builtinExtensions);
 		const { local, remote } = mergeResult;
@@ -253,7 +253,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	private async acceptRemote(resourcePreview: IExtensionResourcePreview): Promise<IExtensionResourceMergeResult> {
-		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.profile.location);
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.syncResource.profile.extensionsResource);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 		const remoteExtensions = resourcePreview.remoteContent ? JSON.parse(resourcePreview.remoteContent) : null;
 		if (remoteExtensions !== null) {
@@ -287,7 +287,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		if (localChange !== Change.None) {
 			await this.backupLocal(JSON.stringify(localExtensions));
-			skippedExtensions = await this.localExtensionsProvider.updateLocalExtensions(local.added, local.removed, local.updated, skippedExtensions, this.profile);
+			skippedExtensions = await this.localExtensionsProvider.updateLocalExtensions(local.added, local.removed, local.updated, skippedExtensions, this.syncResource.profile);
 		}
 
 		if (remote) {
@@ -325,7 +325,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async hasLocalData(): Promise<boolean> {
 		try {
-			const { localExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.profile);
+			const { localExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.syncResource.profile);
 			if (localExtensions.some(e => e.installed || e.disabled)) {
 				return true;
 			}
@@ -341,7 +341,7 @@ export class LocalExtensionsProvider {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IUserDataSyncProfilesStorageService private readonly userDataSyncProfilesStorageService: IUserDataSyncProfilesStorageService,
+		@IUserDataProfileStorageService private readonly userDataProfileStorageService: IUserDataProfileStorageService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IIgnoredExtensionsManagementService private readonly ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -510,7 +510,7 @@ export class LocalExtensionsProvider {
 	}
 
 	private async withProfileScopedServices<T>(profile: IUserDataProfile, fn: (extensionEnablementService: IGlobalExtensionEnablementService, extensionStorageService: IExtensionStorageService) => Promise<T>): Promise<T> {
-		return this.userDataSyncProfilesStorageService.withProfileScopedStorageService(profile,
+		return this.userDataProfileStorageService.withProfileScopedStorageService(profile,
 			async storageService => {
 				const disposables = new DisposableStore();
 				const instantiationService = this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService]));
@@ -542,9 +542,10 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
+		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Extensions, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.Extensions, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
 	protected async parseExtensions(remoteUserData: IRemoteUserData): Promise<ISyncExtension[] | null> {

@@ -28,7 +28,6 @@ import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/brows
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 
 export class MarkupCell extends Disposable {
 
@@ -51,7 +50,6 @@ export class MarkupCell extends Disposable {
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -69,7 +67,7 @@ export class MarkupCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.templateData.cellParts.renderCell(this.viewCell);
+		this.templateData.cellParts.scheduleRenderCell(this.viewCell);
 
 		this._register(toDisposable(() => {
 			this.templateData.cellParts.unrenderCell(this.viewCell);

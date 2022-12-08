@@ -237,6 +237,8 @@ export function createSyncHeaders(executionId: string): IHeaders {
 export const enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	NotFound = 'NotFound', /* 404 */
+	MethodNotFound = 'MethodNotFound', /* 405 */
 	Conflict = 'Conflict', /* 409 */
 	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
@@ -260,13 +262,13 @@ export const enum UserDataSyncErrorCode {
 	SessionExpired = 'SessionExpired',
 	ServiceChanged = 'ServiceChanged',
 	DefaultServiceChanged = 'DefaultServiceChanged',
+	LocalTooManyProfiles = 'LocalTooManyProfiles',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
 	IncompatibleLocalContent = 'IncompatibleLocalContent',
 	IncompatibleRemoteContent = 'IncompatibleRemoteContent',
-	UnresolvedConflicts = 'UnresolvedConflicts',
 
 	Unknown = 'Unknown',
 }
@@ -476,7 +478,7 @@ export interface IUserDataSyncTask {
 	stop(): Promise<void>;
 }
 
-export interface IUserDataManualSyncTask extends IDisposable {
+export interface IUserDataManualSyncTask {
 	readonly id: string;
 	merge(): Promise<void>;
 	apply(): Promise<void>;
@@ -509,6 +511,7 @@ export interface IUserDataSyncService {
 
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
+	cleanUpRemoteData(): Promise<void>;
 	resetLocal(): Promise<void>;
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;

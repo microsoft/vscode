@@ -26,7 +26,6 @@ import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/
 import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CodeCell extends Disposable {
@@ -44,10 +43,9 @@ export class CodeCell extends Disposable {
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ILanguageService readonly languageService: ILanguageService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IOpenerService openerService: IOpenerService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
@@ -55,7 +53,7 @@ export class CodeCell extends Disposable {
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
-		this.cellParts = templateData.cellParts.concat([cellEditorOptions, this._outputContainerRenderer]);
+		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
@@ -100,7 +98,7 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this.cellParts.renderCell(this.viewCell);
+		this.cellParts.scheduleRenderCell(this.viewCell);
 
 		this._register(toDisposable(() => {
 			this.cellParts.unrenderCell(this.viewCell);

@@ -15,7 +15,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
-import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IUserDataProfileManifestResourceMergeResult extends IAcceptResult {
 	readonly local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };
@@ -66,6 +66,9 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean): Promise<IUserDataProfilesManifestResourcePreview[]> {
+		if (!this.userDataProfilesService.isEnabled()) {
+			throw new UserDataSyncError('Cannot sync profiles because they are disabled', UserDataSyncErrorCode.LocalError);
+		}
 		const remoteProfiles: ISyncUserDataProfile[] | null = remoteUserData.syncData ? parseUserDataProfilesManifest(remoteUserData.syncData) : null;
 		const lastSyncProfiles: ISyncUserDataProfile[] | null = lastSyncUserData?.syncData ? parseUserDataProfilesManifest(lastSyncUserData.syncData) : null;
 		const localProfiles = this.getLocalUserDataProfiles();
@@ -176,19 +179,36 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing profiles.`);
 		}
 
+		const remoteProfiles = resourcePreviews[0][0].remoteProfiles || [];
+		if (remoteProfiles.length + (remote?.added.length ?? 0) - (remote?.removed.length ?? 0) > 20) {
+			throw new UserDataSyncError('Too many profiles to sync. Please remove some profiles and try again.', UserDataSyncErrorCode.LocalTooManyProfiles);
+		}
+
 		if (localChange !== Change.None) {
 			await this.backupLocal(stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
 			const promises: Promise<any>[] = [];
 			for (const profile of local.added) {
-				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName }));
+				promises.push((async () => {
+					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
+					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName });
+					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
+				})());
 			}
 			for (const profile of local.removed) {
-				promises.push(this.userDataProfilesService.removeProfile(profile));
+				promises.push((async () => {
+					this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
+					await this.userDataProfilesService.removeProfile(profile);
+					this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
+				})());
 			}
 			for (const profile of local.updated) {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
-					promises.push(this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName }));
+					promises.push((async () => {
+						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
+						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName });
+						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
+					})());
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
 				}
@@ -197,11 +217,17 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 		}
 
 		if (remoteChange !== Change.None) {
-			const remoteProfiles = resourcePreviews[0][0].remoteProfiles || [];
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote profiles...`);
-			for (const profile of remote?.added || []) {
-				const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
-				remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName });
+			const addedCollections: string[] = [];
+			const canAddRemoteProfiles = remoteProfiles.length + (remote?.added.length ?? 0) <= 20;
+			if (canAddRemoteProfiles) {
+				for (const profile of remote?.added || []) {
+					const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
+					addedCollections.push(collection);
+					remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName });
+				}
+			} else {
+				this.logService.info(`${this.syncResourceLogLabel}: Could not create remote profiles as there are too many profiles.`);
 			}
 			for (const profile of remote?.removed || []) {
 				remoteProfiles.splice(remoteProfiles.findIndex(({ id }) => profile.id === id), 1);
@@ -212,8 +238,19 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { id: profile.id, name: profile.name, collection: profileToBeUpdated.collection, shortName: profile.shortName });
 				}
 			}
-			remoteUserData = await this.updateRemoteUserData(this.stringifyRemoteProfiles(remoteProfiles), force ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote profiles.${remote?.added.length ? ` Added: ${JSON.stringify(remote.added.map(e => e.name))}.` : ''}${remote?.updated.length ? ` Updated: ${JSON.stringify(remote.updated.map(e => e.name))}.` : ''}${remote?.removed.length ? ` Removed: ${JSON.stringify(remote.removed.map(e => e.name))}.` : ''}`);
+
+			try {
+				remoteUserData = await this.updateRemoteProfiles(remoteProfiles, force ? null : remoteUserData.ref);
+				this.logService.info(`${this.syncResourceLogLabel}: Updated remote profiles.${canAddRemoteProfiles && remote?.added.length ? ` Added: ${JSON.stringify(remote.added.map(e => e.name))}.` : ''}${remote?.updated.length ? ` Updated: ${JSON.stringify(remote.updated.map(e => e.name))}.` : ''}${remote?.removed.length ? ` Removed: ${JSON.stringify(remote.removed.map(e => e.name))}.` : ''}`);
+			} catch (error) {
+				if (addedCollections.length) {
+					this.logService.info(`${this.syncResourceLogLabel}: Failed to update remote profiles. Cleaning up added collections...`);
+					for (const collection of addedCollections) {
+						await this.userDataSyncStoreService.deleteCollection(collection, this.syncHeaders);
+					}
+				}
+				throw error;
+			}
 
 			for (const profile of remote?.removed || []) {
 				await this.userDataSyncStoreService.deleteCollection(profile.collection, this.syncHeaders);
@@ -226,6 +263,10 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.updateLastSyncUserData(remoteUserData);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized profiles.`);
 		}
+	}
+
+	async updateRemoteProfiles(profiles: ISyncUserDataProfile[], ref: string | null): Promise<IRemoteUserData> {
+		return this.updateRemoteUserData(this.stringifyRemoteProfiles(profiles), ref);
 	}
 
 	async hasLocalData(): Promise<boolean> {

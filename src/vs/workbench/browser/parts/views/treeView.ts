@@ -50,9 +50,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { focusBorder, listFilterMatchHighlight, listFilterMatchHighlightBorder, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { FileThemeIcon, FolderThemeIcon, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { FileThemeIcon, FolderThemeIcon, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -117,7 +116,7 @@ export class TreeViewPane extends ViewPane {
 		this.treeView.focus();
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		this._container = container;
 		super.renderBody(container);
 		this.renderTreeView(container);
@@ -127,7 +126,7 @@ export class TreeViewPane extends ViewPane {
 		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && (this.treeView.message === undefined);
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.layoutTreeView(height, width);
 	}
@@ -425,7 +424,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		if (badge) {
 			const activity = {
 				badge: new NumberBadge(badge.value, () => badge.tooltip),
-				priority: 150
+				priority: 50
 			};
 			this._badgeActivity = this.activityService.showViewActivity(this.id, activity);
 		}
@@ -908,6 +907,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
+			const oldSelection = tree.getSelection();
 			try {
 				await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
 			} catch (e) {
@@ -915,6 +915,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				// we can get a "Tree element not found" error. This is expected.
 				// Ideally this is fixable, so log instead of ignoring so the error is preserved.
 				this.logService.error(e);
+			}
+			const newSelection = tree.getSelection();
+			if (oldSelection.length !== newSelection.length || oldSelection.some((value, index) => value.handle !== newSelection[index].handle)) {
+				this._onDidChangeSelection.fire(newSelection);
 			}
 			this.refreshing = false;
 			this._onDidCompleteRefresh.fire();
@@ -1004,33 +1008,6 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return result;
 	}
 }
-
-// todo@jrieken,sandy make this proper and contributable from extensions
-registerThemingParticipant((theme, collector) => {
-
-	const matchBackgroundColor = theme.getColor(listFilterMatchHighlight);
-	if (matchBackgroundColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
-	}
-	const matchBorderColor = theme.getColor(listFilterMatchHighlightBorder);
-	if (matchBorderColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
-	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a { color: ${link}; }`);
-	}
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a:focus { outline: 1px solid ${focusBorderColor}; outline-offset: -1px; }`);
-	}
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message code { background-color: ${codeBackground}; }`);
-	}
-});
 
 interface ITreeExplorerTemplateData {
 	readonly elementDisposable: DisposableStore;
@@ -1247,7 +1224,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				this.rerender();
 			}
 			if (!templateData.checkbox) {
-				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
+				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler);
 				templateData.checkbox = checkbox;
 			}
 			templateData.checkbox.render(node);
@@ -1377,7 +1354,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		}));
 	}
 
-	override async runAction(action: IAction, context: TreeViewItemHandleArg | TreeViewPaneHandleArg): Promise<void> {
+	protected override async runAction(action: IAction, context: TreeViewItemHandleArg | TreeViewPaneHandleArg): Promise<void> {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
 		let actionInSelected: boolean = false;
@@ -1571,6 +1548,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		this.dragCancellationToken = new CancellationTokenSource();
 		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.handleDragAndLog(this.dndController, itemHandles, uuid, this.dragCancellationToken.token));
 		this.treeItemsTransfer.setData([new DraggedTreeItemsIdentifier(uuid)], DraggedTreeItemsIdentifier.prototype);
+		originalEvent.dataTransfer.clearData(Mimes.text);
 		if (this.dndController.dragMimeTypes.find((element) => element === Mimes.uriList)) {
 			// Add the type that the editor knows
 			originalEvent.dataTransfer?.setData(DataTransfers.RESOURCES, '');

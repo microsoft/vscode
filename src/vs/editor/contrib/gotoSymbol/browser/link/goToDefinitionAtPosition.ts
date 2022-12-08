@@ -13,7 +13,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./goToDefinitionAtPosition';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -164,10 +164,22 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return;
 			}
 
+			const linkRange = results[0].originSelectionRange
+				? Range.lift(results[0].originSelectionRange)
+				: new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+
 			// Multiple results
 			if (results.length > 1) {
+
+				let combinedRange = linkRange;
+				for (const { originSelectionRange } of results) {
+					if (originSelectionRange) {
+						combinedRange = Range.plusRange(combinedRange, originSelectionRange);
+					}
+				}
+
 				this.addDecoration(
-					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+					combinedRange,
 					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length))
 				);
 			}
@@ -197,18 +209,10 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 					}
 
 					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
-
-					let wordRange: Range;
-					if (result.originSelectionRange) {
-						wordRange = Range.lift(result.originSelectionRange);
-					} else {
-						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-					}
-
 					const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
-						wordRange,
-						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)
+						linkRange,
+						previewValue ? new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue) : undefined
 					);
 					ref.dispose();
 				});
@@ -256,7 +260,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
+	private addDecoration(range: Range, hoverMessage: MarkdownString | undefined): void {
 
 		const newDecorations: IModelDeltaDecoration = {
 			range: range,
@@ -311,4 +315,4 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 }
 
-registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution);
+registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution, EditorContributionInstantiation.BeforeFirstInteraction);

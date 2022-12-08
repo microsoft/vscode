@@ -25,6 +25,7 @@ import { TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface CommandHandler {
@@ -224,7 +225,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		this._reportTelemetry(command, id);
 		const { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -236,6 +236,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			}
 		}
 
+		const stopWatch = StopWatch.create();
 		try {
 			return await callback.apply(thisArg, args);
 		} catch (err) {
@@ -261,25 +262,31 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			};
 		}
+		finally {
+			this._reportTelemetry(command, id, stopWatch.elapsed());
+		}
 	}
 
-	private _reportTelemetry(command: CommandHandler, id: string) {
+	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
 		if (!command.extension || command.extension.isBuiltin) {
 			return;
 		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
 			id: string;
+			duration: number;
 		};
 		type ExtensionActionTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The duration of the command execution, to detect performance issues' };
 			owner: 'digitarald';
 			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
 			id: id,
+			duration: duration,
 		});
 	}
 
@@ -323,7 +330,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
 	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)}`;
-	private readonly _cache = new Map<number, vscode.Command>();
+	private readonly _cache = new Map<string, vscode.Command>();
 	private _cachIdPool = 0;
 
 	// --- conversion between internal and api commands
@@ -367,7 +374,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
-			const id = ++this._cachIdPool;
+			const id = `${command.command}/${++this._cachIdPool}`;
 			this._cache.set(id, command);
 			disposables.add(toDisposable(() => {
 				this._cache.delete(id);
@@ -386,7 +393,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 
 	fromInternal(command: ICommandDto): vscode.Command | undefined {
 
-		if (typeof command.$ident === 'number') {
+		if (typeof command.$ident === 'string') {
 			return this._cache.get(command.$ident);
 
 		} else {
@@ -408,7 +415,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
 
 		if (!actualCmd) {
-			return Promise.reject('actual command NOT FOUND');
+			return Promise.reject(`Actual command not found, wanted to execute ${args[0]}`);
 		}
 		return this._commands.executeCommand(actualCmd.command, ...(actualCmd.arguments || []));
 	}

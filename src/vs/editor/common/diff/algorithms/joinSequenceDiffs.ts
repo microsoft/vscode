@@ -12,6 +12,25 @@ export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence
 	return result;
 }
 
+export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+	const result: SequenceDiff[] = [];
+	for (const s of sequenceDiffs) {
+		const last = result[result.length - 1];
+		if (!last) {
+			result.push(s);
+			continue;
+		}
+
+		if (s.seq1Range.start - last.seq1Range.endExclusive <= 2 || s.seq2Range.start - last.seq2Range.endExclusive <= 2) {
+			result[result.length - 1] = new SequenceDiff(last.seq1Range.join(s.seq1Range), last.seq2Range.join(s.seq2Range));
+		} else {
+			result.push(s);
+		}
+	}
+
+	return result;
+}
+
 /**
  * This function fixes issues like this:
  * ```
@@ -85,11 +104,11 @@ export function shiftSequenceDiffs(sequence1: ISequence, sequence2: ISequence, s
 		const diff = sequenceDiffs[i];
 		if (diff.seq1Range.isEmpty) {
 			const seq2PrevEndExclusive = (i > 0 ? sequenceDiffs[i - 1].seq2Range.endExclusive : -1);
-			const seq2NextStart = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1].seq2Range.start : sequence2.length + 1);
+			const seq2NextStart = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1].seq2Range.start : sequence2.length);
 			sequenceDiffs[i] = shiftDiffToBetterPosition(diff, sequence1, sequence2, seq2NextStart, seq2PrevEndExclusive);
 		} else if (diff.seq2Range.isEmpty) {
 			const seq1PrevEndExclusive = (i > 0 ? sequenceDiffs[i - 1].seq1Range.endExclusive : -1);
-			const seq1NextStart = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1].seq1Range.start : sequence1.length + 1);
+			const seq1NextStart = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1].seq1Range.start : sequence1.length);
 			sequenceDiffs[i] = shiftDiffToBetterPosition(diff.reverse(), sequence2, sequence1, seq1NextStart, seq1PrevEndExclusive).reverse();
 		}
 	}
@@ -102,25 +121,31 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 
 	// don't touch previous or next!
 	let deltaBefore = 1;
-	while (diff.seq1Range.start - deltaBefore > seq2PrevEndExclusive &&
+	while (diff.seq2Range.start - deltaBefore > seq2PrevEndExclusive &&
 		sequence2.getElement(diff.seq2Range.start - deltaBefore) ===
 		sequence2.getElement(diff.seq2Range.endExclusive - deltaBefore) && deltaBefore < maxShiftLimit) {
 		deltaBefore++;
 	}
 	deltaBefore--;
 
-	let deltaAfter = 1;
-	while (diff.seq1Range.start + deltaAfter < seq2NextStart &&
+	let deltaAfter = 0;
+	while (diff.seq2Range.start + deltaAfter < seq2NextStart &&
 		sequence2.getElement(diff.seq2Range.start + deltaAfter) ===
 		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit) {
 		deltaAfter++;
 	}
-	deltaAfter--;
+
+	if (deltaBefore === 0 && deltaAfter === 0) {
+		return diff;
+	}
+
+	// Visualize `[sequence1.text, diff.seq1Range.start + deltaAfter]`
+	// and `[sequence2.text, diff.seq2Range.start + deltaAfter, diff.seq2Range.endExclusive + deltaAfter]`
 
 	let bestDelta = 0;
 	let bestScore = -1;
 	// find best scored delta
-	for (let delta = -deltaBefore; delta < deltaAfter; delta++) {
+	for (let delta = -deltaBefore; delta <= deltaAfter; delta++) {
 		const seq2OffsetStart = diff.seq2Range.start + delta;
 		const seq2OffsetEndExclusive = diff.seq2Range.endExclusive + delta;
 		const seq1Offset = diff.seq1Range.start + delta;

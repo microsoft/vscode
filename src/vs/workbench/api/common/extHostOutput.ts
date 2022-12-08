@@ -20,7 +20,6 @@ import { isString } from 'vs/base/common/types';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOutputChannel {
 
@@ -38,11 +37,12 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 		readonly extension: IExtensionDescription,
 	) {
 		super();
+		this.setLevel(logger.getLevel());
 		this._register(logger.onDidChangeLogLevel(level => this.setLevel(level)));
 	}
 
 	get logLevel(): LogLevel {
-		return this.logger.getLevel();
+		return this.getLevel();
 	}
 
 	appendLine(value: string): void {
@@ -51,10 +51,6 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 
 	append(value: string): void {
 		this.info(value);
-		if (this.visible) {
-			this.logger.flush();
-			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
-		}
 	}
 
 	clear(): void {
@@ -84,6 +80,10 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 	protected log(level: LogLevel, message: string): void {
 		this.offset += VSBuffer.fromString(message).byteLength;
 		log(this.logger, level, message);
+		if (this.visible) {
+			this.logger.flush();
+			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
+		}
 	}
 
 	override dispose(): void {
@@ -144,9 +144,6 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
 		const log = typeof options === 'object' && options.log;
-		if (log) {
-			checkProposedApiEnabled(extension, 'extensionLog');
-		}
 		const languageId = isString(options) ? options : undefined;
 		if (isString(languageId) && !languageId.trim()) {
 			throw new Error('illegal argument `languageId`. must not be empty');

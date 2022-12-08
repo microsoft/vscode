@@ -44,7 +44,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
-	get appRoot(): string { return dirname(FileAccess.asFileUri('', require).fsPath); }
+	get appRoot(): string { return dirname(FileAccess.asFileUri('').fsPath); }
 
 	@memoize
 	get userHome(): URI { return URI.file(this.paths.homeDir); }
@@ -84,9 +84,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
-
-	@memoize
-	get remoteTunnelLogResource(): URI { return URI.file(join(this.logsPath, 'remoteTunnel.log')); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
@@ -129,7 +126,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return resolve(cliBuiltinExtensionsDir);
 		}
 
-		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
 	get extensionsDownloadLocation(): URI {
@@ -283,10 +280,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
 	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId, args.extensionEnvironment);
-}
-
-export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild, args.extensionEnvironment);
 }
 
 export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {

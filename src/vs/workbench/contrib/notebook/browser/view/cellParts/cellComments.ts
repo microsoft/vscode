@@ -14,12 +14,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class CellComments extends CellPart {
+export class CellComments extends CellContentPart {
 	private _initialized: boolean = false;
 	private _commentThreadWidget: CommentThreadWidget<ICellRange> | null = null;
 	private currentElement: CodeCellViewModel | undefined;
@@ -152,7 +152,7 @@ export class CellComments extends CellPart {
 		this._commentThreadWidget?.applyTheme(theme, fontInfo);
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);

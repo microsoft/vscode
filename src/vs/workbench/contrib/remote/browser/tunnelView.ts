@@ -28,10 +28,9 @@ import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelIt
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
@@ -44,7 +43,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -54,6 +53,7 @@ import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDel
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
+import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
@@ -346,7 +346,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -408,10 +407,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.container.style.paddingLeft = '7px';
 		templateData.container.style.height = '28px';
-		templateData.button = this._register(new Button(templateData.container));
+		templateData.button = this._register(new Button(templateData.container, defaultButtonStyles));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
-		this._register(attachButtonStyler(templateData.button, this.themeService));
 		this._register(templateData.button.onDidClick(() => {
 			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
 		}));
@@ -512,10 +510,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					};
 				}
 			},
-			placeholder: editableData.placeholder || ''
+			placeholder: editableData.placeholder || '',
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
-
 		inputBox.value = value;
 		inputBox.focus();
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
@@ -551,8 +548,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
 				return done(inputBox.validate() !== MessageType.ERROR, true);
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -741,7 +737,6 @@ const TunnelViewMultiSelectionKeyName = 'tunnelViewMultiSelection';
 // host:port[]
 const TunnelViewMultiSelectionContextKey = new RawContextKey<string[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
-const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb, true);
 
 export class TunnelPanel extends ViewPane {
 
@@ -840,7 +835,7 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService,
+			this.menuService, this.contextViewService, this.remoteExplorerService, this.commandService,
 			this.configurationService, this.hoverService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canChangePrivacy) {
@@ -1546,7 +1541,6 @@ const tunnelViewCommandsWeightBonus = 10; // give our commands a little bit more
 const isForwardedExpr = TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded);
 const isForwardedOrDetectedExpr = ContextKeyExpr.or(isForwardedExpr, TunnelTypeContextKey.isEqualTo(TunnelType.Detected));
 const isNotMultiSelectionExpr = TunnelViewMultiSelectionContextKey.isEqualTo(undefined);
-const isNotPrivateExpr = ContextKeyExpr.and(TunnelPrivacyContextKey.notEqualsTo(TunnelPrivacyId.Private), TunnelPrivacyContextKey.notEqualsTo(TunnelPrivacyId.ConstantPrivate));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LabelTunnelAction.ID,
@@ -1634,7 +1628,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		title: OpenPortInPreviewAction.LABEL,
 	},
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext), //todo
 		isForwardedOrDetectedExpr,
 		isNotMultiSelectionExpr)
 }));
@@ -1773,22 +1766,13 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		title: OpenPortInPreviewAction.LABEL,
 		icon: openPreviewIcon
 	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext),
-		isForwardedOrDetectedExpr)
+	when: isForwardedOrDetectedExpr
 }));
 
-const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
+registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,
 	hcLight: STATUS_BAR_HOST_NAME_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
-registerThemingParticipant((theme, collector) => {
-	const portWithRunningProcessColor = theme.getColor(portWithRunningProcessForeground);
-	if (portWithRunningProcessColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(forwardedPortWithProcessIcon)} { color: ${portWithRunningProcessColor} ; }`);
-	}
-
-});

@@ -15,6 +15,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
+import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 
 //#region typed options
 
@@ -96,9 +97,9 @@ export interface IEditorOptions {
 	cursorSurroundingLinesStyle?: 'default' | 'all';
 	/**
 	 * Render last line number when the file ends with a newline.
-	 * Defaults to true.
+	 * Defaults to 'on' for Windows and macOS and 'dimmed' for Linux.
 	*/
-	renderFinalNewline?: boolean;
+	renderFinalNewline?: 'on' | 'off' | 'dimmed';
 	/**
 	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * Defaults to 'prompt'.
@@ -231,6 +232,11 @@ export interface IEditorOptions {
 	 */
 	fontLigatures?: boolean | string;
 	/**
+	 * Enable font variations.
+	 * Defaults to false.
+	 */
+	fontVariations?: boolean | string;
+	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
 	 * Defaults to false.
@@ -311,6 +317,12 @@ export interface IEditorOptions {
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
+	 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+	 * When wordBreak = 'normal', Use the default line break rule.
+	 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+	 */
+	wordBreak?: 'normal' | 'keepAll';
+	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
 	 * Use -1 to never stop rendering
@@ -373,6 +385,10 @@ export interface IEditorOptions {
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
+	/**
+	 * Controls the max number of text cursors that can be in an active editor at once.
+	 */
+	multiCursorLimit?: number;
 	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
@@ -739,7 +755,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'smart' | 'experimental';
+	diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
 }
 
 /**
@@ -1177,13 +1193,13 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
-					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached"),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader"),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached"),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -1454,7 +1470,7 @@ export interface IEditorFindOptions {
 	 */
 	globalFindClipboard?: boolean;
 	/**
-	 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
 }
@@ -1600,6 +1616,66 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 
 //#endregion
 
+//#region fontVariations
+
+/**
+ * @internal
+ */
+export class EditorFontVariations extends BaseEditorOption<EditorOption.fontVariations, boolean | string, string> {
+	// Text is laid out using default settings.
+	public static OFF = 'normal';
+
+	// Translate `fontWeight` config to the `font-variation-settings` CSS property.
+	public static TRANSLATE = 'translate';
+
+	constructor() {
+		super(
+			EditorOption.fontVariations, 'fontVariations', EditorFontVariations.OFF,
+			{
+				anyOf: [
+					{
+						type: 'boolean',
+						description: nls.localize('fontVariations', "Enables/Disables the translation from font-weight to font-variation-settings. Change this to a string for fine-grained control of the 'font-variation-settings' CSS property."),
+					},
+					{
+						type: 'string',
+						description: nls.localize('fontVariationSettings', "Explicit 'font-variation-settings' CSS property. A boolean can be passed instead if one only needs to translate font-weight to font-variation-settings.")
+					}
+				],
+				description: nls.localize('fontVariationsGeneral', "Configures font variations. Can be either a boolean to enable/disable the translation from font-weight to font-variation-settings or a string for the value of the CSS 'font-variation-settings' property."),
+				default: false
+			}
+		);
+	}
+
+	public validate(input: any): string {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
+		if (typeof input === 'string') {
+			if (input === 'false') {
+				return EditorFontVariations.OFF;
+			}
+			if (input === 'true') {
+				return EditorFontVariations.TRANSLATE;
+			}
+			return input;
+		}
+		if (Boolean(input)) {
+			return EditorFontVariations.TRANSLATE;
+		}
+		return EditorFontVariations.OFF;
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
+		// The value is computed from the fontWeight if it is true.
+		// So take the result from env.fontInfo
+		return env.fontInfo.fontVariationSettings;
+	}
+}
+
+//#endregion
+
 //#region fontInfo
 
 class EditorFontInfo extends ComputedEditorOption<EditorOption.fontInfo, FontInfo> {
@@ -1740,9 +1816,9 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 			enum: ['peek', 'gotoAndPeek', 'goto'],
 			default: defaults.multiple,
 			enumDescriptions: [
-				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
-				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
-				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
+				nls.localize('editor.gotoLocation.multiple.peek', 'Show Peek view of the results (default)'),
+				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a Peek view'),
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable Peek-less navigation to others')
 			]
 		};
 		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
@@ -2340,17 +2416,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const scrollbarArrowSize = scrollbar.arrowSize;
 		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize;
 
-		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
 		const showFoldingDecoration = options.get(EditorOption.showFoldingControls) !== 'never';
 
-		let lineDecorationsWidth: number;
-		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
-			const multiple = parseFloat(rawLineDecorationsWidth.substr(0, rawLineDecorationsWidth.length - 2));
-			lineDecorationsWidth = EditorIntOption.clampedInt(multiple * typicalHalfwidthCharacterWidth, 0, 0, 1000);
-		} else {
-			lineDecorationsWidth = EditorIntOption.clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
-		}
+		let lineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		if (folding && showFoldingDecoration) {
 			lineDecorationsWidth += 16;
 		}
@@ -2526,7 +2595,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 				'editor.lightbulb.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
+					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
 			}
 		);
@@ -2689,6 +2758,35 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding)
 		};
+	}
+}
+
+//#endregion
+
+//#region lineDecorationsWidth
+
+class EditorLineDecorationsWidth extends BaseEditorOption<EditorOption.lineDecorationsWidth, number | string, number> {
+
+	constructor() {
+		super(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10);
+	}
+
+	public validate(input: any): number {
+		if (typeof input === 'string' && /^\d+(\.\d+)?ch$/.test(input)) {
+			const multiple = parseFloat(input.substring(0, input.length - 2));
+			return -multiple; // negative numbers signal a multiple
+		} else {
+			return EditorIntOption.clampedInt(input, this.defaultValue, 0, 1000);
+		}
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		if (value < 0) {
+			// negative numbers signal a multiple
+			return EditorIntOption.clampedInt(-value * env.fontInfo.typicalHalfwidthCharacterWidth, this.defaultValue, 0, 1000);
+		} else {
+			return value;
+		}
 	}
 }
 
@@ -3559,14 +3657,14 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 					type: ['boolean', 'string'],
 					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeComments,
-					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to unicode highlighting.")
+					description: nls.localize('unicodeHighlight.includeComments', "Controls whether characters in comments should also be subject to Unicode highlighting.")
 				},
 				[unicodeHighlightConfigKeys.includeStrings]: {
 					restricted: true,
 					type: ['boolean', 'string'],
 					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.includeStrings,
-					description: nls.localize('unicodeHighlight.includeStrings', "Controls whether characters in strings should also be subject to unicode highlighting.")
+					description: nls.localize('unicodeHighlight.includeStrings', "Controls whether characters in strings should also be subject to Unicode highlighting.")
 				},
 				[unicodeHighlightConfigKeys.allowedCharacters]: {
 					restricted: true,
@@ -3922,6 +4020,10 @@ export interface ISuggestOptions {
 	 */
 	shareSuggestSelections?: boolean;
 	/**
+	 * Select suggestions when triggered via quick suggest or trigger characters
+	 */
+	selectQuickSuggestions?: boolean;
+	/**
 	 * Enable or disable icons in suggestions. Defaults to true.
 	 */
 	showIcons?: boolean;
@@ -4073,6 +4175,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
 			shareSuggestSelections: false,
+			selectQuickSuggestions: true,
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
@@ -4159,7 +4262,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
 					default: defaults.showInlineDetails,
-					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget")
+					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -4192,7 +4295,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				'editor.suggest.matchOnWordStartOnly': {
 					type: 'boolean',
 					default: true,
-					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start, e.g `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
+					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start. For example, `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4334,6 +4437,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+			selectQuickSuggestions: boolean(input.selectQuickSuggestions, this.defaultValue.selectQuickSuggestions),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),
@@ -4654,6 +4758,7 @@ export const enum EditorOption {
 	fontLigatures,
 	fontSize,
 	fontWeight,
+	fontVariations,
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
@@ -4678,6 +4783,7 @@ export const enum EditorOption {
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
 	multiCursorPaste,
+	multiCursorLimit,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -4724,6 +4830,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	wordBreak,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -4876,7 +4983,7 @@ export const EditorOptions = {
 		default: 0,
 		minimum: 0,
 		maximum: 100,
-		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, 90% of `#editor.fontSize#` is used.")
+		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to 0, 90% of `#editor.fontSize#` is used.")
 	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
@@ -5003,6 +5110,7 @@ export const EditorOptions = {
 	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
 	fontWeight: register(new EditorFontWeight()),
+	fontVariations: register(new EditorFontVariations()),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,
 		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
@@ -5030,7 +5138,7 @@ export const EditorOptions = {
 		{ description: nls.localize('letterSpacing', "Controls the letter spacing in pixels.") }
 	)),
 	lightbulb: register(new EditorLightbulb()),
-	lineDecorationsWidth: register(new SimpleEditorOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10 as number | string)),
+	lineDecorationsWidth: register(new EditorLineDecorationsWidth()),
 	lineHeight: register(new EditorLineHeight()),
 	lineNumbers: register(new EditorRenderLineNumbersOption()),
 	lineNumbersMinChars: register(new EditorIntOption(
@@ -5039,7 +5147,7 @@ export const EditorOptions = {
 	)),
 	linkedEditing: register(new EditorBooleanOption(
 		EditorOption.linkedEditing, 'linkedEditing', false,
-		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols, e.g. HTML tags, are updated while editing.") }
+		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols such as HTML tags, are updated while editing.") }
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,
@@ -5101,6 +5209,12 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
 		}
 	)),
+	multiCursorLimit: register(new EditorIntOption(
+		EditorOption.multiCursorLimit, 'multiCursorLimit', 10000, 1, 100000,
+		{
+			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
+		}
+	)),
 	occurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
 		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
@@ -5148,8 +5262,10 @@ export const EditorOptions = {
 		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
 		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
 	)),
-	renderFinalNewline: register(new EditorBooleanOption(
-		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
+	renderFinalNewline: register(new EditorStringEnumOption(
+		EditorOption.renderFinalNewline, 'renderFinalNewline',
+		(platform.isLinux ? 'dimmed' : 'on') as 'off' | 'on' | 'dimmed',
+		['off', 'on', 'dimmed'] as const,
 		{ description: nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.") }
 	)),
 	renderLineHighlight: register(new EditorStringEnumOption(
@@ -5338,6 +5454,18 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+	)),
+	wordBreak: register(new EditorStringEnumOption(
+		EditorOption.wordBreak, 'wordBreak',
+		'normal' as 'normal' | 'keepAll',
+		['normal', 'keepAll'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('wordBreak.normal', "Use the default line break rule."),
+				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
+			],
+			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
+		}
 	)),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,
