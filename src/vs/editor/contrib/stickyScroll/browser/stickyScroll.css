@@ -16,6 +16,7 @@
 }
 
 .monaco-editor .sticky-line-root {
+	background-color : inherit;
 	overflow : hidden;
 	white-space : nowrap;
 	width : 100%;
