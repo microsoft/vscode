@@ -7,7 +7,7 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { localize } from 'vs/nls';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Delayer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -27,7 +27,9 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
-const MAX_URL_LENGTH = 2045;
+// GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
+// ref https://github.com/microsoft/vscode/issues/159191
+const MAX_URL_LENGTH = 7500;
 
 interface SearchResult {
 	html_url: string;
@@ -71,8 +73,9 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
 
-		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
+		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
+			...configuration.data,
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
@@ -80,12 +83,12 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
-			selectedExtension: targetExtension,
+			selectedExtension: targetExtension
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement);
+			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
 		}
 
@@ -151,14 +154,10 @@ export class IssueReporter extends Disposable {
 		const { fileOnExtension } = this.issueReporterModel.getData();
 		if (fileOnExtension) {
 			const issueTitle = document.getElementById('issue-title');
-			if (issueTitle) {
-				issueTitle.focus();
-			}
+			issueTitle?.focus();
 		} else {
 			const issueType = document.getElementById('issue-type');
-			if (issueType) {
-				issueType.focus();
-			}
+			issueType?.focus();
 		}
 	}
 
@@ -730,7 +729,7 @@ export class IssueReporter extends Disposable {
 			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(problemSource);
@@ -749,10 +748,10 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.FeatureRequest) {
-			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 			show(problemSource);
 

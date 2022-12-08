@@ -9,7 +9,7 @@ import { parse as parseUrl } from 'url';
 import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as streams from 'vs/base/common/stream';
 import { isBoolean, isNumber } from 'vs/base/common/types';
@@ -29,6 +29,7 @@ export interface IRawRequestFunction {
 export interface NodeRequestOptions extends IRequestOptions {
 	agent?: Agent;
 	strictSSL?: boolean;
+	isChromiumNetwork?: boolean;
 	getRawRequest?(options: IRequestOptions): IRawRequestFunction;
 }
 
@@ -146,7 +147,12 @@ export class RequestService extends Disposable implements IRequestService {
 				} else {
 					let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
-					if (res.headers['content-encoding'] === 'gzip') {
+					// Responses from Electron net module should be treated as response
+					// from browser, which will apply gzip filter and decompress the response
+					// using zlib before passing the result to us. Following step can be bypassed
+					// in this case and proceed further.
+					// Refs https://source.chromium.org/chromium/chromium/src/+/main:net/url_request/url_request_http_job.cc;l=1266-1318
+					if (!options.isChromiumNetwork && res.headers['content-encoding'] === 'gzip') {
 						stream = res.pipe(createGunzip());
 					}
 
@@ -160,6 +166,13 @@ export class RequestService extends Disposable implements IRequestService {
 				req.setTimeout(options.timeout);
 			}
 
+			// Chromium will abort the request if forbidden headers are set.
+			// Ref https://source.chromium.org/chromium/chromium/src/+/main:services/network/public/cpp/header_util.cc;l=14-48;
+			// for additional context.
+			if (options.isChromiumNetwork) {
+				req.removeHeader('Content-Length');
+			}
+
 			if (options.data) {
 				if (typeof options.data === 'string') {
 					req.write(options.data);
@@ -170,7 +183,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 			token.onCancellationRequested(() => {
 				req.abort();
-				e(canceled());
+				e(new CancellationError());
 			});
 		});
 	}

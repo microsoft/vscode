@@ -13,7 +13,7 @@ import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/com
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { Promises } from 'vs/base/node/pfs';
 
-const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
+const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
 export const enum ServerConnectionTokenType {
 	None,

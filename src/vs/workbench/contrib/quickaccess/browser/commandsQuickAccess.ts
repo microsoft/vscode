@@ -10,7 +10,6 @@ import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
-import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
@@ -84,7 +83,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		};
 	}
 
-	protected async getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
 
 		// wait for extensions registration or 800ms once
 		await this.extensionRegistrationRace;
@@ -95,7 +94,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		return [
 			...this.getCodeEditorCommandPicks(),
-			...this.getGlobalCommandPicks(disposables)
+			...this.getGlobalCommandPicks()
 		].map(c => ({
 			...c,
 			buttons: [{
@@ -109,7 +108,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}));
 	}
 
-	private getGlobalCommandPicks(disposables: DisposableStore): ICommandQuickPick[] {
+	private getGlobalCommandPicks(): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
 		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
 		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
@@ -144,7 +143,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		// Cleanup
 		globalCommandsMenu.dispose();
-		disposables.add(toDisposable(() => dispose(globalCommandsMenuActions)));
 
 		return globalCommandPicks;
 	}
@@ -179,8 +177,8 @@ export class ClearCommandHistoryAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.clearCommandHistory',
-			title: { value: localize('clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+			id: 'workbench.action.clearPreviousSessionCommandHistory',
+			title: { value: localize('clearPreviousSessionCommandHistory', "Clear Previous Session Command History"), original: 'Clear Previous Session Command History' },
 			f1: true
 		});
 	}
@@ -195,7 +193,7 @@ export class ClearCommandHistoryAction extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
-				message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
+				message: localize('confirmClearMessage', "Do you want to clear the previous session command history?"),
 				detail: localize('confirmClearDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
 				type: 'warning'

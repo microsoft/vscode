@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { extname, normalize } from 'vs/base/common/path';
+import { COI, FileAccess, Schemas } from 'vs/base/common/network';
+import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -27,7 +27,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -94,13 +94,22 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
 
+		let headers: Record<string, string> | undefined;
+		if (this.environmentService.crossOriginIsolated) {
+			if (basename(path) === 'workbench.html' || basename(path) === 'workbench-dev.html') {
+				headers = COI.CoopAndCoep;
+			} else {
+				headers = COI.getHeadersFromQuery(request.url);
+			}
+		}
+
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return callback({ path });
+			return callback({ path, headers });
 		}
 
 		// then check by validExtensions
-		if (this.validExtensions.has(extname(path))) {
+		if (this.validExtensions.has(extname(path).toLowerCase())) {
 			return callback({ path });
 		}
 
@@ -118,7 +127,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// 2.) Use `FileAccess.asFileUri` to convert back from a
 		//     `vscode-file:` URI to a `file:` URI.
-		const unnormalizedFileUri = FileAccess.asFileUri(requestUri);
+		const unnormalizedFileUri = FileAccess.uriToFileUri(requestUri);
 
 		// 3.) Strip anything from the URI that could result in
 		//     relative paths (such as "..") by using `normalize`

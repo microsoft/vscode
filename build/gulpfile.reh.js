@@ -9,8 +9,9 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
@@ -30,7 +31,7 @@ const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileCont
 const cp = require('child_process');
 
 const REPO_ROOT = path.dirname(__dirname);
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
@@ -58,14 +59,9 @@ const serverResources = [
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
-	'out-build/paths.js',
 
 	// Performance
 	'out-build/vs/base/common/performance.js',
-
-	// main entry points
-	'out-build/server-cli.js',
-	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',
@@ -76,12 +72,14 @@ const serverResources = [
 	'out-build/vs/base/node/ps.sh',
 
 	// Terminal shell integration
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.fish',
 
 	'!**/test/**'
 ];
@@ -252,7 +250,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const date = new Date().toISOString();
 
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
+			.pipe(json({ commit, date, version }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
@@ -355,23 +353,43 @@ function tweakProductForServerWeb(product) {
 ['reh', 'reh-web'].forEach(type => {
 	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
-		common.optimizeTask({
-			src: 'out-build',
-			entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
-			otherSources: [],
-			resources: type === 'reh' ? serverResources : serverWithWebResources,
-			loaderConfig: common.loaderConfig(),
-			out: `out-vscode-${type}`,
-			inlineAmdImages: true,
-			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-		})
+		optimize.optimizeTask(
+			{
+				out: `out-vscode-${type}`,
+				amd: {
+					src: 'out-build',
+					entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+					otherSources: [],
+					resources: type === 'reh' ? serverResources : serverWithWebResources,
+					loaderConfig: optimize.loaderConfig(),
+					inlineAmdImages: true,
+					bundleInfo: undefined,
+					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+				},
+				commonJS: {
+					src: 'out-build',
+					entryPoints: [
+						'out-build/server-main.js',
+						'out-build/server-cli.js'
+					],
+					platform: 'node',
+					external: [
+						'minimist',
+						// TODO: we cannot inline `product.json` because
+						// it is being changed during build time at a later
+						// point in time (such as `checksums`)
+						'../product.json',
+						'../package.json'
+					]
+				}
+			}
+		)
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 

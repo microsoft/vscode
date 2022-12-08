@@ -68,7 +68,7 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('Code block renderer', () => {
-		const simpleCodeBlockRenderer = (code: string): Promise<HTMLElement> => {
+		const simpleCodeBlockRenderer = (lang: string, code: string): Promise<HTMLElement> => {
 			const element = document.createElement('code');
 			element.textContent = code;
 			return Promise.resolve(element);
@@ -115,6 +115,19 @@ suite('MarkdownRenderer', () => {
 				}, 50);
 			});
 		});
+
+		test('Code blocks should use leading language id (#157793)', async () => {
+			const markdown = { value: '```js some other stuff\n1 + 1;\n```' };
+			const lang = await new Promise<string>(resolve => {
+				renderMarkdown(markdown, {
+					codeBlockRenderer: async (lang, value) => {
+						resolve(lang);
+						return simpleCodeBlockRenderer(lang, value);
+					}
+				});
+			});
+			assert.strictEqual(lang, 'js');
+		});
 	});
 
 	suite('ThemeIcons Support On', () => {
@@ -148,7 +161,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -168,7 +181,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -235,7 +248,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = renderMarkdown(md).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" title="command:doFoo">command1</a> <a data-href="command:doFoo">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {

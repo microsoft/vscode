@@ -160,6 +160,7 @@ export interface IOutputChannelDescriptor {
 	log: boolean;
 	languageId?: string;
 	file?: URI;
+	extensionId?: string;
 }
 
 export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
@@ -256,3 +257,5 @@ async function whenFileExists(file: URI, trial: number, fileService: IFileServic
 	await timeout(1000, token);
 	await whenFileExists(file, trial + 1, fileService, logService, token);
 }
+
+export const ACTIVE_OUTPUT_CHANNEL_CONTEXT = new RawContextKey<string>('activeOutputChannel', '');

@@ -3,20 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Connection, Emitter, FileChangeType, NotebookDocuments, TextDocuments } from 'vscode-languageserver';
+import { Connection, Emitter, FileChangeType, NotebookDocuments, Position, Range, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
-import { ContainingDocumentContext, FileWatcherOptions, IFileSystemWatcher } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
 import { LsConfiguration } from './config';
 import * as protocol from './protocol';
-import { coalesce } from './util/arrays';
 import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
 import { Limiter } from './util/limiter';
 import { ResourceMap } from './util/resourceMap';
 import { Schemes } from './util/schemes';
 
 declare const TextDecoder: any;
+
+class VsCodeDocument implements md.ITextDocument {
+
+	private inMemoryDoc?: TextDocument;
+	private onDiskDoc?: TextDocument;
+
+	readonly uri: string;
+
+	constructor(uri: string, init: { inMemoryDoc: TextDocument });
+	constructor(uri: string, init: { onDiskDoc: TextDocument });
+	constructor(uri: string, init: { inMemoryDoc?: TextDocument; onDiskDoc?: TextDocument }) {
+		this.uri = uri;
+		this.inMemoryDoc = init?.inMemoryDoc;
+		this.onDiskDoc = init?.onDiskDoc;
+	}
+
+	get version(): number {
+		return this.inMemoryDoc?.version ?? this.onDiskDoc?.version ?? 0;
+	}
+
+	get lineCount(): number {
+		return this.inMemoryDoc?.lineCount ?? this.onDiskDoc?.lineCount ?? 0;
+	}
+
+	getText(range?: Range): string {
+		if (this.inMemoryDoc) {
+			return this.inMemoryDoc.getText(range);
+		}
+
+		if (this.onDiskDoc) {
+			return this.onDiskDoc.getText(range);
+		}
+
+		throw new Error('Document has been closed');
+	}
+
+	positionAt(offset: number): Position {
+		if (this.inMemoryDoc) {
+			return this.inMemoryDoc.positionAt(offset);
+		}
+
+		if (this.onDiskDoc) {
+			return this.onDiskDoc.positionAt(offset);
+		}
+
+		throw new Error('Document has been closed');
+	}
+
+	hasInMemoryDoc(): boolean {
+		return !!this.inMemoryDoc;
+	}
+
+	isDetached(): boolean {
+		return !this.onDiskDoc && !this.inMemoryDoc;
+	}
+
+	setInMemoryDoc(doc: TextDocument | undefined) {
+		this.inMemoryDoc = doc;
+	}
+
+	setOnDiskDoc(doc: TextDocument | undefined) {
+		this.onDiskDoc = doc;
+	}
+}
 
 export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
@@ -29,14 +91,14 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	private readonly _onDidDeleteMarkdownDocument = new Emitter<URI>();
 	public readonly onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocument.event;
 
-	private readonly _documentCache = new ResourceMap<md.ITextDocument>();
+	private readonly _documentCache = new ResourceMap<VsCodeDocument>();
 
 	private readonly _utf8Decoder = new TextDecoder('utf-8');
 
 	private _watcherPool = 0;
 	private readonly _watchers = new Map<number, {
 		readonly resource: URI;
-		readonly options: FileWatcherOptions;
+		readonly options: md.FileWatcherOptions;
 		readonly onDidChange: Emitter<URI>;
 		readonly onDidCreate: Emitter<URI>;
 		readonly onDidDelete: Emitter<URI>;
@@ -50,20 +112,80 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		private readonly logger: md.ILogger,
 	) {
 		documents.onDidOpen(e => {
-			this._documentCache.delete(URI.parse(e.document.uri));
-			if (this.isRelevantMarkdownDocument(e.document)) {
-				this._onDidCreateMarkdownDocument.fire(e.document);
+			if (!this.isRelevantMarkdownDocument(e.document)) {
+				return;
+			}
+
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: TextDocument.onDidOpen', `${e.document.uri}`);
+
+			const uri = URI.parse(e.document.uri);
+			const doc = this._documentCache.get(uri);
+
+			if (doc) {
+				// File already existed on disk
+				doc.setInMemoryDoc(e.document);
+
+				// The content visible to the language service may have changed since the in-memory doc
+				// may differ from the one on-disk. To be safe we always fire a change event.
+				this._onDidChangeMarkdownDocument.fire(doc);
+			} else {
+				// We're creating the file for the first time
+				const doc = new VsCodeDocument(e.document.uri, { inMemoryDoc: e.document });
+				this._documentCache.set(uri, doc);
+				this._onDidCreateMarkdownDocument.fire(doc);
 			}
 		});
 
 		documents.onDidChangeContent(e => {
-			if (this.isRelevantMarkdownDocument(e.document)) {
-				this._onDidChangeMarkdownDocument.fire(e.document);
+			if (!this.isRelevantMarkdownDocument(e.document)) {
+				return;
+			}
+
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: TextDocument.onDidChanceContent', `${e.document.uri}`);
+
+			const uri = URI.parse(e.document.uri);
+			const entry = this._documentCache.get(uri);
+			if (entry) {
+				entry.setInMemoryDoc(e.document);
+				this._onDidChangeMarkdownDocument.fire(entry);
 			}
 		});
 
-		documents.onDidClose(e => {
-			this._documentCache.delete(URI.parse(e.document.uri));
+		documents.onDidClose(async e => {
+			if (!this.isRelevantMarkdownDocument(e.document)) {
+				return;
+			}
+
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: TextDocument.onDidClose', `${e.document.uri}`);
+
+			const uri = URI.parse(e.document.uri);
+			const doc = this._documentCache.get(uri);
+			if (!doc) {
+				// Document was never opened
+				return;
+			}
+
+			doc.setInMemoryDoc(undefined);
+			if (doc.isDetached()) {
+				// The document has been fully closed
+				this.doDeleteDocument(uri);
+				return;
+			}
+
+			// Check that if file has been deleted on disk.
+			// This can happen when directories are renamed / moved. VS Code's file system watcher does not
+			// notify us when this happens.
+			if (!(await this.statBypassingCache(uri))) {
+				if (this._documentCache.get(uri) === doc && !doc.hasInMemoryDoc()) {
+					this.doDeleteDocument(uri);
+					return;
+				}
+			}
+
+			// The document still exists on disk
+			// To be safe, tell the service that the document has changed because the
+			// in-memory doc contents may be different than the disk doc contents.
+			this._onDidChangeMarkdownDocument.fire(doc);
 		});
 
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {
@@ -72,23 +194,35 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: onDidChangeWatchedFiles', `${change.type}: ${resource}`);
 				switch (change.type) {
 					case FileChangeType.Changed: {
-						this._documentCache.delete(resource);
-						const document = await this.openMarkdownDocument(resource);
-						if (document) {
-							this._onDidChangeMarkdownDocument.fire(document);
+						const entry = this._documentCache.get(resource);
+						if (entry) {
+							// Refresh the on-disk state
+							const document = await this.openMarkdownDocumentFromFs(resource);
+							if (document) {
+								this._onDidChangeMarkdownDocument.fire(document);
+							}
 						}
 						break;
 					}
 					case FileChangeType.Created: {
-						const document = await this.openMarkdownDocument(resource);
-						if (document) {
-							this._onDidCreateMarkdownDocument.fire(document);
+						const entry = this._documentCache.get(resource);
+						if (entry) {
+							// Create or update the on-disk state
+							const document = await this.openMarkdownDocumentFromFs(resource);
+							if (document) {
+								this._onDidCreateMarkdownDocument.fire(document);
+							}
 						}
 						break;
 					}
 					case FileChangeType.Deleted: {
-						this._documentCache.delete(resource);
-						this._onDidDeleteMarkdownDocument.fire(resource);
+						const entry = this._documentCache.get(resource);
+						if (entry) {
+							entry.setOnDiskDoc(undefined);
+							if (entry.isDetached()) {
+								this.doDeleteDocument(resource);
+							}
+						}
 						break;
 					}
 				}
@@ -128,29 +262,35 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	async getAllMarkdownDocuments(): Promise<Iterable<md.ITextDocument>> {
+		// Add opened files (such as untitled files)
+		const openTextDocumentResults = this.documents.all()
+			.filter(doc => this.isRelevantMarkdownDocument(doc));
+
+		const allDocs = new ResourceMap<md.ITextDocument>();
+		for (const doc of openTextDocumentResults) {
+			allDocs.set(URI.parse(doc.uri), doc);
+		}
+
+		// And then add files on disk
 		const maxConcurrent = 20;
-
-		const foundFiles = new ResourceMap<void>();
 		const limiter = new Limiter<md.ITextDocument | undefined>(maxConcurrent);
-
-		// Add files on disk
 		const resources = await this.connection.sendRequest(protocol.findMarkdownFilesInWorkspace, {});
-		const onDiskResults = await Promise.all(resources.map(strResource => {
+		await Promise.all(resources.map(strResource => {
 			return limiter.queue(async () => {
 				const resource = URI.parse(strResource);
+				if (allDocs.has(resource)) {
+					return;
+				}
+
 				const doc = await this.openMarkdownDocument(resource);
 				if (doc) {
-					foundFiles.set(resource);
+					allDocs.set(resource, doc);
 				}
 				return doc;
 			});
 		}));
 
-		// Add opened files (such as untitled files)
-		const openTextDocumentResults = await Promise.all(this.documents.all()
-			.filter(doc => !foundFiles.has(URI.parse(doc.uri)) && this.isRelevantMarkdownDocument(doc)));
-
-		return coalesce([...onDiskResults, ...openTextDocumentResults]);
+		return allDocs.values();
 	}
 
 	hasMarkdownDocument(resource: URI): boolean {
@@ -165,10 +305,21 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 		const matchingDocument = this.documents.get(resource.toString());
 		if (matchingDocument) {
-			this._documentCache.set(resource, matchingDocument);
-			return matchingDocument;
+			let entry = this._documentCache.get(resource);
+			if (entry) {
+				entry.setInMemoryDoc(matchingDocument);
+			} else {
+				entry = new VsCodeDocument(resource.toString(), { inMemoryDoc: matchingDocument });
+				this._documentCache.set(resource, entry);
+			}
+
+			return entry;
 		}
 
+		return this.openMarkdownDocumentFromFs(resource);
+	}
+
+	private async openMarkdownDocumentFromFs(resource: URI): Promise<md.ITextDocument | undefined> {
 		if (!looksLikeMarkdownPath(this.config, resource)) {
 			return undefined;
 		}
@@ -180,7 +331,9 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 			// We assume that markdown is in UTF-8
 			const text = this._utf8Decoder.decode(bytes);
-			const doc = TextDocument.create(resource.toString(), 'markdown', 0, text);
+			const doc = new VsCodeDocument(resource.toString(), {
+				onDiskDoc: TextDocument.create(resource.toString(), 'markdown', 0, text)
+			});
 			this._documentCache.set(resource, doc);
 			return doc;
 		} catch (e) {
@@ -190,10 +343,19 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
 		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: stat', `${resource}`);
-		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
+		if (this._documentCache.has(resource)) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.fs_stat, { uri: resource.toString() });
+		return this.statBypassingCache(resource);
+	}
+
+	private async statBypassingCache(resource: URI): Promise<md.FileStat | undefined> {
+		const uri = resource.toString();
+		if (this.documents.get(uri)) {
+			return { isDirectory: false };
+		}
+		const fsResult = await this.connection.sendRequest(protocol.fs_stat, { uri });
+		return fsResult ?? undefined; // Force convert null to undefined
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
@@ -201,7 +363,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		return this.connection.sendRequest(protocol.fs_readDirectory, { uri: resource.toString() });
 	}
 
-	getContainingDocument(resource: URI): ContainingDocumentContext | undefined {
+	getContainingDocument(resource: URI): md.ContainingDocumentContext | undefined {
 		if (resource.scheme === Schemes.notebookCell) {
 			const nb = this.notebooks.findNotebookDocumentForCell(resource.toString());
 			if (nb) {
@@ -214,7 +376,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		return undefined;
 	}
 
-	watchFile(resource: URI, options: FileWatcherOptions): IFileSystemWatcher {
+	watchFile(resource: URI, options: md.FileWatcherOptions): md.IFileSystemWatcher {
 		const id = this._watcherPool++;
 		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: watchFile', `(${id}) ${resource}`);
 
@@ -231,6 +393,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			id,
 			uri: resource.toString(),
 			options,
+			watchParentDirs: true,
 		});
 
 		return {
@@ -247,5 +410,12 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	private isRelevantMarkdownDocument(doc: TextDocument) {
 		return isMarkdownFile(doc) && URI.parse(doc.uri).scheme !== 'vscode-bulkeditpreview';
+	}
+
+	private doDeleteDocument(uri: URI) {
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: deleteDocument', `${uri}`);
+
+		this._documentCache.delete(uri);
+		this._onDidDeleteMarkdownDocument.fire(uri);
 	}
 }

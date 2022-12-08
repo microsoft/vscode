@@ -10,12 +10,11 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/b
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { regExpFlags } from 'vs/base/common/strings';
@@ -26,6 +25,9 @@ import { canceled } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { LineRangeMapping, LineRange, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -94,8 +96,31 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return this._workerManager.withWorker().then(client => client.computedUnicodeHighlights(uri, options, range));
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace, maxComputationTime));
+	public async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+		const result = await this._workerManager.withWorker().then(client => client.computeDiff(original, modified, options, algorithm));
+		if (!result) {
+			return null;
+		}
+		// Convert from space efficient JSON data to rich objects.
+		const diff: IDocumentDiff = {
+			identical: result.identical,
+			quitEarly: result.quitEarly,
+			changes: result.changes.map(
+				(c) =>
+					new LineRangeMapping(
+						new LineRange(c[0], c[1]),
+						new LineRange(c[2], c[3]),
+						c[4]?.map(
+							(c) =>
+								new RangeMapping(
+									new Range(c[0], c[1], c[2], c[3]),
+									new Range(c[4], c[5], c[6], c[7])
+								)
+						)
+					)
+			),
+		};
+		return diff;
 	}
 
 	public canComputeDirtyDiff(original: URI, modified: URI): boolean {
@@ -491,9 +516,9 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
+	public computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
 		return this._withSyncedResources([original, modified], /* forceLargeModels */true).then(proxy => {
-			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace, maxComputationTime);
+			return proxy.computeDiff(original.toString(), modified.toString(), options, algorithm);
 		});
 	}
 

@@ -53,7 +53,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
-export interface HelpInformation {
+interface HelpInformation {
 	extensionDescription: IExtensionDescription;
 	getStarted?: string;
 	documentation?: string;
@@ -457,7 +457,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	}
 }
 
-export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
+class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
 	private hasSetSwitchForConnection: boolean = false;
@@ -472,8 +472,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
@@ -549,7 +548,7 @@ registerAction2(SwitchRemoteAction);
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: nls.localize('remote.explorer', "Remote Explorer"),
+		title: { value: nls.localize('remote.explorer', "Remote Explorer"), original: 'Remote Explorer' },
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
@@ -766,9 +765,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			const reconnectButton = {
 				label: nls.localize('reconnectNow', "Reconnect Now"),
 				callback: () => {
-					if (reconnectWaitEvent) {
-						reconnectWaitEvent.skipWait();
-					}
+					reconnectWaitEvent?.skipWait();
 				}
 			};
 
@@ -808,9 +805,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
 			connection.onDidStateChange((e) => {
-				if (visibleProgress) {
-					visibleProgress.stopTimer();
-				}
+				visibleProgress?.stopTimer();
 
 				if (disposableListener) {
 					disposableListener.dispose();
