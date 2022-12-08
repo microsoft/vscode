@@ -298,7 +298,7 @@ export class InlayHintsController implements IEditorContribution {
 				? new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier)
 				: undefined;
 
-			const lineNumber = labelPart.item.hint.position.lineNumber;
+			const lineNumber = model.validatePosition(labelPart.item.hint.position).lineNumber;
 			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 			const lineHints = this._getInlineHintsForRange(range);
 			this._updateHintsDecorators([range], lineHints);
