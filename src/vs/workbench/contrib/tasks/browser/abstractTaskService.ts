@@ -1226,6 +1226,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._handleError(error);
 			return Promise.reject(error);
 		} finally {
+			console.log('deleted', task._label);
 			this._inProgressTasks.delete(task._label);
 		}
 	}
@@ -1894,6 +1895,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		const response = await this._taskSystem.terminate(task);
+		this._inProgressTasks.delete(task._label);
 		if (response.success) {
 			try {
 				await this.run(task);
