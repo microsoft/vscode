@@ -142,10 +142,6 @@
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
-	outline: none;
-}
-
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover .monaco-action-bar,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected .monaco-action-bar {
 	display: block;

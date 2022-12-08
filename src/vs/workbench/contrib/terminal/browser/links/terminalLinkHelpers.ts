@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBufferCellPosition, IBuffer } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
@@ -77,9 +77,14 @@ export function convertLinkRangeToBuffer(
 			break;
 		}
 		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
-			const cell = line.getCell(x)!;
-			const width = cell.getWidth();
+			const cell = line.getCell(x);
+			// This is unexpected but it means the character doesn't exist, so we shouldn't add to
+			// the offset
+			if (!cell) {
+				break;
+			}
 			// Offset for 0 cells following wide characters
+			const width = cell.getWidth();
 			if (width === 2) {
 				lineOffset++;
 			}
@@ -124,7 +129,7 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is
 	// more of a sanity check as the wrapped line should already be trimmed down at this point.
-	const maxLineLength = Math.max(2048 / cols * 2);
+	const maxLineLength = Math.max(2048, cols * 2);
 	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
@@ -139,44 +144,49 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 }
 
 
-export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
-	if (position.y < range.start.y || position.y > range.end.y) {
-		return false;
-	}
-	if (position.y === range.start.y && position.x < range.start.x) {
-		return false;
-	}
-	if (position.y === range.end.y && position.x > range.end.x) {
-		return false;
-	}
-	return true;
-}
+// export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
+// 	if (position.y < range.start.y || position.y > range.end.y) {
+// 		return false;
+// 	}
+// 	if (position.y === range.start.y && position.x < range.start.x) {
+// 		return false;
+// 	}
+// 	if (position.y === range.end.y && position.x > range.end.x) {
+// 		return false;
+// 	}
+// 	return true;
+// }
 
 /**
  * For shells with the CommandDetection capability, the cwd for a command relative to the line of
  * the particular link can be used to narrow down the result for an exact file match.
  */
-export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, pathSeparator: string): string | undefined {
+export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, pathSeparator: string): string[] | undefined {
 	const cwd = capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
 	if (!cwd) {
 		return undefined;
 	}
+	const result: string[] = [];
 	if (!text.includes(pathSeparator)) {
-		text = cwd + pathSeparator + text;
+		result.push(cwd + pathSeparator + text);
 	} else {
 		let commonDirs = 0;
 		let i = 0;
 		const cwdPath = cwd.split(pathSeparator).reverse();
 		const linkPath = text.split(pathSeparator);
+		// Get all results as candidates, prioritizing the link with the most common directories.
+		// For example if in the directory /home/common and the link is common/file, the result
+		// should be: `['/home/common/common/file', '/home/common/file']`. The first is the most
+		// likely as cwd detection is active.
 		while (i < cwdPath.length) {
+			result.push(cwd + pathSeparator + linkPath.slice(commonDirs).join(pathSeparator));
 			if (cwdPath[i] === linkPath[i]) {
 				commonDirs++;
 			}
 			i++;
 		}
-		text = cwd + pathSeparator + linkPath.slice(commonDirs).join(pathSeparator);
 	}
-	return text;
+	return result;
 }
 
 export function osPathModule(os: OperatingSystem): IPath {

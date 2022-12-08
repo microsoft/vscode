@@ -3647,22 +3647,6 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) notebook edits for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: readonly NotebookEdit[]): void;
-
-		/**
-		 * Set (and replace) notebook edits with metadata for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
-
-		/**
 		 * Set (and replace) text edits or snippet edits for a resource.
 		 *
 		 * @param uri A resource identifier.
@@ -3677,6 +3661,22 @@ declare module 'vscode' {
 		 * @param edits An array of edits.
 		 */
 		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) notebook edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -6468,7 +6468,7 @@ declare module 'vscode' {
 	/**
 	 * A channel for containing log output.
 	 *
-	 * To get an instance of an `LogOutputChannel` use
+	 * To get an instance of a `LogOutputChannel` use
 	 * {@link window.createOutputChannel createOutputChannel}.
 	 */
 	export interface LogOutputChannel extends OutputChannel {

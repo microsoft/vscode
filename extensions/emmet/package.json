@@ -41,7 +41,7 @@
     "onCommand:editor.emmet.action.decrementNumberByTen",
     "onCommand:editor.emmet.action.reflectCSSValue",
     "onCommand:workbench.action.showEmmetCommands",
-    "onStartupFinished"
+    "onLanguage"
   ],
   "main": "./out/node/emmetNodeMain",
   "browser": "./dist/browser/emmetBrowserMain",

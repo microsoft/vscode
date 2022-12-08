@@ -15,7 +15,7 @@ import { AbstractPolicyService, IPolicyService, PolicyName, PolicyValue } from '
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];
 
-	for (const key of Iterable.concat(a.keys(), b.keys())) {
+	for (const key of new Set(Iterable.concat(a.keys(), b.keys()))) {
 		if (a.get(key) !== b.get(key)) {
 			result.push(key);
 		}

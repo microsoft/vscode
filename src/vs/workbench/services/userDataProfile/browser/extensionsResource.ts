@@ -144,7 +144,7 @@ export class ExtensionsResource implements IProfileResource {
 	}
 }
 
-abstract class ExtensionsResourceTreeItem implements IProfileResourceTreeItem {
+export abstract class ExtensionsResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.Extensions;
 	readonly handle = ProfileResourceType.Extensions;
