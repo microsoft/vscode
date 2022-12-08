@@ -141,10 +141,13 @@ class ToggleScreencastModeAction extends Action2 {
 			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
+			mouseMarker.style.transform = `scale(${1})`;
+			mouseMarker.style.transition = 'transform 0.1s';
 
 			const mouseMoveListener = onMouseMove.event(e => {
 				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
+				mouseMarker.style.transform = `scale(${.8})`;
 			});
 
 			Event.once(onMouseUp.event)(() => {
