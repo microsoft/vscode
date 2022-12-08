@@ -181,7 +181,7 @@ export class CursorMoveCommands {
 				: viewModel.coordinatesConverter.convertModelPositionToViewPosition(position)
 		);
 
-		if (!inSelectionMode || !cursor.modelState.hasSelection()) {
+		if (!inSelectionMode) {
 			// Entering line selection for the first time
 			const lineCount = viewModel.model.getLineCount();
 
@@ -204,7 +204,7 @@ export class CursorMoveCommands {
 		if (position.lineNumber < enteringLineNumber) {
 
 			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), viewPosition.lineNumber, 1, 0
+				true, viewPosition.lineNumber, 1, 0
 			));
 
 		} else if (position.lineNumber > enteringLineNumber) {
@@ -219,14 +219,14 @@ export class CursorMoveCommands {
 			}
 
 			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), selectToViewLineNumber, selectToViewColumn, 0
+				true, selectToViewLineNumber, selectToViewColumn, 0
 			));
 
 		} else {
 
 			const endPositionOfSelectionStart = cursor.modelState.selectionStart.getEndPosition();
 			return CursorState.fromModelState(cursor.modelState.move(
-				cursor.modelState.hasSelection(), endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
+				true, endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
 			));
 
 		}
