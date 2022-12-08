@@ -24,7 +24,6 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	fi
 
 	if [[ -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
-		ZDOTDIR=$USER_ZDOTDIR
 		HISTFILE=$USER_ZDOTDIR/.zsh_history
 	fi
 fi
