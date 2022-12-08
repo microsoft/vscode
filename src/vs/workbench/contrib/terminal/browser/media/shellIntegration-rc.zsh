@@ -4,6 +4,10 @@
 # ---------------------------------------------------------------------------------------------
 builtin autoload -Uz add-zsh-hook
 
+if [[  "$VSCODE_INJECTION" == "1"  && -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
+	HISTFILE=$USER_ZDOTDIR/.zsh_history
+fi
+
 # Prevent the script recursing when setting up
 if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
 	ZDOTDIR=$USER_ZDOTDIR
@@ -20,11 +24,6 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		VSCODE_ZDOTDIR=$ZDOTDIR
 		ZDOTDIR=$USER_ZDOTDIR
 		. $USER_ZDOTDIR/.zshrc
-		ZDOTDIR=$VSCODE_ZDOTDIR
-	fi
-
-	if [[ -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
-		HISTFILE=$USER_ZDOTDIR/.zsh_history
 	fi
 fi
 
