@@ -202,16 +202,9 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 
 		// Reveal and decorate when active item changes
-		// However, ignore the very first two events so that
-		// opening the picker is not immediately revealing
-		// and decorating the first entry.
-		let ignoreFirstActiveEvent = 2;
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 			if (item && item.range) {
-				if (ignoreFirstActiveEvent-- > 0) {
-					return;
-				}
 
 				// Reveal
 				editor.revealRangeInCenter(item.range.selection, ScrollType.Smooth);
