@@ -42,7 +42,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
-export interface IPrivateBreakpointWidgetService {
+interface IPrivateBreakpointWidgetService {
 	readonly _serviceBrand: undefined;
 	close(success: boolean): void;
 }
@@ -238,7 +238,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();
 			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
-			this.input.setDecorations('breakpoint-widget', DECORATION_KEY, decorations);
+			this.input.setDecorationsByType('breakpoint-widget', DECORATION_KEY, decorations);
 		};
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onDidColorThemeChange(() => setDecorations());

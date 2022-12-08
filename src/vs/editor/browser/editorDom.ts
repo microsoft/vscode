@@ -9,7 +9,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
+import { asCssValue } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -24,7 +24,7 @@ export class PageCoordinates {
 	) { }
 
 	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - dom.StandardWindow.scrollX, this.y - dom.StandardWindow.scrollY);
+		return new ClientCoordinates(this.x - window.scrollX, this.y - window.scrollY);
 	}
 }
 
@@ -44,7 +44,7 @@ export class ClientCoordinates {
 	) { }
 
 	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
+		return new PageCoordinates(this.clientX + window.scrollX, this.clientY + window.scrollY);
 	}
 }
 
@@ -173,7 +173,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableNonBubblingMouseOutListener(target, (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
@@ -208,7 +208,7 @@ export class EditorPointerEventFactory {
 	}
 
 	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.POINTER_LEAVE, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
@@ -378,7 +378,7 @@ class RefCountedCssRule {
 			const value = (properties as any)[prop] as string | ThemeColor;
 			let cssValue;
 			if (typeof value === 'object') {
-				cssValue = `var(${asCssVariableName(value.id)})`;
+				cssValue = asCssValue(value.id);
 			} else {
 				cssValue = value;
 			}

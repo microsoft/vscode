@@ -20,7 +20,7 @@ export class TestColorTheme implements IColorTheme {
 	) { }
 
 	getColor(color: string, useDefault?: boolean): Color | undefined {
-		let value = this.colors[color];
+		const value = this.colors[color];
 		if (value) {
 			return Color.fromHex(value);
 		}
@@ -40,13 +40,13 @@ export class TestColorTheme implements IColorTheme {
 	}
 }
 
-export class TestFileIconTheme implements IFileIconTheme {
+class TestFileIconTheme implements IFileIconTheme {
 	hasFileIcons = false;
 	hasFolderIcons = false;
 	hidesExplorerArrows = false;
 }
 
-export class UnthemedProductIconTheme implements IProductIconTheme {
+class UnthemedProductIconTheme implements IProductIconTheme {
 	getIcon(contribution: IconContribution) {
 		return undefined;
 	}

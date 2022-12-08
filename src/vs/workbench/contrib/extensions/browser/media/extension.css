@@ -82,6 +82,10 @@
 	overflow: hidden;
 }
 
+.extension-list-item.deprecated > .details > .header-container > .header > .name {
+	text-decoration: line-through;
+}
+
 .extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
@@ -195,7 +199,7 @@
 }
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
-	border-radius: 0;
+	border-radius: 2px;
 }
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
@@ -207,8 +211,20 @@
 	margin-right: 4px;
 }
 
+.extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
+	display: none;
+}
+
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
+}
+
+.monaco-list-row.disabled .extension-list-item .details .description {
+	color: var(--vscode-disabledForeground);
+}
+
+.monaco-list-row.disabled.selected .extension-list-item .details .description {
+	color: unset;
 }
 
 .extension-list-item .monaco-action-bar .action-label.icon {
@@ -223,4 +239,34 @@
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
 .extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
 	margin-left: 6px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.label {
+	border-right-width: 0;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	height: 16px;
+	margin-top: 2px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	height: 10px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {
+	border-left-width: 0;
+}
+
+/* single install */
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action {
+	border-radius: 2px;
+}
+
+/* split install */
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label:not(.dropdown) {
+	border-radius: 2px 0 0 2px;
+}
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action {
+	border-radius: 0 2px 2px 0;
 }

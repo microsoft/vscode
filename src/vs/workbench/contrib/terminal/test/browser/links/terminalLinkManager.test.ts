@@ -80,12 +80,16 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
-		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), {
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
+			async getInitialCwd() {
+				return '';
+			}
+		}), {
 			get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 				return undefined;
 			}
-		} as Partial<ITerminalCapabilityStore>);
+		} as Partial<ITerminalCapabilityStore> as any);
 	});
 
 	suite('getLinks and open recent link', () => {

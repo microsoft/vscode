@@ -7,7 +7,7 @@
 
 'use strict';
 const CopyPlugin = require('copy-webpack-plugin');
-const Terser = require('terser');
+const path = require('path');
 
 const defaultConfig = require('../shared.webpack.config');
 const withBrowserDefaults = defaultConfig.browser;
@@ -28,14 +28,13 @@ const languages = [
 	'tr',
 	'zh-cn',
 ];
-
-module.exports = withBrowserDefaults({
+module.exports = [withBrowserDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.browser.ts',
 	},
 	plugins: [
-		...browserPlugins, // add plugins, don't replace inherited
+		...browserPlugins(__dirname), // add plugins, don't replace inherited
 
 		// @ts-ignore
 		new CopyPlugin({
@@ -58,21 +57,24 @@ module.exports = withBrowserDefaults({
 				}))
 			],
 		}),
-		// @ts-ignore
-		new CopyPlugin({
-			patterns: [
-				{
-					from: '../node_modules/typescript/lib/tsserver.js',
-					to: 'typescript/tsserver.web.js',
-					transform: (content) => {
-						return Terser.minify(content.toString()).then(output => output.code);
-
-					},
-					transformPath: (targetPath) => {
-						return targetPath.replace('tsserver.js', 'tsserver.web.js');
-					}
-				}
-			],
-		}),
 	],
-});
+}), withBrowserDefaults({
+	context: __dirname,
+	entry: {
+		'typescript/tsserver.web': './web/webServer.ts'
+	},
+	module: {
+		exprContextCritical: false,
+	},
+	ignoreWarnings: [/Critical dependency: the request of a dependency is an expression/],
+	output: {
+		// all output goes into `dist`.
+		// packaging depends on that and this must always be like it
+		filename: '[name].js',
+		path: path.join(__dirname, 'dist', 'browser'),
+		libraryTarget: undefined,
+	},
+	externals: {
+		'perf_hooks': 'commonjs perf_hooks',
+	}
+})];

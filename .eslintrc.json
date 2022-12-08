@@ -8,12 +8,19 @@
 	"plugins": [
 		"@typescript-eslint",
 		"jsdoc",
-		"header"
+		"header",
+		"local"
 	],
 	"rules": {
 		"constructor-super": "warn",
 		"curly": "warn",
 		"eqeqeq": "warn",
+		"prefer-const": [
+			"warn",
+			{
+				"destructuring": "all"
+			}
+		],
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
 		"no-case-declarations": "warn",
@@ -55,17 +62,18 @@
 				]
 			}
 		],
-		"code-no-unused-expressions": [
+		"local/code-no-unused-expressions": [
 			"warn",
 			{
 				"allowTernary": true
 			}
 		],
-		"code-translation-remind": "warn",
-		"code-no-nls-in-standalone-editor": "warn",
-		"code-no-standalone-editor": "warn",
-		"code-no-unexternalized-strings": "warn",
-		"code-layering": [
+		"local/code-translation-remind": "warn",
+		"local/code-no-nls-in-standalone-editor": "warn",
+		"local/code-no-standalone-editor": "warn",
+		"local/code-no-unexternalized-strings": "warn",
+		"local/code-declare-service-brand": "warn",
+		"local/code-layering": [
 			"warn",
 			{
 				"common": [],
@@ -116,8 +124,8 @@
 				"**/*.test.ts"
 			],
 			"rules": {
-				"code-no-test-only": "error",
-				"code-no-unexternalized-strings": "off"
+				"local/code-no-test-only": "error",
+				"local/code-no-unexternalized-strings": "off"
 			}
 		},
 		{
@@ -126,14 +134,14 @@
 				"**/vscode.proposed.*.d.ts"
 			],
 			"rules": {
-				"vscode-dts-create-func": "warn",
-				"vscode-dts-literal-or-types": "warn",
-				"vscode-dts-interface-naming": "warn",
-				"vscode-dts-cancellation": "warn",
-				"vscode-dts-use-thenable": "warn",
-				"vscode-dts-region-comments": "warn",
-				"vscode-dts-vscode-in-comments": "warn",
-				"vscode-dts-provider-naming": [
+				"local/vscode-dts-create-func": "warn",
+				"local/vscode-dts-literal-or-types": "warn",
+				"local/vscode-dts-interface-naming": "warn",
+				"local/vscode-dts-cancellation": "warn",
+				"local/vscode-dts-use-thenable": "warn",
+				"local/vscode-dts-region-comments": "warn",
+				"local/vscode-dts-vscode-in-comments": "warn",
+				"local/vscode-dts-provider-naming": [
 					"warn",
 					{
 						"allowed": [
@@ -148,7 +156,7 @@
 						]
 					}
 				],
-				"vscode-dts-event-naming": [
+				"local/vscode-dts-event-naming": [
 					"warn",
 					{
 						"allowed": [
@@ -194,8 +202,8 @@
 				"src/**/*.ts"
 			],
 			"rules": {
-				"code-no-look-behind-regex": "warn",
-				"code-import-patterns": [
+				"local/code-no-look-behind-regex": "warn",
+				"local/code-import-patterns": [
 					"warn",
 					{
 						// imports that are allowed in all files of layers:
@@ -214,13 +222,11 @@
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
-							"@microsoft/applicationinsights-web",
 							"@parcel/watcher",
 							"@vscode/sqlite3",
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
-							"applicationinsights",
 							"assert",
 							"child_process",
 							"console",
@@ -255,6 +261,7 @@
 							"windows-process-tree",
 							"worker_threads",
 							"xterm",
+							"xterm-addon-canvas",
 							"xterm-addon-search",
 							"xterm-addon-serialize",
 							"xterm-addon-unicode11",
@@ -269,6 +276,7 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
+							"vs/css.build",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -323,7 +331,9 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"tas-client-umd" // node module allowed even in /common/
+							"tas-client-umd", // node module allowed even in /common/
+							"@microsoft/1ds-core-js", // node module allowed even in /common/
+							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
 					{
@@ -437,8 +447,7 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection", // node module allowed even in /common/
-							"@microsoft/applicationinsights-web" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection" // node module allowed even in /common/
 						]
 					},
 					{
@@ -479,6 +488,14 @@
 							{
 								"when": "hasBrowser",
 								"pattern": "vs/workbench/workbench.web.main"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/~"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/services/*/~"
 							}
 						]
 					},
@@ -529,7 +546,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
+						"target": "src/vs/workbench/workbench.desktop.main.ts",
 						"layer": "electron-sandbox",
 						"restrictions": [
 							"vs/base/*/~",
@@ -542,26 +559,7 @@
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
-							"vs/workbench/workbench.sandbox.main"
-						]
-					},
-					{
-						"target": "src/vs/workbench/workbench.desktop.main.ts",
-						"layer": "electron-browser",
-						"restrictions": [
-							"vs/base/*/~",
-							"vs/base/parts/*/~",
-							"vs/platform/*/~",
-							"vs/editor/~",
-							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
-							"vs/workbench/~",
-							"vs/workbench/api/~",
-							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
-							"vs/workbench/workbench.sandbox.main"
+							"vs/workbench/workbench.common.main"
 						]
 					},
 					{
@@ -569,7 +567,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
 						"restrictions": []
 					},
 					{
@@ -588,7 +586,7 @@
 				"test/**/*.ts"
 			],
 			"rules": {
-				"code-import-patterns": [
+				"local/code-import-patterns": [
 					"warn",
 					{
 						"target": "test/smoke/**",

@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { Barrier } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -19,7 +18,6 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypes';
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -85,18 +83,13 @@ suite('NotebookKernel', function () {
 
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookProvider() { }
-			override async $unregisterNotebookProvider() { }
+			override async $registerNotebookSerializer() { }
+			override async $unregisterNotebookSerializer() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			override workspaceValue() {
-				return URI.from({ scheme: 'test', path: generateUuid() });
-			}
-		};
 		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments);
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
@@ -162,7 +155,7 @@ suite('NotebookKernel', function () {
 		await rpcProtocol.sync();
 		assert.strictEqual(kernelData.size, 1);
 
-		let [first] = kernelData.values();
+		const [first] = kernelData.values();
 		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
@@ -283,7 +276,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
 		let found = false;
-		for (let edit of cellExecuteUpdates) {
+		for (const edit of cellExecuteUpdates) {
 			if (edit.editType === CellExecutionUpdateType.Output) {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);
@@ -317,7 +310,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
 		let found = false;
-		for (let edit of cellExecuteUpdates) {
+		for (const edit of cellExecuteUpdates) {
 			if (edit.editType === CellExecutionUpdateType.Output) {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);

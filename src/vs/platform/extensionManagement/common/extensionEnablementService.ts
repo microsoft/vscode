@@ -57,7 +57,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	}
 
 	private _addToDisabledExtensions(identifier: IExtensionIdentifier): boolean {
-		let disabledExtensions = this.getDisabledExtensions();
+		const disabledExtensions = this.getDisabledExtensions();
 		if (disabledExtensions.every(e => !areSameExtensions(e, identifier))) {
 			disabledExtensions.push(identifier);
 			this._setDisabledExtensions(disabledExtensions);
@@ -67,7 +67,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	}
 
 	private _removeFromDisabledExtensions(identifier: IExtensionIdentifier): boolean {
-		let disabledExtensions = this.getDisabledExtensions();
+		const disabledExtensions = this.getDisabledExtensions();
 		for (let index = 0; index < disabledExtensions.length; index++) {
 			const disabledExtension = disabledExtensions[index];
 			if (areSameExtensions(disabledExtension, identifier)) {
@@ -84,11 +84,11 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	}
 
 	private _getExtensions(storageId: string): IExtensionIdentifier[] {
-		return this.storageManger.get(storageId, StorageScope.GLOBAL);
+		return this.storageManger.get(storageId, StorageScope.PROFILE);
 	}
 
 	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[]): void {
-		this.storageManger.set(storageId, extensions, StorageScope.GLOBAL);
+		this.storageManger.set(storageId, extensions, StorageScope.PROFILE);
 	}
 
 }
@@ -107,7 +107,7 @@ export class StorageManager extends Disposable {
 
 	get(key: string, scope: StorageScope): IExtensionIdentifier[] {
 		let value: string;
-		if (scope === StorageScope.GLOBAL) {
+		if (scope === StorageScope.PROFILE) {
 			if (isUndefinedOrNull(this.storage[key])) {
 				this.storage[key] = this._get(key, scope);
 			}
@@ -119,10 +119,10 @@ export class StorageManager extends Disposable {
 	}
 
 	set(key: string, value: IExtensionIdentifier[], scope: StorageScope): void {
-		let newValue: string = JSON.stringify(value.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid })));
+		const newValue: string = JSON.stringify(value.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid })));
 		const oldValue = this._get(key, scope);
 		if (oldValue !== newValue) {
-			if (scope === StorageScope.GLOBAL) {
+			if (scope === StorageScope.PROFILE) {
 				if (value.length) {
 					this.storage[key] = newValue;
 				} else {
@@ -134,7 +134,7 @@ export class StorageManager extends Disposable {
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope === StorageScope.GLOBAL) {
+		if (storageChangeEvent.scope === StorageScope.PROFILE) {
 			if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
 				const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
 				if (newValue !== this.storage[storageChangeEvent.key]) {

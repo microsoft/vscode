@@ -70,10 +70,12 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
+		readonly servicePPEUrl?: string;
+		readonly searchUrl?: string;
 		readonly itemUrl: string;
+		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
 		readonly nlsBaseUrl: string;
 	};
 
@@ -87,6 +89,7 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
+	readonly trustedExtensionAuthAccess?: readonly string[];
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -98,7 +101,7 @@ export interface IProductConfiguration {
 	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
-		readonly asimovKey: string;
+		readonly ariaKey: string;
 	};
 
 	readonly sendASmile?: {
@@ -128,6 +131,9 @@ export interface IProductConfiguration {
 	readonly serverApplicationName: string;
 	readonly serverDataFolderName?: string;
 
+	readonly tunnelApplicationName?: string;
+	readonly tunnelApplicationConfig?: ITunnelApplicationConfig;
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
@@ -152,7 +158,14 @@ export interface IProductConfiguration {
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
+	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+}
+
+export interface ITunnelApplicationConfig {
+	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
+	editorWebUrl: string;
+	extension: IRemoteExtensionTip;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };

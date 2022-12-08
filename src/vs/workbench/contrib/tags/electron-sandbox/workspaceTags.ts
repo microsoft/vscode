@@ -36,7 +36,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		if (this.telemetryService.telemetryLevel.value === TelemetryLevel.USAGE) {
+		if (this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
 			this.report();
 		}
 	}
@@ -67,7 +67,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			value = 'Unknown';
 		}
 
-		this.telemetryService.publicLog2<{ edition: string }, { owner: 'sbatten'; edition: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+		this.telemetryService.publicLog2<{ edition: string }, { owner: 'sbatten'; comment: 'Information about the Windows edition.'; edition: { classification: 'SystemMetaData'; purpose: 'BusinessInsight'; comment: 'The Windows edition.' } }>('windowsEdition', { edition: value });
 	}
 
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {

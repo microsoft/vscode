@@ -4,7 +4,7 @@
   "description": "%description%",
   "icon": "media/icon.png",
   "version": "1.0.0",
-  "publisher": "ms-vscode",
+  "publisher": "vscode",
   "license": "MIT",
   "engines": {
     "vscode": "^1.67.0"
@@ -405,9 +405,6 @@
   "scripts": {
     "compile": "npx gulp compile-extension:references-view",
     "watch": "npx gulp watch-extension:references-view"
-  },
-  "dependencies": {
-    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

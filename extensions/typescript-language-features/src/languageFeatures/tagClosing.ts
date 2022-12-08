@@ -53,7 +53,7 @@ class TagClosing extends Disposable {
 			return;
 		}
 
-		const activeDocument = vscode.window.activeTextEditor && vscode.window.activeTextEditor.document;
+		const activeDocument = vscode.window.activeTextEditor?.document;
 		if (document !== activeDocument) {
 			return;
 		}

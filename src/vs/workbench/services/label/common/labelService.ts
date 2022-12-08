@@ -14,11 +14,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
@@ -26,6 +26,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -142,9 +143,9 @@ export class LabelService extends Disposable implements ILabelService {
 		this.os = OS;
 		this.userHome = pathService.defaultUriScheme === Schemas.file ? this.pathService.userHome({ preferLocal: true }) : undefined;
 
-		const memento = this.storedFormattersMemento = new Memento('cachedResourceFormatters', storageService);
-		this.storedFormatters = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
-		this.formatters = this.storedFormatters?.formatters || [];
+		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters2', storageService);
+		this.storedFormatters = memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.formatters = this.storedFormatters?.formatters?.slice() || [];
 
 		// Remote environment is potentially long running
 		this.resolveRemoteEnvironment();
@@ -223,8 +224,23 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		// Relative label
-		if (options.relative) {
-			const folder = this.contextService?.getWorkspaceFolder(resource);
+		if (options.relative && this.contextService) {
+			let folder = this.contextService.getWorkspaceFolder(resource);
+			if (!folder) {
+
+				// It is possible that the resource we want to resolve the
+				// workspace folder for is not using the same scheme as
+				// the folders in the workspace, so we help by trying again
+				// to resolve a workspace folder by trying again with a
+				// scheme that is workspace contained.
+
+				const workspace = this.contextService.getWorkspace();
+				const firstFolder = firstOrDefault(workspace.folders);
+				if (firstFolder && resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
+					folder = this.contextService.getWorkspaceFolder(firstFolder.uri.with({ path: resource.path }));
+				}
+			}
+
 			if (folder) {
 				const folderLabel = this.formatUri(folder.uri, formatting, options.noPrefix);
 
@@ -271,7 +287,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return pathLib.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (identifier) {
@@ -299,7 +315,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: Verbosity }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
@@ -318,17 +334,42 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label: string;
-		if (options?.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
-		} else {
-			label = localize('workspaceName', "{0} (Workspace)", filename);
+		switch (options?.verbose) {
+			case Verbosity.SHORT:
+				label = filename; // skip suffix for short label
+				break;
+			case Verbosity.LONG:
+				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				label = localize('workspaceName', "{0} (Workspace)", filename);
+				break;
+		}
+
+		if (options?.verbose === Verbosity.SHORT) {
+			return label; // skip suffix for short label
 		}
 
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
-		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || posix.sep;
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: Verbosity }): string {
+		let label: string;
+		switch (options?.verbose) {
+			case Verbosity.LONG:
+				label = this.getUriLabel(folderUri);
+				break;
+			case Verbosity.SHORT:
+			case Verbosity.MEDIUM:
+			default:
+				label = basename(folderUri) || posix.sep;
+				break;
+		}
+
+		if (options?.verbose === Verbosity.SHORT) {
+			return label; // skip suffix for short label
+		}
 
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}
@@ -439,4 +480,4 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 }
 
-registerSingleton(ILabelService, LabelService, true);
+registerSingleton(ILabelService, LabelService, InstantiationType.Delayed);

@@ -24,8 +24,6 @@ import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/com
 
 export class CursorsController extends Disposable {
 
-	public static readonly MAX_CURSOR_COUNT = 10000;
-
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
 	private readonly _viewModel: ICursorSimpleModel;
@@ -117,8 +115,9 @@ export class CursorsController extends Disposable {
 
 	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
-		if (states !== null && states.length > CursorsController.MAX_CURSOR_COUNT) {
-			states = states.slice(0, CursorsController.MAX_CURSOR_COUNT);
+		const multiCursorLimit = this.context.cursorConfig.multiCursorLimit;
+		if (states !== null && states.length > multiCursorLimit) {
+			states = states.slice(0, multiCursorLimit);
 			reachedMaxCursorCount = true;
 		}
 
@@ -832,7 +831,7 @@ class CommandExecutor {
 
 		// Extract losing cursors
 		const losingCursors: number[] = [];
-		for (let losingCursorIndex in loserCursorsMap) {
+		for (const losingCursorIndex in loserCursorsMap) {
 			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
 				losingCursors.push(parseInt(losingCursorIndex, 10));
 			}

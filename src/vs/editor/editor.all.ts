@@ -38,9 +38,11 @@ import 'vs/editor/contrib/lineSelection/browser/lineSelection';
 import 'vs/editor/contrib/linesOperations/browser/linesOperations';
 import 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
 import 'vs/editor/contrib/links/browser/links';
+import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/stickyScroll/browser/stickyScrollContribution';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import 'vs/editor/contrib/snippet/browser/snippetController2';
 import 'vs/editor/contrib/suggest/browser/suggestController';
@@ -53,6 +55,7 @@ import 'vs/editor/contrib/viewportSemanticTokens/browser/viewportSemanticTokens'
 import 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/browser/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
+import 'vs/editor/contrib/readOnlyMessage/browser/contribution';
 
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated

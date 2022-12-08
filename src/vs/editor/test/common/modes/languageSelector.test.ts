@@ -9,7 +9,7 @@ import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
 
 suite('LanguageSelector', function () {
 
-	let model = {
+	const model = {
 		language: 'farboo',
 		uri: URI.parse('file:///testbed/file.fb')
 	};
@@ -57,7 +57,7 @@ suite('LanguageSelector', function () {
 		assert.strictEqual(score({ pattern: '**/*.fb' }, URI.parse('foo:bar'), model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'foo' }, URI.parse('foo:bar'), model.language, true, undefined, undefined), 0);
 
-		let doc = {
+		const doc = {
 			uri: URI.parse('git:/my/file.js'),
 			langId: 'javascript'
 		};
@@ -69,8 +69,8 @@ suite('LanguageSelector', function () {
 	});
 
 	test('score, max(filters)', function () {
-		let match = { language: 'farboo', scheme: 'file' };
-		let fail = { language: 'farboo', scheme: 'http' };
+		const match = { language: 'farboo', scheme: 'file' };
+		const fail = { language: 'farboo', scheme: 'http' };
 
 		assert.strictEqual(score(match, model.uri, model.language, true, undefined, undefined), 10);
 		assert.strictEqual(score(fail, model.uri, model.language, true, undefined, undefined), 0);
@@ -81,7 +81,7 @@ suite('LanguageSelector', function () {
 	});
 
 	test('score hasAccessToAllModels', function () {
-		let doc = {
+		const doc = {
 			uri: URI.parse('file:/my/file.js'),
 			langId: 'javascript'
 		};
@@ -96,7 +96,7 @@ suite('LanguageSelector', function () {
 	});
 
 	test('score, notebookType', function () {
-		let obj = {
+		const obj = {
 			uri: URI.parse('vscode-notebook-cell:///my/file.js#blabla'),
 			langId: 'javascript',
 			notebookType: 'fooBook',
@@ -113,7 +113,7 @@ suite('LanguageSelector', function () {
 	});
 
 	test('Snippet choices lost #149363', function () {
-		let selector: LanguageSelector = {
+		const selector: LanguageSelector = {
 			scheme: 'vscode-notebook-cell',
 			pattern: '/some/path/file.py',
 			language: 'python'
@@ -123,7 +123,7 @@ suite('LanguageSelector', function () {
 		const nbUri = URI.parse('file:///some/path/file.py');
 		assert.strictEqual(score(selector, modelUri, 'python', true, nbUri, 'jupyter'), 10);
 
-		let selector2: LanguageSelector = {
+		const selector2: LanguageSelector = {
 			...selector,
 			notebookType: 'jupyter'
 		};
@@ -132,28 +132,28 @@ suite('LanguageSelector', function () {
 	});
 
 	test('Document selector match - unexpected result value #60232', function () {
-		let selector = {
+		const selector = {
 			language: 'json',
 			scheme: 'file',
 			pattern: '**/*.interface.json'
 		};
-		let value = score(selector, URI.parse('file:///C:/Users/zlhe/Desktop/test.interface.json'), 'json', true, undefined, undefined);
+		const value = score(selector, URI.parse('file:///C:/Users/zlhe/Desktop/test.interface.json'), 'json', true, undefined, undefined);
 		assert.strictEqual(value, 10);
 	});
 
 	test('Document selector match - platform paths #99938', function () {
-		let selector = {
+		const selector = {
 			pattern: {
 				base: '/home/user/Desktop',
 				pattern: '*.json'
 			}
 		};
-		let value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true, undefined, undefined);
+		const value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true, undefined, undefined);
 		assert.strictEqual(value, 10);
 	});
 
 	test('NotebookType without notebook', function () {
-		let obj = {
+		const obj = {
 			uri: URI.parse('file:///my/file.bat'),
 			langId: 'bat',
 		};
