@@ -23,7 +23,8 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		ZDOTDIR=$VSCODE_ZDOTDIR
 	fi
 
-	if [[ -f $USER_ZDOTDIR/.zsh_history && -z $HISTFILE ]]; then
+	if [[ -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
+		ZDOTDIR=$USER_ZDOTDIR
 		HISTFILE=$USER_ZDOTDIR/.zsh_history
 	fi
 fi
