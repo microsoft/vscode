@@ -161,8 +161,12 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		let text = link.text.replace(/^file:\/\/\/?/, '');
 		text = osPathModule(this._os).normalize(text).replace(/^(\.+[\\/])+/, '');
 
-		// Remove `:in` from the end which is how Ruby outputs stack traces
-		text = text.replace(/:in$/, '');
+		// Remove `:<one or more non number characters>` from the end of the link.
+		// Examples:
+		// - Ruby stack traces: <link>:in ...
+		// - Grep output: <link>:<result line>
+		text = text.replace(/:[^\d]+$/, '');
+
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {

@@ -85,7 +85,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());

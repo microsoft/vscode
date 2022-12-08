@@ -667,11 +667,11 @@ declare namespace monaco {
 		/**
 		 * Test if this range equals other.
 		 */
-		equalsRange(other: IRange | null): boolean;
+		equalsRange(other: IRange | null | undefined): boolean;
 		/**
 		 * Test if range `a` equals `b`.
 		 */
-		static equalsRange(a: IRange | null, b: IRange | null): boolean;
+		static equalsRange(a: IRange | null | undefined, b: IRange | null | undefined): boolean;
 		/**
 		 * Return the end position (which will be after or equal to the start position)
 		 */
@@ -3840,7 +3840,7 @@ declare namespace monaco.editor {
 		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
 		/**
-		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
 	}

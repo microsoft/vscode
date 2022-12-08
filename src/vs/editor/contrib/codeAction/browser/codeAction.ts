@@ -232,6 +232,7 @@ export async function applyCodeAction(
 	item: CodeActionItem,
 	codeActionReason: ApplyCodeActionReason,
 	options?: { preview?: boolean; editor?: ICodeEditor },
+	token: CancellationToken = CancellationToken.None,
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
 	const commandService = accessor.get(ICommandService);
@@ -260,10 +261,13 @@ export async function applyCodeAction(
 		reason: codeActionReason,
 	});
 
-	await item.resolve(CancellationToken.None);
+	await item.resolve(token);
+	if (token.isCancellationRequested) {
+		return;
+	}
 
 	if (item.action.edit) {
-		await bulkEditService.apply(item.action.edit, {
+		const result = await bulkEditService.apply(item.action.edit, {
 			editor: options?.editor,
 			label: item.action.title,
 			quotableLabel: item.action.title,
@@ -271,6 +275,10 @@ export async function applyCodeAction(
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
 		});
+
+		if (!result.isApplied) {
+			return;
+		}
 	}
 
 	if (item.action.command) {

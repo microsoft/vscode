@@ -907,6 +907,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
+			const oldSelection = tree.getSelection();
 			try {
 				await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
 			} catch (e) {
@@ -914,6 +915,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				// we can get a "Tree element not found" error. This is expected.
 				// Ideally this is fixable, so log instead of ignoring so the error is preserved.
 				this.logService.error(e);
+			}
+			const newSelection = tree.getSelection();
+			if (oldSelection.length !== newSelection.length || oldSelection.some((value, index) => value.handle !== newSelection[index].handle)) {
+				this._onDidChangeSelection.fire(newSelection);
 			}
 			this.refreshing = false;
 			this._onDidCompleteRefresh.fire();

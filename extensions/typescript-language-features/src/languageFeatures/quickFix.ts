@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
@@ -342,7 +341,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(tsAction.fixId)) {
+		if (!tsAction.fixId || results.hasFixAllAction(tsAction.fixId)) {
 			return results;
 		}
 
