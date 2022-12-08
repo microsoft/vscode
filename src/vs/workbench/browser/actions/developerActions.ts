@@ -379,7 +379,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
-			description: localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
+			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
 			default: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
