@@ -188,7 +188,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
-					if (element.kind === 'action') {
+					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
@@ -198,8 +198,8 @@ export class ActionList<T extends IActionItem> extends Disposable {
 					return null;
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
-				getRole: () => 'option',
-				getWidgetRole: () => user
+				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
+				getWidgetRole: () => 'listbox'
 			},
 		}));
 
