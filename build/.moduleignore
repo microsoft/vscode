@@ -151,7 +151,7 @@ typescript/lib/tsc.js
 typescript/lib/typescriptServices.js
 typescript/lib/tsserverlibrary.js
 # We still need to include stdlib d.ts
-!typescript/lib/lib.*.d.ts
+!typescript/lib/lib*.d.ts
 
 jschardet/index.js
 jschardet/src/**
