@@ -6,6 +6,7 @@
 "use strict";
 
 (function () {
+	// @ts-ignore
 	const vscode = acquireVsCodeApi();
 
 	function getSettings() {
@@ -62,7 +63,8 @@
 		});
 	}
 
-	document.querySelector('.open-file-link').addEventListener('click', () => {
+	document.querySelector('.open-file-link')?.addEventListener('click', (e) => {
+		e.preventDefault();
 		vscode.postMessage({
 			type: 'reopen-as-text',
 		});

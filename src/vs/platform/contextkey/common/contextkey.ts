@@ -1647,8 +1647,6 @@ export interface IContextKeyService {
 	updateParent(parentContextKeyService: IContextKeyService): void;
 }
 
-export const SET_CONTEXT_COMMAND_ID = 'setContext';
-
 function cmp1(key1: string, key2: string): number {
 	if (key1 < key2) {
 		return -1;

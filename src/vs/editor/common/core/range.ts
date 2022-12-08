@@ -259,14 +259,14 @@ export class Range {
 	/**
 	 * Test if this range equals other.
 	 */
-	public equalsRange(other: IRange | null): boolean {
+	public equalsRange(other: IRange | null | undefined): boolean {
 		return Range.equalsRange(this, other);
 	}
 
 	/**
 	 * Test if range `a` equals `b`.
 	 */
-	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
+	public static equalsRange(a: IRange | null | undefined, b: IRange | null | undefined): boolean {
 		if (!a && !b) {
 			return true;
 		}
