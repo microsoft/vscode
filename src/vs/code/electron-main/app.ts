@@ -88,7 +88,7 @@ import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManage
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
+import { ICodeWindow, LoadReason, WindowError } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
@@ -315,6 +315,11 @@ export class CodeApplication extends Disposable {
 
 		// Dispose on shutdown
 		this.lifecycleMainService.onWillShutdown(() => this.dispose());
+		this.lifecycleMainService.onWillLoadWindow(e => {
+			if (e.reason === LoadReason.RELOAD) {
+				this.windowsMainService?.sendToAll('vscode:accessibilitySupportChanged', app.isAccessibilitySupportEnabled());
+			}
+		});
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -550,7 +555,6 @@ export class CodeApplication extends Disposable {
 			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
-		this.windowsMainService?.sendToAll('vscode:initialAccessibilityEnabled', app.isAccessibilitySupportEnabled());
 	}
 
 	private setUpHandlers(instantiationService: IInstantiationService): void {
@@ -761,7 +765,6 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		this.lifecycleMainService.onWillLoadWindow(() => this.windowsMainService?.sendToAll('vscode:initialAccessibilityEnabled', app.isAccessibilitySupportEnabled()));
 
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);

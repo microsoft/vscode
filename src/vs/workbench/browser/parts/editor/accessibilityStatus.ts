@@ -25,10 +25,9 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
-
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this.onScreenReaderModeChange()));
 		this._register(configurationService.onDidChangeConfiguration(c => {
 			if (c.affectsConfiguration('editor.accessibilitySupport')) {
