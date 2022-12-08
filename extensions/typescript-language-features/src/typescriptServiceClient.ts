@@ -668,6 +668,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		switch (resource.scheme) {
 			case fileSchemes.file:
+			case fileSchemes.vscodeWeb:
 				{
 					let result = resource.fsPath;
 					if (!result) {

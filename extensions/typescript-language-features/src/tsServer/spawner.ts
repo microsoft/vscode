@@ -34,7 +34,6 @@ const enum CompositeServerType {
 	SyntaxOnly
 }
 
-declare const crossOriginIsolated: boolean;
 export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
@@ -56,7 +55,6 @@ export class TypeScriptServerSpawner {
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-		this._logger.info('crossOriginIsolated?', crossOriginIsolated);
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
 		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
 

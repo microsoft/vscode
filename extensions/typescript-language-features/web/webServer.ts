@@ -19,84 +19,6 @@ const setSys: (s: ts.System) => void = (ts as any).setSys;
 
 // End misc internals
 // BEGIN webServer/webServer.ts
-/**
- * Convert an in-memory path to a simply rooted path.
- * TODO: Eventually we should insert an artificial prefix (perhaps either `scheme` or `authority`) so that we can hang other things
- * off the root like ATA or other things.
- *
- * Find the first ^ anywhere in the path and delete ^/scheme/authority from that position
- */
-function fromInMemory(path: string) {
-	const i = path.indexOf("^")
-	if (i > -1) {
-		return path.replace(/\^\/[0-9A-Za-z-]+\/[0-9A-Za-z-]+/, '').replace(/\/\//, '/')
-	}
-	return path
-}
-function toInMemory(path: string, scheme: string, authority: string) {
-	return `^/${scheme}/${authority}${path}`
-}
-function translateRequest(message: {}) {
-	if ("command" in message) {
-		let msg
-		switch (message.command) {
-			case "updateOpen":
-				msg = message as ts.server.protocol.UpdateOpenRequest;
-				msg.arguments.changedFiles?.forEach(f => f.fileName = fromInMemory(f.fileName));
-				msg.arguments.openFiles?.forEach(f => f.file = fromInMemory(f.file));
-				if (msg.arguments.closedFiles) {
-					msg.arguments.closedFiles = msg.arguments.closedFiles.map(fromInMemory);
-				}
-				break;
-			case "navtree":
-				msg = message as ts.server.protocol.NavTreeRequest;
-				msg.arguments.file = fromInMemory(msg.arguments.file);
-				break;
-			case "geterr":
-				msg = message as ts.server.protocol.GeterrRequest;
-				msg.arguments.files = msg.arguments.files.map(fromInMemory);
-				break;
-			case "getOutliningSpans":
-			case "configure":
-			case "quickinfo":
-			case "completionInfo":
-			case "projectInfo":
-			case "getApplicableRefactors":
-			case "encodedSemanticClassifications-full":
-			case "getCodeFixes":
-				msg = message as ts.server.protocol.FileRequest;
-				if (msg.arguments.file)
-					msg.arguments.file = fromInMemory(msg.arguments.file);
-				break;
-		}
-	}
-	return message
-}
-function translateResponse(message: ts.server.protocol.Message) {
-	let msg
-	if (message.type === 'event') {
-		msg = message as ts.server.protocol.Event;
-		switch (msg.event) {
-			case "projectLoadingStart":
-			case "projectLoadingFinish":
-				msg.body.projectName = toInMemory(msg.body.projectName, 'vscode-test-web', 'mount')
-				break;
-			case "configFileDiag":
-				msg.body.triggerFile = toInMemory(msg.body.triggerFile, 'vscode-test-web', 'mount')
-				msg.body.configFile = toInMemory(msg.body.configFile, 'vscode-test-web', 'mount')
-				break;
-			case "syntaxDiag":
-			case "semanticDiag":
-			case "suggestionDiag":
-				msg.body.file = toInMemory(msg.body.file, 'vscode-test-web', 'mount')
-				break;
-
-		}
-		if (msg.event === 'projectLoadingStart' || msg.event === 'projectLoadingFinish') {
-		}
-	}
-
-}
 function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
 	const scheme = apiClient.vscode.workspace.workspaceFolders[0].uri.scheme
 	// TODO: Now see which uses of vfsroot need to become serverroot
@@ -108,9 +30,8 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
 		 */
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
-			const p = fromInMemory(path)
-			logger.info(`calling watchFile on ${path} (${p}) (${watchFiles.has(p) ? 'OLD' : 'new'})`)
-			watchFiles.set(p, { path: p, callback, pollingInterval, options })
+			logger.info(`calling watchFile on ${path} (${watchFiles.has(path) ? 'OLD' : 'new'})`)
+			watchFiles.set(path, { path, callback, pollingInterval, options })
 			return {
 				close() {
 					watchFiles.delete(path)
@@ -118,9 +39,8 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 			}
 		},
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
-			const p = fromInMemory(path)
-			logger.info(`calling watchDirectory on ${path} (${p}) (${watchDirectories.has(p) ? 'OLD' : 'new'})`)
-			watchDirectories.set(path, { path: p, callback, recursive, options })
+			logger.info(`calling watchDirectory on ${path} (${watchDirectories.has(path) ? 'OLD' : 'new'})`)
+			watchDirectories.set(path, { path, callback, recursive, options })
 			return {
 				close() {
 					watchDirectories.delete(path)
@@ -162,7 +82,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		readFile(path) {
 			try {
 				logger.info('calling readFile on ' + path)
-				const bytes = fs.readFile(URI.from({ scheme, path: fromInMemory(path) }))
+				const bytes = fs.readFile(URI.from({ scheme, path }))
 				return new TextDecoder().decode(new Uint8Array(bytes).slice()) // TODO: Not sure why `bytes.slice()` isn't as good as `new Uint8Array(bytes).slice()`
 				// (common/connection.ts says that Uint8Array is only a view on the bytes which could change, which is why the slice exists)
 			}
@@ -200,9 +120,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		fileExists(path: string): boolean {
 			try {
-				logger.info(`calling fileExists on ${path} (as ${URI.from({ scheme, path: fromInMemory(path) })})`)
+				logger.info(`calling fileExists on ${path} (as ${URI.from({ scheme, path })})`)
 				// TODO: FileType.File might be correct! (need to learn about vscode's FileSystem.stat)
-				return fs.stat(URI.from({ scheme, path: fromInMemory(path) })).type === FileType.File
+				return fs.stat(URI.from({ scheme, path })).type === FileType.File
 			}
 			catch (e) {
 				logger.info(`Error fs.fileExists for ${path}`)
@@ -212,9 +132,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		directoryExists(path: string): boolean {
 			try {
-				logger.info(`calling directoryExists on ${path} (as ${URI.from({ scheme, path: fromInMemory(path) })})`)
+				logger.info(`calling directoryExists on ${path} (as ${URI.from({ scheme, path })})`)
 				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
-				return fs.stat(URI.from({ scheme, path: fromInMemory(path) })).type === FileType.Directory
+				return fs.stat(URI.from({ scheme, path })).type === FileType.Directory
 			}
 			catch (e) {
 				logger.info(`Error fs.directoryExists for ${path}`)
@@ -224,9 +144,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		createDirectory(path: string): void {
 			try {
-				logger.info(`calling createDirectory on ${path} (as ${URI.from({ scheme, path: fromInMemory(path) })})`)
+				logger.info(`calling createDirectory on ${path} (as ${URI.from({ scheme, path })})`)
 				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
-				fs.createDirectory(URI.from({ scheme, path: fromInMemory(path) }))
+				fs.createDirectory(URI.from({ scheme, path }))
 			}
 			catch (e) {
 				logger.info(`Error fs.createDirectory`)
@@ -312,7 +232,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		/** webServer comments this out and says "module resolution, symlinks"
 		 * I don't think we support symlinks yet but module resolution should work */
 		realpath(path: string): string {
-			const parts = [...root.split('/'), ...fromInMemory(path).split('/')]
+			const parts = [...root.split('/'), ...path.split('/')]
 			const out = []
 			for (const part of parts) {
 				switch (part) {
@@ -327,7 +247,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 						out.push(part)
 				}
 			}
-			logger.info(`realpath: resolved ${path} (${fromInMemory(path)}) to ${'/' + out.join('/')}`)
+			logger.info(`realpath: resolved ${path} to ${'/' + out.join('/')}`)
 			return '/' + out.join('/')
 		},
 		// clearScreen?(): void { },
@@ -404,8 +324,6 @@ class WorkerSession extends ts.server.Session<{}> {
 		this.logger.info('done constructing WorkerSession')
 	}
 	public override send(msg: ts.server.protocol.Message) {
-		// TODO: Translate paths *back* to ^/scheme/authority/ format.. actually this should be easy.
-		translateResponse(msg)
 		if (msg.type === "event" && !this.canUseEvents) {
 			if (this.logger.hasLevel(ts.server.LogLevel.verbose)) {
 				this.logger.info(`Session does not support events: ignored event: ${JSON.stringify(msg)}`);
@@ -434,7 +352,7 @@ class WorkerSession extends ts.server.Session<{}> {
 			this.logger.info(`host msg: ${JSON.stringify(message.data)}`)
 			// TODO: Not sure whether this should be `message` or `message.data`
 			wasmCancellationToken.add(Cancellation.retrieveCheck(message.data))
-			this.onMessage(translateRequest(message.data))
+			this.onMessage(message.data)
 		};
 	}
 }

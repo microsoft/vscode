@@ -13,13 +13,14 @@ export const vscodeNotebookCell = 'vscode-notebook-cell';
 export const memFs = 'memfs';
 export const vscodeVfs = 'vscode-vfs';
 export const officeScript = 'office-script';
+export const vscodeWeb = 'vscode-test-web'; // TODO: Should probably reuse vscodeVfs eventually, since vscode-test-web is the local test web server
 
 export const semanticSupportedSchemes = [
 	file,
 	untitled,
 	walkThroughSnippet,
 	vscodeNotebookCell,
-	'vscode-test-web',
+	vscodeWeb,
 ];
 
 /**

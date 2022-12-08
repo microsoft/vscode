@@ -30,8 +30,17 @@ Language server host for typescript using vscode's sync-api in the browser
    - the one that matches the current request id
    - but that means tracking (or retrieving from tsserver) the request id (aka seq?)
    - and correctly setting/resetting it on the cancellation token too.
+- [ ] Cancellation code in vscode is suspiciously prototypey.
+   - Specifically, it adds the vscode-wasm cancellation to original cancellation code, but should actually switch to the former for web only.
+   - looks like `isWeb()` is a way to check for being on the web
 - [ ] create multiple watchers
    - on-demand instead of watching everything and checking on watch firing
+
+### Bugs
+
+- [ ] Response `seq` is always 0.
+- [ ] renaming a file throws a No Project error to the console.
+- [ ] gotodef in another file throws and the editor has a special UI for it.
 
 ### Final
 
