@@ -16,7 +16,7 @@ VSCODE_SHELL_INTEGRATION=1
 
 # Set HISTFILE to the default location before the user's .zshrc is sourced
 # to prevent the value of HISTFILE from defaulting to VSCODE_ZDOTDIR/.zsh_history
-if [[  "$VSCODE_INJECTION" == "1"  && -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
+if [[  "$VSCODE_INJECTION" == "1" ]]; then
 	HISTFILE=$USER_ZDOTDIR/.zsh_history
 fi
 
