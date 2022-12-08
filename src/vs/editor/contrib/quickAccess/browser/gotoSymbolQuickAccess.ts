@@ -205,6 +205,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 			if (item && item.range) {
+
 				// Reveal
 				editor.revealRangeInCenter(item.range.selection, ScrollType.Smooth);
 
