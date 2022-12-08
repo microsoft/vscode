@@ -10,7 +10,7 @@ import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResource
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('TextResourceEditorInput', () => {
@@ -42,7 +42,7 @@ suite('TextResourceEditorInput', () => {
 	});
 
 	test('preferred language (via ctor)', async () => {
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: 'resource-input-test',
 		});
 
@@ -60,10 +60,11 @@ suite('TextResourceEditorInput', () => {
 
 		await input.resolve();
 		assert.strictEqual(model.textEditorModel?.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
+		registration.dispose();
 	});
 
 	test('preferred language (via setPreferredLanguageId)', async () => {
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: 'resource-input-test',
 		});
 
@@ -76,6 +77,7 @@ suite('TextResourceEditorInput', () => {
 		const model = await input.resolve();
 		assert.ok(model);
 		assert.strictEqual(model.textEditorModel?.getLanguageId(), 'resource-input-test');
+		registration.dispose();
 	});
 
 	test('preferred contents (via ctor)', async () => {

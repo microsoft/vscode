@@ -23,6 +23,9 @@ import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
+import { MessagePortMain } from 'electron';
+import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import type { EventEmitter } from 'events';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -31,6 +34,24 @@ interface ParsedExtHostArgs {
 	transformURIs?: boolean;
 	skipWorkspaceStorageLock?: boolean;
 	useHostProxy?: 'true' | 'false'; // use a string, as undefined is also a valid value
+}
+
+interface ParentPort extends EventEmitter {
+
+	// Docs: https://electronjs.org/docs/api/parent-port
+
+	/**
+	 * Emitted when the process receives a message. Messages received on this port will
+	 * be queued up until a handler is registered for this event.
+	 */
+	on(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	once(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	addListener(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	removeListener(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	/**
+	 * Sends a message from the process to its parent.
+	 */
+	postMessage(message: any): void;
 }
 
 // workaround for https://github.com/microsoft/vscode/issues/85490
@@ -60,7 +81,7 @@ const args = minimist(process.argv.slice(2), {
 // happening we essentially blocklist this module from getting loaded in any
 // extension by patching the node require() function.
 (function () {
-	const Module = require.__$__nodeRequire('module') as any;
+	const Module = globalThis._VSCODE_NODE_MODULES.module as any;
 	const originalLoad = Module._load;
 
 	Module._load = function (request: string) {
@@ -89,6 +110,12 @@ function patchProcess(allowExit: boolean) {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
+
+	// Set ELECTRON_RUN_AS_NODE environment variable for extensions that use
+	// child_process.spawn with process.execPath and expect to run as node process
+	// on the desktop.
+	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
+	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 }
 
 interface IRendererConnection {
@@ -102,14 +129,38 @@ let onTerminate = function (reason: string) {
 	nativeExit();
 };
 
-function _createExtHostProtocol(): Promise<PersistentProtocol> {
-	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
+function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+	const extHostConnection = readExtHostConnection(process.env);
+
+	if (extHostConnection.type === ExtHostConnectionType.MessagePort) {
+
+		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+
+			const withPorts = (ports: MessagePortMain[]) => {
+				const port = ports[0];
+				const onMessage = new BufferedEmitter<VSBuffer>();
+				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.on('close', () => {
+					onTerminate('renderer closed the MessagePort');
+				});
+				port.start();
+
+				resolve({
+					onMessage: onMessage.event,
+					send: message => port.postMessage(message.buffer)
+				});
+			};
+
+			(process as NodeJS.Process & { parentPort: ParentPort })?.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
+		});
+
+	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			let protocol: PersistentProtocol | null = null;
 
-			let timer = setTimeout(() => {
+			const timer = setTimeout(() => {
 				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
@@ -167,20 +218,20 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			// Now that we have managed to install a message listener, ask the other side to send us the socket
 			const req: IExtHostReadyMessage = { type: 'VSCODE_EXTHOST_IPC_READY' };
-			if (process.send) {
-				process.send(req);
-			}
+			process.send?.(req);
 		});
 
 	} else {
 
-		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		const pipeName = extHostConnection.pipeName;
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
+				const protocol = new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer'));
+				protocol.sendResume();
+				resolve(protocol);
 			});
 			socket.once('error', reject);
 
@@ -220,8 +271,10 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			}
 		}
 
-		drain(): Promise<void> {
-			return protocol.drain();
+		async drain(): Promise<void> {
+			if (protocol.drain) {
+				return protocol.drain();
+			}
 		}
 	};
 }
@@ -245,37 +298,39 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				}
 			}
 
-			// Kill oneself if one's parent dies. Much drama.
-			let epermErrors = 0;
-			setInterval(function () {
-				try {
-					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-					epermErrors = 0;
-				} catch (e) {
-					if (e && e.code === 'EPERM') {
-						// Even if the parent process is still alive,
-						// some antivirus software can lead to an EPERM error to be thrown here.
-						// Let's terminate only if we get 3 consecutive EPERM errors.
-						epermErrors++;
-						if (epermErrors >= 3) {
-							onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+			if (initData.parentPid) {
+				// Kill oneself if one's parent dies. Much drama.
+				let epermErrors = 0;
+				setInterval(function () {
+					try {
+						process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+						epermErrors = 0;
+					} catch (e) {
+						if (e && e.code === 'EPERM') {
+							// Even if the parent process is still alive,
+							// some antivirus software can lead to an EPERM error to be thrown here.
+							// Let's terminate only if we get 3 consecutive EPERM errors.
+							epermErrors++;
+							if (epermErrors >= 3) {
+								onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+							}
+						} else {
+							onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 						}
-					} else {
-						onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 					}
-				}
-			}, 1000);
+				}, 1000);
 
-			// In certain cases, the event loop can become busy and never yield
-			// e.g. while-true or process.nextTick endless loops
-			// So also use the native node module to do it from a separate thread
-			let watchdog: typeof nativeWatchdog;
-			try {
-				watchdog = require.__$__nodeRequire('native-watchdog');
-				watchdog.start(initData.parentPid);
-			} catch (err) {
-				// no problem...
-				onUnexpectedError(err);
+				// In certain cases, the event loop can become busy and never yield
+				// e.g. while-true or process.nextTick endless loops
+				// So also use the native node module to do it from a separate thread
+				let watchdog: typeof nativeWatchdog;
+				try {
+					watchdog = globalThis._VSCODE_NODE_MODULES['native-watchdog'];
+					watchdog.start(initData.parentPid);
+				} catch (err) {
+					// no problem...
+					onUnexpectedError(err);
+				}
 			}
 
 			// Tell the outside that we are initialized
@@ -289,7 +344,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-export async function startExtensionHostProcess(): Promise<void> {
+async function startExtensionHostProcess(): Promise<void> {
 
 	// Print a console message when rejection isn't handled within N seconds. For details:
 	// see https://nodejs.org/api/process.html#process_event_unhandledrejection

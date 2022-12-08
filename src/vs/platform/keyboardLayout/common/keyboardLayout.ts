@@ -115,7 +115,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 
 	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
 		// windows
-		let windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
+		const windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
 		return {
 			label: windowsLayout.text,
 			description: ''
@@ -123,7 +123,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 	}
 
 	if ((<IMacKeyboardLayoutInfo>layout).id) {
-		let macLayout = <IMacKeyboardLayoutInfo>layout;
+		const macLayout = <IMacKeyboardLayoutInfo>layout;
 		if (macLayout.localizedName) {
 			return {
 				label: macLayout.localizedName,
@@ -150,7 +150,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 		};
 	}
 
-	let linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
+	const linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
 
 	return {
 		label: linuxLayout.layout,

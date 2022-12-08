@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
@@ -20,6 +21,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -38,7 +40,7 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/browser/peekView';
+import { getOuterEditor, IPeekViewService, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -51,10 +53,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
@@ -65,7 +65,6 @@ import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -75,7 +74,9 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import 'vs/css!./testingOutputPeek';
 
 class TestDto {
 	public readonly test: ITestItem;
@@ -349,11 +350,20 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		return mapFindTestMessage(test, (task, message, messageIndex, taskId) =>
-			isFailedState(task.state) && message.location
-				? { taskId, index: messageIndex, message }
-				: undefined
-		);
+		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
+			if (!isFailedState(task.state) || !message.location) {
+				return;
+			}
+
+			if (best && message.type !== TestMessageType.Error) {
+				return;
+			}
+
+			best = { taskId, index: messageIndex, message };
+		});
+
+		return best;
 	}
 }
 
@@ -409,7 +419,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 */
 	public readonly historyVisible = MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.GLOBAL,
+		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
 	}, this.storageService), true);
 
@@ -750,7 +760,6 @@ class TestingOutputPeek extends PeekViewWidget {
 
 		this.show(dto.revealLocation.range, TestingOutputPeek.lastHeightInLines || hintMessagePeekHeight(message));
 		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
-		this.editor.focus();
 
 		return this.showInPlace(dto);
 	}
@@ -761,7 +770,7 @@ class TestingOutputPeek extends PeekViewWidget {
 	 */
 	public async showInPlace(dto: TestDto) {
 		const message = dto.messages[dto.messageIndex];
-		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), dto.test.label);
+		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), stripIcons(dto.test.label));
 		this.didReveal.fire(dto);
 		this.visibilityChange.fire(true);
 		await Promise.all(this.contentProviders.map(p => p.update(dto, message)));
@@ -827,6 +836,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderSideBySide: true,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
+	diffAlgorithm: 'smart',
 };
 
 const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
@@ -894,7 +904,8 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 }
 
 class ScrollableMarkdownMessage extends Disposable {
-	private scrollable: DomScrollableElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly element: HTMLElement;
 
 	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
 		super();
@@ -903,6 +914,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		rendered.element.style.height = '100%';
 		rendered.element.style.userSelect = 'text';
 		container.appendChild(rendered.element);
+		this.element = rendered.element;
 
 		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
 			className: 'preview-text',
@@ -917,7 +929,13 @@ class ScrollableMarkdownMessage extends Disposable {
 	}
 
 	public layout(height: number, width: number) {
-		this.scrollable.setScrollDimensions({ width, height });
+		// Remove padding of `.monaco-editor .zone-widget.test-output-peek .preview-text`
+		this.scrollable.setScrollDimensions({
+			width: width - 32,
+			height: height - 16,
+			scrollWidth: this.element.scrollWidth,
+			scrollHeight: this.element.scrollHeight
+		});
 	}
 }
 
@@ -1053,13 +1071,11 @@ export class CloseTestPeek extends EditorAction2 {
 			id: 'editor.closeTestPeek',
 			title: localize('close', 'Close'),
 			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(TestingContextKeys.isInPeek, TestingContextKeys.isPeekVisible),
-				ContextKeyExpr.not('config.editor.stablePeek')
-			),
+			precondition: ContextKeyExpr.or(TestingContextKeys.isInPeek, TestingContextKeys.isPeekVisible),
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 101,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.not('config.editor.stablePeek')
 			}
 		});
 	}
@@ -1075,6 +1091,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
+	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
 	ariaLabel?: string;
@@ -1102,6 +1119,7 @@ export class TestCaseElement implements ITreeElement {
 	public readonly context = this.test.item.extId;
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
 	public readonly label = this.test.item.label;
+	public readonly labelWithIcons = renderLabelWithIcons(this.label);
 	public readonly description?: string;
 
 	public get icon() {
@@ -1146,6 +1164,7 @@ class TestMessageElement implements ITreeElement {
 	public readonly uri: URI;
 	public readonly location?: IRichLocation;
 	public readonly description?: string;
+	public readonly marker?: number;
 
 	constructor(
 		public readonly result: ITestResult,
@@ -1153,9 +1172,10 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
+		const m = test.tasks[taskIndex].messages[messageIndex];
 
-		this.location = location;
+		this.location = m.location;
+		this.marker = m.type === TestMessageType.Output ? m.marker : undefined;
 		this.uri = this.context = buildTestUri({
 			type: TestUriType.ResultMessage,
 			messageIndex,
@@ -1166,7 +1186,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = renderStringAsPlaintext(message);
+		const asPlaintext = renderStringAsPlaintext(m.message);
 		const lines = count(asPlaintext.trimRight(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
@@ -1198,7 +1218,6 @@ class OutputPeekTree extends Disposable {
 		super();
 
 		this.treeActions = instantiationService.createInstance(TreeActionsProvider);
-		const labels = instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility });
 		const diffIdentityProvider: IIdentityProvider<TreeElement> = {
 			getId(e: TreeElement) {
 				return e.id;
@@ -1213,7 +1232,7 @@ class OutputPeekTree extends Disposable {
 				getHeight: () => 22,
 				getTemplateId: () => TestRunElementRenderer.ID,
 			},
-			[instantiationService.createInstance(TestRunElementRenderer, labels, this.treeActions)],
+			[instantiationService.createInstance(TestRunElementRenderer, this.treeActions)],
 			{
 				compressionEnabled: true,
 				hideTwistiesOfChildlessElements: true,
@@ -1349,6 +1368,7 @@ class OutputPeekTree extends Disposable {
 
 			this.tree.setFocus([messageNode]);
 			this.tree.setSelection([messageNode]);
+			this.tree.domFocus();
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
@@ -1391,11 +1411,10 @@ class OutputPeekTree extends Disposable {
 		const actions = this.treeActions.provideActionBar(evt.element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary.length
-				? [...actions.value.primary, new Separator(), ...actions.value.secondary]
-				: actions.value.primary,
-			getActionsContext: () => evt.element?.context,
-			onHide: () => actions.dispose(),
+			getActions: () => actions.secondary.length
+				? [...actions.primary, new Separator(), ...actions.secondary]
+				: actions.primary,
+			getActionsContext: () => evt.element?.context
 		});
 	}
 
@@ -1406,7 +1425,7 @@ class OutputPeekTree extends Disposable {
 }
 
 interface TemplateData {
-	label: IResourceLabel;
+	label: HTMLElement;
 	icon: HTMLElement;
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
@@ -1418,7 +1437,6 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	public readonly templateId = TestRunElementRenderer.ID;
 
 	constructor(
-		private readonly labels: ResourceLabels,
 		private readonly treeActions: TreeActionsProvider,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
@@ -1439,10 +1457,7 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const templateDisposable = new DisposableStore();
 		const wrapper = dom.append(container, dom.$('.test-peek-item'));
 		const icon = dom.append(wrapper, dom.$('.state'));
-		const name = dom.append(wrapper, dom.$('.name'));
-
-		const label = this.labels.create(name, { supportHighlights: true });
-		templateDisposable.add(label);
+		const label = dom.append(wrapper, dom.$('.name'));
 
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
@@ -1474,16 +1489,21 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 
 	private doRender(element: ITreeElement, templateData: TemplateData) {
 		templateData.elementDisposable.clear();
-		templateData.label.setLabel(element.label, element.description);
+		if (element.labelWithIcons) {
+			dom.reset(templateData.label, ...element.labelWithIcons);
+		} else if (element.description) {
+			dom.reset(templateData.label, element.label, dom.$('span.test-label-description', {}, element.description));
+		} else {
+			dom.reset(templateData.label, element.label);
+		}
 
 		const icon = element.icon;
 		templateData.icon.className = `computed-state ${icon ? ThemeIcon.asClassName(icon) : ''}`;
 
 		const actions = this.treeActions.provideActionBar(element);
-		templateData.elementDisposable.add(actions);
 		templateData.actionBar.clear();
 		templateData.actionBar.context = element;
-		templateData.actionBar.push(actions.value.primary, { icon: true, label: false });
+		templateData.actionBar.push(actions.primary, { icon: true, label: false });
 	}
 }
 
@@ -1577,46 +1597,29 @@ class TreeActionsProvider {
 				}
 			}
 
+			if (element instanceof TestMessageElement) {
+				if (element.marker !== undefined) {
+					primary.push(new Action(
+						'testing.outputPeek.showMessageInTerminal',
+						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
+						Codicon.terminal.classNames,
+						undefined,
+						() => this.testTerminalService.open(element.result, element.marker),
+					));
+				}
+			}
+
 			const result = { primary, secondary };
-			const actionsDisposable = createAndFillInActionBarActions(menu, {
+			createAndFillInActionBarActions(menu, {
 				shouldForwardArgs: true,
 			}, result, 'inline');
 
-			return { value: result, dispose: () => actionsDisposable.dispose };
+			return result;
 		} finally {
 			menu.dispose();
 		}
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const resultsBackground = theme.getColor(peekViewResultsBackground);
-	if (resultsBackground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree { background-color: ${resultsBackground}; }`);
-	}
-	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
-	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree { color: ${resultsMatchForeground}; }`);
-	}
-	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
-	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
-	}
-	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
-	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
-	}
-
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a { color: ${textLinkForegroundColor}; }`);
-	}
-
-	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
-	if (textLinkActiveForegroundColor) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a :hover { color: ${textLinkActiveForegroundColor}; }`);
-	}
-});
 
 const navWhen = ContextKeyExpr.and(
 	EditorContextKeys.focus,
@@ -1650,9 +1653,9 @@ export class GoToNextMessageAction extends EditorAction2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
+			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
 			icon: Codicon.arrowDown,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -1680,9 +1683,9 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
+			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
 			icon: Codicon.arrowUp,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -1710,9 +1713,9 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: localize('testing.openMessageInEditor', "Open in Editor"),
+			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
 			icon: Codicon.linkExternal,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
 		});
 	}
@@ -1728,9 +1731,9 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"),
+			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
 			icon: Codicon.history,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			menu: [{
 				id: MenuId.TestPeekTitle,
 				group: 'navigation',

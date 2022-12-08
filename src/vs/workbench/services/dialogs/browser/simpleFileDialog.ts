@@ -100,7 +100,12 @@ enum UpdateResult {
 
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
-export class SimpleFileDialog {
+export interface ISimpleFileDialog {
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined>;
+	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
+}
+
+export class SimpleFileDialog implements ISimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
 	private filePickBox!: IQuickPick<FileQuickPickItem>;
@@ -255,7 +260,7 @@ export class SimpleFileDialog {
 		this.isWindows = await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let stat: IFileStatWithPartialMetadata | undefined;
-		let ext: string = resources.extname(homedir);
+		const ext: string = resources.extname(homedir);
 		if (this.options.defaultUri) {
 			try {
 				stat = await this.fileService.stat(this.options.defaultUri);
@@ -554,9 +559,19 @@ export class SimpleFileDialog {
 		return this.remoteUriFrom(value);
 	}
 
+	private tryAddTrailingSeparatorToDirectory(uri: URI, stat: IFileStatWithPartialMetadata): URI {
+		if (stat.isDirectory) {
+			// At this point we know it's a directory and can add the trailing path separator
+			if (!this.endsWithSlash(uri.path)) {
+				return resources.addTrailingPathSeparator(uri);
+			}
+		}
+		return uri;
+	}
+
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if ((value.length > 0) && (value[0] === '~')) {
-			let newDir = this.tildaReplace(value);
+			const newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
 			valueUri = this.root(this.currentFolder);
@@ -570,6 +585,7 @@ export class SimpleFileDialog {
 				// do nothing
 			}
 			if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
+				valueUri = this.tryAddTrailingSeparatorToDirectory(valueUri, stat);
 				return await this.updateItems(valueUri) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 			} else if (this.endsWithSlash(value)) {
 				// The input box contains a path that doesn't exist on the system.
@@ -593,10 +609,7 @@ export class SimpleFileDialog {
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
 						this.badPath = undefined;
-						// At this point we know it's a directory and can add the trailing path separator
-						if (!this.endsWithSlash(inputUriDirname.path)) {
-							inputUriDirname = resources.addTrailingPathSeparator(inputUriDirname);
-						}
+						inputUriDirname = this.tryAddTrailingSeparatorToDirectory(inputUriDirname, statWithoutTrailing);
 						return await this.updateItems(inputUriDirname, false, resources.basename(valueUri)) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 					}
 				}
@@ -803,8 +816,11 @@ export class SimpleFileDialog {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
-			} else if (!statDirname || !statDirname.isDirectory) {
+			} else if (!statDirname) {
 				// Folder to save in doesn't exist
+				const message = nls.localize('remoteFileDialog.validateCreateDirectory', 'The folder {0} does not exist. Would you like to create it?', resources.basename(resources.dirname(uri)));
+				return this.yesNoPrompt(uri, message);
+			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
 			}
@@ -951,7 +967,7 @@ export class SimpleFileDialog {
 				folder = await this.fileService.resolve(currentFolder);
 			}
 			const items = folder.children ? await Promise.all(folder.children.map(child => this.createItem(child, currentFolder, token))) : [];
-			for (let item of items) {
+			for (const item of items) {
 				if (item) {
 					result.push(item);
 				}

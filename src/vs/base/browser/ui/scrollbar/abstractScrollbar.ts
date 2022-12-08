@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalPointerMoveMonitor, IPointerMoveEventData, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
@@ -245,8 +245,7 @@ export abstract class AbstractScrollbar extends Widget {
 			e.target,
 			e.pointerId,
 			e.buttons,
-			standardPointerMoveMerger,
-			(pointerMoveData: IPointerMoveEventData) => {
+			(pointerMoveData: PointerEvent) => {
 				const pointerOrthogonalPosition = this._sliderOrthogonalPointerPosition(pointerMoveData);
 				const pointerOrthogonalDelta = Math.abs(pointerOrthogonalPosition - initialPointerOrthogonalPosition);
 

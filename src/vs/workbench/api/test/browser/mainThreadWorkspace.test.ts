@@ -45,7 +45,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
 		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
 	});
 
@@ -67,7 +67,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
 		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
 	});
 
@@ -88,7 +88,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
 		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
 	});
 
@@ -102,7 +102,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
 		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
 	});
 });

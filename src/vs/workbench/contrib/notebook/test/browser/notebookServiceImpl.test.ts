@@ -12,7 +12,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
+import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
@@ -35,7 +35,9 @@ suite('NotebookProviderInfoStore', function () {
 			},
 			instantiationService.createInstance(EditorResolverService),
 			new TestConfigurationService(),
-			new class extends mock<IAccessibilityService>() { },
+			new class extends mock<IAccessibilityService>() {
+				override onDidChangeScreenReaderOptimized: Event<void> = Event.None;
+			},
 			instantiationService,
 			new class extends mock<IFileService>() {
 				override hasProvider() { return true; }

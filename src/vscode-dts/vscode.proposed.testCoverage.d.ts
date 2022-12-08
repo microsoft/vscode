@@ -30,7 +30,7 @@ declare module 'vscode' {
 
 		/**
 		 * Give a FileCoverage to fill in more data, namely {@link FileCoverage.detailedCoverage}.
-		 * The editor will only resolve a FileCoverage once, and onyl if detailedCoverage
+		 * The editor will only resolve a FileCoverage once, and only if detailedCoverage
 		 * is undefined.
 		 *
 		 * @param coverage A coverage object obtained from {@link provideFileCoverage}

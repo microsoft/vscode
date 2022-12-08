@@ -5,11 +5,10 @@
 
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IExpression } from 'vs/base/common/glob';
+import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -32,7 +31,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An event that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes its capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -81,7 +80,7 @@ export interface IFileService {
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	/**
-	 * List the schemes and capabilies for registered file system providers
+	 * List the schemes and capabilities for registered file system providers
 	 */
 	listCapabilities(): Iterable<{ scheme: string; capabilities: FileSystemProviderCapabilities }>;
 
@@ -238,7 +237,7 @@ export interface IFileService {
 	 * Note: recursive file watching is not supported from this method. Only events from files
 	 * that are direct children of the provided resource will be reported.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(resource: URI, options?: IWatchOptions): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -428,12 +427,24 @@ export interface IWatchOptions {
 	readonly recursive: boolean;
 
 	/**
-	 * A set of paths to exclude from watching.
+	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
+
+	/**
+	 * An optional set of glob patterns or paths to include for
+	 * watching. If not provided, all paths are considered for
+	 * events.
+	 */
+	includes?: Array<string | IRelativePattern>;
 }
 
 export const enum FileSystemProviderCapabilities {
+
+	/**
+	 * No capabilities.
+	 */
+	None = 0,
 
 	/**
 	 * Provider supports unbuffered read/write.
@@ -976,7 +987,7 @@ interface IBaseFileStat {
 	readonly ctime?: number;
 
 	/**
-	 * A unique identifier thet represents the
+	 * A unique identifier that represents the
 	 * current state of the file or directory.
 	 *
 	 * The value may or may not be resolved as
@@ -1141,7 +1152,7 @@ export interface ICreateFileOptions {
 	readonly overwrite?: boolean;
 }
 
-export class FileOperationError extends ErrorNoTelemetry {
+export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,

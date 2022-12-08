@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { makeUniversalApp } from 'vscode-universal-bundler';
 import { spawn } from '@malept/cross-spawn-promise';
 import * as fs from 'fs-extra';
@@ -38,13 +36,14 @@ async function main() {
 			'CodeResources',
 			'fsevents.node',
 			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
+			'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
 			'.npmrc'
 		],
 		outAppPath,
 		force: true
 	});
 
-	let productJson = await fs.readJson(productJsonPath);
+	const productJson = await fs.readJson(productJsonPath);
 	Object.assign(productJson, {
 		darwinUniversalAssetId: 'darwin-universal'
 	});

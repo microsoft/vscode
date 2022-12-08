@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Test tree element element that groups be hierarchy.
@@ -18,20 +18,21 @@ export class ByLocationTestItemElement extends TestItemTreeElement {
 		protected readonly addedOrRemoved: (n: TestExplorerTreeElement) => void,
 	) {
 		super({ ...test, item: { ...test.item } }, parent);
-		this.updateErrorVisiblity();
+		this.updateErrorVisibility();
 	}
 
 	public update(patch: ITestItemUpdate) {
 		applyTestItemUpdate(this.test, patch);
-		this.updateErrorVisiblity();
+		this.updateErrorVisibility(patch);
 	}
 
-	private updateErrorVisiblity() {
-		if (this.errorChild && !this.test.item.error) {
+	private updateErrorVisibility(patch?: ITestItemUpdate) {
+		if (this.errorChild && (!this.test.item.error || patch?.item?.error)) {
 			this.addedOrRemoved(this.errorChild);
 			this.children.delete(this.errorChild);
 			this.errorChild = undefined;
-		} else if (this.test.item.error && !this.errorChild) {
+		}
+		if (this.test.item.error && !this.errorChild) {
 			this.errorChild = new TestTreeErrorMessage(this.test.item.error, this);
 			this.children.add(this.errorChild);
 			this.addedOrRemoved(this.errorChild);

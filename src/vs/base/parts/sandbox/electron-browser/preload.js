@@ -24,18 +24,6 @@
 	}
 
 	/**
-	 * @param {string} type
-	 * @returns {type is 'uncaughtException'}
-	 */
-	function validateProcessEventType(type) {
-		if (type !== 'uncaughtException') {
-			throw new Error(`Unsupported process event '${type}'`);
-		}
-
-		return true;
-	}
-
-	/**
 	 * @param {string} key the name of the process argument to parse
 	 * @returns {string | undefined}
 	 */
@@ -157,7 +145,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {any[]} args
-			 * @returns {Promise<any> | undefined}
+			 * @returns {Promise<any> | never}
 			 */
 			invoke(channel, ...args) {
 				if (validateIPC(channel)) {
@@ -168,7 +156,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @returns {IpcRenderer | never}
 			 */
 			on(channel, listener) {
 				if (validateIPC(channel)) {
@@ -181,7 +169,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @returns {IpcRenderer | never}
 			 */
 			once(channel, listener) {
 				if (validateIPC(channel)) {
@@ -194,7 +182,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @returns {IpcRenderer | never}
 			 */
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
@@ -264,6 +252,7 @@
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
 			get env() { return { ...process.env }; },
+			get pid() { return process.pid; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
@@ -293,15 +282,11 @@
 			/**
 			 * @param {string} type
 			 * @param {Function} callback
-			 * @returns {ISandboxNodeProcess}
+			 * @returns {void}
 			 */
 			on(type, callback) {
-				if (validateProcessEventType(type)) {
-					// @ts-ignore
-					process.on(type, callback);
-
-					return this;
-				}
+				// @ts-ignore
+				process.on(type, callback);
 			}
 		},
 

@@ -17,15 +17,15 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggingBackground', {
 	dark: '#CC6633',
 	light: '#CC6633',
-	hcDark: '#CC6633',
-	hcLight: '#CC6633'
+	hcDark: '#BA592C',
+	hcLight: '#B5200D'
 }, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggingForeground', {
 	dark: STATUS_BAR_FOREGROUND,
 	light: STATUS_BAR_FOREGROUND,
 	hcDark: STATUS_BAR_FOREGROUND,
-	hcLight: STATUS_BAR_FOREGROUND
+	hcLight: '#FFFFFF'
 }, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', {
@@ -69,7 +69,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 	}
 
 	protected update(): void {
-		this.enabled = isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession);
+		this.enabled = isStatusbarInDebugMode(this.debugService.state, this.debugService.getModel().getSessions());
 	}
 
 	dispose(): void {
@@ -78,12 +78,8 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 	}
 }
 
-export function isStatusbarInDebugMode(state: State, session: IDebugSession | undefined): boolean {
-	if (state === State.Inactive || state === State.Initializing || session?.isSimpleUI) {
-		return false;
-	}
-	const isRunningWithoutDebug = session?.configuration?.noDebug;
-	if (isRunningWithoutDebug) {
+export function isStatusbarInDebugMode(state: State, sessions: IDebugSession[]): boolean {
+	if (state === State.Inactive || state === State.Initializing || sessions.every(s => s.suppressDebugStatusbar || s.configuration?.noDebug)) {
 		return false;
 	}
 

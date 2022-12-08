@@ -10,13 +10,17 @@ const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	// On Windows, some browsers don't seem to redirect back to OSS properly.
 	// As a result, you get stuck in the auth flow. We exclude this from the
 	// list until we can figure out a way to fix this behavior in browsers.
-	// The behavior was experienced on Windows.
 	// 'code-oss',
 	'vscode-wsl',
 	'vscode-exploration'
 ];
 
-// This comes from the GitHub Authentication server
-export function isSupportedEnvironment(url: Uri): boolean {
-	return VALID_DESKTOP_CALLBACK_SCHEMES.includes(url.scheme) || url.authority.endsWith('vscode.dev') || url.authority.endsWith('github.dev');
+export function isSupportedEnvironment(uri: Uri): boolean {
+	return (
+		VALID_DESKTOP_CALLBACK_SCHEMES.includes(uri.scheme) ||
+		// vscode.dev & insiders.vscode.dev
+		/(?:^|\.)vscode\.dev$/.test(uri.authority) ||
+		// github.dev & codespaces
+		/(?:^|\.)github\.dev$/.test(uri.authority)
+	);
 }

@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export class TestExclusions extends Disposable {
 	private readonly excluded = this._register(

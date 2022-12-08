@@ -32,10 +32,14 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookDocuments);
 		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
 
-
 		// forward dirty and save events
 		this._disposables.add(this._notebookEditorModelResolverService.onDidChangeDirty(model => this._proxy.$acceptDirtyStateChanged(model.resource, model.isDirty())));
 		this._disposables.add(this._notebookEditorModelResolverService.onDidSaveNotebook(e => this._proxy.$acceptModelSaved(e)));
+
+		// when a conflict is going to happen RELEASE references that are held by extensions
+		this._disposables.add(_notebookEditorModelResolverService.onWillFailWithConflict(e => {
+			this._modelReferenceCollection.remove(e.resource);
+		}));
 	}
 
 	dispose(): void {
@@ -88,7 +92,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 								append: e.append
 							});
 							break;
-						case NotebookCellsChangeType.ChangeLanguage:
+						case NotebookCellsChangeType.ChangeCellLanguage:
 						case NotebookCellsChangeType.ChangeCellContent:
 						case NotebookCellsChangeType.ChangeCellMetadata:
 						case NotebookCellsChangeType.ChangeCellInternalMetadata:
@@ -108,10 +112,6 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 					this._notebookEditorModelResolverService.isDirty(textModel.uri),
 					hasDocumentMetadataChangeEvent ? textModel.metadata : undefined
 				);
-
-				if (hasDocumentMetadataChangeEvent) {
-					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
-				}
 			}));
 
 			this._documentEventListenersMapping.set(textModel.uri, disposableStore);

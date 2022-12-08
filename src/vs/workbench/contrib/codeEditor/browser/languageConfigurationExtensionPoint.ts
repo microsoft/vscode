@@ -8,15 +8,15 @@ import { ParseError, parse, getNodeType } from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -45,6 +45,9 @@ interface IOnEnterRule {
 	action: IEnterAction;
 }
 
+/**
+ * Serialized form of a language configuration
+ */
 interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
@@ -53,7 +56,13 @@ interface ILanguageConfiguration {
 	colorizedBracketPairs?: Array<CharacterPair>;
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
-	folding?: FoldingRules;
+	folding?: {
+		offSide?: boolean;
+		markers?: {
+			start?: string | IRegExp;
+			end?: string | IRegExp;
+		};
+	};
 	autoCloseBefore?: string;
 	onEnterRules?: IOnEnterRule[];
 }
@@ -89,7 +98,8 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		@ITextMateService textMateService: ITextMateService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -392,10 +402,13 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		const indentationRules = (configuration.indentationRules ? this._mapIndentationRules(languageId, configuration.indentationRules) : undefined);
 		let folding: FoldingRules | undefined = undefined;
 		if (configuration.folding) {
-			const markers = configuration.folding.markers;
+			const rawMarkers = configuration.folding.markers;
+			const startMarker = (rawMarkers && rawMarkers.start ? this._parseRegex(languageId, `folding.markers.start`, rawMarkers.start) : undefined);
+			const endMarker = (rawMarkers && rawMarkers.end ? this._parseRegex(languageId, `folding.markers.end`, rawMarkers.end) : undefined);
+			const markers: FoldingMarkers | undefined = (startMarker && endMarker ? { start: startMarker, end: endMarker } : undefined);
 			folding = {
 				offSide: configuration.folding.offSide,
-				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : undefined
+				markers
 			};
 		}
 		const onEnterRules = this._extractValidOnEnterRules(languageId, configuration);
@@ -414,7 +427,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			__electricCharacterSupport: undefined,
 		};
 
-		LanguageConfigurationRegistry.register(languageId, richEditConfig, 50);
+		this._languageConfigurationService.register(languageId, richEditConfig, 50);
 	}
 
 	private _parseRegex(languageId: string, confPath: string, value: string | IRegExp): RegExp | undefined {
@@ -820,5 +833,5 @@ const schema: IJSONSchema = {
 
 	}
 };
-let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
+const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);

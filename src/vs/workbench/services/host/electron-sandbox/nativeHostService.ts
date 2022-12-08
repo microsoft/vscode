@@ -6,8 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -91,11 +91,11 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: true });
+			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);
@@ -138,5 +138,5 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, WorkbenchHostService, true);
-registerSingleton(INativeHostService, WorkbenchNativeHostService, true);
+registerSingleton(IHostService, WorkbenchHostService, InstantiationType.Delayed);
+registerSingleton(INativeHostService, WorkbenchNativeHostService, InstantiationType.Delayed);

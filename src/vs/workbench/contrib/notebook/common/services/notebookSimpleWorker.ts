@@ -122,17 +122,26 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.metadata = e.metadata;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
 			}
 		});
+	}
+
+	private _assertIndex(index: number): void {
+		if (index < 0 || index >= this.cells.length) {
+			throw new Error(`Illegal index ${index}. Cells length: ${this.cells.length}`);
+		}
 	}
 
 	_spliceNotebookCells(splices: NotebookCellTextModelSplice<IMainCellDto>[]) {
@@ -154,7 +163,7 @@ class MirrorNotebookDocument {
 	}
 }
 
-export class CellSequence implements ISequence {
+class CellSequence implements ISequence {
 
 	constructor(readonly textModel: MirrorNotebookDocument) {
 	}
@@ -199,9 +208,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
-		if (model) {
-			model.acceptModelChanged(event);
-		}
+		model?.acceptModelChanged(event);
 	}
 
 	public acceptRemovedModel(strURL: string): void {

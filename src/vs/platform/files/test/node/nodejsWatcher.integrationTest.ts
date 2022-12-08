@@ -259,7 +259,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'lorem.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -271,7 +271,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Delete + Recreate file
 		const newFilePath = join(filePath);
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -370,6 +370,38 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		await watcher.watch([{ path: filePath, excludes: ['**'], recursive: false }]);
 
 		return basicCrudTest(filePath, true);
+	});
+
+	test('includes can be updated (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['nothing'], recursive: false }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('non-includes are ignored (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], includes: ['nothing'], recursive: false }]);
+
+		return basicCrudTest(filePath, true);
+	});
+
+	test('includes are supported (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern explicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'files-includes.txt' }], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
@@ -495,5 +527,3 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return watchPromise;
 	});
 });
-
-// TODO test for excludes? subsequent updates to rewatch like parcel?

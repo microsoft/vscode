@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
@@ -30,6 +31,7 @@ export function createLazyClientHost(
 		processFactory: TsServerProcessFactory;
 		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 		serviceConfigurationProvider: ServiceConfigurationProvider;
+		experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {

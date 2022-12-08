@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 
 /**

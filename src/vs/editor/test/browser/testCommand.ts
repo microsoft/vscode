@@ -18,7 +18,7 @@ export function testCommand(
 	lines: string[],
 	languageId: string | null,
 	selection: Selection,
-	commandFactory: (selection: Selection) => ICommand,
+	commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection,
 	forceTokenization?: boolean,
@@ -29,17 +29,18 @@ export function testCommand(
 	if (prepare) {
 		instantiationService.invokeFunction(prepare, disposables);
 	}
-	const model = instantiateTextModel(instantiationService, lines.join('\n'), languageId);
+	const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId));
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 	const viewModel = editor.getViewModel()!;
 
 	if (forceTokenization) {
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	}
 
 	viewModel.setSelections('tests', [selection]);
 
-	viewModel.executeCommand(commandFactory(viewModel.getSelection()), 'tests');
+	const command = instantiationService.invokeFunction((accessor) => commandFactory(accessor, viewModel.getSelection()));
+	viewModel.executeCommand(command, 'tests');
 
 	assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 
@@ -53,8 +54,8 @@ export function testCommand(
  * Extract edit operations if command `command` were to execute on model `model`
  */
 export function getEditOperation(model: ITextModel, command: ICommand): ISingleEditOperation[] {
-	let operations: ISingleEditOperation[] = [];
-	let editOperationBuilder: IEditOperationBuilder = {
+	const operations: ISingleEditOperation[] = [];
+	const editOperationBuilder: IEditOperationBuilder = {
 		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,

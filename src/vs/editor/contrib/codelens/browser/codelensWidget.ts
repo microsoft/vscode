@@ -72,7 +72,6 @@ class CodeLensContentWidget implements IContentWidget {
 
 	constructor(
 		editor: IActiveCodeEditor,
-		className: string,
 		line: number,
 	) {
 		this._editor = editor;
@@ -81,13 +80,13 @@ class CodeLensContentWidget implements IContentWidget {
 		this.updatePosition(line);
 
 		this._domNode = document.createElement('span');
-		this._domNode.className = `codelens-decoration ${className}`;
+		this._domNode.className = `codelens-decoration`;
 	}
 
 	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
-		let children: HTMLElement[] = [];
+		const children: HTMLElement[] = [];
 		let hasSymbol = false;
 		for (let i = 0; i < lenses.length; i++) {
 			const lens = lenses[i];
@@ -176,7 +175,7 @@ export class CodeLensHelper {
 	}
 
 	commit(changeAccessor: IModelDecorationsChangeAccessor): void {
-		let resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
+		const resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
 		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
 			this._addDecorationsCallbacks[i](resultingDecorations[i]);
 		}
@@ -186,7 +185,6 @@ export class CodeLensHelper {
 export class CodeLensWidget {
 
 	private readonly _editor: IActiveCodeEditor;
-	private readonly _className: string;
 	private readonly _viewZone: CodeLensViewZone;
 	private readonly _viewZoneId: string;
 
@@ -198,21 +196,19 @@ export class CodeLensWidget {
 	constructor(
 		data: CodeLensItem[],
 		editor: IActiveCodeEditor,
-		className: string,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
 		heightInPx: number,
 		updateCallback: () => void
 	) {
 		this._editor = editor;
-		this._className = className;
 		this._data = data;
 
 		// create combined range, track all ranges with decorations,
 		// check if there is already something to render
 		this._decorationIds = [];
 		let range: Range | undefined;
-		let lenses: CodeLens[] = [];
+		const lenses: CodeLens[] = [];
 
 		this._data.forEach((codeLensData, i) => {
 
@@ -244,7 +240,7 @@ export class CodeLensWidget {
 
 	private _createContentWidgetIfNecessary(): void {
 		if (!this._contentWidget) {
-			this._contentWidget = new CodeLensContentWidget(this._editor, this._className, this._viewZone.afterLineNumber + 1);
+			this._contentWidget = new CodeLensContentWidget(this._editor, this._viewZone.afterLineNumber + 1);
 			this._editor.addContentWidget(this._contentWidget);
 		} else {
 			this._editor.layoutContentWidget(this._contentWidget);
@@ -254,9 +250,7 @@ export class CodeLensWidget {
 	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: IViewZoneChangeAccessor): void {
 		this._decorationIds.forEach(helper.removeDecoration, helper);
 		this._decorationIds = [];
-		if (viewZoneChangeAccessor) {
-			viewZoneChangeAccessor.removeZone(this._viewZoneId);
-		}
+		viewZoneChangeAccessor?.removeZone(this._viewZoneId);
 		if (this._contentWidget) {
 			this._editor.removeContentWidget(this._contentWidget);
 			this._contentWidget = undefined;

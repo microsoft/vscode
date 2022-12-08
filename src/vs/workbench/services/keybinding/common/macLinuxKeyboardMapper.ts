@@ -52,8 +52,8 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 		if (IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode] !== KeyCode.DependsOnKbLayout) {
 			return true;
 		}
-		let a = this._mapper.getAriaLabelForScanCodeBinding(binding);
-		let b = this._mapper.getUserSettingsLabelForScanCodeBinding(binding);
+		const a = this._mapper.getAriaLabelForScanCodeBinding(binding);
+		const b = this._mapper.getUserSettingsLabelForScanCodeBinding(binding);
 
 		if (!a && !b) {
 			return true;
@@ -261,7 +261,7 @@ class ScanCodeKeyCodeMapper {
 			return [];
 		}
 
-		let result: ScanCodeCombo[] = [];
+		const result: ScanCodeCombo[] = [];
 		for (let i = 0, len = scanCodeCombosEncoded.length; i < len; i++) {
 			const scanCodeComboEncoded = scanCodeCombosEncoded[i];
 
@@ -282,7 +282,7 @@ class ScanCodeKeyCodeMapper {
 			return [];
 		}
 
-		let result: KeyCodeCombo[] = [];
+		const result: KeyCodeCombo[] = [];
 		for (let i = 0, len = keyCodeCombosEncoded.length; i < len; i++) {
 			const keyCodeComboEncoded = keyCodeCombosEncoded[i];
 
@@ -436,8 +436,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		const missingLatinLettersOverride: { [scanCode: string]: IMacLinuxKeyMapping } = {};
 
 		{
-			let producesLatinLetter: boolean[] = [];
-			for (let strScanCode in rawMappings) {
+			const producesLatinLetter: boolean[] = [];
+			for (const strScanCode in rawMappings) {
 				if (rawMappings.hasOwnProperty(strScanCode)) {
 					const scanCode = ScanCodeUtils.toEnum(strScanCode);
 					if (scanCode === ScanCode.None) {
@@ -497,8 +497,9 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			_registerLetterIfMissing(CharCode.Z, ScanCode.KeyZ, 'z', 'Z');
 		}
 
-		let mappings: IScanCodeMapping[] = [], mappingsLen = 0;
-		for (let strScanCode in rawMappings) {
+		const mappings: IScanCodeMapping[] = [];
+		let mappingsLen = 0;
+		for (const strScanCode in rawMappings) {
 			if (rawMappings.hasOwnProperty(strScanCode)) {
 				const scanCode = ScanCodeUtils.toEnum(strScanCode);
 				if (scanCode === ScanCode.None) {
@@ -667,9 +668,9 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public dumpDebugInfo(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 
-		let immutableSamples = [
+		const immutableSamples = [
 			ScanCode.ArrowUp,
 			ScanCode.Numpad0
 		];
@@ -779,7 +780,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			new KeyCodeCombo(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.keyCode)
 		);
 
-		let result: ScanCodeBinding[] = [];
+		const result: ScanCodeBinding[] = [];
 		for (let i = 0, len = scanCodeCombos.length; i < len; i++) {
 			const scanCodeCombo = scanCodeCombos[i];
 			result[i] = new ScanCodeBinding(scanCodeCombo.ctrlKey, scanCodeCombo.shiftKey, scanCodeCombo.altKey, keybinding.metaKey, scanCodeCombo.scanCode);
@@ -857,10 +858,10 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
-		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
+		const constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 		if (constantKeyCode !== KeyCode.DependsOnKbLayout) {
 			// Verify that this is a good key code that can be mapped back to the same scan code
-			let reverseBindings = this.simpleKeybindingToScanCodeBinding(new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, constantKeyCode));
+			const reverseBindings = this.simpleKeybindingToScanCodeBinding(new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, constantKeyCode));
 			for (let i = 0, len = reverseBindings.length; i < len; i++) {
 				const reverseBinding = reverseBindings[i];
 				if (reverseBinding.scanCode === binding.scanCode) {
@@ -916,8 +917,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
-		let chordParts: ScanCodeBinding[][] = [];
-		for (let part of keybinding.parts) {
+		const chordParts: ScanCodeBinding[][] = [];
+		for (const part of keybinding.parts) {
 			chordParts.push(this.simpleKeybindingToScanCodeBinding(part));
 		}
 		return this._toResolvedKeybinding(chordParts);
@@ -927,7 +928,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		if (chordParts.length === 0) {
 			return [];
 		}
-		let result: NativeResolvedKeybinding[] = [];
+		const result: NativeResolvedKeybinding[] = [];
 		this._generateResolvedKeybindings(chordParts, 0, [], result);
 		return result;
 	}
@@ -936,7 +937,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		const chordPart = chordParts[currentIndex];
 		const isFinalIndex = currentIndex === chordParts.length - 1;
 		for (let i = 0, len = chordPart.length; i < len; i++) {
-			let chords = [...previousParts, chordPart[i]];
+			const chords = [...previousParts, chordPart[i]];
 			if (isFinalIndex) {
 				result.push(new NativeResolvedKeybinding(this, this._OS, chords));
 			} else {

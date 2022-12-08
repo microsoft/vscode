@@ -8,7 +8,7 @@ import { Commands } from './workbench';
 import { Code, findElement } from './code';
 import { Editors } from './editors';
 import { Editor } from './editor';
-import { IElement } from '../src/driver';
+import { IElement } from './driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET}`;
