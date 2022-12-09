@@ -90,6 +90,7 @@ export interface ITerminalProfileService {
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
 	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
+	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
 	onDidUnregisterProvider: Event<string>;
 	readonly _serviceBrand: undefined;
 	providers: Map<string, ITerminalQuickFixProvider>;
