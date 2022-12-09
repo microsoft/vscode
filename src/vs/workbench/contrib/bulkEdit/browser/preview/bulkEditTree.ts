@@ -38,12 +38,32 @@ export interface ICheckable {
 	setChecked(value: boolean): void;
 }
 
-export class CategoryElement {
+export class CategoryElement implements ICheckable {
 
 	constructor(
 		readonly parent: BulkFileOperations,
 		readonly category: BulkCategory
 	) { }
+
+	isChecked(): boolean {
+		const model = this.parent;
+		let checked = true;
+		for (const file of this.category.fileOperations) {
+			for (const edit of file.originalEdits.values()) {
+				checked = checked && model.checked.isChecked(edit);
+			}
+		}
+		return checked;
+	}
+
+	setChecked(value: boolean): void {
+		const model = this.parent;
+		for (const file of this.category.fileOperations) {
+			for (const edit of file.originalEdits.values()) {
+				model.checked.updateChecked(edit, value);
+			}
+		}
+	}
 }
 
 export class FileElement implements ICheckable {
