@@ -1,0 +1,22 @@
+{
+	"name": "VS Code",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"overrideCommand": false,
+	"privileged": true,
+	"mounts": [
+		{
+			"source": "vscode-dev",
+			"target": "/vscode-dev",
+			"type": "volume"
+		}
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"mutantdino.resourcemonitor"
+			]
+		}
+	}
+}
