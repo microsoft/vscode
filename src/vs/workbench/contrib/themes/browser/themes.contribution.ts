@@ -168,6 +168,8 @@ class MarketplaceThemesPicker {
 					const success = await this.installExtension(themeItem.galleryExtension);
 					if (success) {
 						selectTheme(themeItem.theme, true);
+					} else {
+						selectTheme(currentTheme, true);
 					}
 				}
 			});
@@ -182,7 +184,11 @@ class MarketplaceThemesPicker {
 					}
 				}
 			});
-			quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
+			quickpick.onDidChangeActive(themes => {
+				if (result === undefined) {
+					selectTheme(themes[0]?.theme, false);
+				}
+			});
 
 			quickpick.onDidHide(() => {
 				if (result === undefined) {
