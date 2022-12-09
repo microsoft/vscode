@@ -303,7 +303,7 @@ interface IResourceMatch {
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
-		@IOpenerService private readonly _openerService: IOpenerService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 	}
 
@@ -316,6 +316,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote,
 			allowContributedOpeners: true,
+			openExternal: true
 		});
 	}
 }

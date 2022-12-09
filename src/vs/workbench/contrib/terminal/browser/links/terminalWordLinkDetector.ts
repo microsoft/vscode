@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
@@ -68,6 +70,22 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 				},
 				startLine
 			);
+
+			// vscode:// protocol links
+			if (word.text.startsWith(`${Schemas.vscode}://`)) {
+				const uri = URI.parse(word.text);
+				if (uri) {
+					links.push({
+						text: word.text,
+						uri,
+						bufferRange,
+						type: TerminalBuiltinLinkType.Url
+					});
+				}
+				continue;
+			}
+
+			// Search links
 			links.push({
 				text: word.text,
 				bufferRange,
