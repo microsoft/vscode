@@ -156,10 +156,11 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		const pathSeparator = osPathModule(this._os).sep;
+		const osPath = osPathModule(this._os);
+		const pathSeparator = osPath.sep;
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
-		text = osPathModule(this._os).normalize(text).replace(/^(\.+[\\/])+/, '');
+		text = osPath.normalize(text).replace(/^(\.+[\\/])+/, '');
 
 		// Remove `:<one or more non number characters>` from the end of the link.
 		// Examples:
@@ -179,7 +180,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		});
 		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator)?.[0] || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, osPath)?.[0] || text;
 		}
 
 		// Try open the cwd resolved link first
