@@ -1913,6 +1913,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return { success: true, task: undefined };
 		}
+		this._inProgressTasks.delete(task._label);
 		return this._taskSystem.terminate(task);
 	}
 
