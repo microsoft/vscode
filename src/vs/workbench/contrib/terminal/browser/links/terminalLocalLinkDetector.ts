@@ -147,7 +147,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
-			if (osPathModule(this._os).isAbsolute(link)) {
+			if (osPathModule(this._os).isAbsolute(link) || link.startsWith('~')) {
 				linkCandidates.push(link);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
