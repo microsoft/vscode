@@ -443,7 +443,9 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
-
+		if (cli) {
+			cli.accessibilitySupport = app.isAccessibilitySupportEnabled();
+		}
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);
 		if (!veto) {
