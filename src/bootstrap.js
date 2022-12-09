@@ -16,6 +16,7 @@
 
 	// Browser
 	else {
+		// @ts-ignore
 		globalThis.MonacoBootstrap = factory();
 	}
 }(this, function () {
@@ -57,6 +58,7 @@
 		// as a way to ensure we do the right check on
 		// the node modules path: node.js might internally
 		// use a different case compared to what we have
+		/** @type {string | undefined} */
 		let NODE_MODULES_ALTERNATIVE_PATH;
 		if (appRoot /* only used from renderer until `sandbox` enabled */ && process.platform === 'win32') {
 			const driveLetter = appRoot.substr(0, 1);
@@ -155,6 +157,7 @@
 
 		// Get the nls configuration as early as possible.
 		const process = safeProcess();
+		/** @type {{ availableLanguages: {}; loadBundle?: (bundle: string, language: string, cb: (err: Error | undefined, result: string | undefined) => void) => void; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
 		let nlsConfig = { availableLanguages: {} };
 		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
@@ -167,6 +170,11 @@
 		if (nlsConfig._resolvedLanguagePackCoreLocation) {
 			const bundles = Object.create(null);
 
+			/**
+			 * @param {string} bundle
+			 * @param {string} language
+			 * @param {(err: Error | undefined, result: string | undefined) => void} cb
+			 */
 			nlsConfig.loadBundle = function (bundle, language, cb) {
 				const result = bundles[bundle];
 				if (result) {
@@ -175,6 +183,7 @@
 					return;
 				}
 
+				// @ts-ignore
 				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
 					const json = JSON.parse(content);
 					bundles[bundle] = json;
@@ -201,6 +210,7 @@
 	function safeSandboxGlobals() {
 		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
+		// @ts-ignore
 		return globals.vscode;
 	}
 

@@ -25,7 +25,7 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== '
 // _VSCODE environment
 else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 	// Obtain values from product.json and package.json-data
-	product = globalThis._VSCODE_PRODUCT_JSON as IProductConfiguration;
+	product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
