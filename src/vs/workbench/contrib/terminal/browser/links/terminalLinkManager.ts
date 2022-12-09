@@ -81,6 +81,7 @@ export class TerminalLinkManager extends DisposableStore {
 				break;
 			case 'notRemote':
 				enableFileLinks = !this._processManager.remoteAuthority;
+				break;
 		}
 
 		// Setup link detectors in their order of priority
