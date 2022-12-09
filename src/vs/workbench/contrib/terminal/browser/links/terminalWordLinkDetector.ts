@@ -71,8 +71,8 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 				startLine
 			);
 
-			// vscode:// protocol links
-			if (word.text.startsWith(`${Schemas.vscode}://`)) {
+			// vscode:// and vscode-...:// protocol links
+			if (word.text.match(/vscode(?:-[a-z]+)?:\/\//)) {
 				const uri = URI.parse(word.text);
 				if (uri) {
 					links.push({
