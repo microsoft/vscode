@@ -12,6 +12,7 @@ import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeNode, ITreeRe
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -52,7 +53,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	constructor(
 		protected readonly user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
@@ -202,7 +203,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		options: ICompressibleObjectTreeOptions<T, TFilterData> = {}
 	) {

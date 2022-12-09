@@ -217,7 +217,7 @@ class OutputEditor extends AbstractTextResourceEditor {
 			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		if (focus) {
 			this.focus();
 		}

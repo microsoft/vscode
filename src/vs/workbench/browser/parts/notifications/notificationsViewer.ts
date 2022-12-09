@@ -28,8 +28,9 @@ import { Event } from 'vs/base/common/event';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem, IConfigurationService> {
 
 	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -49,7 +50,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		return offsetHelper;
 	}
 
-	getHeight(notification: INotificationViewItem): number {
+	getHeight(notification: INotificationViewItem, configurationService: IConfigurationService): number {
 		if (!notification.expanded) {
 			return NotificationsListDelegate.ROW_HEIGHT; // return early if there are no more rows to show
 		}

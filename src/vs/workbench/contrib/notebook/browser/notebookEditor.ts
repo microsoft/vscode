@@ -37,6 +37,7 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -196,7 +197,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
 			// so that others synchronously receive a notebook editor with the correct widget being set
-			await super.setInput(input, options, context, token);
+			await super.setInput(input, options, context, token, IConfigurationService);
 			const model = await input.resolve(perf);
 			perf.mark('inputLoaded');
 
@@ -335,7 +336,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
 		this._widget.value?.setOptions(options);
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 	}
 
 	protected override saveState(): void {

@@ -8,6 +8,7 @@ import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abst
 import { IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import 'vs/css!./media/tree';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
@@ -19,7 +20,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private rootElement: T,
 		options: IIndexTreeOptions<T, TFilterData> = {}

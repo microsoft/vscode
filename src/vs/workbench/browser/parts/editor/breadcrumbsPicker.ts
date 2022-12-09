@@ -151,7 +151,7 @@ export abstract class BreadcrumbsPicker {
 
 //#region - Files
 
-class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspaceFolder> {
+class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspaceFolder, IConfigurationService> {
 	getHeight(_element: IFileStat | IWorkspaceFolder) {
 		return 22;
 	}

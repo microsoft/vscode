@@ -28,6 +28,7 @@ import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { QuickPickItem, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -248,7 +249,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 	}
 }
 
-class ListElementDelegate implements IListVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<ListElement, IConfigurationService> {
 
 	getHeight(element: ListElement): number {
 		if (!element.item) {

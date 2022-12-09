@@ -207,14 +207,14 @@ export class NotificationsList extends Disposable {
 		}
 	}
 
-	updateNotificationHeight(item: INotificationViewItem): void {
+	updateNotificationHeight(item: INotificationViewItem, configurationService: any): void {
 		const index = this.viewModel.indexOf(item);
 		if (index === -1) {
 			return;
 		}
 
 		const [list, listDelegate] = assertAllDefined(this.list, this.listDelegate);
-		list.updateElementHeight(index, listDelegate.getHeight(item));
+		list.updateElementHeight(index, listDelegate.getHeight(item, configurationService));
 		list.layout();
 	}
 

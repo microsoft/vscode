@@ -28,6 +28,7 @@ import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/co
 import { ModelConstants } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -49,10 +50,10 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
-	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, configurationService: any): Promise<void> {
 
 		// Set input and resolve
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		const resolvedModel = await input.resolve();
 
 		// Check for cancellation

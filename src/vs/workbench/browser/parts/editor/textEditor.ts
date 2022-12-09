@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -214,8 +215,8 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	 */
 	protected abstract getMainControl(): ICodeEditor | undefined;
 
-	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, configurationService: any): Promise<void> {
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		// Update our listener for input capabilities
 		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));

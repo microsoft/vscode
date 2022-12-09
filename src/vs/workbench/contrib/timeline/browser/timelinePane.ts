@@ -1114,7 +1114,7 @@ export class TimelineKeyboardNavigationLabelProvider implements IKeyboardNavigat
 	}
 }
 
-export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement> {
+export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement, IConfigurationService> {
 	getHeight(_element: TreeElement): number {
 		return ItemHeight;
 	}

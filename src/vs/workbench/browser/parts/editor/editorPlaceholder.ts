@@ -31,6 +31,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, IFileService }
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { truncate } from 'vs/base/common/strings';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -79,7 +80,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {

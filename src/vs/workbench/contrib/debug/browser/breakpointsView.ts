@@ -371,7 +371,7 @@ export class BreakpointsView extends ViewPane {
 	}
 }
 
-class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
+class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem, IConfigurationService> {
 
 	constructor(private view: BreakpointsView) {
 		// noop

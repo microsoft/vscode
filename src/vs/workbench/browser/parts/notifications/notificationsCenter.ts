@@ -25,6 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -205,7 +206,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 						break;
 					case NotificationViewItemContentChangeKind.MESSAGE:
 						if (e.item.expanded) {
-							notificationsList.updateNotificationHeight(e.item);
+							notificationsList.updateNotificationHeight(e.item, IConfigurationService);
 						}
 						break;
 				}

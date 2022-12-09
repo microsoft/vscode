@@ -15,6 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
 import { CSSIcon } from 'vs/base/common/codicons';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class Call {
 	constructor(
@@ -132,7 +133,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 	}
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<Call> {
+export class VirtualDelegate implements IListVirtualDelegate<Call, IConfigurationService> {
 
 	getHeight(_element: Call): number {
 		return 22;

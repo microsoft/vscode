@@ -51,7 +51,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
-export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
+export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel, IConfigurationService> {
 	private readonly lineHeight: number;
 
 	constructor(

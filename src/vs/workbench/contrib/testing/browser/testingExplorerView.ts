@@ -1066,7 +1066,7 @@ class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelPro
 	}
 }
 
-class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
+class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement, IConfigurationService> {
 	getHeight(_element: TestExplorerTreeElement) {
 		return 22;
 	}

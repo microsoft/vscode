@@ -629,7 +629,7 @@ export class LoadedScriptsView extends ViewPane {
 	}
 }
 
-class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
+class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem, IConfigurationService> {
 
 	getHeight(element: LoadedScriptsItem): number {
 		return 22;

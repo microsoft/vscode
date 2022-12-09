@@ -25,7 +25,7 @@ import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workben
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Iterable } from 'vs/base/common/iterator';
 
-class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
+class ListDelegate implements IListVirtualDelegate<ISCMRepository, IConfigurationService> {
 
 	getHeight(): number {
 		return 22;

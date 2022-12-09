@@ -62,7 +62,7 @@ import { ResourceSet } from 'vs/base/common/map';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
-export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
+export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem, IConfigurationService> {
 
 	static readonly ITEM_HEIGHT = 22;
 

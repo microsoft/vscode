@@ -6,9 +6,10 @@
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export interface IListVirtualDelegate<T> {
-	getHeight(element: T): number;
+export interface IListVirtualDelegate<T, IConfigurationService> {
+	getHeight(element: T, configurationService?: IConfigurationService): number;
 	getTemplateId(element: T): string;
 	hasDynamicHeight?(element: T): boolean;
 	getDynamicHeight?(element: T): number | null;
@@ -111,11 +112,11 @@ export class ListError extends Error {
 	}
 }
 
-export abstract class CachedListVirtualDelegate<T extends object> implements IListVirtualDelegate<T> {
+export abstract class CachedListVirtualDelegate<T extends object> implements IListVirtualDelegate<T, IConfigurationService> {
 
 	private cache = new WeakMap<T, number>();
 
-	getHeight(element: T): number {
+	getHeight(element: T, configurationService: IConfigurationService): number {
 		return this.cache.get(element) ?? this.estimateHeight(element);
 	}
 

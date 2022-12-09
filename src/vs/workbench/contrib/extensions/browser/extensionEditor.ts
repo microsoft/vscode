@@ -70,6 +70,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'vs/base/common/semver/semver';
 import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class NavBar extends Disposable {
 
@@ -439,7 +440,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	override async setInput(input: ExtensionsInput, options: IExtensionEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
 			await this.render(input.extension, this.template, !!options?.preserveFocus);
@@ -448,7 +449,7 @@ export class ExtensionEditor extends EditorPane {
 
 	override setOptions(options: IExtensionEditorOptions | undefined): void {
 		const currentOptions: IExtensionEditorOptions | undefined = this.options;
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 		this.updatePreReleaseVersionContext();
 		if (this.input && this.template && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
 			this.render((this.input as ExtensionsInput).extension, this.template, !!options?.preserveFocus);

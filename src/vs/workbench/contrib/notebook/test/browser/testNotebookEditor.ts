@@ -353,7 +353,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 }
 
 export function createNotebookCellList(instantiationService: TestInstantiationService, viewContext?: ViewContext) {
-	const delegate: IListVirtualDelegate<CellViewModel> = {
+	const delegate: IListVirtualDelegate<CellViewModel, IConfigurationService> = {
 		getHeight(element: CellViewModel) { return element.getHeight(17); },
 		getTemplateId() { return 'template'; }
 	};

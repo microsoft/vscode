@@ -37,6 +37,7 @@ import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/r
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IExtensionProfileInformation {
 	/**
@@ -196,7 +197,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension>{
+		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension, IConfigurationService>{
 			getHeight(element: IRuntimeExtension): number {
 				return 62;
 			}

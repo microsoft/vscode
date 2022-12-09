@@ -144,7 +144,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		private listUser: string,
 		container: HTMLElement,
 		viewContext: ViewContext,
-		delegate: IListVirtualDelegate<CellViewModel>,
+		delegate: IListVirtualDelegate<CellViewModel, IConfigurationService>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,

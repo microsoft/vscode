@@ -30,6 +30,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // --- VIEW MODEL
 
@@ -648,7 +649,7 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 	disposeTemplate(_template: TextEditElementTemplate): void { }
 }
 
-export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
+export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement, IConfigurationService> {
 
 	getHeight(): number {
 		return 23;

@@ -235,7 +235,7 @@ export class WorkbenchList<T> extends List<T> {
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: IListRenderer<T, any>[],
 		options: IWorkbenchListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -375,7 +375,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<number>,
+		delegate: IListVirtualDelegate<number, IConfigurationService>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IWorkbenchPagedListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -854,7 +854,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IWorkbenchObjectTreeOptions<T, TFilterData>,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -895,7 +895,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		options: IWorkbenchCompressibleObjectTreeOptions<T, TFilterData>,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -941,7 +941,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IDataSource<TInput, T>,
 		options: IWorkbenchDataTreeOptions<T, TFilterData>,
@@ -988,7 +988,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
 		options: IWorkbenchAsyncDataTreeOptions<T, TFilterData>,
@@ -1032,7 +1032,7 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 	constructor(
 		user: string,
 		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<T>,
+		virtualDelegate: IListVirtualDelegate<T, IConfigurationService>,
 		compressionDelegate: ITreeCompressionDelegate<T>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,

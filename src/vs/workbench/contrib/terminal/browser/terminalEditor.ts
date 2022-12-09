@@ -29,6 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalEditor extends EditorPane {
 
@@ -68,7 +69,7 @@ export class TerminalEditor extends EditorPane {
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
-		await super.setInput(newInput, options, context, token);
+		await super.setInput(newInput, options, context, token, IConfigurationService);
 		this._editorInput.terminalInstance?.attachToElement(this._overflowGuardElement!);
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);

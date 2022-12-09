@@ -26,6 +26,7 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -50,7 +51,7 @@ export interface ITemplateData {
 	actionbar: ActionBar;
 }
 
-export class Delegate implements IListVirtualDelegate<IExtension> {
+export class Delegate implements IListVirtualDelegate<IExtension, IConfigurationService> {
 	getHeight() { return EXTENSION_LIST_ELEMENT_HEIGHT; }
 	getTemplateId() { return 'extension'; }
 }

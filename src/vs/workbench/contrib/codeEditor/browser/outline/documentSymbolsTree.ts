@@ -78,7 +78,7 @@ class DocumentSymbolTemplate {
 	) { }
 }
 
-export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem> {
+export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem, IConfigurationService> {
 
 	getHeight(_element: DocumentSymbolItem): number {
 		return 22;

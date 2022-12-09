@@ -30,7 +30,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
-export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
+export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase, IConfigurationService> {
 	private readonly lineHeight: number;
 
 	constructor(
@@ -308,7 +308,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 	constructor(
 		listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<DiffElementViewModelBase>,
+		delegate: IListVirtualDelegate<DiffElementViewModelBase, IConfigurationService>,
 		renderers: IListRenderer<DiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<DiffElementViewModelBase>,

@@ -94,7 +94,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 	override async setInput(input: FileEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Set input and resolve
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		try {
 			const resolvedModel = await input.resolve();
 

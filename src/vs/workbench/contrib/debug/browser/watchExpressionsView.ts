@@ -222,7 +222,7 @@ export class WatchExpressionsView extends ViewPane {
 	}
 }
 
-class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
+class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression, IConfigurationService> {
 
 	getHeight(_element: IExpression): number {
 		return 22;

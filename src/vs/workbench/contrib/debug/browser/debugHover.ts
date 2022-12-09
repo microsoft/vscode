@@ -35,6 +35,7 @@ import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesV
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -346,7 +347,7 @@ class DebugHoverDataSource implements IAsyncDataSource<IExpression, IExpression>
 	}
 }
 
-class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
+class DebugHoverDelegate implements IListVirtualDelegate<IExpression, IConfigurationService> {
 	getHeight(element: IExpression): number {
 		return 18;
 	}

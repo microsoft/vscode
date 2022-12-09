@@ -322,7 +322,7 @@ interface IScopeTemplateData {
 	label: HighlightedLabel;
 }
 
-class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
+class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope, IConfigurationService> {
 
 	getHeight(element: IExpression | IScope): number {
 		return 22;

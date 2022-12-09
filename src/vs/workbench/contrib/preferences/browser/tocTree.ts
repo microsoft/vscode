@@ -134,7 +134,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 	}
 }
 
-class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
+class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement, IConfigurationService> {
 	getTemplateId(element: SettingsTreeElement): string {
 		return TOC_ENTRY_TEMPLATE_ID;
 	}

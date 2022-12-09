@@ -393,7 +393,7 @@ export class InteractiveEditor extends EditorPane {
 			this.#inputCellContainer.style.width = `${this.#dimension.width}px`;
 		}
 
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		const model = await input.resolve();
 		if (this.#runbuttonToolbar) {
 			this.#runbuttonToolbar.context = input.resource;
@@ -513,7 +513,7 @@ export class InteractiveEditor extends EditorPane {
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
 		this.#notebookWidget.value?.setOptions(options);
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 	}
 
 	#toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {

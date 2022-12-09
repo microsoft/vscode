@@ -12,6 +12,7 @@ import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { raceTimeout } from 'vs/base/common/async';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -50,7 +51,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			createList: <T>(
 				user: string,
 				container: HTMLElement,
-				delegate: IListVirtualDelegate<T>,
+				delegate: IListVirtualDelegate<T, IConfigurationService>,
 				renderers: IListRenderer<T, any>[],
 				options: IListOptions<T>,
 			) => new List<T>(user, container, delegate, renderers, options),

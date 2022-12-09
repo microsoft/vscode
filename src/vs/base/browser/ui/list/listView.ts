@@ -22,6 +22,7 @@ import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IItem<T> {
 	readonly id: string;
@@ -300,7 +301,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		private virtualDelegate: IListVirtualDelegate<T>,
+		private virtualDelegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		options: IListViewOptions<T> = DefaultOptions as IListViewOptions<T>
 	) {

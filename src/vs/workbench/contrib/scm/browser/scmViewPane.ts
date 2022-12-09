@@ -613,7 +613,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 }
 
-class ListDelegate implements IListVirtualDelegate<TreeElement> {
+class ListDelegate implements IListVirtualDelegate<TreeElement, IConfigurationService> {
 
 	constructor(private readonly inputRenderer: InputRenderer) { }
 

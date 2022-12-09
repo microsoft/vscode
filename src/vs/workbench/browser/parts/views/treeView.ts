@@ -971,7 +971,7 @@ class TreeViewIdentityProvider implements IIdentityProvider<ITreeItem> {
 	}
 }
 
-class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
+class TreeViewDelegate implements IListVirtualDelegate<ITreeItem, IConfigurationService> {
 
 	getHeight(element: ITreeItem): number {
 		return TreeRenderer.ITEM_HEIGHT;

@@ -13,6 +13,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import 'vs/css!./table';
 
 // TODO@joao
@@ -109,7 +110,7 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 	}
 }
 
-function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): IListVirtualDelegate<TRow> {
+function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): IListVirtualDelegate<TRow, IConfigurationService> {
 	return {
 		getHeight(row) { return delegate.getHeight(row); },
 		getTemplateId() { return TableListRenderer.TemplateId; },

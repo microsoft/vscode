@@ -112,7 +112,7 @@ export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 }
 
-export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+export class VirualDelegate implements IListVirtualDelegate<IExtensionData, IConfigurationService> {
 
 	public getHeight(element: IExtensionData): number {
 		return 62;

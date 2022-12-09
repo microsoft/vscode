@@ -15,6 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
 import { CSSIcon } from 'vs/base/common/codicons';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class Type {
 	constructor(
@@ -127,7 +128,7 @@ export class TypeRenderer implements ITreeRenderer<Type, FuzzyScore, TypeRenderi
 	}
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<Type> {
+export class VirtualDelegate implements IListVirtualDelegate<Type, IConfigurationService> {
 
 	getHeight(_element: Type): number {
 		return 22;

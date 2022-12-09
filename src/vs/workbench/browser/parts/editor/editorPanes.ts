@@ -26,6 +26,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IOpenEditorResult {
 
@@ -330,7 +331,7 @@ export class EditorPanes extends Disposable {
 		// force open it even if it is the same
 		const inputMatches = editorPane.input?.matches(editor);
 		if (inputMatches && !options?.forceReload) {
-			editorPane.setOptions(options);
+			editorPane.setOptions(options, IConfigurationService);
 
 			return { changed: false, cancelled: false };
 		}
@@ -350,7 +351,7 @@ export class EditorPanes extends Disposable {
 			editorPane.clearInput();
 
 			// Set the input to the editor pane
-			await editorPane.setInput(editor, options, context, operation.token);
+			await editorPane.setInput(editor, options, context, operation.token, IConfigurationService);
 
 			if (!operation.isCurrent()) {
 				cancelled = true;

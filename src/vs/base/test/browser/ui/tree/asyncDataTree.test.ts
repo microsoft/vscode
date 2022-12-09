@@ -9,6 +9,7 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface Element {
 	id: string;
@@ -55,7 +56,7 @@ class IdentityProvider implements IIdentityProvider<Element> {
 	}
 }
 
-class VirtualDelegate implements IListVirtualDelegate<Element> {
+class VirtualDelegate implements IListVirtualDelegate<Element, IConfigurationService> {
 	getHeight() { return 20; }
 	getTemplateId(element: Element): string { return 'default'; }
 }

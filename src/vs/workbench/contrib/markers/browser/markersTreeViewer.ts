@@ -50,6 +50,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -96,7 +97,7 @@ const enum TemplateId {
 	RelatedInformation = 'ri'
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<MarkerElement> {
+export class VirtualDelegate implements IListVirtualDelegate<MarkerElement, IConfigurationService> {
 
 	static LINE_HEIGHT: number = 22;
 

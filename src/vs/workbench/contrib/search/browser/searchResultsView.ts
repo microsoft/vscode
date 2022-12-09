@@ -59,7 +59,7 @@ interface IMatchTemplate {
 	disposables: DisposableStore;
 }
 
-export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
+export class SearchDelegate implements IListVirtualDelegate<RenderableMatch, IConfigurationService> {
 
 	public static ITEM_HEIGHT = 22;
 

@@ -8,6 +8,7 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { range } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ListWidget', function () {
 	test('Page up and down', async function () {
@@ -15,7 +16,7 @@ suite('ListWidget', function () {
 		element.style.height = '200px';
 		element.style.width = '200px';
 
-		const delegate: IListVirtualDelegate<number> = {
+		const delegate: IListVirtualDelegate<number, IConfigurationService> = {
 			getHeight() { return 20; },
 			getTemplateId() { return 'template'; }
 		};
@@ -60,7 +61,7 @@ suite('ListWidget', function () {
 		element.style.height = '200px';
 		element.style.width = '200px';
 
-		const delegate: IListVirtualDelegate<number> = {
+		const delegate: IListVirtualDelegate<number, IConfigurationService> = {
 			getHeight() { return 200; },
 			getTemplateId() { return 'template'; }
 		};

@@ -651,7 +651,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(newInput, options, context, token);
+		await super.setInput(newInput, options, context, token, IConfigurationService);
 		if (token.isCancellationRequested) {
 			return;
 		}

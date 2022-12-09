@@ -34,6 +34,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -97,7 +98,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		this.diffNavigatorDisposables.clear();
 
 		// Set input and resolve
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		try {
 			const resolvedModel = await input.resolve();
@@ -207,7 +208,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.diffEditorControl), ScrollType.Smooth);

@@ -73,7 +73,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
+class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode, IConfigurationService> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 

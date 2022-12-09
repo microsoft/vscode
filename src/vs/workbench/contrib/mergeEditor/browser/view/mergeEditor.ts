@@ -188,7 +188,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		if (!(input instanceof MergeEditorInput)) {
 			throw new BugIndicatingError('ONLY MergeEditorInput is supported');
 		}
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		this._sessionDisposables.clear();
 		transaction(tx => {
@@ -427,7 +427,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 
 		if (options) {
 			applyTextEditorOptions(options, this.inputResultView.editor, ScrollType.Smooth);

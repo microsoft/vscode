@@ -21,6 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
 
 //#region data source
@@ -63,7 +64,7 @@ export class DataSource implements IAsyncDataSource<ReferencesModel | FileRefere
 
 //#endregion
 
-export class Delegate implements IListVirtualDelegate<TreeElement> {
+export class Delegate implements IListVirtualDelegate<TreeElement, IConfigurationService> {
 	getHeight(): number {
 		return 23;
 	}

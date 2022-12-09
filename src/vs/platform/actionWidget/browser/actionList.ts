@@ -16,6 +16,7 @@ import { localize } from 'vs/nls';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -180,7 +181,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
+		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>, IConfigurationService> = {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};

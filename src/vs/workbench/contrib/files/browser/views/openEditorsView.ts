@@ -528,7 +528,7 @@ class OpenEditorActionRunner extends ActionRunner {
 	}
 }
 
-class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
+class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup, IConfigurationService> {
 
 	public static readonly ITEM_HEIGHT = 22;
 

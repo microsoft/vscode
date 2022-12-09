@@ -92,7 +92,7 @@ interface IViewModel {
 	helpInformation: HelpInformation[];
 }
 
-class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem> {
+class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem, IConfigurationService> {
 	getHeight(element: IHelpItem): number {
 		return 22;
 	}

@@ -881,7 +881,7 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 	}
 }
 
-class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
+class CallStackDelegate implements IListVirtualDelegate<CallStackItem, IConfigurationService> {
 
 	getHeight(element: CallStackItem): number {
 		if (element instanceof StackFrame && element.presentationHint === 'label') {
