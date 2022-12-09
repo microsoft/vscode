@@ -13,6 +13,7 @@
 	font-size: 10px;
 	transition: font-size .25s;
 	outline: none;
+	background-color: var(--vscode-welcomeOverlay-background);
 }
 
 #workbench\.parts\.editor {
@@ -37,6 +38,7 @@
 
 .monaco-workbench > .welcomeOverlay > .key {
 	font-size: 1.6em;
+	color: var(--vscode-foreground);
 }
 
 .monaco-workbench > .welcomeOverlay > .key > .label {
@@ -47,6 +49,7 @@
 	letter-spacing: 0.15em;
 	font-size: 0.8125em;
 	font-family: "Lucida Grande", sans-serif;
+	color: var(--vscode-textPreformat-foreground);
 }
 
 .monaco-workbench > .welcomeOverlay > .key.explorer {
@@ -173,3 +176,4 @@
 		left: 50%;
 	}
 }
+

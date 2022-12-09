@@ -111,7 +111,8 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 	const env = {
 		...process.env,
 		ELECTRON_RUN_AS_NODE: '1',
-		ELECTRON_NO_ATTACH_CONSOLE: '1'
+		ELECTRON_NO_ATTACH_CONSOLE: '1',
+		VSCODE_RESOLVING_ENVIRONMENT: '1'
 	};
 
 	logService.trace('getUnixShellEnvironment#env', env);
@@ -197,6 +198,8 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 				} else {
 					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
 				}
+
+				delete env['VSCODE_RESOLVING_ENVIRONMENT'];
 
 				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];

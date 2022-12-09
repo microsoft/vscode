@@ -72,9 +72,21 @@ export class TerminalLinkManager extends DisposableStore {
 	) {
 		super();
 
+		let enableFileLinks: boolean = true;
+		const enableFileLinksConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks as ITerminalConfiguration['enableFileLinks'] | boolean;
+		switch (enableFileLinksConfig) {
+			case 'off':
+			case false: // legacy from v1.75
+				enableFileLinks = false;
+				break;
+			case 'notRemote':
+				enableFileLinks = !this._processManager.remoteAuthority;
+				break;
+		}
+
 		// Setup link detectors in their order of priority
 		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
-		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
+		if (enableFileLinks) {
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));

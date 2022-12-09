@@ -33,7 +33,7 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			toggled: {
 				condition: AuxiliaryBarVisibleContext,
 				title: localize('secondary sidebar', "Secondary Side Bar"),
-				mnemonicTitle: localize('secondary sidebar mnemonic', "Secondary Si&&de Bar"),
+				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
 			},
 
 			category: Categories.View,

@@ -13,7 +13,7 @@
 }
 
 .search-editor .query-container {
-	margin: 0px 12px 12px 2px;
+	margin: 0px 12px 12px 19px;
 	padding-top: 6px;
 }
 
@@ -34,7 +34,6 @@
 
 .search-editor .search-widget .search-container,
 .search-editor .search-widget .replace-container {
-	margin-left: 18px;
 	display: flex;
 	align-items: center;
 }
@@ -52,7 +51,7 @@
 .search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror,
 .search-editor .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	padding: 3px;
-	padding-left: 4px;
+	padding-left: 6px;
 }
 
 .search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror {
@@ -125,7 +124,6 @@
 .search-editor .includes-excludes {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 0 17px;
 }
 
 .search-editor .includes-excludes .expand {
@@ -165,7 +163,7 @@
 }
 
 .search-editor .message {
-	padding-left: 22px;
+	padding-left: 7px;
 	padding-right: 22px;
 	padding-top: 0px;
 }

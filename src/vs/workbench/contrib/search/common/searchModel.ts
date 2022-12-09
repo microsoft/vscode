@@ -109,25 +109,37 @@ export class Match {
 
 		const fullMatchText = this.fullMatchText();
 		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText, searchModel.preserveCase);
+		if (replaceString !== null) {
+			return replaceString;
+		}
+
+		// Search/find normalize line endings - check whether \r prevents regex from matching
+		const fullMatchTextWithoutCR = fullMatchText.replace(/\r\n/g, '\n');
+		if (fullMatchTextWithoutCR !== fullMatchText) {
+			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
+			if (replaceString !== null) {
+				return replaceString;
+			}
+		}
 
 		// If match string is not matching then regex pattern has a lookahead expression
-		if (replaceString === null) {
-			const fullMatchTextWithSurroundingContent = this.fullMatchText(true);
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithSurroundingContent, searchModel.preserveCase);
+		const contextMatchTextWithSurroundingContent = this.fullMatchText(true);
+		replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithSurroundingContent, searchModel.preserveCase);
+		if (replaceString !== null) {
+			return replaceString;
+		}
 
-			// Search/find normalize line endings - check whether \r prevents regex from matching
-			if (replaceString === null) {
-				const fullMatchTextWithoutCR = fullMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
-				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
+		// Search/find normalize line endings, this time in full context
+		const contextMatchTextWithoutCR = contextMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
+		if (contextMatchTextWithoutCR !== contextMatchTextWithSurroundingContent) {
+			replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithoutCR, searchModel.preserveCase);
+			if (replaceString !== null) {
+				return replaceString;
 			}
 		}
 
 		// Match string is still not matching. Could be unsupported matches (multi-line).
-		if (replaceString === null) {
-			replaceString = searchModel.replacePattern.pattern;
-		}
-
-		return replaceString;
+		return searchModel.replacePattern.pattern;
 	}
 
 	fullMatchText(includeSurrounding = false): string {
@@ -228,7 +240,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IModelService private readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ILabelService readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -511,7 +523,7 @@ export class FolderMatch extends Disposable {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ILabelService readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
 	) {
 		super();

@@ -54,12 +54,15 @@ export const KERNEL_EXTENSIONS = new Map<string, string>([
 export const KERNEL_RECOMMENDATIONS = new Map<string, Map<string, INotebookExtensionRecommendation>>();
 KERNEL_RECOMMENDATIONS.set(IPYNB_VIEW_TYPE, new Map<string, INotebookExtensionRecommendation>());
 KERNEL_RECOMMENDATIONS.get(IPYNB_VIEW_TYPE)?.set('python', {
-	extensionId: 'ms-python.python',
+	extensionIds: [
+		'ms-python.python',
+		JUPYTER_EXTENSION_ID
+	],
 	displayName: 'Python + Jupyter',
 });
 
 export interface INotebookExtensionRecommendation {
-	readonly extensionId: string;
+	readonly extensionIds: string[];
 	readonly displayName?: string;
 }
 

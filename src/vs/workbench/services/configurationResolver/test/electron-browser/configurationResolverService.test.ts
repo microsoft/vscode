@@ -18,7 +18,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
@@ -679,7 +679,7 @@ class MockLabelService implements ILabelService {
 	getUriBasenameLabel(resource: URI): string {
 		throw new Error('Method not implemented.');
 	}
-	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: Verbosity }): string {
 		throw new Error('Method not implemented.');
 	}
 	getHostLabel(scheme: string, authority?: string): string {
