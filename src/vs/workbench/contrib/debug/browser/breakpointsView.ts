@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -1010,7 +1011,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 		return localize('breakpoints', "Breakpoints");
 	}
 
-	getRole() {
+	getRole(): AriaRole {
 		return 'checkbox';
 	}
 
