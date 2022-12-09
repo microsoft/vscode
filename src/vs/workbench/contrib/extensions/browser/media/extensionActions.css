@@ -142,25 +142,3 @@
 	opacity: 0.9;
 	font-style: italic;
 }
-
-.extension-editor .header .actions-status-container > .status .codicon.codicon-extensions-error-message,
-.extension-editor .body .subcontent .runtime-status .codicon.codicon-extensions-error-message,
-.monaco-hover.extension-hover .markdown-hover .hover-contents .codicon.codicon-extensions-error-message{
-	color: var(--vscode-editorError-foreground);
-}
-
-.extension-editor .header .actions-status-container > .status .codicon.codicon-extensions-warning-message,
-.extension-editor .body .subcontent .runtime-status .codicon.codicon-extensions-warning-message,
-.monaco-hover.extension-hover .markdown-hover .hover-contents .codicon.codicon-extensions-warning-message{
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.extension-editor .header .actions-status-container > .status .codicon.codicon-extensions-info-message,
-.extension-editor .body .subcontent .runtime-status .codicon.codicon-extensions-info-message,
-.monaco-hover.extension-hover .markdown-hover .hover-contents .codicon.codicon-extensions-info-message {
-	color: var(--vscode-editorInfo-foreground);
-}
-
-
-
-
