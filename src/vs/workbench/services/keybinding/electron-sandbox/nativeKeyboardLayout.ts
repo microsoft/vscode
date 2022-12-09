@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
+import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { DispatchConfig, readKeyboardConfig } from 'vs/platform/keyboardLayout/common/keyboardConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -40,7 +40,7 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		this._initPromise = null;
 		this._keyboardMapping = null;
 		this._keyboardLayoutInfo = null;
-		this._keyboardMapper = new MacLinuxFallbackKeyboardMapper(OS);
+		this._keyboardMapper = new FallbackKeyboardMapper(OS);
 
 		this._register(this._keyboardLayoutService.onDidChangeKeyboardLayout(async ({ keyboardLayoutInfo, keyboardMapping }) => {
 			await this.initialize();
@@ -96,7 +96,7 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		const config = readKeyboardConfig(this._configurationService);
 		if (config.dispatch === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(OS);
 		}
 		return this._keyboardMapper;
 	}
@@ -122,14 +122,14 @@ function createKeyboardMapper(layoutInfo: IKeyboardLayoutInfo | null, rawMapping
 
 	if (!rawMapping || Object.keys(rawMapping).length === 0) {
 		// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
-		return new MacLinuxFallbackKeyboardMapper(OS);
+		return new FallbackKeyboardMapper(OS);
 	}
 
 	if (OS === OperatingSystem.Macintosh) {
 		const kbInfo = <IMacKeyboardLayoutInfo>layoutInfo;
 		if (kbInfo.id === 'com.apple.keylayout.DVORAK-QWERTYCMD') {
 			// Use keyCode based dispatching for DVORAK - QWERTY ⌘
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(OS);
 		}
 	}
 

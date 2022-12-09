@@ -12,7 +12,7 @@ import { DispatchConfig, readKeyboardConfig } from 'vs/platform/keyboardLayout/c
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
+import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -280,12 +280,12 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 
 	public getKeyboardMapper(): IKeyboardMapper {
 		if (!this._initialized) {
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(OS);
 		}
 		const config = readKeyboardConfig(this._configurationService);
 		if (config.dispatch === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(OS);
 		}
 		return this._keyboardMapper!;
 	}
@@ -327,7 +327,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		}
 		if (Object.keys(rawMapping).length === 0) {
 			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(OS);
 		}
 
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);

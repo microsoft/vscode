@@ -12,11 +12,8 @@ import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMappe
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.
  */
-export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
+export class FallbackKeyboardMapper implements IKeyboardMapper {
 
-	/**
-	 * OS (can be Linux or Macintosh)
-	 */
 	private readonly _OS: OperatingSystem;
 
 	constructor(OS: OperatingSystem) {
