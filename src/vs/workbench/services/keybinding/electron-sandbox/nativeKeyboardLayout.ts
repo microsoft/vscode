@@ -11,11 +11,12 @@ import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/platform/keyboardLayou
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
+import { DispatchConfig, readKeyboardConfig } from 'vs/platform/keyboardLayout/common/keyboardConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 
@@ -31,7 +32,8 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 	private _keyboardMapper: IKeyboardMapper;
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService
+		@IMainProcessService mainProcessService: IMainProcessService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._keyboardLayoutService = ProxyChannel.toService<INativeKeyboardLayoutService>(mainProcessService.getChannel('keyboardLayout'));
@@ -49,6 +51,15 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 
 			this._keyboardMapping = keyboardMapping;
 			this._keyboardLayoutInfo = keyboardLayoutInfo;
+			this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
+			this._onDidChangeKeyboardLayout.fire();
+		}));
+
+		this._register(_configurationService.onDidChangeConfiguration(async (e) => {
+			if (!e.affectsConfiguration('keyboard.dispatch')) {
+				return;
+			}
+			await this.initialize();
 			this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
 			this._onDidChangeKeyboardLayout.fire();
 		}));
@@ -81,8 +92,9 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		return [];
 	}
 
-	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
-		if (dispatchConfig === DispatchConfig.KeyCode) {
+	public getKeyboardMapper(): IKeyboardMapper {
+		const config = readKeyboardConfig(this._configurationService);
+		if (config.dispatch === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}

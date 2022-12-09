@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
+import { DispatchConfig, readKeyboardConfig } from 'vs/platform/keyboardLayout/common/keyboardConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
@@ -31,7 +31,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
-export class BrowserKeyboardMapperFactoryBase {
+export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
 	protected _initialized: boolean;
 	protected _keyboardMapper: IKeyboardMapper | null;
@@ -72,10 +72,12 @@ export class BrowserKeyboardMapperFactoryBase {
 	}
 
 	protected constructor(
+		private readonly _configurationService: IConfigurationService,
 		// private _notificationService: INotificationService,
 		// private _storageService: IStorageService,
 		// private _commandService: ICommandService
 	) {
+		super();
 		this._keyboardMapper = null;
 		this._initialized = false;
 		this._keymapInfos = [];
@@ -94,6 +96,12 @@ export class BrowserKeyboardMapperFactoryBase {
 				});
 			});
 		}
+
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('keyboard.dispatch')) {
+				this._onDidChangeKeyboardMapper.fire();
+			}
+		}));
 	}
 
 	registerKeyboardLayout(layout: KeymapInfo) {
@@ -270,11 +278,12 @@ export class BrowserKeyboardMapperFactoryBase {
 		});
 	}
 
-	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
+	public getKeyboardMapper(): IKeyboardMapper {
 		if (!this._initialized) {
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
-		if (dispatchConfig === DispatchConfig.KeyCode) {
+		const config = readKeyboardConfig(this._configurationService);
+		if (config.dispatch === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
@@ -436,9 +445,9 @@ export class BrowserKeyboardMapperFactoryBase {
 }
 
 export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
+	constructor(configurationService: IConfigurationService, notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
 		// super(notificationService, storageService, commandService);
-		super();
+		super(configurationService);
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
@@ -526,7 +535,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
 		const layout = keyboardConfig.layout;
 		this._keyboardLayoutMode = layout ?? 'autodetect';
-		this._factory = new BrowserKeyboardMapperFactory(notificationService, storageService, commandService);
+		this._factory = new BrowserKeyboardMapperFactory(configurationService, notificationService, storageService, commandService);
 
 		this._register(this._factory.onDidChangeKeyboardMapper(() => {
 			this._onDidChangeKeyboardLayout.fire();
@@ -593,8 +602,8 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		}
 	}
 
-	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
-		return this._factory.getKeyboardMapper(dispatchConfig);
+	getKeyboardMapper(): IKeyboardMapper {
+		return this._factory.getKeyboardMapper();
 	}
 
 	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
