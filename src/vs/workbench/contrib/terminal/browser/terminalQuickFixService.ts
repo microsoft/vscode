@@ -34,7 +34,6 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
 		this._providers.set(id, provider);
-
 		const selector = this._selectors.get(id);
 		if (!selector) {
 			throw new Error(`No registered selector for ID: ${id}`);
@@ -43,7 +42,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		return toDisposable(() => {
 			this._selectors.delete(id);
 			this._providers.delete(id);
-			this._onDidUnregisterProvider.fire(selector!.id);
+			this._onDidUnregisterProvider.fire(selector.id);
 		});
 	}
 }
