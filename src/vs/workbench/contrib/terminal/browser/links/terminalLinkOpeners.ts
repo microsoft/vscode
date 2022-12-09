@@ -165,7 +165,9 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// Examples:
 		// - Ruby stack traces: <link>:in ...
 		// - Grep output: <link>:<result line>
-		text = text.replace(/:[^\d]+$/, '');
+		// This only happens when the colon is _not_ followed by a forward- or back-slash as that
+		// would break absolute Windows paths (eg. `C:/Users/...`).
+		text = text.replace(/:[^\\/][^\d]+$/, '');
 
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
