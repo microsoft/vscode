@@ -7,6 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalQuickFixProvider, ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
@@ -18,21 +19,32 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	_selectors: Map<string, ITerminalCommandSelector> = new Map();
 	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
 
+	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
+
+	}
+
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
 		this._selectors.set(selector.id, selector);
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
 		this._providers.set(id, provider);
-		const selector = this._selectors.get(id);
+
+		let selector = this._selectors.get(id);
 		if (!selector) {
-			throw new Error(`No registered selector for ID: ${id}`);
+			console.log(`selector wasn't available at first`);
+			selector = this._terminalContributionService.quickFixes.find(q => q.id === id);
+			if (!selector) {
+				throw new Error(`No registered selector for ID: ${id}`);
+			} else {
+				this.registerCommandSelector(selector);
+			}
 		}
 		this._onDidRegisterProvider.fire({ selector, provider });
 		return toDisposable(() => {
 			this._selectors.delete(id);
 			this._providers.delete(id);
-			this._onDidUnregisterProvider.fire(selector.id);
+			this._onDidUnregisterProvider.fire(selector!.id);
 		});
 	}
 }
