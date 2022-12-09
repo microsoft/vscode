@@ -570,10 +570,15 @@ export class InteractiveEditor extends EditorPane {
 	layout(dimension: DOM.Dimension): void {
 		this.#rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this.#rootElement.classList.toggle('narrow-width', dimension.width < 600);
+		const editorHeightChanged = dimension.height !== this.#dimension?.height;
 		this.#dimension = dimension;
 
 		if (!this.#notebookWidget.value) {
 			return;
+		}
+
+		if (editorHeightChanged && this.#codeEditorWidget) {
+			SuggestController.get(this.#codeEditorWidget)?.cancelSuggestWidget();
 		}
 
 		this.#notebookEditorContainer.style.height = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
