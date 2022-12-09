@@ -14,11 +14,10 @@ import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMappe
  */
 export class FallbackKeyboardMapper implements IKeyboardMapper {
 
-	private readonly _OS: OperatingSystem;
-
-	constructor(OS: OperatingSystem) {
-		this._OS = OS;
-	}
+	constructor(
+		private readonly _mapAltGrToCtrlAlt: boolean,
+		private readonly _OS: OperatingSystem,
+	) { }
 
 	public dumpDebugInfo(): string {
 		return 'FallbackKeyboardMapper dispatching on keyCode';
@@ -29,10 +28,12 @@ export class FallbackKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
+		const ctrlKey = keyboardEvent.ctrlKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const altKey = keyboardEvent.altKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
 		const keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
+			ctrlKey,
 			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
+			altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);

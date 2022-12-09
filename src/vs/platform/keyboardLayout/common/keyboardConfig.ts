@@ -16,12 +16,14 @@ export const enum DispatchConfig {
 
 export interface IKeyboardConfig {
 	dispatch: DispatchConfig;
+	mapAltGrToCtrlAlt: boolean;
 }
 
 export function readKeyboardConfig(configurationService: IConfigurationService): IKeyboardConfig {
 	const keyboard = configurationService.getValue<{ dispatch: any; mapAltGrToCtrlAlt: any } | undefined>('keyboard');
 	const dispatch = (keyboard?.dispatch === 'keyCode' ? DispatchConfig.KeyCode : DispatchConfig.Code);
-	return { dispatch };
+	const mapAltGrToCtrlAlt = Boolean(keyboard?.mapAltGrToCtrlAlt);
+	return { dispatch, mapAltGrToCtrlAlt };
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
@@ -38,6 +40,13 @@ const keyboardConfiguration: IConfigurationNode = {
 			default: 'code',
 			markdownDescription: nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
 			included: OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
+		},
+		'keyboard.mapAltGrToCtrlAlt': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('mapAltGrToCtrlAlt', "Controls if the AltGraph+ modifier should be treated as Ctrl+Alt+."),
+			included: OS === OperatingSystem.Windows
 		}
 	}
 };

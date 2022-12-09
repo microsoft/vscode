@@ -11,7 +11,7 @@ import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEven
 
 suite('keyboardMapper - MAC fallback', () => {
 
-	const mapper = new FallbackKeyboardMapper(OperatingSystem.Macintosh);
+	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
@@ -201,11 +201,39 @@ suite('keyboardMapper - MAC fallback', () => {
 			}
 		);
 	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', () => {
+		const mapper = new FallbackKeyboardMapper(true, OperatingSystem.Macintosh);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: KeyCode.KeyZ,
+				code: null!
+			},
+			{
+				label: '⌃⌥Z',
+				ariaLabel: 'Control+Option+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+Z'],
+				singleModifierDispatchParts: [null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX fallback', () => {
 
-	const mapper = new FallbackKeyboardMapper(OperatingSystem.Linux);
+	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
@@ -328,6 +356,34 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['ctrl'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', () => {
+		const mapper = new FallbackKeyboardMapper(true, OperatingSystem.Linux);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: KeyCode.KeyZ,
+				code: null!
+			},
+			{
+				label: 'Ctrl+Alt+Z',
+				ariaLabel: 'Control+Alt+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});

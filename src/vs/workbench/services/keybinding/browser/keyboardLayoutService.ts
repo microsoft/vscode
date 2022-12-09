@@ -56,7 +56,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 			return null;
 		}
 
-		return this._activeKeymapInfo && this._activeKeymapInfo.layout;
+		return this._activeKeymapInfo?.layout ?? null;
 	}
 
 	get activeKeyMapping(): IKeyboardMapping | null {
@@ -64,7 +64,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 			return null;
 		}
 
-		return this._activeKeymapInfo && this._activeKeymapInfo.mapping;
+		return this._activeKeymapInfo?.mapping ?? null;
 	}
 
 	get keyboardLayouts(): IKeyboardLayoutInfo[] {
@@ -98,7 +98,8 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		}
 
 		this._register(this._configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('keyboard.dispatch')) {
+			if (e.affectsConfiguration('keyboard')) {
+				this._keyboardMapper = null;
 				this._onDidChangeKeyboardMapper.fire();
 			}
 		}));
@@ -279,15 +280,15 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	}
 
 	public getKeyboardMapper(): IKeyboardMapper {
-		if (!this._initialized) {
-			return new FallbackKeyboardMapper(OS);
-		}
 		const config = readKeyboardConfig(this._configurationService);
-		if (config.dispatch === DispatchConfig.KeyCode) {
+		if (config.dispatch === DispatchConfig.KeyCode || !this._initialized || !this._activeKeymapInfo) {
 			// Forcefully set to use keyCode
-			return new FallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(config.mapAltGrToCtrlAlt, OS);
 		}
-		return this._keyboardMapper!;
+		if (!this._keyboardMapper) {
+			this._keyboardMapper = new CachedKeyboardMapper(BrowserKeyboardMapperFactory._createKeyboardMapper(this._activeKeymapInfo, config.mapAltGrToCtrlAlt));
+		}
+		return this._keyboardMapper;
 	}
 
 	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
@@ -315,22 +316,22 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	private _setKeyboardData(keymapInfo: KeymapInfo): void {
 		this._initialized = true;
 
-		this._keyboardMapper = new CachedKeyboardMapper(BrowserKeyboardMapperFactory._createKeyboardMapper(keymapInfo));
+		this._keyboardMapper = null;
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(keymapInfo: KeymapInfo): IKeyboardMapper {
+	private static _createKeyboardMapper(keymapInfo: KeymapInfo, mapAltGrToCtrlAlt: boolean): IKeyboardMapper {
 		const rawMapping = keymapInfo.mapping;
 		const isUSStandard = !!keymapInfo.layout.isUSStandard;
 		if (OS === OperatingSystem.Windows) {
-			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
+			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping, mapAltGrToCtrlAlt);
 		}
 		if (Object.keys(rawMapping).length === 0) {
 			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
-			return new FallbackKeyboardMapper(OS);
+			return new FallbackKeyboardMapper(mapAltGrToCtrlAlt, OS);
 		}
 
-		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, mapAltGrToCtrlAlt, OS);
 	}
 
 	//#region Browser API

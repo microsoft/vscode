@@ -15,9 +15,9 @@ import { IMacLinuxKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyb
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
-async function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): Promise<MacLinuxKeyboardMapper> {
+async function createKeyboardMapper(isUSStandard: boolean, file: string, mapAltGrToCtrlAlt: boolean, OS: OperatingSystem): Promise<MacLinuxKeyboardMapper> {
 	const rawMappings = await readRawMapping<IMacLinuxKeyboardMapping>(file);
-	return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, OS);
+	return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, mapAltGrToCtrlAlt, OS);
 }
 
 suite('keyboardMapper - MAC de_ch', () => {
@@ -25,7 +25,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh);
+		const _mapper = await createKeyboardMapper(false, 'mac_de_ch', false, OperatingSystem.Macintosh);
 		mapper = _mapper;
 	});
 
@@ -408,7 +408,7 @@ suite('keyboardMapper - MAC en_us', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh);
+		const _mapper = await createKeyboardMapper(true, 'mac_en_us', false, OperatingSystem.Macintosh);
 		mapper = _mapper;
 	});
 
@@ -487,6 +487,34 @@ suite('keyboardMapper - MAC en_us', () => {
 			}
 		);
 	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', async () => {
+		const mapper = await createKeyboardMapper(true, 'mac_en_us', true, OperatingSystem.Macintosh);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: -1,
+				code: 'KeyZ'
+			},
+			{
+				label: '⌃⌥Z',
+				ariaLabel: 'Control+Option+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+[KeyZ]'],
+				singleModifierDispatchParts: [null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX de_ch', () => {
@@ -494,7 +522,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux);
+		const _mapper = await createKeyboardMapper(false, 'linux_de_ch', false, OperatingSystem.Linux);
 		mapper = _mapper;
 	});
 
@@ -873,7 +901,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux);
+		const _mapper = await createKeyboardMapper(true, 'linux_en_us', false, OperatingSystem.Linux);
 		mapper = _mapper;
 	});
 
@@ -1476,6 +1504,34 @@ suite('keyboardMapper - LINUX en_us', () => {
 			}
 		);
 	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', async () => {
+		const mapper = await createKeyboardMapper(true, 'linux_en_us', true, OperatingSystem.Linux);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: -1,
+				code: 'KeyZ'
+			},
+			{
+				label: 'Ctrl+Alt+Z',
+				ariaLabel: 'Control+Alt+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+[KeyZ]'],
+				singleModifierDispatchParts: [null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper', () => {
@@ -1488,7 +1544,7 @@ suite('keyboardMapper', () => {
 				'withAltGr': '|',
 				'withShiftAltGr': '|'
 			}
-		}, OperatingSystem.Linux);
+		}, false, OperatingSystem.Linux);
 
 		assertResolveKeyboardEvent(
 			mapper,
@@ -1516,7 +1572,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
-		const mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
+		const mapper = new MacLinuxKeyboardMapper(false, {}, false, OperatingSystem.Linux);
 
 		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string | null, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1558,7 +1614,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24107: Delete, Insert, Home, End, PgUp, PgDn, and arrow keys no longer work editor in 1.11', () => {
-		const mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
+		const mapper = new MacLinuxKeyboardMapper(false, {}, false, OperatingSystem.Linux);
 
 		function assertKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1617,7 +1673,7 @@ suite('keyboardMapper - LINUX ru', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux);
+		const _mapper = await createKeyboardMapper(false, 'linux_ru', false, OperatingSystem.Linux);
 		mapper = _mapper;
 	});
 
@@ -1651,7 +1707,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux);
+		const _mapper = await createKeyboardMapper(false, 'linux_en_uk', false, OperatingSystem.Linux);
 		mapper = _mapper;
 	});
 
@@ -1691,7 +1747,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh);
+		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant', false, OperatingSystem.Macintosh);
 		mapper = _mapper;
 	});
 
@@ -1725,7 +1781,7 @@ suite('keyboardMapper - MAC zh_hant2', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup(async () => {
-		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant2', OperatingSystem.Macintosh);
+		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant2', false, OperatingSystem.Macintosh);
 		mapper = _mapper;
 	});
 
