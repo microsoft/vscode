@@ -281,6 +281,8 @@ export class BulkEditPane extends ViewPane {
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
 			first.setChecked(!first.isChecked());
+		} else if (first instanceof CategoryElement) {
+			first.setChecked(!first.isChecked());
 		}
 	}
 
