@@ -594,6 +594,11 @@ export interface IEditorOptions {
 	 */
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
+	 * Enable experimental whitespace rendering.
+	 * Defaults to 'true'.
+	 */
+	experimentalWhitespaceRendering?: boolean;
+	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to 'selection'.
 	 */
@@ -4743,6 +4748,7 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
+	experimentalWhitespaceRendering,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -5057,6 +5063,10 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalWhitespaceRendering: register(new EditorBooleanOption(
+		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering', true,
+		{ description: nls.localize('experimentalWhitespaceRendering', "Controls whether whitespace is rendered with a new, experimental method.") }
+	)),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
