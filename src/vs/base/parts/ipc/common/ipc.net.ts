@@ -264,6 +264,8 @@ const enum ProtocolMessageType {
 	Pause = 7,
 	Resume = 8,
 	KeepAlive = 9,
+	LatencyMeasurementRequest = 10,
+	LatencyMeasurementResponse = 11,
 }
 
 function protocolMessageTypeToString(messageType: ProtocolMessageType) {
@@ -277,6 +279,8 @@ function protocolMessageTypeToString(messageType: ProtocolMessageType) {
 		case ProtocolMessageType.Pause: return 'PauseWriting';
 		case ProtocolMessageType.Resume: return 'ResumeWriting';
 		case ProtocolMessageType.KeepAlive: return 'KeepAlive';
+		case ProtocolMessageType.LatencyMeasurementRequest: return 'LatencyMeasurementRequest';
+		case ProtocolMessageType.LatencyMeasurementResponse: return 'LatencyMeasurementResponse';
 	}
 }
 
@@ -823,6 +827,30 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onSocketTimeout = new BufferedEmitter<SocketTimeoutEvent>();
 	readonly onSocketTimeout: Event<SocketTimeoutEvent> = this._onSocketTimeout.event;
 
+	private readonly _onLogEvent = new BufferedEmitter<{ event: string; data: Object }>();
+	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
+
+	private readonly HIGH_LATENCY_SAMPLE_THRESHOLD = 3;
+	private readonly HIGH_LATENCY_TIME_MS = 1000;
+	private readonly LATENCY_SAMPLE_COUNT = 5;
+	private readonly LATENCY_CHECK_INTERVAL_MS = 1 * 60 * 1000;
+
+	// Timestamp of our last latency request message sent to the other host.
+	private _lastLatencyMeasurementSent: number = -1;
+
+	// ID separate from the regular message IDs. Used to match up latency
+	// requests with responses so we know we're timing the right message
+	// even if a reconnection occurs.
+	private _lastLatencyMeasurementId: number = 0;
+	private _highLatencyDetected: boolean = false;
+
+	// Circular buffer of latency measurements
+	private _latencySamples: number[] = Array.from({ length: this.LATENCY_SAMPLE_COUNT }, (_) => 0);
+	private _latencySampleIndex: number = 0;
+
+	private readonly _onLatencyMeasurementChanged = new BufferedEmitter<boolean>();
+	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
+
 	public get unacknowledgedCount(): number {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
@@ -851,6 +879,9 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
+		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
+		this._socketDisposables.push({ dispose: () => { clearInterval(measureLatencyTimer); } });
+
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
@@ -875,6 +906,15 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._keepAliveInterval = null;
 		}
 		this._socketDisposables = dispose(this._socketDisposables);
+	}
+
+	private sendLatencyMeasurement(): void {
+		if (this._isReconnecting) {
+			return;
+		}
+		this._lastLatencyMeasurementSent = Date.now();
+		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, ++this._lastLatencyMeasurementId, 0, getEmptyBuffer());
+		this._socketWriter.write(msg);
 	}
 
 	drain(): Promise<void> {
@@ -928,6 +968,14 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
+
+		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
+		this._socketDisposables.push({ dispose: () => { clearInterval(measureLatencyTimer); } });
+		this._lastLatencyMeasurementId = 0;
+		this._highLatencyDetected = false;
+		this._latencySamples = Array.from({ length: this._latencySamples.length }, (_) => 0);
+		this._latencySampleIndex = 0;
+
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 
@@ -952,7 +1000,39 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._onDidDispose.fire();
 	}
 
+	private _logEvent(event: string, data: Object): void {
+		this._onLogEvent.fire({ event, data });
+	}
+
 	private _receiveMessage(msg: ProtocolMessage): void {
+		if (msg.type === ProtocolMessageType.LatencyMeasurementRequest) {
+			const reply = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementResponse, 0, msg.id, getEmptyBuffer());
+			this._socketWriter.write(reply);
+			return;
+		} else if (msg.type === ProtocolMessageType.LatencyMeasurementResponse) {
+			if (this._lastLatencyMeasurementSent > 0 && msg.ack === this._lastLatencyMeasurementId) {
+				const roundtripTimeTakenMs = Date.now() - this._lastLatencyMeasurementSent;
+				const idx = this._latencySampleIndex++ % this._latencySamples.length;
+				this._latencySamples[idx] = roundtripTimeTakenMs;
+
+				const previousHighLatency = this._highLatencyDetected;
+				const highLatencySampleCount = this._latencySamples.filter(s => s >= this.HIGH_LATENCY_TIME_MS).length;
+				this._highLatencyDetected = highLatencySampleCount >= this.HIGH_LATENCY_SAMPLE_THRESHOLD;
+
+				if (roundtripTimeTakenMs > this.HIGH_LATENCY_TIME_MS) {
+					this._logEvent('ipc.highLatencyMeasurement', {
+						roundtripTimeTakenMs,
+						highLatencySampleCount,
+					});
+				}
+
+				if (previousHighLatency !== this._highLatencyDetected) {
+					this._onLatencyMeasurementChanged.fire(this._highLatencyDetected);
+				}
+			}
+			return;
+		}
+
 		if (msg.ack > this._outgoingAckId) {
 			this._outgoingAckId = msg.ack;
 			do {

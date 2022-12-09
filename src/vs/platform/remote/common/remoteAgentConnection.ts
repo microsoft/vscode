@@ -18,7 +18,7 @@ import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAu
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
-const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
+const RECONNECT_TIMEOUT = 2 * 60 * 1000 /* 2 minutes */;
 
 export const enum ConnectionType {
 	Management = 1,
@@ -264,7 +264,7 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 	protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
 
 	try {
-		const msg = await readOneControlMessage<HandshakeMessage>(protocol, combineTimeoutCancellation(timeoutCancellationToken, createTimeoutCancellation(10000)));
+		const msg = await readOneControlMessage<HandshakeMessage>(protocol, combineTimeoutCancellation(timeoutCancellationToken, createTimeoutCancellation(60000)));
 
 		if (msg.type !== 'sign' || typeof msg.data !== 'string') {
 			const error: any = new Error('Unexpected handshake message');
@@ -518,7 +518,8 @@ export class ConnectionGainEvent {
 	constructor(
 		public readonly reconnectionToken: string,
 		public readonly millisSinceLastIncomingData: number,
-		public readonly attempt: number
+		public readonly attempt: number,
+		public readonly poorConnectionQuality?: boolean,
 	) { }
 }
 export class ReconnectionPermanentFailureEvent {
@@ -601,6 +602,17 @@ export abstract class PersistentConnection extends Disposable {
 			this._beginReconnecting();
 		}));
 
+		this._register(protocol.onLatencyMeasurementChanged((highLatency) => {
+			if (this._isReconnecting) {
+				return;
+			}
+
+			if (this._connectionType === ConnectionType.Management) {
+				this.logEvent('ipc.poorConnectionQualityStatusChanged', { extras: { poorQuality: highLatency } });
+			}
+			this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0, highLatency));
+		}));
+
 		PersistentConnection._instances.push(this);
 		this._register(toDisposable(() => {
 			const myIndex = PersistentConnection._instances.indexOf(this);
@@ -612,6 +624,10 @@ export abstract class PersistentConnection extends Disposable {
 		if (this._isPermanentFailure) {
 			this._gotoPermanentFailure(PersistentConnection._permanentFailureMillisSinceLastIncomingData, PersistentConnection._permanentFailureAttempt, PersistentConnection._permanentFailureHandled);
 		}
+	}
+
+	private logEvent(event: string, data: Object): void {
+		this._options.logService.info(`${event} - ${JSON.stringify(data)}`);
 	}
 
 	private async _beginReconnecting(): Promise<void> {

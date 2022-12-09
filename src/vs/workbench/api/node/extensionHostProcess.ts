@@ -195,6 +195,12 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol = new PersistentProtocol(socket, initialDataChunk);
 						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
+
+						protocol.onLogEvent((e) => {
+							// TODO: How could we get LogService or TelemetryService here?
+							// this._logService.info(`${e.event} - ${JSON.stringify(e.data)}`);
+						});
+
 						resolve(protocol);
 
 						// Wait for rich client to reconnect
