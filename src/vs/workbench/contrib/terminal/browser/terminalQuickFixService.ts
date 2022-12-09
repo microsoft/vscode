@@ -12,6 +12,8 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
 	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
+	private readonly _onDidRegisterCommandSelector = new Emitter<ITerminalCommandSelector>();
+	readonly onDidRegisterCommandSelector = this._onDidRegisterCommandSelector.event;
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 	_serviceBrand: undefined;
@@ -20,26 +22,22 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
 
 	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
-
+		for (const selector of this._terminalContributionService.quickFixes) {
+			this.registerCommandSelector(selector);
+		}
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
 		this._selectors.set(selector.id, selector);
+		this._onDidRegisterCommandSelector.fire(selector);
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
 		this._providers.set(id, provider);
 
-		let selector = this._selectors.get(id);
+		const selector = this._selectors.get(id);
 		if (!selector) {
-			console.log(`selector wasn't available at first`);
-			console.log('terminal contribution service has', this._terminalContributionService.quickFixes.length, JSON.stringify(this._terminalContributionService.quickFixes));
-			selector = this._terminalContributionService.quickFixes.find(q => q.id === id);
-			if (!selector) {
-				throw new Error(`No registered selector for ID: ${id}`);
-			} else {
-				this.registerCommandSelector(selector);
-			}
+			throw new Error(`No registered selector for ID: ${id}`);
 		}
 		this._onDidRegisterProvider.fire({ selector, provider });
 		return toDisposable(() => {
