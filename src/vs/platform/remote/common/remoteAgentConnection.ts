@@ -18,7 +18,7 @@ import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAu
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
-const RECONNECT_TIMEOUT = 2 * 60 * 1000 /* 2 minutes */;
+const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
 
 export const enum ConnectionType {
 	Management = 1,
@@ -264,7 +264,7 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 	protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
 
 	try {
-		const msg = await readOneControlMessage<HandshakeMessage>(protocol, combineTimeoutCancellation(timeoutCancellationToken, createTimeoutCancellation(60000)));
+		const msg = await readOneControlMessage<HandshakeMessage>(protocol, combineTimeoutCancellation(timeoutCancellationToken, createTimeoutCancellation(10000)));
 
 		if (msg.type !== 'sign' || typeof msg.data !== 'string') {
 			const error: any = new Error('Unexpected handshake message');
