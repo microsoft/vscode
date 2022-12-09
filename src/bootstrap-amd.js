@@ -52,7 +52,7 @@ if (nlsConfig && nlsConfig.pseudo) {
 
 /**
  * @param {string} entrypoint
- * @param {() => void} onLoad
+ * @param {(value: any) => void} onLoad
  * @param {(err: Error) => void} onError
  */
 exports.load = function (entrypoint, onLoad, onError) {
