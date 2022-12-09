@@ -58,6 +58,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -106,6 +107,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: KeyCode.Meta,
 				code: null!
 			},
@@ -131,6 +133,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -156,6 +159,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Alt,
 				code: null!
 			},
@@ -172,31 +176,6 @@ suite('keyboardMapper - MAC fallback', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Meta+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
-			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: false,
-				altKey: false,
-				metaKey: true,
-				keyCode: KeyCode.Meta,
-				code: null!
-			},
-			{
-				label: '⌘',
-				ariaLabel: 'Command',
-				electronAccelerator: null,
-				userSettingsLabel: 'cmd',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['meta'],
-			}
-		);
-	});
-
 	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
@@ -206,6 +185,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -272,6 +252,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -334,6 +315,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},

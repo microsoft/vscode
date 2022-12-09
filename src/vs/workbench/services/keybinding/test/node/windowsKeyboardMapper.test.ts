@@ -77,6 +77,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -119,6 +120,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.BracketRight,
 				code: null!
 			},
@@ -271,6 +273,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Home,
 				code: null!
 			},
@@ -319,6 +322,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},
@@ -411,6 +415,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},
@@ -436,6 +441,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -461,6 +467,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Alt,
 				code: null!
 			},
@@ -486,6 +493,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: KeyCode.Meta,
 				code: null!
 			},
@@ -511,6 +519,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -549,6 +558,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.ABNT_C1,
 				code: null!
 			},
@@ -574,6 +584,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.ABNT_C2,
 				code: null!
 			},

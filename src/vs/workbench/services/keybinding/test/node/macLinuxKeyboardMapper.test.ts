@@ -113,6 +113,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'KeyY'
 			},
@@ -154,6 +155,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'BracketRight'
 			},
@@ -307,6 +309,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'Home'
 			},
@@ -356,6 +359,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'MetaLeft'
 			},
@@ -381,6 +385,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'MetaRight'
 			},
@@ -440,6 +445,7 @@ suite('keyboardMapper - MAC en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'MetaLeft'
 			},
@@ -465,6 +471,7 @@ suite('keyboardMapper - MAC en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'MetaRight'
 			},
@@ -559,6 +566,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'KeyY'
 			},
@@ -591,6 +599,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'BracketRight'
 			},
@@ -744,6 +753,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'Home'
 			},
@@ -769,6 +779,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'KeyX'
 			},
@@ -813,6 +824,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ControlLeft'
 			},
@@ -838,6 +850,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ControlRight'
 			},
@@ -913,6 +926,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'KeyZ'
 			},
@@ -954,6 +968,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'BracketRight'
 			},
@@ -1107,6 +1122,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'Home'
 			},
@@ -1173,6 +1189,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'NumpadEnter'
 			},
@@ -1235,6 +1252,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ControlLeft'
 			},
@@ -1260,6 +1278,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ControlRight'
 			},
@@ -1285,6 +1304,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ShiftLeft'
 			},
@@ -1310,6 +1330,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ShiftRight'
 			},
@@ -1335,6 +1356,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'AltLeft'
 			},
@@ -1360,6 +1382,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'AltRight'
 			},
@@ -1385,6 +1408,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'MetaLeft'
 			},
@@ -1410,6 +1434,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'MetaRight'
 			},
@@ -1435,6 +1460,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'ShiftLeft'
 			},
@@ -1472,6 +1498,7 @@ suite('keyboardMapper', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'Backquote'
 			},
@@ -1500,6 +1527,7 @@ suite('keyboardMapper', () => {
 					shiftKey: false,
 					altKey: false,
 					metaKey: false,
+					altGraphKey: false,
 					keyCode: keyCode,
 					code: code
 				},
@@ -1541,6 +1569,7 @@ suite('keyboardMapper', () => {
 					shiftKey: false,
 					altKey: false,
 					metaKey: false,
+					altGraphKey: false,
 					keyCode: keyCode,
 					code: code
 				},
@@ -1639,6 +1668,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: -1,
 				code: 'Minus'
 			},
