@@ -427,7 +427,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Revert the source
-		await this.revert(source);
+		try {
+			await this.revert(source);
+		} catch (error) {
+
+			// It is possible that reverting the source fails, for example
+			// when a remote is disconnected and we cannot read it anymore.
+			// However, this should not interrupt the "Save As" flow, so
+			// we gracefully catch the error and just log it.
+
+			this.logService.error(error);
+		}
 
 		return target;
 	}

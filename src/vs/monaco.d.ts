@@ -445,6 +445,7 @@ declare namespace monaco {
 		readonly shiftKey: boolean;
 		readonly altKey: boolean;
 		readonly metaKey: boolean;
+		readonly altGraphKey: boolean;
 		readonly keyCode: KeyCode;
 		readonly code: string;
 		equals(keybinding: number): boolean;

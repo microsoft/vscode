@@ -502,7 +502,7 @@ export class QuickInputList {
 				separator = previous;
 			}
 
-			result.push(new ListElement({
+			const element = new ListElement({
 				hasCheckbox,
 				index,
 				item: item.type !== 'separator' ? item : undefined,
@@ -519,11 +519,14 @@ export class QuickInputList {
 				separator,
 				fireButtonTriggered,
 				fireSeparatorButtonTriggered
-			}));
+			});
+
+			this.elementDisposables.push(element);
+			this.elementDisposables.push(element.onChecked(() => this.fireCheckedEvents()));
+
+			result.push(element);
 			return result;
 		}, [] as ListElement[]);
-		this.elementDisposables.push(...this.elements);
-		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
 			map.set(element.item ?? element.separator!, index);

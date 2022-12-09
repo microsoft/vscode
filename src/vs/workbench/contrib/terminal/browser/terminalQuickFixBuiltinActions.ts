@@ -31,7 +31,7 @@ export function gitSimilar(): IInternalOptions {
 			offset: 0,
 			length: 10
 		},
-		exitStatus: false,
+		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
 			if (!matchResult?.outputMatch) {
 				return;
@@ -66,7 +66,7 @@ export function gitTwoDashes(): IInternalOptions {
 			offset: 0,
 			length: 2
 		},
-		exitStatus: false,
+		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
 			const problemArg = matchResult?.outputMatch?.regexMatch?.[1];
 			if (!problemArg) {
@@ -93,7 +93,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 			offset: 0,
 			length: 30
 		},
-		exitStatus: false,
+		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
 			const port = matchResult?.outputMatch?.regexMatch?.groups?.portNumber;
 			if (!port) {
@@ -125,7 +125,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 			offset: 0,
 			length: 5
 		},
-		exitStatus: false,
+		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
 			const matches = matchResult.outputMatch;
 			const commandToRun = 'git push --set-upstream origin ${group:branchName}';
@@ -171,7 +171,7 @@ export function gitCreatePr(): IInternalOptions {
 			offset: 0,
 			length: 5
 		},
-		exitStatus: true,
+		commandExitResult: 'success',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
 			const link = matchResult?.outputMatch?.regexMatch?.groups?.link;
 			if (!link) {
