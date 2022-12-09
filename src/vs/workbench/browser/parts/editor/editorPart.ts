@@ -172,8 +172,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this._partOptions = newPartOptions;
 
-		this.centeredLayoutWidget.setFixedWidth(this._partOptions.centeredLayoutFixedWidth ?? false);
-
 		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
 	}
 
@@ -857,6 +855,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Centered layout widget
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		this.onDidChangeEditorPartOptions(e => this.centeredLayoutWidget.setFixedWidth(e.newPartOptions.centeredLayoutFixedWidth ?? false));
 
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
