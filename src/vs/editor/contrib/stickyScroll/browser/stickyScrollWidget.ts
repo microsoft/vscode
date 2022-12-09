@@ -294,9 +294,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 		}
-		else if (minimapSide === 'right') {
-			this._rootDomNode.style.marginLeft = '1px';
-		}
 		this._rootDomNode.style.zIndex = '11';
 	}
 
