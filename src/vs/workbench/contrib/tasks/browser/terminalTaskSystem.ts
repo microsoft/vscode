@@ -31,7 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -1336,7 +1336,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._logService.trace(`No terminal found to split for group ${group}`);
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-		const createdTerminal = await this._terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
+		const createdTerminal = await this._terminalService.createTerminal({ config: launchConfigs });
 		createdTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
 		return createdTerminal;
 	}
