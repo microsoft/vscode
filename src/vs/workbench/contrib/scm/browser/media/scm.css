@@ -384,7 +384,7 @@
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 2px 6px 3px 6px;
+	padding: 3px 6px;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;
