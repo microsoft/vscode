@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 
-export interface IDataTransferFile {
+interface IDataTransferFile {
 	readonly name: string;
 	readonly uri?: URI;
 	data(): Promise<Uint8Array>;
 }
 
 export interface IDataTransferItem {
+	readonly id: string;
 	asString(): Thenable<string>;
 	asFile(): IDataTransferFile | undefined;
 	value: any;
@@ -19,6 +22,7 @@ export interface IDataTransferItem {
 
 export function createStringDataTransferItem(stringOrPromise: string | Promise<string>): IDataTransferItem {
 	return {
+		id: generateUuid(),
 		asString: async () => stringOrPromise,
 		asFile: () => undefined,
 		value: typeof stringOrPromise === 'string' ? stringOrPromise : undefined,
@@ -27,6 +31,7 @@ export function createStringDataTransferItem(stringOrPromise: string | Promise<s
 
 export function createFileDataTransferItem(fileName: string, uri: URI | undefined, data: () => Promise<Uint8Array>): IDataTransferItem {
 	return {
+		id: generateUuid(),
 		asString: async () => '',
 		asFile: () => ({ name: fileName, uri, data }),
 		value: undefined,
@@ -88,3 +93,17 @@ export class VSDataTransfer {
 		return mimeType.toLowerCase();
 	}
 }
+
+
+export const UriList = Object.freeze({
+	// http://amundsen.com/hypermedia/urilist/
+	create: (entries: ReadonlyArray<string | URI>): string => {
+		return distinct(entries.map(x => x.toString())).join('\r\n');
+	},
+	split: (str: string): string[] => {
+		return str.split('\r\n');
+	},
+	parse: (str: string): string[] => {
+		return UriList.split(str).filter(value => !value.startsWith('#'));
+	}
+});

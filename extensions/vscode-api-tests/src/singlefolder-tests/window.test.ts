@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff } from 'vscode';
+import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff, UIKind, env } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
@@ -449,7 +449,7 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[3].input.uri.toString(), commandFile.toString());
 	});
 
-	test('Tabs - Ensure tabs getter is correct', async function () {
+	(env.uiKind === UIKind.Web ? test.skip : test)('Tabs - Ensure tabs getter is correct', async function () {
 		// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.
 		this.timeout(10000);
 		// This test can be flaky because of opening a notebook

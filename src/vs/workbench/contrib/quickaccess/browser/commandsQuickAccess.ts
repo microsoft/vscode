@@ -177,8 +177,8 @@ export class ClearCommandHistoryAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.clearCommandHistory',
-			title: { value: localize('clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+			id: 'workbench.action.clearPreviousSessionCommandHistory',
+			title: { value: localize('clearPreviousSessionCommandHistory', "Clear Previous Session Command History"), original: 'Clear Previous Session Command History' },
 			f1: true
 		});
 	}
@@ -193,7 +193,7 @@ export class ClearCommandHistoryAction extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
-				message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
+				message: localize('confirmClearMessage', "Do you want to clear the previous session command history?"),
 				detail: localize('confirmClearDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
 				type: 'warning'

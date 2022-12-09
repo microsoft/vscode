@@ -246,10 +246,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredLanguageId;
 	}
 
-	setLanguageId(languageId: string): void {
+	setLanguageId(languageId: string, source?: string): void {
 		this.setPreferredLanguageId(languageId);
 
-		this.model?.setLanguageId(languageId);
+		this.model?.setLanguageId(languageId, source);
 	}
 
 	setPreferredLanguageId(languageId: string): void {

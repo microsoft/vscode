@@ -28,7 +28,6 @@
           "py"
         ],
         "filenames": [
-          "Snakefile",
           "SConstruct",
           "SConscript"
         ],

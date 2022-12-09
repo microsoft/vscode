@@ -26,7 +26,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 
-export function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
+function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
@@ -97,6 +97,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
+	private _initialCollapsibleState?: languages.CommentThreadCollapsibleState;
 	private _commentGlyph?: CommentGlyphWidget;
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
@@ -134,7 +135,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
-		this._isExpanded = _commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded;
+		this._initialCollapsibleState = _commentThread.initialCollapsibleState;
+		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -167,7 +169,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return undefined;
 	}
 
-	protected override revealLine(lineNumber: number) {
+	protected override revealRange() {
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
@@ -376,6 +378,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 		}));
+
+		if (this._initialCollapsibleState === undefined) {
+			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
+				this._initialCollapsibleState = state;
+				this._commentThread.collapsibleState = state;
+				onDidChangeInitialCollapsibleState.dispose();
+			});
+			this._commentThreadDisposables.push(onDidChangeInitialCollapsibleState);
+		}
 
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {

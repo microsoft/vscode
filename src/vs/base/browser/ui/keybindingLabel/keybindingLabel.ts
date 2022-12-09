@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./keybindingLabel';
 import { localize } from 'vs/nls';
 
@@ -32,15 +30,17 @@ export interface KeybindingLabelOptions extends IKeybindingLabelStyles {
 	renderUnboundKeybindings?: boolean;
 }
 
+export type CSSValueString = string;
+
 export interface IKeybindingLabelStyles {
-	keybindingLabelBackground?: Color;
-	keybindingLabelForeground?: Color;
-	keybindingLabelBorder?: Color;
-	keybindingLabelBottomBorder?: Color;
-	keybindingLabelShadow?: Color;
+	keybindingLabelBackground?: CSSValueString;
+	keybindingLabelForeground?: CSSValueString;
+	keybindingLabelBorder?: CSSValueString;
+	keybindingLabelBottomBorder?: CSSValueString;
+	keybindingLabelShadow?: CSSValueString;
 }
 
-export class KeybindingLabel implements IThemable {
+export class KeybindingLabel {
 
 	private domNode: HTMLElement;
 	private options: KeybindingLabelOptions;
@@ -51,22 +51,26 @@ export class KeybindingLabel implements IThemable {
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
-	private labelBackground: Color | undefined;
-	private labelForeground: Color | undefined;
-	private labelBorder: Color | undefined;
-	private labelBottomBorder: Color | undefined;
-	private labelShadow: Color | undefined;
+	private labelBackground: CSSValueString | undefined;
+	private labelBorder: CSSValueString | undefined;
+	private labelBottomBorder: CSSValueString | undefined;
+	private labelShadow: CSSValueString | undefined;
 
 	constructor(container: HTMLElement, private os: OperatingSystem, options?: KeybindingLabelOptions) {
 		this.options = options || Object.create(null);
 
 		this.labelBackground = this.options.keybindingLabelBackground;
-		this.labelForeground = this.options.keybindingLabelForeground;
 		this.labelBorder = this.options.keybindingLabelBorder;
 		this.labelBottomBorder = this.options.keybindingLabelBottomBorder;
 		this.labelShadow = this.options.keybindingLabelShadow;
 
+		const labelForeground = this.options.keybindingLabelForeground;
+
 		this.domNode = dom.append(container, $('.monaco-keybinding'));
+		if (labelForeground) {
+			this.domNode.style.color = labelForeground;
+		}
+
 		this.didEverRender = false;
 		container.appendChild(this.domNode);
 	}
@@ -101,8 +105,6 @@ export class KeybindingLabel implements IThemable {
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
 		}
-
-		this.applyStyles();
 
 		this.didEverRender = true;
 	}
@@ -147,40 +149,20 @@ export class KeybindingLabel implements IThemable {
 		const keyElement = $('span.monaco-keybinding-key' + extraClass, undefined, label);
 		this.keyElements.add(keyElement);
 
-		return keyElement;
-	}
-
-	style(styles: IKeybindingLabelStyles): void {
-		this.labelBackground = styles.keybindingLabelBackground;
-		this.labelForeground = styles.keybindingLabelForeground;
-		this.labelBorder = styles.keybindingLabelBorder;
-		this.labelBottomBorder = styles.keybindingLabelBottomBorder;
-		this.labelShadow = styles.keybindingLabelShadow;
-
-		this.applyStyles();
-	}
-
-	private applyStyles() {
-		if (this.element) {
-			for (const keyElement of this.keyElements) {
-				if (this.labelBackground) {
-					keyElement.style.backgroundColor = this.labelBackground?.toString();
-				}
-				if (this.labelBorder) {
-					keyElement.style.borderColor = this.labelBorder.toString();
-				}
-				if (this.labelBottomBorder) {
-					keyElement.style.borderBottomColor = this.labelBottomBorder.toString();
-				}
-				if (this.labelShadow) {
-					keyElement.style.boxShadow = `inset 0 -1px 0 ${this.labelShadow}`;
-				}
-			}
-
-			if (this.labelForeground) {
-				this.element.style.color = this.labelForeground.toString();
-			}
+		if (this.labelBackground) {
+			keyElement.style.backgroundColor = this.labelBackground;
 		}
+		if (this.labelBorder) {
+			keyElement.style.borderColor = this.labelBorder;
+		}
+		if (this.labelBottomBorder) {
+			keyElement.style.borderBottomColor = this.labelBottomBorder;
+		}
+		if (this.labelShadow) {
+			keyElement.style.boxShadow = `inset 0 -1px 0 ${this.labelShadow}`;
+		}
+
+		return keyElement;
 	}
 
 	private static areSame(a: Matches | undefined, b: Matches | undefined): boolean {

@@ -20,13 +20,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CodeCell extends Disposable {
@@ -35,7 +34,7 @@ export class CodeCell extends Disposable {
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;
 	private _isDisposed: boolean = false;
-	private readonly cellParts: CellPart[];
+	private readonly cellParts: CellPartsCollection;
 
 	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 
@@ -44,10 +43,9 @@ export class CodeCell extends Disposable {
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ILanguageService readonly languageService: ILanguageService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IOpenerService openerService: IOpenerService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
@@ -55,7 +53,7 @@ export class CodeCell extends Disposable {
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
-		this.cellParts = [...templateData.cellParts, cellEditorOptions, this._outputContainerRenderer];
+		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
@@ -67,16 +65,12 @@ export class CodeCell extends Disposable {
 
 		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (e.affectsCell(this.viewCell.uri)) {
-				this.cellParts.forEach(cellPart => {
-					cellPart.updateForExecutionState(this.viewCell, e);
-				});
+				this.cellParts.updateForExecutionState(this.viewCell, e);
 			}
 		}));
 
 		this._register(this.viewCell.onDidChangeState(e => {
-			this.cellParts.forEach(cellPart => {
-				cellPart.updateState(this.viewCell, e);
-			});
+			this.cellParts.updateState(this.viewCell, e);
 
 			if (e.outputIsHoveredChanged) {
 				this.updateForOutputHover();
@@ -104,9 +98,10 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
+		this.cellParts.scheduleRenderCell(this.viewCell);
+
 		this._register(toDisposable(() => {
-			this.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
+			this.cellParts.unrenderCell(this.viewCell);
 		}));
 
 		this.updateEditorOptions();
@@ -123,7 +118,7 @@ export class CodeCell extends Disposable {
 		}
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
-			this.cellParts.forEach(cellPart => cellPart.prepareLayout());
+			this.cellParts.prepareLayout();
 		}));
 
 		const executionItemElement = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('.collapsed-execution-icon'));
@@ -146,9 +141,7 @@ export class CodeCell extends Disposable {
 	private updateForLayout(): void {
 		this._pendingLayout?.dispose();
 		this._pendingLayout = DOM.modify(() => {
-			this.cellParts.forEach(part => {
-				part.updateInternalLayoutNow(this.viewCell);
-			});
+			this.cellParts.updateInternalLayoutNow(this.viewCell);
 		});
 	}
 

@@ -34,7 +34,7 @@ bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
-const userDataPath = getUserDataPath(args);
+const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
@@ -56,8 +56,7 @@ perf.mark('code/willStartCrashReporter');
 // * --disable-crash-reporter command line parameter is not set
 //
 // Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+if (args['crash-reporter-directory'] || (argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
 	configureCrashReporter();
 }
 perf.mark('code/didStartCrashReporter');
@@ -98,6 +97,19 @@ const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+}
+
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
+
+if (process.platform === 'win32') {
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
 // Load our code once ready
@@ -171,7 +183,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
@@ -226,6 +238,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
 	 */
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
+	/* Following features are enabled from the runtime.
+	 * `AutoDisableAccessibility` - https://github.com/microsoft/vscode/issues/162331#issue-1390744354
+	 */
+	app.commandLine.appendSwitch('enable-features', 'AutoDisableAccessibility');
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
@@ -305,6 +322,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
@@ -393,7 +411,7 @@ function configureCrashReporter() {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	const uploadToServer = !process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory;
+	const uploadToServer = Boolean(!process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory);
 	crashReporter.start({
 		companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
@@ -416,7 +434,7 @@ function getJSFlags(cliArgs) {
 	}
 
 	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
+	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
 
@@ -552,7 +570,21 @@ async function resolveNlsConfiguration() {
 		// Try to use the app locale. Please note that the app locale is only
 		// valid after we have received the app ready event. This is why the
 		// code is here.
+
+		/**
+		 * @type string
+		 */
 		let appLocale = app.getLocale();
+
+		// This if statement can be simplified once
+		// VS Code moves to Electron 22.
+		// Ref https://github.com/microsoft/vscode/issues/159813
+		// and https://github.com/electron/electron/pull/36035
+		if ('getPreferredSystemLanguages' in app
+			&& typeof app.getPreferredSystemLanguages === 'function'
+			&& app.getPreferredSystemLanguages().length) {
+			appLocale = app.getPreferredSystemLanguages()[0];
+		}
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {

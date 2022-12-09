@@ -17,17 +17,15 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
+import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground, listHighlightForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -40,7 +38,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
-	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 
@@ -60,25 +57,17 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService languageService: ILanguageService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
+
 		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
-		this.model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
+
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
-
-		this._register(this.model.onChangedHints(newParameterHints => {
-			if (newParameterHints) {
-				this.show();
-				this.render(newParameterHints);
-			} else {
-				this.hide();
-			}
-		}));
 	}
 
 	private createParameterHintDOMNodes() {
@@ -149,7 +138,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.updateMaxHeight();
 	}
 
-	private show(): void {
+	public show(): void {
 		if (this.visible) {
 			return;
 		}
@@ -166,7 +155,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.editor.layoutContentWidget(this);
 	}
 
-	private hide(): void {
+	public hide(): void {
 		this.renderDisposeables.clear();
 
 		if (!this.visible) {
@@ -190,7 +179,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private render(hints: languages.SignatureHelp): void {
+	public render(hints: languages.SignatureHelp): void {
 		this.renderDisposeables.clear();
 
 		if (!this.domNodes) {
@@ -351,10 +340,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.model.previous();
 	}
 
-	cancel(): void {
-		this.model.cancel();
-	}
-
 	getDomNode(): HTMLElement {
 		if (!this.domNodes) {
 			this.createParameterHintDOMNodes();
@@ -364,10 +349,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	getId(): string {
 		return ParameterHintsWidget.ID;
-	}
-
-	trigger(context: TriggerContext): void {
-		this.model.trigger(context, 0);
 	}
 
 	private updateMaxHeight(): void {
@@ -384,44 +365,4 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
-export const editorHoverWidgetHighlightForeground = registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
-		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
-		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);
-	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget { background-color: ${background}; }`);
-	}
-
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget a { color: ${link}; }`);
-	}
-
-	const linkHover = theme.getColor(textLinkActiveForeground);
-	if (linkHover) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget a:hover { color: ${linkHover}; }`);
-	}
-
-	const foreground = theme.getColor(editorHoverForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget { color: ${foreground}; }`);
-	}
-
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget code { background-color: ${codeBackground}; }`);
-	}
-
-	const parameterHighlightColor = theme.getColor(editorHoverWidgetHighlightForeground);
-	if (parameterHighlightColor) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget .parameter.active { color: ${parameterHighlightColor}}`);
-	}
-
-});
+registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));

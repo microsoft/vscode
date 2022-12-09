@@ -17,6 +17,7 @@ import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
 import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
+import { CommentThreadAdditionalActions } from 'vs/workbench/contrib/comments/browser/commentThreadAdditionalActions';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -35,6 +36,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _header!: CommentThreadHeader<T>;
 	private _body!: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
+	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
@@ -62,7 +64,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			collapse: () => void;
 		},
 		@ICommentService private commentService: ICommentService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -98,6 +100,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._scopedInstatiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
+		this._register(this._body);
 
 		this._styleElement = dom.createStyleSheet(this.container);
 
@@ -149,11 +152,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
-		if (this._commentThread !== commentThread) {
-			dispose(this._commentThreadDisposables);
-		}
-
 		this._commentThread = commentThread;
+		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
@@ -179,6 +179,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (this._commentThread.canReply) {
 			this._createCommentForm();
 		}
+		this._createAdditionalActions();
 
 		this._register(this._body.onDidResize(dimension => {
 			this._refresh(dimension);
@@ -239,6 +240,19 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		);
 
 		this._register(this._commentReply);
+	}
+
+	private _createAdditionalActions() {
+		this._additionalActions = this._scopedInstatiationService.createInstance(
+			CommentThreadAdditionalActions,
+			this._body.container,
+			this._commentThread,
+			this._contextKeyService,
+			this._commentMenus,
+			this._containerDelegate.actionRunner,
+		);
+
+		this._register(this._additionalActions);
 	}
 
 	getCommentCoords(commentUniqueId: number) {

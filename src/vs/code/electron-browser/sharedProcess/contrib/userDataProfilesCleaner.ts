@@ -13,10 +13,10 @@ export class UserDataProfilesCleaner extends Disposable {
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
 	) {
 		super();
+
 		const scheduler = this._register(new RunOnceScheduler(() => {
 			userDataProfilesService.cleanUp();
 		}, 10 * 1000 /* after 10s */));
 		scheduler.schedule();
 	}
-
 }

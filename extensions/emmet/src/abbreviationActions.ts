@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
 import { getEmmetHelper, getFlatNode, getHtmlFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 
-const localize = nls.loadMessageBundle();
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
 
@@ -250,7 +248,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		return '';
 	}
 
-	const prompt = localize('wrapWithAbbreviationPrompt', "Enter Abbreviation");
+	const prompt = vscode.l10n.t("Enter Abbreviation");
 	const inputAbbreviation = (args && args['abbreviation'])
 		? (args['abbreviation'] as string)
 		: await vscode.window.showInputBox({ prompt, validateInput: inputChanged });
@@ -264,47 +262,47 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 }
 
 export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> {
-	if (!validate()) {
-		return Promise.resolve(undefined);
+	if (!validate() || !vscode.window.activeTextEditor) {
+		return fallbackTab();
 	}
-
-	const editor = vscode.window.activeTextEditor!;
-
-	args = args || {};
-	if (!args['language']) {
-		args['language'] = editor.document.languageId;
-	} else {
-		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ?? [];
-		if (excludedLanguages.includes(args['language'])) {
-			return fallbackTab(args['language']);
-		}
-	}
-	const languageId: string = args['language'];
 
 	/**
 	 * Short circuit the parsing. If previous character is space, do not expand.
 	 */
-	if (editor.selections.length === 1 && editor.selection.isEmpty
+	if (vscode.window.activeTextEditor.selections.length === 1 &&
+		vscode.window.activeTextEditor.selection.isEmpty
 	) {
-		const anchor = editor.selection.anchor;
+		const anchor = vscode.window.activeTextEditor.selection.anchor;
 		if (anchor.character === 0) {
-			return fallbackTab(languageId);
+			return fallbackTab();
 		}
 
 		const prevPositionAnchor = anchor.translate(0, -1);
-		const prevText = editor.document.getText(new vscode.Range(prevPositionAnchor, anchor));
+		const prevText = vscode.window.activeTextEditor.document.getText(new vscode.Range(prevPositionAnchor, anchor));
 		if (prevText === ' ' || prevText === '\t') {
-			return fallbackTab(languageId);
+			return fallbackTab();
 		}
 	}
 
+	args = args || {};
+	if (!args['language']) {
+		args['language'] = vscode.window.activeTextEditor.document.languageId;
+	} else {
+		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+		if (excludedLanguages.includes(vscode.window.activeTextEditor.document.languageId)) {
+			return fallbackTab();
+		}
+	}
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax) {
-		return fallbackTab(languageId);
+		return fallbackTab();
 	}
+
+	const editor = vscode.window.activeTextEditor;
+
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
-	if (vscode.workspace.getConfiguration('emmet', { languageId })['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
-		return fallbackTab(languageId);
+	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
+		return fallbackTab();
 	}
 
 	const abbreviationList: ExpandAbbreviationInput[] = [];
@@ -325,7 +323,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		}
 
 		const currentLine = editor.document.lineAt(position.line).text;
-		const textTillPosition = currentLine.substring(0, position.character);
+		const textTillPosition = currentLine.substr(0, position.character);
 
 		// Expand cases like <div to <div></div> explicitly
 		// else we will end up with <<div></div>
@@ -415,12 +413,12 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
-		return success ? Promise.resolve(undefined) : fallbackTab(languageId);
+		return success ? Promise.resolve(undefined) : fallbackTab();
 	});
 }
 
-function fallbackTab(languageId: string): Thenable<boolean | undefined> {
-	if (vscode.workspace.getConfiguration('emmet', { languageId })['triggerExpansionOnTab'] === true) {
+function fallbackTab(): Thenable<boolean | undefined> {
+	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
 		return vscode.commands.executeCommand('tab');
 	}
 	return Promise.resolve(true);

@@ -173,7 +173,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static line(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): PartialCursorState {
+	public static line(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined): PartialCursorState {
 		const position = viewModel.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -181,7 +181,7 @@ export class CursorMoveCommands {
 				: viewModel.coordinatesConverter.convertModelPositionToViewPosition(position)
 		);
 
-		if (!inSelectionMode || !cursor.modelState.hasSelection()) {
+		if (!inSelectionMode) {
 			// Entering line selection for the first time
 			const lineCount = viewModel.model.getLineCount();
 
@@ -204,7 +204,7 @@ export class CursorMoveCommands {
 		if (position.lineNumber < enteringLineNumber) {
 
 			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), viewPosition.lineNumber, 1, 0
+				true, viewPosition.lineNumber, 1, 0
 			));
 
 		} else if (position.lineNumber > enteringLineNumber) {
@@ -219,14 +219,14 @@ export class CursorMoveCommands {
 			}
 
 			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), selectToViewLineNumber, selectToViewColumn, 0
+				true, selectToViewLineNumber, selectToViewColumn, 0
 			));
 
 		} else {
 
 			const endPositionOfSelectionStart = cursor.modelState.selectionStart.getEndPosition();
 			return CursorState.fromModelState(cursor.modelState.move(
-				cursor.modelState.hasSelection(), endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
+				true, endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
 			));
 
 		}
@@ -251,7 +251,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): PartialCursorState {
+	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined): PartialCursorState {
 		const position = viewModel.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -680,7 +680,7 @@ export namespace CursorMove {
 		value?: number;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments | null {
+	export function parse(args: Partial<RawArguments>): ParsedArguments | null {
 		if (!args.to) {
 			// illegal arguments
 			return null;
