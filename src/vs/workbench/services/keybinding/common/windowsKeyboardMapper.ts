@@ -161,14 +161,16 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 
 export class WindowsKeyboardMapper implements IKeyboardMapper {
 
-	public readonly isUSStandard: boolean;
 	private readonly _codeInfo: IScanCodeMapping[];
 	private readonly _scanCodeToKeyCode: KeyCode[];
 	private readonly _keyCodeToLabel: Array<string | null> = [];
 	private readonly _keyCodeExists: boolean[];
 
-	constructor(isUSStandard: boolean, rawMappings: IWindowsKeyboardMapping) {
-		this.isUSStandard = isUSStandard;
+	constructor(
+		private readonly _isUSStandard: boolean,
+		rawMappings: IWindowsKeyboardMapping,
+		private readonly _mapAltGrToCtrlAlt: boolean
+	) {
 		this._scanCodeToKeyCode = [];
 		this._keyCodeToLabel = [];
 		this._keyCodeExists = [];
@@ -394,7 +396,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public getUserSettingsLabelForKeyCode(keyCode: KeyCode): string {
-		if (this.isUSStandard) {
+		if (this._isUSStandard) {
 			return KeyCodeUtils.toUserSettingsUS(keyCode);
 		}
 		return KeyCodeUtils.toUserSettingsGeneral(keyCode);
@@ -420,7 +422,9 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): WindowsNativeResolvedKeybinding {
-		const keybinding = new SimpleKeybinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, keyboardEvent.keyCode);
+		const ctrlKey = keyboardEvent.ctrlKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const altKey = keyboardEvent.altKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const keybinding = new SimpleKeybinding(ctrlKey, keyboardEvent.shiftKey, altKey, keyboardEvent.metaKey, keyboardEvent.keyCode);
 		return new WindowsNativeResolvedKeybinding(this, [keybinding]);
 	}
 

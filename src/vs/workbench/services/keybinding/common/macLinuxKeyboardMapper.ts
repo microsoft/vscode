@@ -351,14 +351,6 @@ class ScanCodeKeyCodeMapper {
 export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	/**
-	 * Is this the standard US keyboard layout?
-	 */
-	private readonly _isUSStandard: boolean;
-	/**
-	 * OS (can be Linux or Macintosh)
-	 */
-	private readonly _OS: OperatingSystem;
-	/**
 	 * used only for debug purposes.
 	 */
 	private readonly _codeInfo: IMacLinuxKeyMapping[];
@@ -375,9 +367,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	 */
 	private readonly _scanCodeToDispatch: Array<string | null> = [];
 
-	constructor(isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
-		this._isUSStandard = isUSStandard;
-		this._OS = OS;
+	constructor(
+		private readonly _isUSStandard: boolean,
+		rawMappings: IMacLinuxKeyboardMapping,
+		private readonly _mapAltGrToCtrlAlt: boolean,
+		private readonly _OS: OperatingSystem,
+	) {
 		this._codeInfo = [];
 		this._scanCodeKeyCodeMapper = new ScanCodeKeyCodeMapper();
 		this._scanCodeToLabel = [];
@@ -704,6 +699,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					shiftKey: scanCodeCombo.shiftKey,
 					altKey: scanCodeCombo.altKey,
 					metaKey: false,
+					altGraphKey: false,
 					keyCode: KeyCode.DependsOnKbLayout,
 					code: ScanCodeUtils.toString(scanCode)
 				});
@@ -1001,7 +997,9 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 
-		const keypress = new ScanCodeBinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, code);
+		const ctrlKey = keyboardEvent.ctrlKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const altKey = keyboardEvent.altKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const keypress = new ScanCodeBinding(ctrlKey, keyboardEvent.shiftKey, altKey, keyboardEvent.metaKey, code);
 		return new NativeResolvedKeybinding(this, this._OS, [keypress]);
 	}
 

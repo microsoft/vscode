@@ -18,7 +18,7 @@
       to { opacity: 0.3; }
     }
 	</style>
-	<g>
+	<g style="fill:grey;">
 		<circle cx='5' cy='1' r='1' style='opacity:0.3;' />
 		<circle cx='7.8284' cy='2.1716' r='1' style='opacity:0.3;' />
 		<circle cx='9' cy='5' r='1' style='opacity:0.3;' />
