@@ -14,9 +14,11 @@ fi
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
-# Set HISTFILE to the default location before the user's .zshrc is sourced
-# to prevent the value of HISTFILE from defaulting to VSCODE_ZDOTDIR/.zsh_history
-if [[  "$VSCODE_INJECTION" == "1"  && -f $USER_ZDOTDIR/.zsh_history && -f $HISTFILE ]]; then
+# By default, zsh will set the $HISTFILE to the $ZDOTDIR location automatically. In the case of the
+# shell integration being injected, this means that the terminal will use a different history file
+# to other terminals. To fix this issue, set $HISTFILE back to the default location before ~/.zshrc
+# is called as that may depend upon the value.
+if [[  "$VSCODE_INJECTION" == "1" ]]; then
 	HISTFILE=$USER_ZDOTDIR/.zsh_history
 fi
 

@@ -366,7 +366,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
-			identityProvider: { getId: element => element.cell.id },
+			identityProvider: { getId: element => element.cell.uri.toString() },
 			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 		};
 
