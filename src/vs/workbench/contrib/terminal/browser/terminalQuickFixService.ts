@@ -33,6 +33,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		let selector = this._selectors.get(id);
 		if (!selector) {
 			console.log(`selector wasn't available at first`);
+			console.log('terminal contribution service has', this._terminalContributionService.quickFixes.length, JSON.stringify(this._terminalContributionService.quickFixes));
 			selector = this._terminalContributionService.quickFixes.find(q => q.id === id);
 			if (!selector) {
 				throw new Error(`No registered selector for ID: ${id}`);
