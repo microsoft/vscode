@@ -642,6 +642,8 @@ export class NativeWindow extends Disposable {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
 		}
+		console.log(this.environmentService.window.accessibilitySupport);
+		this.accessibilityService.setAccessibilitySupport(this.environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	private async handleWarnings(): Promise<void> {

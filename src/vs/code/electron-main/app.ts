@@ -88,7 +88,7 @@ import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManage
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow, LoadReason, WindowError } from 'vs/platform/window/electron-main/window';
+import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
@@ -315,11 +315,6 @@ export class CodeApplication extends Disposable {
 
 		// Dispose on shutdown
 		this.lifecycleMainService.onWillShutdown(() => this.dispose());
-		this.lifecycleMainService.onWillLoadWindow(e => {
-			if (e.reason === LoadReason.RELOAD) {
-				this.windowsMainService?.sendToAll('vscode:accessibilitySupportChanged', app.isAccessibilitySupportEnabled());
-			}
-		});
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
