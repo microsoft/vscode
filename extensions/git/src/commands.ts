@@ -3200,7 +3200,7 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.values()).sort().map(r => new UnsafeRepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new UnsafeRepositoryItem(r));
 
 		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
@@ -3219,7 +3219,7 @@ export class CommandCenter {
 
 		if (repositoryItem.label === allRepositoriesLabel) {
 			// All Repositories
-			unsafeRepositories.push(...this.model.unsafeRepositories.values());
+			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
 		} else {
 			// One Repository
 			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
@@ -3227,7 +3227,7 @@ export class CommandCenter {
 
 		for (const unsafeRepository of unsafeRepositories) {
 			// Mark as Safe
-			await this.git.addSafeDirectory(unsafeRepository);
+			await this.git.addSafeDirectory(this.model.unsafeRepositories.get(unsafeRepository)!);
 
 			// Open Repository
 			await this.model.openRepository(unsafeRepository);
