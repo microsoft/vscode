@@ -29,6 +29,7 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		ZDOTDIR=$USER_ZDOTDIR
 		# A user's custom HISTFILE location might be set when their .zshrc file is sourced below
 		. $USER_ZDOTDIR/.zshrc
+		ZDOTDIR=$VSCODE_ZDOTDIR
 	fi
 fi
 
