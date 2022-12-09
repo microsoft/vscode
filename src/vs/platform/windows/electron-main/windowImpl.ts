@@ -1064,6 +1064,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
+
 		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
