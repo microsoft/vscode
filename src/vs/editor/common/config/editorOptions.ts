@@ -595,7 +595,7 @@ export interface IEditorOptions {
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
 	 * Enable experimental whitespace rendering.
-	 * Defaults to 'off'.
+	 * Defaults to 'svg'.
 	 */
 	experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
 	/**
@@ -5065,7 +5065,7 @@ export const EditorOptions = {
 	stickyScroll: register(new EditorStickyScroll()),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
-		'off' as 'svg' | 'font' | 'off',
+		'svg' as 'svg' | 'font' | 'off',
 		['svg', 'font', 'off'] as const,
 		{
 			enumDescriptions: [

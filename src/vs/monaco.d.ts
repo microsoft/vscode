@@ -3557,7 +3557,7 @@ declare namespace monaco.editor {
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable experimental whitespace rendering.
-		 * Defaults to 'off'.
+		 * Defaults to 'svg'.
 		 */
 		experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
 		/**
