@@ -23,9 +23,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
-import { TerminalQuickFix, TerminalQuickFixType, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
+import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -117,7 +117,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 
 		// TODO: What's documentation do? Need a vscode command?
-		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFix(f, f.class || TerminalQuickFixType.Command, f.source, f.label));
+		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFix(f, f.type, f.source, f.label));
 		const documentation = this._currentRenderContext.quickFixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
 		const actionSet = {
 			// TODO: Documentation and actions are separate?
@@ -280,6 +280,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 }
 
 export interface ITerminalAction extends IAction {
+	type: TerminalQuickFixType;
 	source: string;
 	uri?: URI;
 	command?: string;
@@ -336,10 +337,11 @@ export async function getQuickFixesForCommand(
 								const fix = quickFix as ITerminalQuickFixCommandAction;
 								const label = localize('quickFix.command', 'Run: {0}', fix.terminalCommand);
 								action = {
+									type: TerminalQuickFixType.Command,
+									class: undefined,
 									source: quickFix.source,
 									id: quickFix.id,
 									label,
-									class: quickFix.type,
 									enabled: true,
 									run: () => {
 										onDidRequestRerunCommand?.fire({
@@ -364,7 +366,8 @@ export async function getQuickFixesForCommand(
 									source: quickFix.source,
 									id: quickFix.id,
 									label,
-									class: quickFix.type,
+									type: TerminalQuickFixType.Opener,
+									class: undefined,
 									enabled: true,
 									run: () => openerService.open(fix.uri),
 									tooltip: label,
@@ -372,23 +375,26 @@ export async function getQuickFixesForCommand(
 								};
 								break;
 							}
+							case TerminalQuickFixType.Port: {
+								const fix = quickFix as ITerminalAction;
+								action = {
+									source: 'builtin',
+									type: fix.type,
+									id: fix.id,
+									label: fix.label,
+									class: fix.class,
+									enabled: fix.enabled,
+									run: () => {
+										fix.run();
+									},
+									tooltip: fix.tooltip
+								};
+								break;
+							}
 						}
-					} else {
-						const fix = quickFix as ITerminalAction;
-						action = {
-							source: 'builtin',
-							id: fix.id,
-							label: fix.label,
-							class: fix.class,
-							enabled: fix.enabled,
-							run: () => {
-								fix.run();
-							},
-							tooltip: fix.tooltip
-						};
-					}
-					if (action) {
-						fixes.push(action);
+						if (action) {
+							fixes.push(action);
+						}
 					}
 				}
 			}

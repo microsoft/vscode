@@ -460,7 +460,7 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
-	if (fix.type === TerminalQuickFixType.opener) {
+	if (fix.type === TerminalQuickFixType.Opener) {
 		(fix as TerminalQuickFixOpenerAction).uri = URI.revive((fix as TerminalQuickFixOpenerAction).uri);
 	}
 	return { id, source, ...fix };

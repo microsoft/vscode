@@ -46,13 +46,13 @@ function es5ClassCompat(target: Function): any {
 }
 
 export enum TerminalOutputAnchor {
-	top = 'top',
-	bottom = 'bottom'
+	Top = 0,
+	Bottom = 1
 }
 
 export enum TerminalQuickFixType {
-	command = 'command',
-	opener = 'opener'
+	Command = 0,
+	Opener = 1
 }
 
 @es5ClassCompat

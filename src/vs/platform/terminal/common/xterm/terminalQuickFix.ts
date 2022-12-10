@@ -9,6 +9,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 
+export enum TerminalQuickFixType {
+	Command = 0,
+	Opener = 1,
+	Port = 2
+}
+
+
 export interface ITerminalCommandSelector {
 	id: string;
 	commandLineMatcher: string | RegExp;
@@ -26,19 +33,19 @@ export interface ITerminalQuickFixOptions {
 }
 
 export interface ITerminalQuickFix {
-	type: 'command' | 'opener';
+	type: TerminalQuickFixType;
 	id: string;
 	source: string;
 }
 
 export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
-	type: 'command';
+	type: TerminalQuickFixType.Command;
 	terminalCommand: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine?: boolean;
 }
 export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
-	type: 'opener';
+	type: TerminalQuickFixType.Opener;
 	uri: URI;
 }
 

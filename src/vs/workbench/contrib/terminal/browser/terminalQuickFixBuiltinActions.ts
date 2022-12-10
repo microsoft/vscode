@@ -5,9 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalQuickFixType } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
@@ -101,7 +100,8 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 			}
 			const label = localize("terminal.freePort", "Free port {0}", port);
 			return {
-				class: TerminalQuickFixType.Port,
+				type: TerminalQuickFixType.Port,
+				class: undefined,
 				tooltip: label,
 				id: 'Free Port',
 				label,
@@ -147,7 +147,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 			}
 			if (fixedCommand) {
 				actions.push({
-					type: 'command',
+					type: TerminalQuickFixType.Command,
 					id: 'Git Push Set Upstream',
 					terminalCommand: fixedCommand,
 					addNewLine: true,
@@ -179,14 +179,12 @@ export function gitCreatePr(): IInternalOptions {
 			}
 			const label = localize("terminal.createPR", "Create PR {0}", link);
 			return {
-				class: undefined,
-				tooltip: label,
 				id: 'Git Create Pr',
 				label,
 				enabled: true,
-				type: 'opener',
+				type: TerminalQuickFixType.Opener,
 				uri: URI.parse(link),
-				run: () => { }
+				source: 'builtin'
 			};
 		}
 	};

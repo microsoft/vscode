@@ -37,11 +37,11 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalQuickFixCommandAction extends TerminalQuickFix {
-		type: TerminalQuickFixType.command;
+		type: TerminalQuickFixType.Command;
 		terminalCommand: string;
 	}
 	export interface TerminalQuickFixOpenerAction extends TerminalQuickFix {
-		type: TerminalQuickFixType.opener;
+		type: TerminalQuickFixType.Opener;
 		uri: Uri;
 	}
 
@@ -76,12 +76,12 @@ declare module 'vscode' {
 	}
 
 	enum TerminalOutputAnchor {
-		top = 'top',
-		bottom = 'bottom'
+		Top = 0,
+		Bottom = 1
 	}
 
 	enum TerminalQuickFixType {
-		command = 'command',
-		opener = 'opener'
+		Command = 0,
+		Opener = 1
 	}
 }
