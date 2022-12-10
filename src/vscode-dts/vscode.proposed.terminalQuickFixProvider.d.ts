@@ -21,7 +21,7 @@ declare module 'vscode' {
 		commandLineMatch: RegExpMatchArray;
 		outputMatch?: {
 			regexMatch: RegExpMatchArray;
-			outputLines?: string[];
+			outputLines: string[];
 		};
 	}
 
@@ -62,12 +62,6 @@ declare module 'vscode' {
 		 * reasons. This is capped at 40.
 		 */
 		length: number;
-
-		/**
-		 * If multiple matches are expected - this will result in {@link outputLines} being returned
-		 * when there's a {@link regexMatch} from {@link offset} to {@link length}
-		 */
-		multipleMatches?: boolean;
 	}
 
 	enum TerminalOutputAnchor {

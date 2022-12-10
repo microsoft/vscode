@@ -83,7 +83,7 @@ export interface ITerminalCommandMatchResult {
 
 export interface ITerminalOutputMatch {
 	regexMatch: RegExpMatchArray;
-	outputLines?: string[];
+	outputLines: string[];
 }
 
 export interface IInternalOptions extends ITerminalQuickFixOptions {

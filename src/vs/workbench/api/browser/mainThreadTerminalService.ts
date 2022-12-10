@@ -457,7 +457,7 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 
 export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	const match: RegExpMatchArray | null | undefined = lines.join('\n').match(outputMatcher.lineMatcher);
-	return match ? { regexMatch: match, outputLines: outputMatcher.multipleMatches ? lines : undefined } : undefined;
+	return match ? { regexMatch: match, outputLines: lines } : undefined;
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
