@@ -106,6 +106,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 				id: 'Free Port',
 				label,
 				enabled: true,
+				source: 'buitlin',
 				run: async () => {
 					await terminalInstance?.freePortKillProcess?.(port, matchResult.commandLine);
 				}
