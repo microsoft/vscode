@@ -3557,9 +3557,9 @@ declare namespace monaco.editor {
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable experimental whitespace rendering.
-		 * Defaults to 'true'.
+		 * Defaults to 'off'.
 		 */
-		experimentalWhitespaceRendering?: boolean;
+		experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
 		/**
 		 * Enable rendering of whitespace.
 		 * Defaults to 'selection'.
@@ -4742,7 +4742,7 @@ declare namespace monaco.editor {
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
-		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, boolean>;
+		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;

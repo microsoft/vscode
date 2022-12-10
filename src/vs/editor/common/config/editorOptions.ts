@@ -595,9 +595,9 @@ export interface IEditorOptions {
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
 	 * Enable experimental whitespace rendering.
-	 * Defaults to 'true'.
+	 * Defaults to 'off'.
 	 */
-	experimentalWhitespaceRendering?: boolean;
+	experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to 'selection'.
@@ -5063,9 +5063,18 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	stickyScroll: register(new EditorStickyScroll()),
-	experimentalWhitespaceRendering: register(new EditorBooleanOption(
-		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering', true,
-		{ description: nls.localize('experimentalWhitespaceRendering', "Controls whether whitespace is rendered with a new, experimental method.") }
+	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
+		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
+		'off' as 'svg' | 'font' | 'off',
+		['svg', 'font', 'off'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('experimentalWhitespaceRendering.svg', "Use a new rendering method with svgs."),
+				nls.localize('experimentalWhitespaceRendering.font', "Use a new rendering method with font characters."),
+				nls.localize('experimentalWhitespaceRendering.off', "Use the stable rendering method."),
+			],
+			description: nls.localize('experimentalWhitespaceRendering', "Controls whether whitespace is rendered with a new, experimental method.")
+		}
 	)),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',

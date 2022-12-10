@@ -16,6 +16,7 @@ import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { Position } from 'vs/editor/common/core/position';
+import { editorWhitespaces } from 'vs/editor/common/core/editorColorRegistry';
 
 export class WhitespaceOverlay extends DynamicViewOverlay {
 
@@ -44,7 +45,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const newOptions = new WhitespaceOptions(this._context.configuration);
 		if (this._options.equals(newOptions)) {
-			return false;
+			return e.hasChanged(EditorOption.layoutInfo);
 		}
 		this._options = newOptions;
 		return true;
@@ -129,6 +130,8 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
+		const color = this._context.theme.getColor(editorWhitespaces);
+		const USE_SVG = this._options.renderWithSVG;
 
 		const lineContent = lineData.content;
 		const len = (this._options.stopRenderingLineAfter === -1 ? lineContent.length : Math.min(this._options.stopRenderingLineAfter, lineContent.length));
@@ -164,6 +167,8 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		let currentSelectionIndex = 0;
 		let currentSelection = selections && selections[currentSelectionIndex];
+		let maxLeft = 0;
+
 		for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 			const chCode = lineContent.charCodeAt(charIndex);
 
@@ -208,14 +213,54 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
-			if (chCode === CharCode.Tab) {
-				result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+			if (USE_SVG) {
+				maxLeft = Math.max(maxLeft, visibleRange.left);
+				if (chCode === CharCode.Tab) {
+					result += this._renderArrow(lineHeight, spaceWidth, visibleRange.left);
+				} else {
+					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${(lineHeight / 2).toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
+				}
 			} else {
-				result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
+				if (chCode === CharCode.Tab) {
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+				} else {
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
+				}
 			}
 		}
 
+		if (USE_SVG) {
+			maxLeft = Math.round(maxLeft + spaceWidth);
+			return (
+				`<svg style="position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
+				+ result
+				+ `</svg>`
+			);
+		}
+
 		return result;
+	}
+
+	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {
+		const strokeWidth = spaceWidth / 7;
+		const width = spaceWidth;
+		const dy = lineHeight / 2;
+		const dx = left;
+
+		const p1 = { x: 0, y: strokeWidth / 2 };
+		const p2 = { x: 100 / 125 * width, y: p1.y };
+		const p3 = { x: p2.x - 0.2 * p2.x, y: p2.y + 0.2 * p2.x };
+		const p4 = { x: p3.x + 0.1 * p2.x, y: p3.y + 0.1 * p2.x };
+		const p5 = { x: p4.x + 0.35 * p2.x, y: p4.y - 0.35 * p2.x };
+		const p6 = { x: p5.x, y: -p5.y };
+		const p7 = { x: p4.x, y: -p4.y };
+		const p8 = { x: p3.x, y: -p3.y };
+		const p9 = { x: p2.x, y: -p2.y };
+		const p10 = { x: p1.x, y: -p1.y };
+
+		const p = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10];
+		const parts = p.map((p) => `${(dx + p.x).toFixed(2)} ${(dy + p.y).toFixed(2)}`).join(' L ');
+		return `<path d="M ${parts}" />`;
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
@@ -233,6 +278,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 class WhitespaceOptions {
 
 	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+	public readonly renderWithSVG: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
 	public readonly wsmiddotWidth: number;
@@ -243,11 +289,17 @@ class WhitespaceOptions {
 	constructor(config: IEditorConfiguration) {
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
-		if (options.get(EditorOption.experimentalWhitespaceRendering)) {
-			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
-		} else {
+		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
+		if (experimentalWhitespaceRendering === 'off') {
 			// whitespace is rendered in the view line
 			this.renderWhitespace = 'none';
+			this.renderWithSVG = false;
+		} else if (experimentalWhitespaceRendering === 'svg') {
+			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+			this.renderWithSVG = true;
+		} else {
+			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+			this.renderWithSVG = false;
 		}
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
@@ -260,6 +312,7 @@ class WhitespaceOptions {
 	public equals(other: WhitespaceOptions): boolean {
 		return (
 			this.renderWhitespace === other.renderWhitespace
+			&& this.renderWithSVG === other.renderWithSVG
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
 			&& this.wsmiddotWidth === other.wsmiddotWidth
