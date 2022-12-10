@@ -15,7 +15,6 @@ export enum TerminalQuickFixType {
 	Port = 2
 }
 
-
 export interface ITerminalCommandSelector {
 	id: string;
 	commandLineMatcher: string | RegExp;
