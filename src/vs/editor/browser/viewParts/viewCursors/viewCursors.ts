@@ -114,7 +114,8 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[]): void {
-		this._primaryCursor.onCursorPositionChanged(position);
+		const pauseAnimation = (this._secondaryCursors.length !== secondaryPositions.length);
+		this._primaryCursor.onCursorPositionChanged(position, pauseAnimation);
 		this._updateBlinking();
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
@@ -135,7 +136,7 @@ export class ViewCursors extends ViewPart {
 		}
 
 		for (let i = 0; i < secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], pauseAnimation);
 		}
 
 	}
