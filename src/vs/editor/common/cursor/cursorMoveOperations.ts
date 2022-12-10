@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -226,6 +226,7 @@ export class MoveOperations {
 
 		return new SingleCursorState(
 			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
+			SelectionStartKind.Simple,
 			selectionStart.leftoverVisibleColumns,
 			new Position(position.lineNumber, position.column),
 			position.leftoverVisibleColumns
@@ -263,6 +264,7 @@ export class MoveOperations {
 
 		return new SingleCursorState(
 			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
+			SelectionStartKind.Simple,
 			selectionStart.leftoverVisibleColumns,
 			new Position(position.lineNumber, position.column),
 			position.leftoverVisibleColumns

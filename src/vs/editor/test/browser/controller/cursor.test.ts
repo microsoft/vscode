@@ -6109,6 +6109,26 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #112039: shift-continuing a double/triple-click and drag selection does not remember its starting mode', () => {
+		const model = createTextModel(
+			[
+				'just some text',
+				'and another line',
+				'and another one',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
+				position: new Position(2, 6)
+			});
+			CoreNavigationCommands.MoveToSelect.runEditorCommand(null, editor, {
+				position: new Position(1, 8),
+			});
+			assertCursor(viewModel, new Selection(2, 12, 1, 6));
+		});
+	});
+
 	test('issue #158236: Shift click selection does not work on line number indicator', () => {
 		const model = createTextModel(
 			[

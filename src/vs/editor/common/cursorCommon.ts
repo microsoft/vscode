@@ -261,7 +261,7 @@ export class CursorState {
 		const selection = Selection.liftSelection(modelSelection);
 		const modelState = new SingleCursorState(
 			Range.fromPositions(selection.getSelectionStart()),
-			0,
+			SelectionStartKind.Simple, 0,
 			selection.getPosition(), 0
 		);
 		return CursorState.fromModelState(modelState);
@@ -308,29 +308,27 @@ export class PartialViewCursorState {
 	}
 }
 
+export const enum SelectionStartKind {
+	Simple,
+	Word,
+	Line
+}
+
 /**
  * Represents the cursor state on either the model or on the view model.
  */
 export class SingleCursorState {
 	_singleCursorStateBrand: void = undefined;
 
-	// --- selection can start as a range (think double click and drag)
-	public readonly selectionStart: Range;
-	public readonly selectionStartLeftoverVisibleColumns: number;
-	public readonly position: Position;
-	public readonly leftoverVisibleColumns: number;
 	public readonly selection: Selection;
 
 	constructor(
-		selectionStart: Range,
-		selectionStartLeftoverVisibleColumns: number,
-		position: Position,
-		leftoverVisibleColumns: number,
+		public readonly selectionStart: Range,
+		public readonly selectionStartKind: SelectionStartKind,
+		public readonly selectionStartLeftoverVisibleColumns: number,
+		public readonly position: Position,
+		public readonly leftoverVisibleColumns: number,
 	) {
-		this.selectionStart = selectionStart;
-		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
-		this.position = position;
-		this.leftoverVisibleColumns = leftoverVisibleColumns;
 		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
 	}
 
@@ -338,6 +336,7 @@ export class SingleCursorState {
 		return (
 			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
 			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
+			&& this.selectionStartKind === other.selectionStartKind
 			&& this.position.equals(other.position)
 			&& this.selectionStart.equalsRange(other.selectionStart)
 		);
@@ -352,6 +351,7 @@ export class SingleCursorState {
 			// move just position
 			return new SingleCursorState(
 				this.selectionStart,
+				this.selectionStartKind,
 				this.selectionStartLeftoverVisibleColumns,
 				new Position(lineNumber, column),
 				leftoverVisibleColumns
@@ -360,6 +360,7 @@ export class SingleCursorState {
 			// move everything
 			return new SingleCursorState(
 				new Range(lineNumber, column, lineNumber, column),
+				SelectionStartKind.Simple,
 				leftoverVisibleColumns,
 				new Position(lineNumber, column),
 				leftoverVisibleColumns

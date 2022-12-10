@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -734,7 +734,7 @@ export class WordOperations {
 			}
 
 			return new SingleCursorState(
-				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), 0,
+				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), SelectionStartKind.Word, 0,
 				new Position(position.lineNumber, endColumn), 0
 			);
 		}
