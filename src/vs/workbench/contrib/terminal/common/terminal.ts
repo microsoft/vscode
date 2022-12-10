@@ -741,6 +741,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
 				items: {
 					type: 'object',
+					additionalProperties: false,
 					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
 					defaultSnippets: [{
 						body: {
