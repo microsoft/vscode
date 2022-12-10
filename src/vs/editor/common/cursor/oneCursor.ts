@@ -64,6 +64,12 @@ export class Cursor {
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
 		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
+
+		if (this.modelState.selection.isEmpty() && !range.isEmpty()) {
+			// Avoid selecting text when recovering from markers
+			return Selection.fromRange(range.collapseToEnd(), this.modelState.selection.getDirection());
+		}
+
 		return Selection.fromRange(range, this.modelState.selection.getDirection());
 	}
 

@@ -706,13 +706,21 @@ declare namespace monaco {
 		 */
 		collapseToStart(): Range;
 		/**
-		 * Moves the range by the given amount of lines.
-		 */
-		delta(lineCount: number): Range;
-		/**
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
+		/**
+		 * Create a new empty range using this range's end position.
+		 */
+		collapseToEnd(): Range;
+		/**
+		 * Create a new empty range using this range's end position.
+		 */
+		static collapseToEnd(range: IRange): Range;
+		/**
+		 * Moves the range by the given amount of lines.
+		 */
+		delta(lineCount: number): Range;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
