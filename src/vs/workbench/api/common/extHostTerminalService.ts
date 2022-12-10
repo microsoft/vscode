@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, TerminalQuickFix } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -679,7 +679,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<vscode.ProviderResult<vscode.TerminalQuickFix[] | vscode.TerminalQuickFix>> {
+	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<vscode.ProviderResult<TerminalQuickFix[] | TerminalQuickFix>> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested) {
 			return;

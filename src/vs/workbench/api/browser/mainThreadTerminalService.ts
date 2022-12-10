@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -20,12 +20,13 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalEditorLocationOptions, TerminalQuickFix, TerminalQuickFixOpenerAction } from 'vscode';
+import { TerminalEditorLocationOptions, TerminalQuickFixOpener } from 'vscode';
 import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFix, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
+
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -461,7 +462,7 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
 	if (fix.type === TerminalQuickFixType.Opener) {
-		(fix as TerminalQuickFixOpenerAction).uri = URI.revive((fix as TerminalQuickFixOpenerAction).uri);
+		(fix as TerminalQuickFixOpener).uri = URI.revive((fix as TerminalQuickFixOpener).uri);
 	}
 	return { id, source, ...fix };
 }

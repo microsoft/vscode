@@ -12,12 +12,9 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<TerminalQuickFix[] | TerminalQuickFix>;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<(TerminalQuickFixCommand | TerminalQuickFixOpener)[] | (TerminalQuickFixCommand | TerminalQuickFixOpener)>;
 	}
 
-	interface TerminalQuickFix {
-		type: TerminalQuickFixType;
-	}
 
 	export interface TerminalCommandMatchResult {
 		commandLine: string;
@@ -36,11 +33,11 @@ declare module 'vscode' {
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export interface TerminalQuickFixCommandAction extends TerminalQuickFix {
+	export interface TerminalQuickFixCommand {
 		type: TerminalQuickFixType.Command;
 		terminalCommand: string;
 	}
-	export interface TerminalQuickFixOpenerAction extends TerminalQuickFix {
+	export interface TerminalQuickFixOpener {
 		type: TerminalQuickFixType.Opener;
 		uri: Uri;
 	}
