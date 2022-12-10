@@ -70,7 +70,7 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplore
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
-import { TerminalCommandMatchResult, TerminalQuickFix } from 'vscode';
+import { ProviderResult, TerminalCommandMatchResult, TerminalQuickFix } from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1854,7 +1854,7 @@ export interface ExtHostTerminalServiceShape {
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
-	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResult, token: CancellationToken): Promise<TerminalQuickFix[] | TerminalQuickFix | undefined>;
+	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResult, token: CancellationToken): Promise<ProviderResult<TerminalQuickFix[] | TerminalQuickFix>>;
 }
 
 export interface ExtHostSCMShape {
