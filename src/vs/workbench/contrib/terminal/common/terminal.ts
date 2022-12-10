@@ -742,7 +742,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 				items: {
 					type: 'object',
 					additionalProperties: false,
-					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
+					required: ['id', 'commandLineMatcher', 'outputMatcher', 'commandExitResult'],
 					defaultSnippets: [{
 						body: {
 							id: '$1',
