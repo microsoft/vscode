@@ -1198,6 +1198,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return executeTaskResult;
 	}
 
+	private taskLabel(task: Task): string {
+		let label = task._label;
+		const workspaceFolder = task.getWorkspaceFolder();
+		if (workspaceFolder) {
+			label += ' (' + workspaceFolder.name + ')';
+		}
+		return label;
+	}
+
 	public async run(task: Task | undefined, options?: IProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
 		if (!(await this._trust())) {
 			return;
@@ -1205,11 +1214,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		if (this._inProgressTasks.has(task._label)) {
-			this._logService.info('Prevented duplicate task from running', task._label);
+		if (this._inProgressTasks.has(this.taskLabel(task))) {
+			this._logService.info('Prevented duplicate task from running', this.taskLabel(task));
 			return;
 		}
-		this._inProgressTasks.add(task._label);
+		this._inProgressTasks.add(this.taskLabel(task));
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1226,7 +1235,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._handleError(error);
 			return Promise.reject(error);
 		} finally {
-			this._inProgressTasks.delete(task._label);
+			this._inProgressTasks.delete(this.taskLabel(task));
 		}
 	}
 
@@ -1894,6 +1903,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		const response = await this._taskSystem.terminate(task);
+		this._inProgressTasks.delete(this.taskLabel(task));
 		if (response.success) {
 			try {
 				await this.run(task);
@@ -1913,7 +1923,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return { success: true, task: undefined };
 		}
-		this._inProgressTasks.delete(task._label);
+		this._inProgressTasks.delete(this.taskLabel(task));
 		return this._taskSystem.terminate(task);
 	}
 
