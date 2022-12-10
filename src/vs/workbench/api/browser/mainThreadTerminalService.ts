@@ -461,8 +461,10 @@ export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminal
 }
 
 function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
-	if (fix.type === TerminalQuickFixType.Opener) {
+	let type = TerminalQuickFixType.Command;
+	if ('uri' in fix) {
 		(fix as TerminalQuickFixOpener).uri = URI.revive((fix as TerminalQuickFixOpener).uri);
+		type = TerminalQuickFixType.Opener;
 	}
-	return { id, source, ...fix };
+	return { id, type, source, ...fix };
 }

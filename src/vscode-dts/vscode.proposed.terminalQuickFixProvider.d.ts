@@ -34,11 +34,9 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalQuickFixCommand {
-		type: TerminalQuickFixType.Command;
 		terminalCommand: string;
 	}
 	export interface TerminalQuickFixOpener {
-		type: TerminalQuickFixType.Opener;
 		uri: Uri;
 	}
 

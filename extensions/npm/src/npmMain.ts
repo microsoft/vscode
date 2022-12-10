@@ -88,10 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				}
 
 				const end = line.lastIndexOf('#');
-				fixes.push({
-					type: vscode.TerminalQuickFixType.Command,
-					terminalCommand: line.slice(begin, end === -1 ? undefined : end - 1)
-				});
+				fixes.push({ terminalCommand: line.slice(begin, end === -1 ? undefined : end - 1) });
 			}
 
 			return fixes;
