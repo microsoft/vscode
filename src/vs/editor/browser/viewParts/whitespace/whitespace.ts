@@ -130,6 +130,9 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
+		if (this._options.renderWhitespace === 'trailing' && lineData.continuesWithWrappedLine) {
+			return '';
+		}
 		const color = this._context.theme.getColor(editorWhitespaces);
 		const USE_SVG = this._options.renderWithSVG;
 
