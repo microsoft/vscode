@@ -755,15 +755,15 @@ function getWellFormedFileName(filename: string): string {
 	return filename;
 }
 
-export class NewUntitledDiffAction extends Action2 {
+export class CompareNewUntitledTextFilesAction extends Action2 {
 
-	static readonly ID = 'workbench.files.action.newUntitledDiff';
-	static readonly LABEL = nls.localize('newUntitledDiff', "New Untitled Diff");
+	static readonly ID = 'workbench.files.action.compareNewUntitledTextFiles';
+	static readonly LABEL = nls.localize('compareNewUntitledTextFiles', "Compare New Untitled Text Files");
 
 	constructor() {
 		super({
-			id: NewUntitledDiffAction.ID,
-			title: { value: NewUntitledDiffAction.LABEL, original: 'New Untitled Diff' },
+			id: CompareNewUntitledTextFilesAction.ID,
+			title: { value: CompareNewUntitledTextFilesAction.LABEL, original: 'Compare New Untitled Text Files' },
 			f1: true,
 			category: fileCategory
 		});
