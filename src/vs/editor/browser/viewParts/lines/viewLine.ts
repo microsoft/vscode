@@ -103,7 +103,13 @@ export class ViewLineOptions {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
-		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
+		if (experimentalWhitespaceRendering === 'off') {
+			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		} else {
+			// whitespace is rendered in a different layer
+			this.renderWhitespace = 'none';
+		}
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
