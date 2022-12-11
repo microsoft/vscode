@@ -50,6 +50,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
 import { inputLatency } from 'vs/base/browser/performance';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
 
 
@@ -426,6 +427,10 @@ export class View extends ViewEventHandler {
 
 	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
 		this._scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
+	}
+
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this._scrollbar.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {
