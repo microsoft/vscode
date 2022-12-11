@@ -127,22 +127,34 @@ export class MouseHandler extends ViewEventHandler {
 			this._mouseDownOperation.onPointerUp();
 		}));
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, capturePointerId)));
+		this._setupMouseWheelZoomListener();
+
+		this._context.addEventHandler(this);
+	}
+
+	private _setupMouseWheelZoomListener(): void {
+
+		let prevMouseWheelTime = 0;
+		let prevMouseWheelHasZoomModifiers = false;
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			// we don't want to consider mouse wheel events where ctrl/cmd is pressed during the inertia phase
+			// we therefore consider mousewheel events that occur within 50ms of each other to be part of the same gesture
+			const mouseWheelHasZoomModifiers = (
+				Date.now() - prevMouseWheelTime < 50
+					? prevMouseWheelHasZoomModifiers
+					: hasMouseWheelZoomModifiers(browserEvent)
+			);
+			prevMouseWheelTime = Date.now();
+			prevMouseWheelHasZoomModifiers = mouseWheelHasZoomModifiers;
+
 			this.viewController.emitMouseWheel(browserEvent);
 
 			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
 				return;
 			}
-			const e = new StandardWheelEvent(browserEvent);
-			const doMouseWheelZoom = (
-				platform.isMacintosh
-					// on macOS we support cmd + two fingers scroll (`metaKey` set)
-					// and also the two fingers pinch gesture (`ctrKey` set)
-					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
-					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
-			);
-			if (doMouseWheelZoom) {
+			if (mouseWheelHasZoomModifiers) {
+				const e = new StandardWheelEvent(browserEvent);
 				const zoomLevel: number = EditorZoom.getZoomLevel();
 				const delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);
@@ -152,7 +164,15 @@ export class MouseHandler extends ViewEventHandler {
 		};
 		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
 
-		this._context.addEventHandler(this);
+		function hasMouseWheelZoomModifiers(browserEvent: IMouseWheelEvent): boolean {
+			return (
+				platform.isMacintosh
+					// on macOS we support cmd + two fingers scroll (`metaKey` set)
+					// and also the two fingers pinch gesture (`ctrKey` set)
+					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
+					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+			);
+		}
 	}
 
 	public override dispose(): void {
