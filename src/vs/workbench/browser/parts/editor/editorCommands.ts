@@ -1347,18 +1347,18 @@ function registerOtherEditorCommands(): void {
 		when: EditorContextKeys.inDiffEditor,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			let resource: URI | undefined;
+			let editor: EditorInput | undefined;
 			const editorService = accessor.get(IEditorService);
 			const originalEditor = (editorService.activeTextEditorControl as IDiffEditor).getOriginalEditor();
 			if (originalEditor.hasTextFocus()) {
-				resource = (editorService.activeEditor as DiffEditorInput).original.resource;
+				editor = (editorService.activeEditor as DiffEditorInput).original;
 			} else {
 				// Default back to modified editor
-				resource = (editorService.activeEditor as DiffEditorInput).modified.resource;
+				editor = (editorService.activeEditor as DiffEditorInput).modified;
 			}
-			editorService.openEditor({
-				resource,
-			});
+			editorService.openEditor(
+				editor,
+			);
 		}
 	});
 
