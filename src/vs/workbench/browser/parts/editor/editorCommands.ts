@@ -1351,14 +1351,16 @@ function registerOtherEditorCommands(): void {
 			const editorService = accessor.get(IEditorService);
 			const originalEditor = (editorService.activeTextEditorControl as IDiffEditor).getOriginalEditor();
 			if (originalEditor.hasTextFocus()) {
-				editor = (editorService.activeEditor as DiffEditorInput).original;
+				editor = (editorService.activeEditor as DiffEditorInput)?.original;
 			} else {
 				// Default back to modified editor
-				editor = (editorService.activeEditor as DiffEditorInput).modified;
+				editor = (editorService.activeEditor as DiffEditorInput)?.modified;
 			}
-			editorService.openEditor(
-				editor,
-			);
+			if (editor) {
+				editorService.openEditor(
+					editor,
+				);
+			}
 		}
 	});
 
