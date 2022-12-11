@@ -176,6 +176,11 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('wordWrap.inherit', "Lines will wrap according to the {0} setting.", '`#editor.wordWrap#`'),
 			]
 		},
+		'diffEditor.keepLine': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('keepLine', "Keep cursor on the same line when focus changes.")
+    },
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['smart', 'experimental'],
@@ -184,7 +189,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
 				nls.localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
 			]
-		},
+		}
 	}
 };
 
