@@ -113,7 +113,12 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onCursorPositionChanged(position: Position): boolean {
+	public onCursorPositionChanged(position: Position, pauseAnimation: boolean): boolean {
+		if (pauseAnimation) {
+			this._domNode.domNode.style.transitionProperty = 'none';
+		} else {
+			this._domNode.domNode.style.transitionProperty = '';
+		}
 		this._position = position;
 		return true;
 	}
