@@ -1791,7 +1791,7 @@ suite('Editor Controller', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getLineContent(1), 'Hello world ');
-			assertCursor(viewModel, new Selection(1, 12, 1, 13));
+			assertCursor(viewModel, new Selection(1, 13, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getLineContent(1), 'Hello world');
@@ -6146,6 +6146,30 @@ suite('Editor Controller', () => {
 				position: new Position(2, 1)
 			});
 			assertCursor(viewModel, new Selection(3, 5, 2, 1));
+		});
+	});
+
+	test('issue #111513: Text gets automatically selected when typing at the same location in another editor', () => {
+		const model = createTextModel(
+			[
+				'just',
+				'',
+				'some text',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor1, viewModel1) => {
+			editor1.setSelections([
+				new Selection(2, 1, 2, 1)
+			]);
+			withTestCodeEditor(model, {}, (editor2, viewModel2) => {
+				editor2.setSelections([
+					new Selection(2, 1, 2, 1)
+				]);
+				viewModel2.type('e', 'keyboard');
+				assertCursor(viewModel2, new Position(2, 2));
+				assertCursor(viewModel1, new Position(2, 2));
+			});
 		});
 	});
 });
