@@ -37,8 +37,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -55,7 +55,6 @@ export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
 export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.toggleEditorGroupLock';
-export const OPEN_FILE_IN_EDITOR = 'workbench.action.openFileInEditor';
 export const LOCK_GROUP_COMMAND_ID = 'workbench.action.lockEditorGroup';
 export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.unlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
@@ -70,6 +69,7 @@ export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChan
 export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
 export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
+export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -1342,25 +1342,29 @@ function registerOtherEditorCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OPEN_FILE_IN_EDITOR,
+		id: DIFF_OPEN_SIDE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.inDiffEditor,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
-		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			let editor: EditorInput | undefined;
+		handler: async accessor => {
 			const editorService = accessor.get(IEditorService);
-			const originalEditor = (editorService.activeTextEditorControl as IDiffEditor).getOriginalEditor();
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const activeEditor = editorService.activeEditor;
+			const activeTextEditorControl = editorService.activeTextEditorControl;
+			if (!isDiffEditor(activeTextEditorControl) || !(activeEditor instanceof DiffEditorInput)) {
+				return;
+			}
+
+			let editor: EditorInput | undefined;
+			const originalEditor = activeTextEditorControl.getOriginalEditor();
 			if (originalEditor.hasTextFocus()) {
-				editor = (editorService.activeEditor as DiffEditorInput)?.original;
+				editor = activeEditor.original;
 			} else {
-				// Default back to modified editor
-				editor = (editorService.activeEditor as DiffEditorInput)?.modified;
+				editor = activeEditor.modified;
 			}
-			if (editor) {
-				editorService.openEditor(
-					editor,
-				);
-			}
+
+			return editorGroupService.activeGroup.openEditor(editor);
 		}
 	});
 
