@@ -19,6 +19,10 @@ export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
 
+export const enum QuickFixSource {
+	Builtin = 'builtin'
+}
+
 export function gitSimilar(): IInternalOptions {
 	return {
 		id: 'Git Similar',
@@ -45,7 +49,7 @@ export function gitSimilar(): IInternalOptions {
 						type: TerminalQuickFixType.Command,
 						terminalCommand: matchResult.commandLine.replace(/git\s+[^\s]+/, () => `git ${fixedCommand}`),
 						addNewLine: true,
-						source: 'builtin'
+						source: QuickFixSource.Builtin
 					});
 				}
 			}
@@ -76,7 +80,7 @@ export function gitTwoDashes(): IInternalOptions {
 				id: 'Git Two Dashes',
 				terminalCommand: matchResult.commandLine.replace(` -${problemArg}`, () => ` --${problemArg}`),
 				addNewLine: true,
-				source: 'builtin'
+				source: QuickFixSource.Builtin
 			};
 		}
 	};
@@ -106,7 +110,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 				id: 'Free Port',
 				label,
 				enabled: true,
-				source: 'buitlin',
+				source: QuickFixSource.Builtin,
 				run: async () => {
 					await terminalInstance?.freePortKillProcess?.(port, matchResult.commandLine);
 				}
@@ -152,7 +156,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 					id: 'Git Push Set Upstream',
 					terminalCommand: fixedCommand,
 					addNewLine: true,
-					source: 'builtin'
+					source: QuickFixSource.Builtin
 				});
 				return actions;
 			}
@@ -185,7 +189,7 @@ export function gitCreatePr(): IInternalOptions {
 				enabled: true,
 				type: TerminalQuickFixType.Opener,
 				uri: URI.parse(link),
-				source: 'builtin'
+				source: QuickFixSource.Builtin
 			};
 		}
 	};
