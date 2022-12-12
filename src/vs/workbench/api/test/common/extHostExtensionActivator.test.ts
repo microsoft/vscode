@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -81,9 +81,12 @@ suite('ExtensionsActivator', () => {
 
 	test('Supports having resolved extensions', async () => {
 		const host = new SimpleExtensionsActivatorHost();
+		const bExt = desc(idB);
+		delete (<IRelaxedExtensionDescription>bExt).main;
+		delete (<IRelaxedExtensionDescription>bExt).browser;
 		const activator = createActivator(host, [
 			desc(idA, [idB])
-		], [idB]);
+		], [bExt]);
 
 		await activator.activateByEvent('*', false);
 		assert.deepStrictEqual(host.activateCalls, [idA]);
@@ -96,9 +99,11 @@ suite('ExtensionsActivator', () => {
 			[idA, extActivationA],
 			[idB, extActivationB]
 		]);
+		const bExt = desc(idB);
+		(<IRelaxedExtensionDescription>bExt).api = 'none';
 		const activator = createActivator(host, [
 			desc(idA, [idB])
-		], [], [idB]);
+		], [bExt]);
 
 		const activate = activator.activateByEvent('*', false);
 
@@ -243,9 +248,10 @@ suite('ExtensionsActivator', () => {
 		}
 	}
 
-	function createActivator(host: IExtensionsActivatorHost, extensionDescriptions: IExtensionDescription[], resolvedExtensions: ExtensionIdentifier[] = [], hostExtensions: ExtensionIdentifier[] = []): ExtensionsActivator {
+	function createActivator(host: IExtensionsActivatorHost, extensionDescriptions: IExtensionDescription[], otherHostExtensionDescriptions: IExtensionDescription[] = []): ExtensionsActivator {
 		const registry = new ExtensionDescriptionRegistry(extensionDescriptions);
-		return new ExtensionsActivator(registry, resolvedExtensions, hostExtensions, host, new NullLogService());
+		const globalRegistry = new ExtensionDescriptionRegistry(extensionDescriptions.concat(otherHostExtensionDescriptions));
+		return new ExtensionsActivator(registry, globalRegistry, host, new NullLogService());
 	}
 
 	function desc(id: ExtensionIdentifier, deps: ExtensionIdentifier[] = [], activationEvents: string[] = ['*']): IExtensionDescription {

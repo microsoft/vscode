@@ -1394,6 +1394,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
 	public layout(dimension?: IDimension): void {
 		this._configuration.observeContainer(dimension);
 		this.render();

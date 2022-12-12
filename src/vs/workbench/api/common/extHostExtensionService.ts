@@ -163,25 +163,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			[IExtHostSecretState, this._secretState]
 		));
 
-		const resolvedExtensions = this._initData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
-		const hostExtensions = (
-			this._initData.allExtensions
-				.filter(extension => !myExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier.value)))
-				.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
-		);
-		const hostExtensionsSet = extensionIdentifiersArrayToSet(hostExtensions);
-
 		this._activator = this._register(new ExtensionsActivator(
 			this._myRegistry,
-			resolvedExtensions,
-			hostExtensions,
+			this._globalRegistry,
 			{
 				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: Error, missingExtensionDependency: MissingExtensionDependency | null): void => {
 					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, errors.transformErrorForSerialization(error), missingExtensionDependency);
 				},
 
 				actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
-					if (hostExtensionsSet.has(ExtensionIdentifier.toKey(extensionId))) {
+					if (ExtensionDescriptionRegistry.isHostExtension(extensionId, this._myRegistry, this._globalRegistry)) {
 						await this._mainThreadExtensionsProxy.$activateExtension(extensionId, reason);
 						return new HostExtension();
 					}
