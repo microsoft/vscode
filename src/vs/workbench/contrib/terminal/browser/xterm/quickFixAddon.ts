@@ -25,7 +25,7 @@ import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWid
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, TerminalQuickFixType, ProviderResult } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -294,7 +294,7 @@ export async function getQuickFixesForCommand(
 	openerService: IOpenerService,
 	labelService: ILabelService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
-	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ProviderResult<ITerminalQuickFix | ITerminalQuickFix[]>>
+	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
 ): Promise<ITerminalAction[] | undefined> {
 	const fixes: ITerminalAction[] = [];
 	const newCommand = terminalCommand.command;
