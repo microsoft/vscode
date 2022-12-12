@@ -774,7 +774,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 									enum: ['top', 'bottom']
 								},
 								offset: {
-									description: 'The number of lines vertically from the anchor (top or the bottom) of the buffer to start matching against',
+									description: 'The number of lines vertically from the anchor in the buffer to start matching against',
 									type: 'number'
 								},
 								length: {
