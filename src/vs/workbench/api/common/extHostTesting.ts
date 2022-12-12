@@ -831,7 +831,7 @@ class MirroredChangeCollector implements IncrementalChangeCollector<MirroredColl
  * Maintains tests in this extension host sent from the main thread.
  * @private
  */
-export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
+class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
 	private changeEmitter = new Emitter<vscode.TestsChangeEvent>();
 
 	/**

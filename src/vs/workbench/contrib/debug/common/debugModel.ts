@@ -1164,10 +1164,6 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class Memory {
-
-}
-
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];

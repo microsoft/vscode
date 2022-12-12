@@ -404,7 +404,7 @@ const enum WelcomeExperience {
 	ForDocument,
 }
 
-export class TestingExplorerViewModel extends Disposable {
+class TestingExplorerViewModel extends Disposable {
 	public tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection = this._register(new MutableDisposable<ITestTreeProjection>());

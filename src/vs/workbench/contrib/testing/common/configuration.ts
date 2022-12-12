@@ -9,7 +9,6 @@ import { IConfigurationNode } from 'vs/platform/configuration/common/configurati
 
 export const enum TestingConfigKeys {
 	AutoRunDelay = 'testing.autoRun.delay',
-	AutoRunMode = 'testing.autoRun.mode',
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
 	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
 	OpenTesting = 'testing.openTesting',
@@ -32,11 +31,6 @@ export const enum AutoOpenPeekViewWhen {
 	Never = 'never',
 }
 
-export const enum AutoRunMode {
-	AllInWorkspace = 'all',
-	OnlyPreviouslyRun = 'rerun',
-}
-
 export const enum DefaultGutterClickAction {
 	Run = 'run',
 	Debug = 'debug',
@@ -49,18 +43,6 @@ export const testingConfiguation: IConfigurationNode = {
 	title: localize('testConfigurationTitle', "Testing"),
 	type: 'object',
 	properties: {
-		[TestingConfigKeys.AutoRunMode]: {
-			description: localize('testing.autoRun.mode', "Controls which tests are automatically run."),
-			enum: [
-				AutoRunMode.AllInWorkspace,
-				AutoRunMode.OnlyPreviouslyRun,
-			],
-			default: AutoRunMode.AllInWorkspace,
-			enumDescriptions: [
-				localize('testing.autoRun.mode.allInWorkspace', "Automatically runs all discovered test when auto-run is toggled. Reruns individual tests when they are changed."),
-				localize('testing.autoRun.mode.onlyPreviouslyRun', "Reruns individual tests when they are changed. Will not automatically run any tests that have not been already executed.")
-			],
-		},
 		[TestingConfigKeys.AutoRunDelay]: {
 			type: 'integer',
 			minimum: 0,
@@ -138,7 +120,6 @@ export const testingConfiguation: IConfigurationNode = {
 };
 
 export interface ITestingConfiguration {
-	[TestingConfigKeys.AutoRunMode]: AutoRunMode;
 	[TestingConfigKeys.AutoRunDelay]: number;
 	[TestingConfigKeys.AutoOpenPeekView]: AutoOpenPeekViewWhen;
 	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
