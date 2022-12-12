@@ -12,7 +12,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<(TerminalQuickFixCommand | TerminalQuickFixOpener)[] | (TerminalQuickFixCommand | TerminalQuickFixOpener)>;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<(TerminalQuickFixCommand | TerminalQuickFixOpener)[] | TerminalQuickFixCommand | TerminalQuickFixOpener>;
 	}
 
 
