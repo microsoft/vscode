@@ -279,6 +279,7 @@
 			"request": "launch",
 			"name": "Main Process",
 			"attachSimplePort": 5875,
+			"enableContentValidation": false,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",

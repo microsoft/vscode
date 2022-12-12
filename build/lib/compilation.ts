@@ -80,7 +80,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 				includeContent: !!build,
 				sourceRoot: overrideOptions.sourceRoot
 			}))
-			.pipe(tsFilter.restore)
+			.pipe(tsFilter.restore.pipe(util.appendOwnPathSourceURL()))
 			.pipe(reporter.end(!!emitError));
 
 		return es.duplex(input, output);
