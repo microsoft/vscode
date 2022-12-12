@@ -137,7 +137,7 @@
 		"tab.unfocusedHoverBackground": "#6e76811a",
 		"terminal.foreground": "#ffffffc5",
 		"terminal.inactiveSelectionBackground": "#E5EBF1",
-		"textBlockQuote.background": "#010409",
+		"textBlockQuote.background": "#f8f8f8",
 		"textBlockQuote.border": "#0000001a",
 		"textCodeBlock.background": "#6e768166",
 		"textLink.activeForeground": "#005FB8",
