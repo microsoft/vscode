@@ -757,9 +757,8 @@
 	opacity: 0.5;
 }
 
-.extension-editor > .body > .content .runtime-status .no-status-message,
-.extension-editor > .body > .content .runtime-status .activation-message {
-	font-size: medium;
+.extension-editor > .body > .content .runtime-status .activation-details > .activation-element-entry > .activation-message-title {
+	padding-right: 10px;
 }
 
 .extension-editor > .body > .content .runtime-status .message-entry {

@@ -64,7 +64,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			collapse: () => void;
 		},
 		@ICommentService private commentService: ICommentService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super();
 

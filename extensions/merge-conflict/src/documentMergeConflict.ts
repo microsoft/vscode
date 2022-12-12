@@ -13,6 +13,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	public incoming: interfaces.IMergeRegion;
 	public commonAncestors: interfaces.IMergeRegion[];
 	public splitter: vscode.Range;
+	private applied = false;
 
 	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor, private readonly telemetryReporter: TelemetryReporter) {
 		this.range = descriptor.range;
@@ -53,6 +54,10 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	}
 
 	public applyEdit(type: interfaces.CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void }): void {
+		if (this.applied) {
+			return;
+		}
+		this.applied = true;
 
 		// Each conflict is a set of ranges as follows, note placements or newlines
 		// which may not in spans

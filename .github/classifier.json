@@ -198,7 +198,7 @@
 		"sandbox": {"assign": []},
 		"sash-widget": {"assign": []},
 		"scm": {"assign": ["lszomoru"]},
-		"screencast-mode": {"assign": ["lszomoru"]},
+		"screencast-mode": {"assign": ["joaomoreno"]},
 		"search": {"assign": ["andreamah"]},
 		"search-api": {"assign": ["andreamah"]},
 		"search-editor": {"assign": ["andreamah"]},

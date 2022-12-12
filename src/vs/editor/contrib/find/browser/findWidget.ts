@@ -209,6 +209,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 
 			if (e.hasChanged(EditorOption.find)) {
+				const supportLoop = this._codeEditor.getOption(EditorOption.find).loop;
+				this._state.change({ loop: supportLoop }, false);
 				const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 				if (addExtraSpaceOnTop && !this._viewZone) {
 					this._viewZone = new FindWidgetViewZone(0);

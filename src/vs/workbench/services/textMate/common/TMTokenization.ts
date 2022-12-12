@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IState, ITokenizationSupport, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
 import { LanguageId, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import type { IGrammar, StackElement } from 'vscode-textmate';
+import type { IGrammar, StateStack } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export class TMTokenization extends Disposable implements ITokenizationSupport {
@@ -14,12 +14,12 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 	private readonly _grammar: IGrammar;
 	private readonly _containsEmbeddedLanguages: boolean;
 	private readonly _seenLanguages: boolean[];
-	private readonly _initialState: StackElement;
+	private readonly _initialState: StateStack;
 
 	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
-	constructor(grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean) {
+	constructor(grammar: IGrammar, initialState: StateStack, containsEmbeddedLanguages: boolean) {
 		super();
 		this._grammar = grammar;
 		this._initialState = initialState;
@@ -35,7 +35,7 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 		throw new Error('Not supported!');
 	}
 
-	public tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement): EncodedTokenizationResult {
+	public tokenizeEncoded(line: string, hasEOL: boolean, state: StateStack): EncodedTokenizationResult {
 		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
 
 		if (textMateResult.stoppedEarly) {
@@ -60,7 +60,7 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 			}
 		}
 
-		let endState: StackElement;
+		let endState: StateStack;
 		// try to save an object if possible
 		if (state.equals(textMateResult.ruleStack)) {
 			endState = state;

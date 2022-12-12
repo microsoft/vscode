@@ -20,7 +20,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
@@ -32,6 +31,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
@@ -50,9 +50,9 @@ export interface ITerminalQuickFixAddon {
 	showMenu(): void;
 	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 	/**
- * Registers a listener on onCommandFinished scoped to a particular command or regular
- * expression and provides a callback to be executed for commands that match.
- */
+	 * Registers a listener on onCommandFinished scoped to a particular command or regular
+	 * expression and provides a callback to be executed for commands that match.
+	 */
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void;
 }
 
@@ -72,6 +72,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _lastQuickFixId: string | undefined;
 
+	private registeredSelectors: Set<string> = new Set();
+
 	constructor(
 		private readonly _aliases: string[][] | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -82,14 +84,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@ITerminalContributionService terminalContributionService: ITerminalContributionService
 	) {
 		super();
-		for (const commandSelector of this._terminalContributionService.quickFixes) {
-			this.registerCommandSelector(commandSelector);
-		}
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
@@ -101,6 +100,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 		this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result)));
+		for (const selector of terminalContributionService.quickFixes) {
+			this.registerCommandSelector(selector);
+		}
+		this._quickFixService.onDidRegisterCommandSelector(selector => this.registerCommandSelector(selector));
 		this._quickFixService.onDidUnregisterProvider(id => this._commandListeners.delete(id));
 	}
 
@@ -138,7 +141,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
-		this._quickFixService.registerCommandSelector(selector);
+		if (this.registeredSelectors.has(selector.id)) {
+			return;
+		}
 		const matcherKey = selector.commandLineMatcher.toString();
 		const currentOptions = this._commandListeners.get(matcherKey) || [];
 		currentOptions.push({
@@ -146,8 +151,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			type: 'unresolved',
 			commandLineMatcher: selector.commandLineMatcher,
 			outputMatcher: selector.outputMatcher,
-			exitStatus: selector.exitStatus
+			commandExitResult: selector.commandExitResult
 		});
+		this.registeredSelectors.add(selector.id);
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
 
@@ -196,7 +202,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._logService.warn('No provider when trying to resolve terminal quick fix for provider: ', id);
 				return;
 			}
-			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, exitStatus: selector.exitStatus, id: selector.id }, new CancellationTokenSource().token);
+			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, commandExitResult: selector.commandExitResult, id: selector.id }, new CancellationTokenSource().token);
 		};
 		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
@@ -293,7 +299,7 @@ export async function getQuickFixesForCommand(
 	const newCommand = terminalCommand.command;
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
-			if (option.exitStatus === (terminalCommand.exitCode !== 0)) {
+			if ((option.commandExitResult === 'success' && terminalCommand.exitCode !== 0) || (option.commandExitResult === 'error' && terminalCommand.exitCode === 0)) {
 				continue;
 			}
 			let quickFixes;
@@ -397,7 +403,7 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		type: 'resolved',
 		commandLineMatcher: selectorProvider.selector.commandLineMatcher,
 		outputMatcher: selectorProvider.selector.outputMatcher,
-		exitStatus: selectorProvider.selector.exitStatus,
+		commandExitResult: selectorProvider.selector.commandExitResult,
 		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes
 	};
 }

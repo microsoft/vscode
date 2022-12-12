@@ -1759,23 +1759,6 @@ type TagToRecord<TTag> = TagToElementAndId<TTag> extends { element: infer TEleme
 	: never;
 
 type Child = HTMLElement | string | Record<string, HTMLElement>;
-type Children = []
-	| [Child]
-	| [Child, Child]
-	| [Child, Child, Child]
-	| [Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child];
 
 const H_REGEX = /(?<tag>[\w\-]+)?(?:#(?<id>[\w\-]+))?(?<class>(?:\.(?:[\w\-]+))*)(?:@(?<name>(?:[\w\_])+))?/;
 
@@ -1798,16 +1781,16 @@ export function h<TTag extends string>
 	(tag: TTag):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
-export function h<TTag extends string, T extends Children>
-	(tag: TTag, children: T):
+export function h<TTag extends string, T extends Child[]>
+	(tag: TTag, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
 export function h<TTag extends string>
 	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
-export function h<TTag extends string, T extends Children>
-	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: T):
+export function h<TTag extends string, T extends Child[]>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
 export function h(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
