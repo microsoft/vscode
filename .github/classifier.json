@@ -128,7 +128,7 @@
 		"layout": {"assign": ["sbatten"]},
 		"lcd-text-rendering": {"assign": []},
 		"list-widget": {"assign": ["joaomoreno"]},
-		"live-server": {"assign": []},
+		"live-preview": {"assign": ["andreamah"]},
 		"log": {"assign": []},
 		"markdown": {"assign": ["mjbvz"]},
 		"marketplace": {"assign": ["isidorn"]},
