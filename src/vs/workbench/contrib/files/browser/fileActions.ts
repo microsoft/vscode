@@ -771,6 +771,7 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+
 		await editorService.openEditor({
 			original: { resource: undefined },
 			modified: { resource: undefined },
