@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor } from 'vs/workbench/contrib/update/browser/update';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -22,6 +22,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -143,7 +144,6 @@ class RestartToUpdateAction extends Action2 {
 class DownloadAction extends Action2 {
 
 	static readonly ID = 'workbench.action.download';
-	static readonly AVAILABLE = !!product.downloadUrl;
 
 	constructor() {
 		super({
@@ -152,11 +152,11 @@ class DownloadAction extends Action2 {
 				value: localize('openDownloadPage', "Download {0}", product.nameLong),
 				original: `Download ${product.downloadUrl}`
 			},
-			precondition: IsWebContext, // Only show when running in a web browser
+			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
 			f1: true,
 			menu: [{
 				id: MenuId.StatusBarWindowIndicatorMenu,
-				when: IsWebContext
+				when: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL)
 			}]
 		});
 	}
