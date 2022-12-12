@@ -193,8 +193,7 @@ export class CodeActionItem implements IActionItem {
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
-	) {
-	}
+	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {
 		if (this.provider?.resolveCodeAction && !this.action.edit) {
@@ -215,4 +214,11 @@ export class CodeActionItem implements IActionItem {
 export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
+
+	readonly documentation: readonly {
+		id: string;
+		title: string;
+		tooltip?: string;
+		commandArguments?: any[];
+	}[];
 }

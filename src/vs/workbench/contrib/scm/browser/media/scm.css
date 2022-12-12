@@ -200,14 +200,6 @@
 	border-radius: 2px;
 }
 
-.scm-view .scm-input .margin {
-	width: 6px !important;
-}
-
-.scm-input .monaco-scrollable-element {
-	left: 6px !important;
-}
-
 .scm-view .scm-editor-container .monaco-editor {
 	border-radius: 2px !important;
 }
@@ -287,13 +279,8 @@
 	padding: 0 4px;
 }
 
-/* split commit button */
-.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button.codicon-drop-down-button {
-	border-radius: 0 2px 2px 0;
-}
 
 .scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
-	border-radius: 2px 0 0 2px;
 	min-width: 0;
 }
 
@@ -397,7 +384,7 @@
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 2px 6px 3px 6px;
+	padding: 3px 6px;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;

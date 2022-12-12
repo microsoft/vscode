@@ -81,7 +81,8 @@ export interface ISourceAction {
 }
 
 export interface INotebookSourceActionChangeEvent {
-	notebook: URI;
+	notebook?: URI;
+	viewType: string;
 }
 
 export interface IKernelSourceActionProvider {
@@ -138,4 +139,11 @@ export interface INotebookKernelService {
 	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable;
 	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]>;
 	//#endregion
+}
+
+export const INotebookKernelHistoryService = createDecorator<INotebookKernelHistoryService>('INotebookKernelHistoryService');
+export interface INotebookKernelHistoryService {
+	_serviceBrand: undefined;
+	getKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; all: INotebookKernel[] };
+	addMostRecentKernel(kernel: INotebookKernel): void;
 }

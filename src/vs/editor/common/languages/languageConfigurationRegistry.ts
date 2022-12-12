@@ -442,8 +442,8 @@ export class ResolvedLanguageConfiguration {
 		return new AutoClosingPairs(this.characterPair.getAutoClosingPairs());
 	}
 
-	public getAutoCloseBeforeSet(): string {
-		return this.characterPair.getAutoCloseBeforeSet();
+	public getAutoCloseBeforeSet(forQuotes: boolean): string {
+		return this.characterPair.getAutoCloseBeforeSet(forQuotes);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

@@ -3,21 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Schemas } from 'vs/base/common/network';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { ITerminalAction } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+
+export const enum TerminalQuickFixType {
+	Command = 'command',
+	Opener = 'opener',
+	Port = 'port'
+}
 
 export class TerminalQuickFix implements IActionItem {
-	action: IAction;
+	action: ITerminalAction;
+	type: string;
 	disabled?: boolean;
 	title?: string;
-	constructor(action: IAction, title?: string, disabled?: boolean) {
+	source: string;
+	constructor(action: ITerminalAction, type: string, source: string, title?: string, disabled?: boolean) {
 		this.action = action;
 		this.disabled = disabled;
 		this.title = title;
+		this.source = source;
+		this.type = type;
 	}
 }
 
@@ -28,7 +39,7 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 		kind: ActionListItemKind.Header,
 		group: {
 			kind: CodeActionKind.QuickFix,
-			title: localize('codeAction.widget.id.quickfix', 'Quick Fix...')
+			title: localize('codeAction.widget.id.quickfix', 'Quick Fix')
 		}
 	});
 	for (const quickFix of showHeaders ? inputQuickFixes : inputQuickFixes.filter(i => !!i.action)) {
@@ -50,13 +61,15 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 }
 
 function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
-	switch (quickFix.action.id) {
-		case 'quickFix.opener':
-			// TODO: if it's a file link, use the open file icon
-			return { codicon: Codicon.link };
-		case 'quickFix.command':
+	switch (quickFix.type) {
+		case TerminalQuickFixType.Opener:
+			if ('uri' in quickFix.action && quickFix.action.uri) {
+				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
+				return { codicon: isUrl ? Codicon.linkExternal : Codicon.goToFile };
+			}
+		case TerminalQuickFixType.Command:
 			return { codicon: Codicon.run };
-		case 'quickFix.freePort':
+		case TerminalQuickFixType.Port:
 			return { codicon: Codicon.debugDisconnect };
 	}
 	return { codicon: Codicon.lightBulb };

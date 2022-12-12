@@ -45,7 +45,7 @@ export interface IObjectTreeViewState {
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	declare model: IObjectTreeModel<T, TFilterData>;
+	protected declare model: IObjectTreeModel<T, TFilterData>;
 
 	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
@@ -197,7 +197,7 @@ export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptio
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	declare model: CompressibleObjectTreeModel<T, TFilterData>;
+	protected declare model: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,

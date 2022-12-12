@@ -640,7 +640,7 @@
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "^0.2.0"
+    "vscode-markdown-languageservice": "^0.3.0-alpha.3"
   },
   "repository": {
     "type": "git",
