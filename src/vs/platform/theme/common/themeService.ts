@@ -276,6 +276,7 @@ export class Themable extends Disposable {
 }
 
 export interface IPartsSplash {
+	zoomLevel: number | undefined;
 	baseTheme: string;
 	colorInfo: {
 		background: string;

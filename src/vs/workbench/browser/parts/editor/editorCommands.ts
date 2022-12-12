@@ -37,6 +37,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -67,6 +69,7 @@ export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChan
 export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
 export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
+export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -1335,6 +1338,33 @@ function registerOtherEditorCommands(): void {
 			if (group && editor) {
 				return group.stickEditor(editor);
 			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_OPEN_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: EditorContextKeys.inDiffEditor,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
+		handler: async accessor => {
+			const editorService = accessor.get(IEditorService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const activeEditor = editorService.activeEditor;
+			const activeTextEditorControl = editorService.activeTextEditorControl;
+			if (!isDiffEditor(activeTextEditorControl) || !(activeEditor instanceof DiffEditorInput)) {
+				return;
+			}
+
+			let editor: EditorInput | undefined;
+			const originalEditor = activeTextEditorControl.getOriginalEditor();
+			if (originalEditor.hasTextFocus()) {
+				editor = activeEditor.original;
+			} else {
+				editor = activeEditor.modified;
+			}
+
+			return editorGroupService.activeGroup.openEditor(editor);
 		}
 	});
 
