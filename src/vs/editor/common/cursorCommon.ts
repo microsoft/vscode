@@ -135,8 +135,8 @@ export class CursorConfiguration {
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
-			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes),
-			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets)
+			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes, true),
+			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets, false)
 		};
 
 		this.autoClosingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
@@ -178,12 +178,12 @@ export class CursorConfiguration {
 		return normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
-	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy, forQuotes: boolean): (ch: string) => boolean {
 		switch (autoCloseConfig) {
 			case 'beforeWhitespace':
 				return autoCloseBeforeWhitespace;
 			case 'languageDefined':
-				return this._getLanguageDefinedShouldAutoClose(languageId);
+				return this._getLanguageDefinedShouldAutoClose(languageId, forQuotes);
 			case 'always':
 				return autoCloseAlways;
 			case 'never':
@@ -191,8 +191,8 @@ export class CursorConfiguration {
 		}
 	}
 
-	private _getLanguageDefinedShouldAutoClose(languageId: string): (ch: string) => boolean {
-		const autoCloseBeforeSet = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoCloseBeforeSet();
+	private _getLanguageDefinedShouldAutoClose(languageId: string, forQuotes: boolean): (ch: string) => boolean {
+		const autoCloseBeforeSet = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoCloseBeforeSet(forQuotes);
 		return c => autoCloseBeforeSet.indexOf(c) !== -1;
 	}
 
