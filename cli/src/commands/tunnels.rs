@@ -240,7 +240,7 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
+	base64::encode_config(result, base64::URL_SAFE_NO_PAD).replace('_', "-")
 }
 
 async fn serve_with_csa(
