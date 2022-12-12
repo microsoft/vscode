@@ -103,7 +103,8 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		SymbolNavigationAction._allSymbolNavigationCommands.set(opts.id, this);
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg?: SymbolNavigationAnchor | unknown, range?: Range): Promise<void> {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: [ICodeEditor, SymbolNavigationAnchor | unknown, Range | undefined]): Promise<void> {
+		const [_, arg, range] = args;
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -147,7 +148,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
 				SymbolNavigationAction._activeAlternativeCommands.add(this.desc.id);
-				instaService.invokeFunction((accessor) => altAction!.runEditorCommand(accessor, editor, arg, range).finally(() => {
+				instaService.invokeFunction((accessor) => altAction!.runEditorCommand(accessor, editor, [editor, arg, range]).finally(() => {
 					SymbolNavigationAction._activeAlternativeCommands.delete(this.desc.id);
 				}));
 
