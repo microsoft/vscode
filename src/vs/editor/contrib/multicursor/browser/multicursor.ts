@@ -15,7 +15,7 @@ import { CursorState } from 'vs/editor/common/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
@@ -27,6 +27,9 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getSelectionHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
+import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -464,7 +467,10 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
 	}
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService //for SelectAllSymbolHighlightsAction
+	) {
 		super();
 		this._editor = editor;
 		this._ignoreSelectionChange = false;
@@ -658,6 +664,36 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._setSelections(selections);
 		}
 	}
+
+	public selectAllSymbolHighlights(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const model = this._editor.getModel();
+		const currSelection = this._editor.getSelection();
+		const position = currSelection.getPosition();
+		const registry = this._languageFeaturesService.documentHighlightProvider;
+		if (!registry.has(model)) {
+			return;
+		}
+
+		//Use getOccurrencesAtPosition() from wordHighlighter.ts to get all symbol highlights given the current cursor position
+		const highlightsPromise = getOccurrencesAtPosition(registry, model, position, CancellationToken.None).then(value => value || []);
+		highlightsPromise.then(data => {
+			if (!data.length) {
+				return;
+			}
+			const selections: Selection[] = [];
+			//Each DocumentHighlight has a range, which we turn into a selection based on its position
+			data.map(entry => {
+				const entryRange = entry.range as Range;
+				const entrySel = Selection.fromRange(entryRange, SelectionDirection.LTR);
+				selections.push(entrySel);
+			});
+
+			this.selectAllUsingSelections(selections);
+		});
+	}
 }
 
 export abstract class MultiCursorSelectionControllerAction extends EditorAction {
@@ -757,6 +793,32 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 	}
 	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
 		multiCursorController.moveSelectionToPreviousFindMatch(findController);
+	}
+}
+
+export class SelectAllSymbolHighlightsAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.selectAllSymbolHighlights',
+			label: nls.localize('selectAllSymbolHighlights', "Select All Symbol Highlights"),
+			alias: 'Select All Symbol Highlights',
+			precondition: undefined,
+		});
+	}
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const multiCursorController = MultiCursorSelectionController.get(editor);
+		if (!multiCursorController) {
+			return;
+		}
+		const viewModel = editor._getViewModel();
+		if (viewModel) {
+			const previousCursorState = viewModel.getCursorStates();
+			this._run(multiCursorController);
+			announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		}
+	}
+	protected _run(multiCursorController: MultiCursorSelectionController): void {
+		multiCursorController.selectAllSymbolHighlights();
 	}
 }
 
@@ -1157,6 +1219,7 @@ registerEditorAction(AddSelectionToNextFindMatchAction);
 registerEditorAction(AddSelectionToPreviousFindMatchAction);
 registerEditorAction(MoveSelectionToNextFindMatchAction);
 registerEditorAction(MoveSelectionToPreviousFindMatchAction);
+registerEditorAction(SelectAllSymbolHighlightsAction);
 registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
 registerEditorAction(InsertCursorAtEndOfLineSelected);
