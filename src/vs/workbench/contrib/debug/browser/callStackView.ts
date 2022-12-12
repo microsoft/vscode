@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -1042,12 +1043,12 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 		return localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
 	}
 
-	getWidgetRole(): string {
+	getWidgetRole(): AriaRole {
 		// Use treegrid as a role since each element can have additional actions inside #146210
 		return 'treegrid';
 	}
 
-	getRole(_element: CallStackItem): string | undefined {
+	getRole(_element: CallStackItem): AriaRole | undefined {
 		return 'row';
 	}
 

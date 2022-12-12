@@ -67,6 +67,7 @@ import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 export class TreeViewPane extends ViewPane {
 
@@ -646,7 +647,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						return buildAriaLabel;
 					}
 				},
-				getRole(element: ITreeItem): string | undefined {
+				getRole(element: ITreeItem): AriaRole | undefined {
 					return element.accessibilityInformation?.role ?? 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
