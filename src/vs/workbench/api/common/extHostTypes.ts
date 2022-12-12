@@ -1926,6 +1926,20 @@ export class TerminalLink implements vscode.TerminalLink {
 	}
 }
 
+export class TerminalQuickFixOpener {
+	uri: vscode.Uri;
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+export class TerminalQuickFixCommand {
+	terminalCommand: string;
+	constructor(terminalCommand: string) {
+		this.terminalCommand = terminalCommand;
+	}
+}
+
 export enum TerminalLocation {
 	Panel = 1,
 	Editor = 2,

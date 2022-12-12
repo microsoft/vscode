@@ -33,11 +33,19 @@ declare module 'vscode' {
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export interface TerminalQuickFixCommand {
+	export class TerminalQuickFixCommand {
+		/**
+		 * The terminal command to run
+		 */
 		terminalCommand: string;
+		constructor(terminalCommand: string);
 	}
-	export interface TerminalQuickFixOpener {
+	export class TerminalQuickFixOpener {
+		/**
+		 * The uri to open
+		 */
 		uri: Uri;
+		constructor(uri: Uri);
 	}
 
 	/**
