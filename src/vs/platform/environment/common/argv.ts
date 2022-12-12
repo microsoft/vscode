@@ -130,5 +130,4 @@ export interface NativeParsedArgs {
 
 	// MS Build command line arg
 	'ms-enable-electron-run-as-node'?: boolean;
-	accessibilitySupport?: boolean;
 }

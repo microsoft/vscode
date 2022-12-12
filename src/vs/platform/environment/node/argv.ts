@@ -185,7 +185,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'_urls': { type: 'string[]' },
 	'disable-dev-shm-usage': { type: 'boolean' },
 	'profile-temp': { type: 'boolean' },
-	'accessibilitySupport': { type: 'boolean' },
 	_: { type: 'string[]' } // main arguments
 };
 
