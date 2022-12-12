@@ -172,6 +172,7 @@ export interface IPtyHostAttachTarget {
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
+	hasChildProcesses: boolean;
 }
 
 export interface IReconnectionProperties {
