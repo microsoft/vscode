@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -33,6 +34,7 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 	constructor(
 		readonly xterm: Terminal,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 	}
 
@@ -70,8 +72,8 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 				startLine
 			);
 
-			// vscode:// and vscode-...:// protocol links
-			if (word.text.match(/vscode(?:-[a-z]+)?:\/\//)) {
+			// Support this product's URL protocol
+			if (word.text.startsWith(this._productService.urlProtocol)) {
 				const uri = URI.parse(word.text);
 				if (uri) {
 					links.push({
