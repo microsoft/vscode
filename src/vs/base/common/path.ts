@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
-// Copied from: https://github.com/nodejs/node/blob/v14.16.0/lib/path.js
+// Copied from: https://github.com/nodejs/node/blob/v16.14.2/lib/path.js
 
 /**
  * Copyright Joyent, Inc. and other Node contributors.
