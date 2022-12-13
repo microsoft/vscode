@@ -5,12 +5,14 @@
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { CodeAction } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 
-export interface ActionGroup {
+interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
 	readonly icon?: { readonly codicon: Codicon; readonly color?: string };
@@ -29,7 +31,11 @@ const codeActionGroups = Object.freeze<ActionGroup[]>([
 	uncategorizedCodeActionGroup,
 ]);
 
-export function toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): IListMenuItem<CodeActionItem>[] {
+export function toMenuItems(
+	inputCodeActions: readonly CodeActionItem[],
+	showHeaders: boolean,
+	keybindingResolver: (action: CodeAction) => ResolvedKeybinding | undefined
+): IListMenuItem<CodeActionItem>[] {
 	if (!showHeaders) {
 		return inputCodeActions.map((action): IListMenuItem<CodeActionItem> => {
 			return {
@@ -60,7 +66,14 @@ export function toMenuItems(inputCodeActions: readonly CodeActionItem[], showHea
 		if (menuEntry.actions.length) {
 			allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });
 			for (const action of menuEntry.actions) {
-				allMenuItems.push({ kind: ActionListItemKind.Action, item: action, group: menuEntry.group, label: action.action.title, disabled: !!action.action.disabled });
+				allMenuItems.push({
+					kind: ActionListItemKind.Action,
+					item: action,
+					group: menuEntry.group,
+					label: action.action.title,
+					disabled: !!action.action.disabled,
+					keybinding: keybindingResolver(action.action),
+				});
 			}
 		}
 	}

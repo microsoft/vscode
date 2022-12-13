@@ -513,16 +513,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 }
 
 export function deserializeMessage(message: string): string {
-	let result = message.replace(/\\\\/g, '\\');
-	const deserializeRegex = /\\x([0-9a-f]{2})/i;
-	while (true) {
-		const match = result.match(deserializeRegex);
-		if (!match?.index || match.length < 2) {
-			break;
-		}
-		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
-	}
-	return result;
+	return message.replaceAll(
+		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
+		/\\(\\|x([0-9a-f]{2}))/gi,
+		// If it's a hex value, parse it to a character.
+		// Otherwise the operator is '\', which we return literally, now unescaped.
+		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {

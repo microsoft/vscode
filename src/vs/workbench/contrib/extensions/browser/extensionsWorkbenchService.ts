@@ -46,7 +46,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb, language } from 'vs/base/common/platform';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 interface IExtensionStateProvider<T> {
@@ -718,7 +718,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super();
@@ -774,8 +773,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this.queryLocal().then(() => {
 			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
-				this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+				if (!this._store.isDisposed) {
+					this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
+					this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+				}
 			});
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
@@ -1238,7 +1239,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			if (installed.isBuiltin && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
-				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier 
+				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
@@ -1377,7 +1378,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		const locale = this.languagePackService.getLocale(extension.gallery);
+		const locale = getLocale(extension.gallery);
 		if (!locale) {
 			return false;
 		}
@@ -1389,7 +1390,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.canSetLanguage(extension)) {
 			throw new Error('Can not set language');
 		}
-		const locale = this.languagePackService.getLocale(extension.gallery!);
+		const locale = getLocale(extension.gallery!);
 		if (locale === language) {
 			return;
 		}

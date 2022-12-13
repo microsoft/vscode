@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessProperty, IShellLaunchConfig, IShellLaunchConfigDto, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
@@ -20,11 +20,12 @@ import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminal
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalEditorLocationOptions } from 'vscode';
+import { TerminalEditorLocationOptions, TerminalQuickFix, TerminalQuickFixOpenerAction } from 'vscode';
 import { Promises } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFix, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -55,7 +56,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
-		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ILogService private readonly _logService: ILogService,
@@ -276,19 +276,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 					if (matchResult) {
 						const result = await this._proxy.$provideTerminalQuickFixes(id, matchResult, token);
 						if (result && Array.isArray(result)) {
-							return result.map(r => {
-								return {
-									id,
-									source: extensionId,
-									...r
-								};
-							});
+							return result.map(r => parseQuickFix(id, extensionId, r));
 						} else if (result) {
-							return {
-								id,
-								source: extensionId,
-								...result
-							};
+							return parseQuickFix(id, extensionId, result);
 						}
 					}
 					return;
@@ -467,4 +457,11 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 export function getOutputMatchForLines(lines: string[], outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	const match: RegExpMatchArray | null | undefined = lines.join('\n').match(outputMatcher.lineMatcher);
 	return match ? { regexMatch: match, outputLines: outputMatcher.multipleMatches ? lines : undefined } : undefined;
+}
+
+function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerminalQuickFix {
+	if (fix.type === TerminalQuickFixType.opener) {
+		(fix as TerminalQuickFixOpenerAction).uri = URI.revive((fix as TerminalQuickFixOpenerAction).uri);
+	}
+	return { id, source, ...fix };
 }

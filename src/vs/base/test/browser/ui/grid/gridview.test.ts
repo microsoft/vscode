@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { $ } from 'vs/base/browser/dom';
-import { GridView, IView, Sizing } from 'vs/base/browser/ui/grid/gridview';
+import { GridView, IView, Orientation, Sizing } from 'vs/base/browser/ui/grid/gridview';
 import { nodesToArrays, TestView } from './util';
 
 suite('Gridview', function () {
@@ -221,5 +221,23 @@ suite('Gridview', function () {
 		assert.deepStrictEqual(view1.size, [800, 300]);
 		assert.deepStrictEqual(view2.size, [400, 300]);
 		assert.deepStrictEqual(view3.size, [400, 300]);
+	});
+
+	test('flipping orientation should preserve absolute offsets', function () {
+		const view1 = new TestView(50, Number.POSITIVE_INFINITY, 50, Number.POSITIVE_INFINITY);
+		gridview.addView(view1, 200, [0]);
+
+		const view2 = new TestView(50, Number.POSITIVE_INFINITY, 50, Number.POSITIVE_INFINITY);
+		gridview.addView(view2, 200, [1]);
+
+		gridview.layout(800, 600, 100, 200);
+
+		assert.deepStrictEqual([view1.top, view1.left], [100, 200]);
+		assert.deepStrictEqual([view2.top, view2.left], [100 + 300, 200]);
+
+		gridview.orientation = Orientation.HORIZONTAL;
+
+		assert.deepStrictEqual([view1.top, view1.left], [100, 200]);
+		assert.deepStrictEqual([view2.top, view2.left], [100, 200 + 400]);
 	});
 });

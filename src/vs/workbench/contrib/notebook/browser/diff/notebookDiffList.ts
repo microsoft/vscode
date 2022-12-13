@@ -34,7 +34,7 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Di
 	private readonly lineHeight: number;
 
 	constructor(
-		@IConfigurationService readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;

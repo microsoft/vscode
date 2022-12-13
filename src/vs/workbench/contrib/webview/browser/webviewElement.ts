@@ -475,28 +475,30 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
-	public mountTo(_stopBlockingIframeDragEvents: HTMLElement) {
+	public mountTo(element: HTMLElement) {
 		if (!this.element) {
 			return;
 		}
 
 		if (this._webviewFindWidget) {
-			_stopBlockingIframeDragEvents.appendChild(this._webviewFindWidget.getDomNode());
+			element.appendChild(this._webviewFindWidget.getDomNode());
 		}
 
 		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
-			this._register(addDisposableListener(_stopBlockingIframeDragEvents, eventName, () => {
+			this._register(addDisposableListener(element, eventName, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
-		for (const node of [_stopBlockingIframeDragEvents, window]) {
+		for (const node of [element, window]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
-		_stopBlockingIframeDragEvents.appendChild(this.element);
+		element.id = this.id; // This is used by aria-flow for accessibility order
+
+		element.appendChild(this.element);
 	}
 
 	private _startBlockingIframeDragEvents() {

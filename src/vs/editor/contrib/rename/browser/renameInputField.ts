@@ -190,7 +190,7 @@ export class RenameInputField implements IContentWidget {
 			};
 
 			disposeOnDone.add(token.onCancellationRequested(() => this.cancelInput(true)));
-			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!document.hasFocus())));
 
 			this._show();
 

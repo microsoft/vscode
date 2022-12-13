@@ -3,8 +3,8 @@
 
 
 "@iktakahiro/markdown-it-katex@mjbvz/markdown-it-katex":
-  version "4.0.2"
-  resolved "https://codeload.github.com/mjbvz/markdown-it-katex/tar.gz/19f98f10f7d57f6e09049ddaced0da89b73423c5"
+  version "4.0.3"
+  resolved "https://codeload.github.com/mjbvz/markdown-it-katex/tar.gz/58f6637b5883caa8a811f1736bc90b34cd26b395"
   dependencies:
     katex "^0.16.2"
 
@@ -24,8 +24,8 @@ commander@^8.0.0:
   integrity sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==
 
 katex@^0.16.2:
-  version "0.16.2"
-  resolved "https://registry.yarnpkg.com/katex/-/katex-0.16.2.tgz#9d3dc2a7e65fb8aa31101b1f86888ec40eed7b24"
-  integrity sha512-70DJdQAyh9EMsthw3AaQlDyFf54X7nWEUIa5W+rq8XOpEk//w5Th7/8SqFqpvi/KZ2t6MHUj4f9wLmztBmAYQA==
+  version "0.16.4"
+  resolved "https://registry.yarnpkg.com/katex/-/katex-0.16.4.tgz#87021bc3bbd80586ef715aeb476794cba6a49ad4"
+  integrity sha512-WudRKUj8yyBeVDI4aYMNxhx5Vhh2PjpzQw1GRu/LVGqL4m1AxwD1GcUp0IMbdJaf5zsjtj8ghP0DOQRYhroNkw==
   dependencies:
     commander "^8.0.0"

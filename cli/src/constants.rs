@@ -17,7 +17,13 @@ pub const CONTROL_PORT: u16 = 31545;
 ///  1 - Initial protocol version
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
-pub const PROTOCOL_VERSION: u32 = 2;
+///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
+pub const PROTOCOL_VERSION: u32 = 3;
+
+/// Prefix for the tunnel tag that includes the version.
+pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";
+/// Tag for the current protocol version, which is included in dev tunnels.
+pub const PROTOCOL_VERSION_TAG: &str = concatcp!("protocolv", PROTOCOL_VERSION);
 
 pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VERSION");
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
@@ -55,6 +61,8 @@ pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " 
 /// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
 pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
 
+const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
+
 pub fn get_default_user_agent() -> String {
 	format!(
 		"vscode-server-launcher/{}",
@@ -88,4 +96,7 @@ lazy_static! {
 	/// Map of qualities to the server name
 	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, String>> =
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref IS_INTERACTIVE_CLI: bool = atty::is(atty::Stream::Stdin) && std::env::var(NONINTERACTIVE_VAR).is_err();
 }
