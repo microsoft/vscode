@@ -6,7 +6,7 @@
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import * as DOM from 'vs/base/browser/dom';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
@@ -68,6 +68,7 @@ import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class TreeViewPane extends ViewPane {
 
@@ -607,7 +608,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	protected createTree() {
-		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
@@ -617,7 +617,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			items.forEach(item => this.tree?.rerender(item));
 			this._onDidChangeCheckboxState.fire(items);
 		}));
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, aligner, checkboxStateHandler);
 		const widgetAriaLabel = this._title;
 
 		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer!, new TreeViewDelegate(), [renderer],
@@ -1025,7 +1025,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
-	private _hoverDelegate: IHoverDelegate;
+	private _entryHoverDelegate: IHoverDelegate;
+	private _actionHoverDelegate: IHoverDelegate;
 	private _hasCheckbox: boolean = false;
 	private _renderedElements = new Map<ITreeNode<ITreeItem, FuzzyScore>, ITreeExplorerTemplateData>();
 
@@ -1033,9 +1034,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private treeViewId: string,
 		private menus: TreeMenus,
 		private labels: ResourceLabels,
-		private actionViewItemProvider: IActionViewItemProvider,
 		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1044,8 +1045,17 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._hoverDelegate = {
+		this._entryHoverDelegate = {
 			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
+			delay: <number>this.configurationService.getValue('workbench.hover.delay')
+		};
+
+		this._actionHoverDelegate = {
+			placement: 'element',
+			showHover: (options: IHoverDelegateOptions) => {
+				options.hoverPosition = HoverPosition.ABOVE;
+				return this.hoverService.showHover(options);
+			},
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
 		};
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.rerender()));
@@ -1064,11 +1074,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.classList.add('custom-view-tree-node-item');
 
 		const checkboxContainer = DOM.append(container, DOM.$(''));
-		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
+		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._entryHoverDelegate });
 		const icon = DOM.prepend(resourceLabel.element, DOM.$('.custom-view-tree-node-item-icon'));
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: this.actionViewItemProvider
+			actionViewItemProvider: (action) => createActionViewItem(this.instantiationService, action, { hoverDelegate: this._actionHoverDelegate }),
 		});
 
 		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
