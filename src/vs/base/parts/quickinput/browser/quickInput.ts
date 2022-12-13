@@ -1328,6 +1328,9 @@ export class QuickInputController extends Disposable {
 
 		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
+		const progressBar = new ProgressBar(container, this.styles.progressBar);
+		progressBar.getContainer().classList.add('quick-input-progress');
+
 		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
@@ -1352,9 +1355,6 @@ export class QuickInputController extends Disposable {
 				this.getUI().inputBox.setAttribute('aria-activedescendant', this.getUI().list.getActiveDescendant() || '');
 			}
 		}));
-
-		const progressBar = new ProgressBar(container, this.styles.progressBar);
-		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
