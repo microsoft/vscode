@@ -19,7 +19,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';
 import { URI } from 'vs/base/common/uri';
-import { CharCode } from 'vs/base/common/charCode';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -286,19 +285,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	private _getHostName(): string | undefined {
 		let name = this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname();
-		name = _removeLeadingDashes(name).replace(/[^\w-]/g, '').substring(0, 20);
+		name = name.replace(/^-+/g, '').replace(/[^\w-]/g, '').substring(0, 20);
 		return name || undefined;
 	}
 
-}
-
-function _removeLeadingDashes(name: string): string {
-	let i = 0;
-	while (i < name.length && name.codePointAt(i) === CharCode.Dash) {
-		i++;
-	}
-	if (i > 0) {
-		return name.substring(i);
-	}
-	return name;
 }
