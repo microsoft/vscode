@@ -148,5 +148,6 @@
 		"titleBar.inactiveBackground": "#f8f8f8",
 		"titleBar.inactiveForeground": "#8b949e",
 		"welcomePage.tileBackground": "#f3f3f3",
+		"wdgetBorder": "#0000001a",
 	},
 }

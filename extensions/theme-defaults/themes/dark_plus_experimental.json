@@ -133,5 +133,6 @@
 		"titleBar.inactiveBackground": "#1f1f1f",
 		"titleBar.inactiveForeground": "#8b949e",
 		"welcomePage.tileBackground": "#ffffff0f",
+		"widgetBorder": "#ffffff15",
 	},
 }
