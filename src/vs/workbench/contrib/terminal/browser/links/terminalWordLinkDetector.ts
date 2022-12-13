@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
@@ -73,7 +74,7 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 			);
 
 			// Support this product's URL protocol
-			if (word.text.startsWith(this._productService.urlProtocol)) {
+			if (matchesScheme(word.text, this._productService.urlProtocol)) {
 				const uri = URI.parse(word.text);
 				if (uri) {
 					links.push({
