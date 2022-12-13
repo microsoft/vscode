@@ -74,7 +74,7 @@
 		"panelTitle.activeBorder": "#2488d8",
 		"panelTitle.activeForeground": "#ffffffc5",
 		"panelTitle.inactiveForeground": "#8b949e",
-		"peekViewEditor.background": "#6e76811a",
+		"peekViewEditor.background": "#1f1f1f",
 		"peekViewEditor.matchHighlightBackground": "#bb800966",
 		"peekViewResult.background": "#1f1f1f",
 		"peekViewResult.matchHighlightBackground": "#bb800966",
