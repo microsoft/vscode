@@ -20,7 +20,7 @@ import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
@@ -199,6 +199,10 @@ export class NativeWindow extends Disposable {
 				Severity.Error,
 				message,
 				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				},
+				{
 					label: localize('learnMore', "Learn More"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 				}]
@@ -720,6 +724,15 @@ export class NativeWindow extends Disposable {
 				);
 			}
 		}
+
+		// Slow shell environment progress indicator
+		const shellEnv = process.shellEnv();
+		this.progressService.withProgress({
+			title: localize('resolveShellEnvironment', "Resolving shell environment..."),
+			location: ProgressLocation.Window,
+			delay: 1600,
+			buttons: [localize('learnMore', "Learn More")]
+		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
 	}
 
 	private setupDriver(): void {

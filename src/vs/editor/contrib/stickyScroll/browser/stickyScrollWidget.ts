@@ -13,7 +13,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Location } from 'vs/editor/common/languages';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -42,7 +41,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
 
-	private _lineHeight: number;
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
@@ -62,13 +60,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 
-		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.lineHeight)) {
-				this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
-			}
-
-		}));
 		this._register(this._updateLinkGesture());
 	}
 
@@ -148,10 +139,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				if (this._candidateDefinitionsLength > 1) {
 					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 				}
-				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
+				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
+
 			} else if (!e.isRightClick) {
 				// Normal click
-				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
+				const position = { lineNumber: this._hoverOnLine, column: this._hoverOnColumn };
+				this._editor.revealPosition(position);
+				this._editor.setSelection(Range.fromPositions(position));
+				this._editor.focus();
 			}
 		}));
 		return linkGestureStore;
@@ -179,7 +174,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._renderRootNode();
 	}
 
-	private _getChildNode(index: number, line: number): HTMLElement {
+	private _renderChildNode(index: number, line: number): HTMLElement {
 
 		const child = document.createElement('div');
 		const viewModel = this._editor._getViewModel();
@@ -198,14 +193,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
-		const renderLineInput: RenderLineInput =
-			new RenderLineInput(true, true, lineRenderingData.content,
-				lineRenderingData.continuesWithWrappedLine,
-
-				lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
-				lineRenderingData.tokens, actualInlineDecorations,
-				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-				1, 1, 1, 500, 'none', true, true, null);
+		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
+			lineRenderingData.continuesWithWrappedLine,
+			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
+			lineRenderingData.tokens, actualInlineDecorations,
+			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
+			1, 1, 1, 500, 'none', true, true, null
+		);
 
 		const sb = new StringBuilder(2000);
 		renderViewLine(renderLineInput, sb);
@@ -285,10 +279,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		for (const [index, line] of this._lineNumbers.entries()) {
-			this._rootDomNode.appendChild(this._getChildNode(index, line));
+			this._rootDomNode.appendChild(this._renderChildNode(index, line));
 		}
-
-		const widgetHeight: number = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
+		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
 		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		if (minimapSide === 'left') {
