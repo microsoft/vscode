@@ -8,7 +8,7 @@ import { INotificationService, INotification, INotificationHandle, Severity, Not
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
@@ -271,4 +271,4 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 }
 
-registerSingleton(INotificationService, NotificationService, true);
+registerSingleton(INotificationService, NotificationService, InstantiationType.Delayed);

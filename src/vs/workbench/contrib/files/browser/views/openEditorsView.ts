@@ -96,6 +96,10 @@ export class OpenEditorsView extends ViewPane {
 		this.structuralRefreshDelay = 0;
 		let labelChangeListeners: IDisposable[] = [];
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
+			// No need to refresh the list if it's not rendered
+			if (!this.list) {
+				return;
+			}
 			labelChangeListeners = dispose(labelChangeListeners);
 			const previousLength = this.list.length;
 			const elements = this.getElements();
@@ -211,7 +215,7 @@ export class OpenEditorsView extends ViewPane {
 		this.updateDirtyIndicator();
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		container.classList.add('open-editors');
@@ -820,7 +824,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'openEditors.newUntitledFile',
-			title: { value: nls.localize('newUntitledFile', "New Untitled File"), original: 'New Untitled File' },
+			title: { value: nls.localize('newUntitledFile', "New Untitled Text File"), original: 'New Untitled Text File' },
 			f1: false,
 			icon: Codicon.newFile,
 			menu: {

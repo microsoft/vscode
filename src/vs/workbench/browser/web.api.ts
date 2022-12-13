@@ -15,8 +15,6 @@ import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import type { IObservableValue } from 'vs/base/common/observableValue';
-import type { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -77,11 +75,6 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-
-		/**
-		 * Current workbench telemetry level.
-		 */
-		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	window: {
@@ -398,11 +391,6 @@ export interface ITunnelOptions {
 
 	label?: string;
 
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
-
 	privacy?: string;
 
 	protocol?: string;
@@ -424,11 +412,6 @@ export interface ITunnel {
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 
@@ -696,6 +679,11 @@ export interface IDevelopmentOptions {
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	readonly logLevel?: LogLevel;
+
+	/**
+	 * Extension log level.
+	 */
+	readonly extensionLogLevel?: [string, LogLevel][];
 
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.

@@ -75,7 +75,7 @@ export async function getResolvedShellEnv(logService: ILogService, args: NativeP
 				// Give up resolving shell env after some time
 				const timeout = setTimeout(() => {
 					cts.dispose(true);
-					reject(new Error(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration.")));
+					reject(new Error(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration and restart.")));
 				}, MAX_SHELL_RESOLVE_TIME);
 
 				// Resolve shell env and handle errors
@@ -106,12 +106,13 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-	const regex = new RegExp(mark + '(.*)' + mark);
+	const regex = new RegExp(mark + '({.*})' + mark);
 
 	const env = {
 		...process.env,
 		ELECTRON_RUN_AS_NODE: '1',
-		ELECTRON_NO_ATTACH_CONSOLE: '1'
+		ELECTRON_NO_ATTACH_CONSOLE: '1',
+		VSCODE_RESOLVING_ENVIRONMENT: '1'
 	};
 
 	logService.trace('getUnixShellEnvironment#env', env);
@@ -197,6 +198,8 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 				} else {
 					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
 				}
+
+				delete env['VSCODE_RESOLVING_ENVIRONMENT'];
 
 				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];

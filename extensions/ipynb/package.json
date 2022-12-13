@@ -13,7 +13,8 @@
 		"diffContentOptions"
 	],
 	"activationEvents": [
-		"*"
+		"onNotebook:jupyter-notebook",
+		"onCommand:ipynb.newUntitledIpynb"
 	],
 	"extensionKind": [
 		"workspace",
@@ -31,14 +32,11 @@
 		"configuration": [
 			{
 				"properties": {
-					"ipynb.experimental.pasteImages.enabled": {
+					"ipynb.pasteImagesAsAttachments.enabled": {
 						"type": "boolean",
 						"scope": "resource",
-						"markdownDescription": "%ipynb.experimental.pasteImages.enabled%",
-						"default": false,
-						"tags": [
-							"experimental"
-						]
+						"markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
+						"default": true
 					}
 				}
 			}

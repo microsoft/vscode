@@ -232,6 +232,10 @@ export class BreadcrumbsWidget {
 		}
 	}
 
+	revealLast(): void {
+		this._reveal(this._items.length - 1, false);
+	}
+
 	private _reveal(nth: number, minimal: boolean): void {
 		const node = this._nodes[nth];
 		if (node) {

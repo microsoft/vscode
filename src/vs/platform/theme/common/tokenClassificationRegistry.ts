@@ -12,19 +12,19 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 
-export const TOKEN_TYPE_WILDCARD = '*';
-export const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
-export const CLASSIFIER_MODIFIER_SEPARATOR = '.';
+const TOKEN_TYPE_WILDCARD = '*';
+const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
+const CLASSIFIER_MODIFIER_SEPARATOR = '.';
 
 // qualified string [type|*](.modifier)*(/language)!
-export type TokenClassificationString = string;
+type TokenClassificationString = string;
 
-export const idPattern = '\\w+[-_\\w+]*';
+const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
-export const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
+const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[], language: string): number;
@@ -186,7 +186,7 @@ export namespace SemanticTokenRule {
 export type TokenStyleValue = TokenStyle | TokenClassificationString;
 
 // TokenStyle registry
-export const Extensions = {
+const Extensions = {
 	TokenClassificationContribution: 'base.contributions.tokenClassification'
 };
 

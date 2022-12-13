@@ -36,7 +36,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 	private readonly _dirtyStates = new ResourceMap<boolean>();
 
 	constructor(
-		@IInstantiationService readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -123,7 +123,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			this._modelListener.delete(model);
 			model.dispose();
 		}).catch(err => {
-			this._logService.critical('FAILED to destory notebook', err);
+			this._logService.error('FAILED to destory notebook', err);
 		});
 	}
 }

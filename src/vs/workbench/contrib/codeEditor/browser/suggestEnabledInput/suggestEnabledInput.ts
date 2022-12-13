@@ -418,12 +418,13 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 	}
 
 	protected override getScopedContextKeyService(contextKeyService: IContextKeyService) {
+		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.historyContext = this._register(registerAndCreateHistoryNavigationContext(
-			contextKeyService,
+			scopedContextKeyService,
 			this,
 		));
 
-		return this.historyContext.scopedContextKeyService;
+		return scopedContextKeyService;
 	}
 }
 

@@ -208,9 +208,23 @@ export class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
+	/**
+	 * A snippet is trivial when it has no placeholder or only a final placeholder at
+	 * its very end
+	 */
 	get isTrivialSnippet(): boolean {
-		return this._snippet.placeholders.length === 0
-			|| (this._snippet.placeholders.length === 1 && this._snippet.placeholders[0].isFinalTabstop);
+		if (this._snippet.placeholders.length === 0) {
+			return true;
+		}
+		if (this._snippet.placeholders.length === 1) {
+			const [placeholder] = this._snippet.placeholders;
+			if (placeholder.isFinalTabstop) {
+				if (this._snippet.rightMostDescendant === placeholder) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	computePossibleSelections() {
@@ -366,7 +380,7 @@ export interface ISnippetEdit {
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): string {
+	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean): string {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
@@ -498,7 +512,6 @@ export class SnippetSession {
 			const snippetLineLeadingWhitespace = SnippetSession.adjustWhitespace(
 				model, start, snippet,
 				adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber)),
-				true
 			);
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
@@ -579,6 +592,9 @@ export class SnippetSession {
 
 		//
 		parser.ensureFinalTabstop(snippet, enforceFinalTabstop, true);
+
+		// adjust whitespace - but only new lines, but indentation because snippet edits are expected have taken that into account
+		SnippetSession.adjustWhitespace(model, snippetEdits[0].range.getStartPosition(), snippet, false);
 
 		return {
 			edits,

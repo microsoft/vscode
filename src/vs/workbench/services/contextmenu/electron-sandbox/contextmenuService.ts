@@ -20,7 +20,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -259,4 +259,4 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	}
 }
 
-registerSingleton(IContextMenuService, ContextMenuService, true);
+registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);

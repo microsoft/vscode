@@ -140,6 +140,10 @@ export class ToolBar extends Disposable {
 		return this.element;
 	}
 
+	focus(): void {
+		this.actionBar.focus();
+	}
+
 	getItemsWidth(): number {
 		let itemsWidth = 0;
 		for (let i = 0; i < this.actionBar.length(); i++) {
@@ -179,6 +183,10 @@ export class ToolBar extends Disposable {
 		primaryActionsToSet.forEach(action => {
 			this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
 		});
+	}
+
+	isEmpty(): boolean {
+		return this.actionBar.isEmpty();
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -23,7 +24,7 @@ import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, RunTestForControllerResult, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, ITestItemContext, RunTestForControllerRequest, RunTestForControllerResult, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -52,8 +53,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		this.runTracker = new TestRunCoordinator(this.proxy);
 
 		commands.registerArgumentProcessor({
-			processArgument: arg =>
-				arg?.$mid === MarshalledId.TestItemContext ? toItemFromContext(arg) : arg,
+			processArgument: arg => {
+				if (arg?.$mid !== MarshalledId.TestItemContext) {
+					return arg;
+				}
+
+				const cast = arg as ITestItemContext;
+				const targetTest = cast.tests[cast.tests.length - 1].item.extId;
+				const controller = this.controllers.get(TestId.root(targetTest));
+				return controller?.collection.tree.get(targetTest)?.actual ?? toItemFromContext(arg);
+			}
 		});
 	}
 
@@ -163,6 +172,17 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			}],
 			exclude: req.exclude?.map(t => t.id),
 		}, token);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$syncTests(): Promise<void> {
+		for (const { collection } of this.controllers.values()) {
+			collection.flushDiff();
+		}
+
+		return Promise.resolve();
 	}
 
 	/**
@@ -281,7 +301,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		} catch (e) {
 			return { error: String(e) };
 		} finally {
-			if (tracker.isRunning && !token.isCancellationRequested) {
+			if (tracker.hasRunningTasks && !token.isCancellationRequested) {
 				await Event.toPromise(tracker.onEnd);
 			}
 
@@ -301,12 +321,24 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 }
 
+// Deadline after being requested by a user that a test run is forcibly cancelled.
+const RUN_CANCEL_DEADLINE = 10_000;
+
+const enum TestRunTrackerState {
+	// Default state
+	Running,
+	// Cancellation is requested, but the run is still going.
+	Cancelling,
+	// All tasks have ended
+	Ended,
+}
+
 class TestRunTracker extends Disposable {
+	private state = TestRunTrackerState.Running;
 	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun; coverage: TestRunCoverageBearer }>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
-	private disposed = false;
 
 	/**
 	 * Fires when a test ends, and no more tests are left running.
@@ -316,7 +348,7 @@ class TestRunTracker extends Disposable {
 	/**
 	 * Gets whether there are any tests running.
 	 */
-	public get isRunning() {
+	public get hasRunningTasks() {
 		return this.tasks.size > 0;
 	}
 
@@ -330,18 +362,28 @@ class TestRunTracker extends Disposable {
 	constructor(private readonly dto: TestRunDto, private readonly proxy: MainThreadTestingShape, parentToken?: CancellationToken) {
 		super();
 		this.cts = this._register(new CancellationTokenSource(parentToken));
-		this._register(this.cts.token.onCancellationRequested(() => {
-			for (const { run } of this.tasks.values()) {
-				run.end();
-			}
-		}));
+
+		const forciblyEnd = this._register(new RunOnceScheduler(() => this.forciblyEndTasks(), RUN_CANCEL_DEADLINE));
+		this._register(this.cts.token.onCancellationRequested(() => forciblyEnd.schedule()));
 	}
 
+	/** Requests cancellation of the run. On the second call, forces cancellation. */
+	public cancel() {
+		if (this.state === TestRunTrackerState.Running) {
+			this.cts.cancel();
+			this.state = TestRunTrackerState.Cancelling;
+		} else if (this.state === TestRunTrackerState.Cancelling) {
+			this.forciblyEndTasks();
+		}
+	}
+
+	/** Gets coverage for a task ID. */
 	public getCoverage(taskId: string) {
 		return this.tasks.get(taskId)?.coverage;
 	}
 
-	public createRun(name: string | undefined) {
+	/** Creates the public test run interface to give to extensions. */
+	public createRun(name: string | undefined): vscode.TestRun {
 		const runId = this.dto.id;
 		const ctrlId = this.dto.controllerId;
 		const taskId = generateUuid();
@@ -439,8 +481,8 @@ class TestRunTracker extends Disposable {
 				ended = true;
 				this.proxy.$finishedTestRunTask(runId, taskId);
 				this.tasks.delete(taskId);
-				if (!this.isRunning) {
-					this.dispose();
+				if (!this.tasks.size) {
+					this.markEnded();
 				}
 			}
 		};
@@ -451,15 +493,18 @@ class TestRunTracker extends Disposable {
 		return run;
 	}
 
-	public override dispose() {
-		if (!this.disposed) {
-			this.disposed = true;
-			this.endEmitter.fire();
-			this.cts.cancel();
-			super.dispose();
+	private forciblyEndTasks() {
+		for (const { run } of this.tasks.values()) {
+			run.end();
 		}
 	}
 
+	private markEnded() {
+		if (this.state !== TestRunTrackerState.Ended) {
+			this.state = TestRunTrackerState.Ended;
+			this.endEmitter.fire();
+		}
+	}
 
 	private ensureTestIsKnown(test: vscode.TestItem) {
 		if (!(test instanceof TestItemImpl)) {
@@ -520,7 +565,7 @@ export class TestRunCoordinator {
 	public cancelRunById(runId: string) {
 		for (const tracker of this.tracked.values()) {
 			if (tracker.id === runId) {
-				tracker.dispose();
+				tracker.cancel();
 				return;
 			}
 		}
@@ -531,7 +576,7 @@ export class TestRunCoordinator {
 	 */
 	public cancelAllRuns() {
 		for (const tracker of this.tracked.values()) {
-			tracker.dispose();
+			tracker.cancel();
 		}
 	}
 
@@ -559,7 +604,11 @@ export class TestRunCoordinator {
 		});
 
 		const tracker = this.getTracker(request, dto);
-		tracker.onEnd(() => this.proxy.$finishedExtensionTestRun(dto.id));
+		tracker.onEnd(() => {
+			this.proxy.$finishedExtensionTestRun(dto.id);
+			tracker.dispose();
+		});
+
 		return tracker.createRun(name);
 	}
 
@@ -708,7 +757,7 @@ interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
 	depth: number;
 }
 
-class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
+class MirroredChangeCollector implements IncrementalChangeCollector<MirroredCollectionTestItem> {
 	private readonly added = new Set<MirroredCollectionTestItem>();
 	private readonly updated = new Set<MirroredCollectionTestItem>();
 	private readonly removed = new Set<MirroredCollectionTestItem>();
@@ -720,20 +769,19 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	}
 
 	constructor(private readonly emitter: Emitter<vscode.TestsChangeEvent>) {
-		super();
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
-	public override add(node: MirroredCollectionTestItem): void {
+	public add(node: MirroredCollectionTestItem): void {
 		this.added.add(node);
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
-	public override update(node: MirroredCollectionTestItem): void {
+	public update(node: MirroredCollectionTestItem): void {
 		Object.assign(node.revived, Convert.TestItem.toPlain(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
@@ -741,9 +789,9 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
-	public override remove(node: MirroredCollectionTestItem): void {
+	public remove(node: MirroredCollectionTestItem): void {
 		if (this.added.has(node)) {
 			this.added.delete(node);
 			return;
@@ -751,7 +799,8 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 
 		this.updated.delete(node);
 
-		if (node.parent && this.alreadyRemoved.has(node.parent)) {
+		const parentId = TestId.parentId(node.item.extId);
+		if (parentId && this.alreadyRemoved.has(parentId.toString())) {
 			this.alreadyRemoved.add(node.item.extId);
 			return;
 		}
@@ -760,7 +809,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	}
 
 	/**
-	 * @override
+	 * @inheritdoc
 	 */
 	public getChangeEvent(): vscode.TestsChangeEvent {
 		const { added, updated, removed } = this;
@@ -771,7 +820,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		};
 	}
 
-	public override complete() {
+	public complete() {
 		if (!this.isEmpty) {
 			this.emitter.fire(this.getChangeEvent());
 		}

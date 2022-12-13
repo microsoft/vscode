@@ -18,11 +18,12 @@ const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const _ = require('underscore');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
 const optimize = require('./lib/optimize');
 const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
@@ -47,6 +48,7 @@ const vscodeEntryPoints = _.flatten([
 	buildfile.workerLanguageDetection,
 	buildfile.workerSharedProcess,
 	buildfile.workerLocalFileSearch,
+	buildfile.workerProfileAnalysis,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ]);
@@ -117,7 +119,8 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 					// TODO: we cannot inline `product.json` because
 					// it is being changed during build time at a later
 					// point in time (such as `checksums`)
-					'../product.json'
+					'../product.json',
+					'../package.json',
 				]
 			},
 			manual: [
@@ -275,6 +278,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
+				'**/node-vsce-sign/bin/*',
 			], 'node_modules.asar'));
 
 		let all = es.merge(
@@ -369,6 +373,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
+			if (quality === 'insider') {
+				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
+			}
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))

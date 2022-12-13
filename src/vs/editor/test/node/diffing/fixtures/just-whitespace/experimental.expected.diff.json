@@ -1,0 +1,16 @@
+{
+	"originalFileName": "./1.js",
+	"modifiedFileName": "./2.js",
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,20 -> 1,21]",
+					"modifiedRange": "[1,20 -> 1,20]"
+				}
+			]
+		}
+	]
+}

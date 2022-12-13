@@ -42,7 +42,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
-export interface IPrivateBreakpointWidgetService {
+interface IPrivateBreakpointWidgetService {
 	readonly _serviceBrand: undefined;
 	close(success: boolean): void;
 }

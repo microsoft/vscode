@@ -42,7 +42,8 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -61,8 +62,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
 	}
@@ -774,6 +775,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this.stateMainService.setItem('window.experimental.useSandbox', true);
+		} else {
+			this.stateMainService.removeItem('window.experimental.useSandbox');
+		}
+	}
+
 	async toggleSharedProcessWindow(): Promise<void> {
 		return this.sharedProcess.toggle();
 	}
@@ -782,42 +791,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	// #region Performance
 
-	private readonly _profilingSessions = new Map<number, WindowProfiler>();
-
-	async startHeartbeat(windowId: number | undefined, sessionId: string): Promise<boolean> {
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
 		const win = this.windowById(windowId);
 		if (!win || !win.win) {
-			return false;
+			throw new Error();
 		}
-		if (!this._profilingSessions.has(win.id)) {
-			const session = new WindowProfiler(win.win, sessionId, this.logService, this.telemetryService);
-			this._profilingSessions.set(win.id, session);
-			session.start();
-		}
-		return true;
-	}
-
-	async sendHeartbeat(windowId: number | undefined, _sessionId: string): Promise<boolean> {
-		const win = this.windowById(windowId);
-		if (!win || !this._profilingSessions.has(win.id)) {
-			return false;
-		}
-		this._profilingSessions.get(win.id)!.receiveHeartbeat();
-		return false;
-	}
-
-	async stopHeartbeat(windowId: number | undefined, _sessionId: string): Promise<boolean> {
-		const win = this.windowById(windowId);
-		if (!win || !this._profilingSessions.has(win.id)) {
-			return false;
-		}
-		this._profilingSessions.get(win.id)!.stop();
-		this._profilingSessions.delete(win.id);
-		return false;
+		const profiler = new WindowProfiler(win.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
 	}
 
 	// #endregion
-
 
 	//#region Registry (windows)
 

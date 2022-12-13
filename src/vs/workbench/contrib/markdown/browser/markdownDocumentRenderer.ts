@@ -6,6 +6,7 @@
 import { hookDomPurifyHrefAndSrcSanitizer, basicMarkupHtmlTags } from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -189,6 +190,7 @@ export async function renderMarkdownDocument(
 	languageService: ILanguageService,
 	shouldSanitize: boolean = true,
 	allowUnknownProtocols: boolean = false,
+	token?: CancellationToken,
 ): Promise<string> {
 
 	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
@@ -202,6 +204,11 @@ export async function renderMarkdownDocument(
 		}
 
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
+			if (token?.isCancellationRequested) {
+				callback(null, '');
+				return;
+			}
+
 			const languageId = languageService.getLanguageIdByLanguageName(lang);
 			const html = await tokenizeToString(languageService, code, languageId);
 			callback(null, `<code>${html}</code>`);
