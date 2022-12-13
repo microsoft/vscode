@@ -154,5 +154,73 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'b', data: String(TestResultState.Unset) }
 		]);
 	});
+
+	test('applies test changes (resort)', async () => {
+		harness.flush();
+		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
+		]);
+		// sortText causes order to change
+		harness.pushDiff({
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: "z" } }
+		}, {
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: "a" } }
+		});
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a', children: [{ e: 'ab' }, { e: 'aa' }] }, { e: 'b' }
+		]);
+		// label causes order to change
+		harness.pushDiff({
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { sortText: undefined, label: "z" } }
+		}, {
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { sortText: undefined, label: "a" } }
+		});
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a', children: [{ e: 'a' }, { e: 'z' }] }, { e: 'b' }
+		]);
+		harness.pushDiff({
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: "a2" } }
+		}, {
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: "z2" } }
+		});
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a', children: [{ e: 'a2' }, { e: 'z2' }] }, { e: 'b' }
+		]);
+	});
+
+	test('applies test changes (error)', async () => {
+		harness.flush();
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a' }, { e: 'b' }
+		]);
+		// sortText causes order to change
+		harness.pushDiff({
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: "bad" } }
+		});
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a' }, { e: 'b' }
+		]);
+		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a', children: [{ e: 'bad' }, { e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
+		]);
+		harness.pushDiff({
+			op: TestDiffOpType.Update,
+			item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { error: "badder" } }
+		});
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a', children: [{ e: 'badder' }, { e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
+		]);
+
+	});
+
 });
 

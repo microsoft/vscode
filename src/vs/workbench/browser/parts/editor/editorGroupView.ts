@@ -1851,7 +1851,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Themable
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		const isEmpty = this.isEmpty;
 
 		// Container

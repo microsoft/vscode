@@ -45,6 +45,16 @@ function es5ClassCompat(target: Function): any {
 	return Object.assign(target, interceptFunctions);
 }
 
+export enum TerminalOutputAnchor {
+	top = 'top',
+	bottom = 'bottom'
+}
+
+export enum TerminalQuickFixType {
+	command = 'command',
+	opener = 'opener'
+}
+
 @es5ClassCompat
 export class Disposable {
 
@@ -482,7 +492,7 @@ export class ResolvedAuthority {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
 				throw illegalArgument('connectionToken');
 			}
 		}

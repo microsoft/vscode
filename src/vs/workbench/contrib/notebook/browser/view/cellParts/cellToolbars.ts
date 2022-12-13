@@ -76,7 +76,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		return betweenCellToolbar;
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		const betweenCellToolbar = this._initialize();
 		betweenCellToolbar.context = <INotebookCellActionContext>{
 			ui: true,
@@ -149,10 +149,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		const titleMenu = this._register(this.menuService.createMenu(this.toolbarId, this.contextKeyService));
 		const deleteMenu = this._register(this.menuService.createMenu(this.deleteToolbarId, this.contextKeyService));
 		const actions = getCellToolbarActions(titleMenu);
-		const deleteActions = !this._notebookEditor.creationOptions.isReadOnly ? getCellToolbarActions(deleteMenu) : {
-			primary: [],
-			secondary: []
-		};
+		const deleteActions = getCellToolbarActions(deleteMenu);
 
 		this._model = {
 			titleMenu,

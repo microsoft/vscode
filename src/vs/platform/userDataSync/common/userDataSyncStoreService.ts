@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asTextOrError, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
+import { asJson, asText, asTextOrError, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
@@ -243,7 +243,7 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
 
-		return (await asJson<string[]>(context)) || [];
+		return (await asJson<{ id: string }[]>(context))?.map(({ id }) => id) || [];
 	}
 
 	async createCollection(headers: IHeaders = {}): Promise<string> {
@@ -448,8 +448,8 @@ export class UserDataSyncStoreClient extends Disposable {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		await this.deleteResources();
 		await this.deleteCollection();
+		await this.deleteResources();
 
 		// clear cached session.
 		this.clearSession();
@@ -529,10 +529,12 @@ export class UserDataSyncStoreClient extends Disposable {
 		const operationId = context.res.headers[HEADER_OPERATION_ID];
 		const requestInfo = { url, status: context.res.statusCode, 'execution-id': options.headers[HEADER_EXECUTION_ID], 'operation-id': operationId };
 		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.indexOf(context.res.statusCode) !== -1);
+		let failureMessage = '';
 		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);
 		} else {
 			this.logService.info('Request failed', requestInfo);
+			failureMessage = await asText(context) || '';
 		}
 
 		if (context.res.statusCode === 401) {
@@ -545,6 +547,10 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		if (context.res.statusCode === 404) {
 			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the requested resource is not found (404).`, url, UserDataSyncErrorCode.NotFound, context.res.statusCode, operationId);
+		}
+
+		if (context.res.statusCode === 405) {
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the requested endpoint is not found (405). ${failureMessage}`, url, UserDataSyncErrorCode.MethodNotFound, context.res.statusCode, operationId);
 		}
 
 		if (context.res.statusCode === 409) {

@@ -18,6 +18,7 @@
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
+		"cli/target/**": true,
 		".build/**": true,
 		"out/**": true,
 		"out-build/**": true,

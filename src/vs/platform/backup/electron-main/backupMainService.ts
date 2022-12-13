@@ -11,7 +11,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo, ILegacySerializedBackupWorkspaces } from 'vs/platform/backup/node/backup';
+import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
@@ -50,7 +50,7 @@ export class BackupMainService implements IBackupMainService {
 	async initialize(): Promise<void> {
 
 		// read backup workspaces
-		const serializedBackupWorkspaces = await this.initializeAndMigrateBackupWorkspacesMetadata();
+		const serializedBackupWorkspaces = this.stateMainService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey) ?? { workspaces: [], folders: [], emptyWindows: [] };
 
 		// validate empty workspaces backups first
 		this.emptyWindows = await this.validateEmptyWorkspaces(serializedBackupWorkspaces.emptyWindows);
@@ -63,36 +63,6 @@ export class BackupMainService implements IBackupMainService {
 
 		// store metadata in case some workspaces or folders have been removed
 		this.storeWorkspacesMetadata();
-	}
-
-	private async initializeAndMigrateBackupWorkspacesMetadata(): Promise<ISerializedBackupWorkspaces> {
-		let serializedBackupWorkspaces = this.stateMainService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey);
-		if (!serializedBackupWorkspaces) {
-			try {
-				//TODO@bpasero remove after a while
-				const legacyBackupWorkspacesPath = join(this.backupHome, 'workspaces.json');
-				const legacyBackupWorkspaces = await Promises.readFile(legacyBackupWorkspacesPath, 'utf8');
-
-				try {
-					await Promises.unlink(legacyBackupWorkspacesPath);
-				} catch (error) {
-					// ignore
-				}
-
-				const legacySerializedBackupWorkspaces = JSON.parse(legacyBackupWorkspaces) as ILegacySerializedBackupWorkspaces;
-				serializedBackupWorkspaces = {
-					workspaces: Array.isArray(legacySerializedBackupWorkspaces.rootURIWorkspaces) ? legacySerializedBackupWorkspaces.rootURIWorkspaces : [],
-					folders: Array.isArray(legacySerializedBackupWorkspaces.folderWorkspaceInfos) ? legacySerializedBackupWorkspaces.folderWorkspaceInfos : [],
-					emptyWindows: Array.isArray(legacySerializedBackupWorkspaces.emptyWorkspaceInfos) ? legacySerializedBackupWorkspaces.emptyWorkspaceInfos : [],
-				};
-			} catch (error) {
-				if (error.code !== 'ENOENT') {
-					this.logService.error(`Backup: Could not migrate legacy backup workspaces metadata: ${error.toString()}`);
-				}
-			}
-		}
-
-		return serializedBackupWorkspaces ?? { workspaces: [], folders: [], emptyWindows: [] };
 	}
 
 	protected getWorkspaceBackups(): IWorkspaceBackupInfo[] {

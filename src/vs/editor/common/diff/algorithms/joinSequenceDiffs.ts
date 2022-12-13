@@ -12,6 +12,25 @@ export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence
 	return result;
 }
 
+export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+	const result: SequenceDiff[] = [];
+	for (const s of sequenceDiffs) {
+		const last = result[result.length - 1];
+		if (!last) {
+			result.push(s);
+			continue;
+		}
+
+		if (s.seq1Range.start - last.seq1Range.endExclusive <= 2 || s.seq2Range.start - last.seq2Range.endExclusive <= 2) {
+			result[result.length - 1] = new SequenceDiff(last.seq1Range.join(s.seq1Range), last.seq2Range.join(s.seq2Range));
+		} else {
+			result.push(s);
+		}
+	}
+
+	return result;
+}
+
 /**
  * This function fixes issues like this:
  * ```
@@ -109,13 +128,19 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	}
 	deltaBefore--;
 
-	let deltaAfter = 1;
+	let deltaAfter = 0;
 	while (diff.seq2Range.start + deltaAfter < seq2NextStart &&
 		sequence2.getElement(diff.seq2Range.start + deltaAfter) ===
 		sequence2.getElement(diff.seq2Range.endExclusive + deltaAfter) && deltaAfter < maxShiftLimit) {
 		deltaAfter++;
 	}
-	deltaAfter--;
+
+	if (deltaBefore === 0 && deltaAfter === 0) {
+		return diff;
+	}
+
+	// Visualize `[sequence1.text, diff.seq1Range.start + deltaAfter]`
+	// and `[sequence2.text, diff.seq2Range.start + deltaAfter, diff.seq2Range.endExclusive + deltaAfter]`
 
 	let bestDelta = 0;
 	let bestScore = -1;

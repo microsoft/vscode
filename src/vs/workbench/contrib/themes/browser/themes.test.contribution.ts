@@ -11,7 +11,7 @@ import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/servi
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import type { IGrammar, StackElement } from 'vscode-textmate';
+import type { IGrammar, StateStack } from 'vscode-textmate';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
@@ -98,7 +98,7 @@ class Snapper {
 
 	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
 		const colorMap = TokenizationRegistry.getColorMap();
-		let state: StackElement | null = null;
+		let state: StateStack | null = null;
 		const result: IThemedToken[] = [];
 		let resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
@@ -127,7 +127,7 @@ class Snapper {
 	}
 
 	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
-		let state: StackElement | null = null;
+		let state: StateStack | null = null;
 		const result: IToken[] = [];
 		let resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {

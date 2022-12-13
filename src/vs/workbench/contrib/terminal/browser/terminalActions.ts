@@ -158,26 +158,6 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.QuickFix,
-				title: { value: localize('workbench.action.terminal.quickFix', "Quick Fix"), original: 'Quick Fix' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.Period,
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
-		}
-	});
-
 	// Register new with profile command
 	refreshTerminalActions([]);
 
@@ -2229,6 +2209,23 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ShowQuickFixes,
+				title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
+				category,
+				precondition: TerminalContextKeys.focus,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Period,
+					weight: KeybindingWeight.EditorContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ShowTextureAtlas,
 				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
 				f1: true,
@@ -2318,9 +2315,8 @@ export function registerTerminalActions() {
 					// TODO: Why is copy still showing up when text isn't selected?
 					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected),
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KeyC,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC },
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
+						mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
 					}]
@@ -2328,6 +2324,27 @@ export function registerTerminalActions() {
 			}
 			async run(accessor: ServicesAccessor) {
 				await accessor.get(ITerminalService).activeInstance?.copySelection();
+			}
+		});
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TerminalCommandId.CopyAndClearSelection,
+					title: { value: localize('workbench.action.terminal.copyAndClearSelection', "Copy and Clear Selection"), original: 'Copy and Clear Selection' },
+					f1: true,
+					category,
+					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected),
+					keybinding: [{
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
+					}]
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				const instance = accessor.get(ITerminalService).activeInstance;
+				await instance?.copySelection();
+				instance?.clearSelection();
 			}
 		});
 		registerAction2(class extends Action2 {

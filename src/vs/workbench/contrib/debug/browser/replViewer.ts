@@ -11,6 +11,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/path';
 import severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -197,7 +198,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		templateData.value.appendChild(result);
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
-		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
+		templateData.source.textContent = element.sourceData ? `${basename(element.sourceData.source.name)}:${element.sourceData.lineNumber}` : '';
 		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}

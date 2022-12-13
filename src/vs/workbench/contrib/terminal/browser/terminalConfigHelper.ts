@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EditorOptions, EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
@@ -71,7 +71,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	configFontIsMonospace(): boolean {
 		const fontSize = 15;
-		const fontFamily = this.config.fontFamily || EditorOptions.fontFamily.validate(this._configurationService.getValue<IEditorOptions>('editor').fontFamily);
+		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		const iRect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		const wRect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -155,21 +155,24 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	getFont(xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = this.config.fontFamily || EditorOptions.fontFamily.validate(editorConfig.fontFamily);
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		let fontSize = this._clampInt(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
 			if (this._linuxDistro === LinuxDistro.Fedora) {
-				fontFamily = '\'DejaVu Sans Mono\', monospace';
+				fontFamily = '\'DejaVu Sans Mono\'';
 			}
 			if (this._linuxDistro === LinuxDistro.Ubuntu) {
-				fontFamily = '\'Ubuntu Mono\', monospace';
+				fontFamily = '\'Ubuntu Mono\'';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
 				fontSize = this._clampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
+
+		// Always fallback to monospace, otherwise a proportional font may become the default
+		fontFamily += ', monospace';
 
 		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;

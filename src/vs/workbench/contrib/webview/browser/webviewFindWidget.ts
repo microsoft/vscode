@@ -81,5 +81,5 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 	protected _onFindInputFocusTrackerBlur() { }
 
-	protected findFirst() { }
+	findFirst() { }
 }

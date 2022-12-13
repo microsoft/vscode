@@ -33,6 +33,36 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
+/**
+ * Key   - normalized path used in user interface
+ * Value - path extracted from the output of the `git status` command
+ *         used when calling `git config --global --add safe.directory`
+ */
+class UnsafeRepositoryMap extends Map<string, string> {
+	constructor() {
+		super();
+		this.updateContextKey();
+	}
+
+	override set(key: string, value: string): this {
+		const result = super.set(key, value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	override delete(key: string): boolean {
+		const result = super.delete(key);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	private updateContextKey(): void {
+		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
+	}
+}
+
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -110,6 +140,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
+	private _unsafeRepositories = new UnsafeRepositoryMap();
+	get unsafeRepositories(): Map<string, string> {
+		return this._unsafeRepositories;
+	}
+
 	private disposables: Disposable[] = [];
 
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
@@ -143,6 +178,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await window.withProgress({ location: ProgressLocation.SourceControl }, initialScanFn);
 		} else {
 			await initialScanFn();
+		}
+
+		// Unsafe repositories notification
+		if (this._unsafeRepositories.size !== 0) {
+			this.showUnsafeRepositoryNotification();
 		}
 
 		/* __GDPR__
@@ -394,6 +434,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
+			// Handle unsafe repository
+			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(ex.stderr);
+			if (match && match.length === 3) {
+				const unsafeRepositoryPath = path.normalize(match[1]);
+				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
+
+				// Show a notification if the unsafe repository is opened after the initial repository scan
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(unsafeRepositoryPath)) {
+					this.showUnsafeRepositoryNotification();
+				}
+
+				this._unsafeRepositories.set(unsafeRepositoryPath, match[2]);
+
+				return;
+			}
+
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}
@@ -438,6 +494,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
+				this.logger.trace('Automatic detection of git submodules is not enabled.');
 				return;
 			}
 
@@ -449,7 +506,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			repository.submodules
 				.slice(0, submodulesLimit)
 				.map(r => path.join(repository.root, r.path))
-				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+				.forEach(p => {
+					this.logger.trace(`Opening submodule: '${p}'`);
+					this.eventuallyScanPossibleGitRepository(p);
+				});
 		};
 
 		const updateMergeChanges = () => {
@@ -608,7 +668,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
+			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
 				return liveRepository;
 			}
 		}
@@ -669,6 +729,24 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	private async showUnsafeRepositoryNotification(): Promise<void> {
+		const message = this._unsafeRepositories.size === 1 ?
+			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
+			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
+
+		const manageUnsafeRepositories = l10n.t('Manage Unsafe Repositories');
+		const learnMore = l10n.t('Learn More');
+
+		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
+		if (choice === manageUnsafeRepositories) {
+			// Manage Unsafe Repositories
+			commands.executeCommand('git.manageUnsafeRepositories');
+		} else if (choice === learnMore) {
+			// Learn More
+			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-unsafe-repository'));
+		}
 	}
 
 	dispose(): void {

@@ -46,7 +46,7 @@ namespace IntellisenseState {
 export class IntellisenseStatus extends Disposable {
 
 	public readonly openOpenConfigCommandId = '_typescript.openConfig';
-	public readonly createConfigCommandId = '_typescript.createConfig';
+	public readonly createOrOpenConfigCommandId = '_typescript.createOrOpenConfig';
 
 	private _statusItem?: vscode.LanguageStatusItem;
 
@@ -71,7 +71,7 @@ export class IntellisenseStatus extends Disposable {
 			},
 		});
 		commandManager.register({
-			id: this.createConfigCommandId,
+			id: this.createOrOpenConfigCommandId,
 			execute: async (rootPath: string, projectType: ProjectType) => {
 				await openOrCreateConfig(projectType, rootPath, this._client.configuration);
 			},
@@ -178,10 +178,10 @@ export class IntellisenseStatus extends Disposable {
 					statusItem.text = noConfigFileText;
 					statusItem.detail = undefined;
 					statusItem.command = {
-						command: this.createConfigCommandId,
+						command: this.createOrOpenConfigCommandId,
 						title: this._state.projectType === ProjectType.TypeScript
-							? vscode.l10n.t("Create tsconfig")
-							: vscode.l10n.t("Create jsconfig"),
+							? vscode.l10n.t("Configure tsconfig")
+							: vscode.l10n.t("Configure jsconfig"),
 						arguments: [rootPath],
 					};
 				} else {

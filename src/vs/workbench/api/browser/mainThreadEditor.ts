@@ -379,11 +379,7 @@ export class MainThreadTextEditor {
 			newOpts.tabSize = newConfiguration.tabSize;
 		}
 		if (typeof newConfiguration.indentSize !== 'undefined') {
-			if (newConfiguration.indentSize === 'tabSize') {
-				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
-			} else {
-				newOpts.indentSize = newConfiguration.indentSize;
-			}
+			newOpts.indentSize = newConfiguration.indentSize;
 		}
 		this._model.updateOptions(newOpts);
 	}

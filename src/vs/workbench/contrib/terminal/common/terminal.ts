@@ -13,9 +13,10 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -86,6 +87,21 @@ export interface ITerminalProfileService {
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
 
+export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
+export interface ITerminalQuickFixService {
+	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
+	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
+	onDidUnregisterProvider: Event<string>;
+	readonly _serviceBrand: undefined;
+	providers: Map<string, ITerminalQuickFixProvider>;
+	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable;
+	registerCommandSelector(selector: ITerminalCommandSelector): void;
+}
+
+export interface ITerminalQuickFixProviderSelector {
+	selector: ITerminalCommandSelector;
+	provider: ITerminalQuickFixProvider;
+}
 export interface ITerminalProfileProvider {
 	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
@@ -275,7 +291,7 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
-	enableFileLinks: boolean;
+	enableFileLinks: 'off' | 'on' | 'notRemote';
 	unicodeVersion: '6' | '11';
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
@@ -347,7 +363,7 @@ export interface ITerminalCommand {
 	markProperties?: IMarkProperties;
 	hasOutput(): boolean;
 	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 }
 
 export interface INavigationMode {
@@ -482,6 +498,7 @@ export const enum TerminalCommandId {
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
+	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
 	SelectAll = 'workbench.action.terminal.selectAll',
@@ -498,6 +515,7 @@ export const enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	SplitInstance = 'workbench.action.terminal.splitInstance',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
+	ShowQuickFixes = 'workbench.action.terminal.showQuickFixes',
 	Unsplit = 'workbench.action.terminal.unsplit',
 	UnsplitInstance = 'workbench.action.terminal.unsplitInstance',
 	JoinInstance = 'workbench.action.terminal.joinInstance',
@@ -579,6 +597,7 @@ export const enum TerminalCommandId {
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ClearSelection,
 	TerminalCommandId.Clear,
+	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
 	TerminalCommandId.CopyLastCommand,
@@ -722,14 +741,13 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
 				items: {
 					type: 'object',
-					required: ['id', 'commandLineMatcher', 'outputMatcher'],
+					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
 					defaultSnippets: [{
 						body: {
 							id: '$1',
 							commandLineMatcher: '$2',
 							outputMatcher: '$3',
-							commandToRun: '$4',
-							linkToOpen: '$5'
+							exitStatus: '$4'
 						}
 					}],
 					properties: {
@@ -764,13 +782,13 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 								}
 							}
 						},
-						commandToRun: {
-							description: 'The command to run in the terminal for this match. Refer to a group found in the outputMatcher via ${group:group_name}. When provided, will take precedence over linkToOpen.',
-							type: 'string'
-						},
-						linkToOpen: {
-							description: 'The link to open for this match. Refer to a group found in the outputMatcher via ${group:group_name}. If a commandToRun is provided, this will be ignored.',
-							type: 'string'
+						commandExitResult: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandExitResult', "The command result to match on"),
+							enum: ['success', 'error'],
+							enumDescriptions: [
+								'The command exited with an exit code of zero.',
+								'The command exited with a non-zero exit code.'
+							]
 						}
 					},
 				}

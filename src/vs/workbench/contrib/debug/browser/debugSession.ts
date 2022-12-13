@@ -1088,7 +1088,7 @@ export class DebugSession implements IDebugSession {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
 					const telemetryEndpoint = this.raw.dbgr.getCustomTelemetryEndpoint();
-					if (telemetryEndpoint && this.telemetryService.telemetryLevel.value !== TelemetryLevel.NONE) {
+					if (telemetryEndpoint && this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
 						if (!telemetryEndpoint.sendErrorTelemetry && event.body.data) {
