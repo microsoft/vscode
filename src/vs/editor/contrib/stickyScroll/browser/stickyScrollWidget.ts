@@ -13,7 +13,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Location } from 'vs/editor/common/languages';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -148,10 +147,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				if (this._candidateDefinitionsLength > 1) {
 					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 				}
-				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
+				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
+
 			} else if (!e.isRightClick) {
 				// Normal click
-				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
+				const position = { lineNumber: this._hoverOnLine, column: this._hoverOnColumn };
+				this._editor.revealPosition(position);
+				this._editor.setSelection(Range.fromPositions(position));
+				this._editor.focus();
 			}
 		}));
 		return linkGestureStore;
