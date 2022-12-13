@@ -2829,8 +2829,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							return true;
 						}
 					}
-				} else if (type && t.type === type) {
+				} else if (type && t.type === type || (CustomTask.is(t) && t.customizes()?.type === type)) {
 					return true;
+
 				}
 				return false;
 			});
