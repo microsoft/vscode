@@ -640,12 +640,8 @@ export const win32: IPath = {
 
 	toNamespacedPath(path: string): string {
 		// Note: this will *probably* throw somewhere.
-		if (typeof path !== 'string') {
+		if (typeof path !== 'string' || path.length === 0) {
 			return path;
-		}
-
-		if (path.length === 0) {
-			return '';
 		}
 
 		const resolvedPath = win32.resolve(path);
