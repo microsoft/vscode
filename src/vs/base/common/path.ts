@@ -1080,7 +1080,14 @@ export const posix: IPath = {
 		let resolvedAbsolute = false;
 
 		for (let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-			const path = i >= 0 ? pathSegments[i] : process.cwd();
+			// const path = i >= 0 ? pathSegments[i] : process.cwd();
+			let path;
+			if (i >= 0) {
+				path = pathSegments[i];
+			} else {
+				const _ = process.cwd().replace(new RegExp(`\\${module.exports.sep}`, 'g'), posix.sep);
+				path = _.slice(_.indexOf(posix.sep));
+			}
 
 			validateString(path, 'path');
 
