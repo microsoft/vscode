@@ -138,6 +138,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
+
+			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+				return;
+			}
+
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
 				e.element?.focus(true);
 			}
@@ -146,6 +151,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
 		this.onMouseClick(async e => {
+			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+				return;
+			}
+
 			if (e.browserEvent.altKey && e.element) {
 				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
 			} else if (this._getFocusMode() === 'singleClick') {
@@ -556,6 +565,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
+		if (this._terminalService.getEditingTerminal()?.instanceId === instance.instanceId) {
+			return null;
+		}
+
 		return instance.resource.toString();
 	}
 

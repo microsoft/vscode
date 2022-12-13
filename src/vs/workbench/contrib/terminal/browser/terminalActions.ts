@@ -1053,11 +1053,13 @@ export function registerTerminalActions() {
 				return;
 			}
 
+			terminalService.setEditingTerminal(instance);
 			terminalService.setEditable(instance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
 					terminalService.setEditable(instance, null);
+					terminalService.setEditingTerminal(undefined);
 					if (success) {
 						try {
 							await instance.rename(value);
