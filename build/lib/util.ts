@@ -259,10 +259,6 @@ export function appendOwnPathSourceURL(): NodeJS.ReadWriteStream {
 
 	const output = input
 		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
-			if (!f.path.endsWith('.js')) {
-				return f;
-			}
-
 			if (!(f.contents instanceof Buffer)) {
 				throw new Error(`contents of ${f.path} are not a buffer`);
 			}

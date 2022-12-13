@@ -18,6 +18,7 @@ import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangleTypeScript';
+
 const watch = require('./watch');
 
 
@@ -62,6 +63,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
+		const jsFilter = util.filter(data => data.path.endsWith('.js') && !data.path.includes('fixtures'));
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
 
 		const input = es.through();
@@ -80,7 +82,10 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 				includeContent: !!build,
 				sourceRoot: overrideOptions.sourceRoot
 			}))
-			.pipe(build ? tsFilter.restore : tsFilter.restore.pipe(util.appendOwnPathSourceURL()))
+			.pipe(build
+				? tsFilter.restore
+				: tsFilter.restore.pipe(jsFilter).pipe(util.appendOwnPathSourceURL()).pipe(jsFilter.restore)
+			)
 			.pipe(reporter.end(!!emitError));
 
 		return es.duplex(input, output);
