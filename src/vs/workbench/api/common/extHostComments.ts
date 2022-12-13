@@ -136,7 +136,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 						if (typeof comment.body === 'string') {
 							comment.body = body;
 						} else {
-							comment.body = new types.MarkdownString(body);
+							comment.body.value = body;
 						}
 						return comment;
 					}
