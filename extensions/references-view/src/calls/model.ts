@@ -6,8 +6,6 @@
 import * as vscode from 'vscode';
 import { SymbolItemDragAndDrop, SymbolItemEditorHighlights, SymbolItemNavigation, SymbolTreeInput } from '../references-view';
 import { asResourceUrl, del, getThemeIcon, tail } from '../utils';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 export class CallsTreeInput implements SymbolTreeInput<CallItem> {
 
@@ -19,8 +17,8 @@ export class CallsTreeInput implements SymbolTreeInput<CallItem> {
 		readonly direction: CallsDirection,
 	) {
 		this.title = direction === CallsDirection.Incoming
-			? localize('title.callers', 'Callers Of')
-			: localize('title.calls', 'Calls From');
+			? vscode.l10n.t('Callers Of')
+			: vscode.l10n.t('Calls From');
 	}
 
 	async resolve() {
@@ -35,7 +33,7 @@ export class CallsTreeInput implements SymbolTreeInput<CallItem> {
 
 		return {
 			provider,
-			get message() { return model.roots.length === 0 ? localize('noresult', 'No results.') : undefined; },
+			get message() { return model.roots.length === 0 ? vscode.l10n.t('No results.') : undefined; },
 			navigation: model,
 			highlights: model,
 			dnd: model,
@@ -182,13 +180,34 @@ class CallItemDataProvider implements vscode.TreeDataProvider<CallItem> {
 		item.tooltip = item.label ? `${item.label} - ${element.item.detail}` : element.item.detail;
 		item.contextValue = 'call-item';
 		item.iconPath = getThemeIcon(element.item.kind);
+
+		type OpenArgs = [vscode.Uri, vscode.TextDocumentShowOptions];
+		let openArgs: OpenArgs;
+
+		if (element.model.direction === CallsDirection.Outgoing) {
+
+			openArgs = [element.item.uri, { selection: element.item.selectionRange.with({ end: element.item.selectionRange.start }) }];
+
+		} else {
+			// incoming call -> reveal first call instead of caller
+			let firstLoctionStart: vscode.Position | undefined;
+			if (element.locations) {
+				for (const loc of element.locations) {
+					if (loc.uri.toString() === element.item.uri.toString()) {
+						firstLoctionStart = firstLoctionStart?.isBefore(loc.range.start) ? firstLoctionStart : loc.range.start;
+					}
+				}
+			}
+			if (!firstLoctionStart) {
+				firstLoctionStart = element.item.selectionRange.start;
+			}
+			openArgs = [element.item.uri, { selection: new vscode.Range(firstLoctionStart, firstLoctionStart) }];
+		}
+
 		item.command = {
 			command: 'vscode.open',
-			title: localize('open', 'Open Call'),
-			arguments: [
-				element.item.uri,
-				<vscode.TextDocumentShowOptions>{ selection: element.item.selectionRange.with({ end: element.item.selectionRange.start }) }
-			]
+			title: vscode.l10n.t('Open Call'),
+			arguments: openArgs
 		};
 		item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
 		return item;

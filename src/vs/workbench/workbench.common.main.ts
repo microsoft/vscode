@@ -84,7 +84,7 @@ import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRe
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/userDataProfile/common/userDataProfileImportExportService';
+import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -101,7 +101,7 @@ import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import 'vs/editor/common/services/languageFeaturesService';
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -128,21 +128,21 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, true);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, true);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, true);
-registerSingleton(IExtensionStorageService, ExtensionStorageService, true);
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-registerSingleton(IContextViewService, ContextViewService, true);
-registerSingleton(IListService, ListService, true);
-registerSingleton(IEditorWorkerService, EditorWorkerService, false);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, true);
-registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService, false);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, true);
-registerSingleton(IDownloadService, DownloadService, true);
-registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, true);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, InstantiationType.Delayed);
+registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+registerSingleton(IListService, ListService, InstantiationType.Delayed);
+registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
+registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
+registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
+registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -234,6 +234,7 @@ import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output View
+import 'vs/workbench/contrib/output/common/outputChannelModelService';
 import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputView';
 
@@ -268,6 +269,9 @@ import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
+
+// Folding Limit Indicator
+import 'vs/workbench/contrib/folding/browser/folding.contribution';
 
 // Inlay Hint Accessibility
 import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';

@@ -564,7 +564,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (!this.label) {
 			return;
 		}
@@ -615,11 +615,11 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateTooltip(): void {
+	protected override updateTooltip(): void {
 		// menus should function like native menus and they do not have tooltips
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		if (this.cssClass && this.item) {
 			this.item.classList.remove(...this.cssClass.split(' '));
 		}
@@ -635,7 +635,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateEnabled(): void {
+	protected override updateEnabled(): void {
 		if (this.action.enabled) {
 			if (this.element) {
 				this.element.classList.remove('disabled');
@@ -660,7 +660,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		if (!this.item) {
 			return;
 		}
@@ -805,7 +805,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 	}
 
-	override updateEnabled(): void {
+	protected override updateEnabled(): void {
 		// override on submenu entry
 		// native menus do not observe enablement on sumbenus
 		// we mimic that behavior
@@ -1128,6 +1128,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	height: 2em;
 	align-items: center;
 	position: relative;
+	margin: 0 4px;
+	border-radius: 4px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
@@ -1251,7 +1253,7 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
-	padding: .6em 0;
+	padding: 4px 0;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {

@@ -16,6 +16,8 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
 import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
+import { Language } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 interface ILanguagePack {
 	hash: string;
@@ -46,6 +48,18 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 				return this.postUninstallExtension(extension);
 			}
 		});
+	}
+
+	async getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined> {
+		const packs = await this.cache.getLanguagePacks();
+		const pack = packs[Language.value()];
+		if (!pack) {
+			this.logService.warn(`No language pack found for ${Language.value()}`);
+			return undefined;
+		}
+
+		const translation = pack.translations[id];
+		return translation ? URI.file(translation) : undefined;
 	}
 
 	async getInstalledLanguages(): Promise<Array<ILanguagePackItem>> {

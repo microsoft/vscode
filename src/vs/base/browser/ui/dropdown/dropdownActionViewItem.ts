@@ -131,7 +131,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 	}
 
-	override getTooltip(): string | undefined {
+	protected override getTooltip(): string | undefined {
 		let title: string | null = null;
 
 		if (this.action.tooltip) {
@@ -233,5 +233,3 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 		this.dropdownMenuActionViewItem?.setFocusable(focusable);
 	}
 }
-
-

@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -70,4 +70,4 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 
 }
 
-registerSingleton(IHostColorSchemeService, NativeHostColorSchemeService, true);
+registerSingleton(IHostColorSchemeService, NativeHostColorSchemeService, InstantiationType.Delayed);

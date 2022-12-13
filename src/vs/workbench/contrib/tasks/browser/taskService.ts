@@ -9,7 +9,7 @@ import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
 import { AbstractTaskService, IWorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TaskService extends AbstractTaskService {
 	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');
@@ -18,17 +18,14 @@ export class TaskService extends AbstractTaskService {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		if (this.executionEngine === ExecutionEngine.Terminal) {
-			this._taskSystem = this._createTerminalTaskSystem();
-		} else {
+		if (this.executionEngine !== ExecutionEngine.Terminal) {
 			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 		}
-		const taskSystem = this._createTerminalTaskSystem();
-		this._taskSystem = taskSystem;
+		this._taskSystem = this._createTerminalTaskSystem();
 		this._taskSystemListeners =
 			[
-				taskSystem.onDidStateChange((event) => {
-					this._taskRunningState.set(taskSystem.isActiveSync());
+				this._taskSystem.onDidStateChange((event) => {
+					this._taskRunningState.set(this._taskSystem!.isActiveSync());
 					this._onDidStateChange.fire(event);
 				}),
 			];
@@ -44,4 +41,4 @@ export class TaskService extends AbstractTaskService {
 	}
 }
 
-registerSingleton(ITaskService, TaskService, true);
+registerSingleton(ITaskService, TaskService, InstantiationType.Delayed);

@@ -20,7 +20,7 @@ import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
@@ -65,6 +65,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { Codicon } from 'vs/base/common/codicons';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NativeWindow extends Disposable {
 
@@ -115,7 +118,9 @@ export class NativeWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IBannerService private readonly bannerService: IBannerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -194,6 +199,10 @@ export class NativeWindow extends Disposable {
 				Severity.Error,
 				message,
 				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				},
+				{
 					label: localize('learnMore', "Learn More"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 				}]
@@ -314,10 +323,10 @@ export class NativeWindow extends Disposable {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
-			this.updateDocumentEdited(gotDirty);
+			this.updateDocumentEdited(gotDirty ? true : undefined);
 		}));
 
-		this.updateDocumentEdited();
+		this.updateDocumentEdited(undefined);
 
 		// Detect minimize / maximize
 		this._register(Event.any(
@@ -506,11 +515,18 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
-		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
-			this.isDocumentedEdited = isDirty;
+	private updateDocumentEdited(documentEdited: true | undefined): void {
+		let setDocumentEdited: boolean;
+		if (typeof documentEdited === 'boolean') {
+			setDocumentEdited = documentEdited;
+		} else {
+			setDocumentEdited = this.workingCopyService.hasDirty;
+		}
 
-			this.nativeHostService.setDocumentEdited(isDirty);
+		if ((!this.isDocumentedEdited && setDocumentEdited) || (this.isDocumentedEdited && !setDocumentEdited)) {
+			this.isDocumentedEdited = setDocumentEdited;
+
+			this.nativeHostService.setDocumentEdited(setDocumentEdited);
 		}
 	}
 
@@ -620,51 +636,22 @@ export class NativeWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
 
-		// Integrity warning
-		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
-
-		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.nativeHostService.isAdmin();
-
-			// Update title
-			this.titleService.updateProperties({ isAdmin });
-
-			// Show warning message (unix only)
-			if (isAdmin && !isWindows) {
-				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
-			}
-		});
-
-		// Windows 7 warning
-		if (isWindows) {
-			this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-				const version = this.environmentService.os.release.split('.');
-
-				// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
-				if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
-					const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
-
-					this.notificationService.prompt(
-						Severity.Warning,
-						message,
-						[{
-							label: localize('learnMore', "Learn More"),
-							run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
-						}],
-						{
-							neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
-						}
-					);
-				}
-			});
-		}
+		// Check for situations that are worth warning the user about
+		this.handleWarnings();
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
+		// Smoke Test Driver
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
+	}
+
+	private async handleWarnings(): Promise<void> {
+
 		// Check for cyclic dependencies
-		if (require.hasDependencyCycle()) {
+		if (typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
 			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
@@ -674,18 +661,94 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Smoke Test Driver
-		if (this.environmentService.enableSmokeTestDriver) {
-			this.setupDriver();
+		// After restored phase is fine for the following ones
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// Integrity / Root warning
+		(async () => {
+			const isAdmin = await this.nativeHostService.isAdmin();
+			const { isPure } = await this.integrityService.isPure();
+
+			// Update to title
+			this.titleService.updateProperties({ isPure, isAdmin });
+
+			// Show warning message (unix only)
+			if (isAdmin && !isWindows) {
+				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+			}
+		})();
+
+		// Installation Dir Warning
+		if (this.environmentService.isBuilt) {
+			let installLocationUri: URI;
+			if (isMacintosh) {
+				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
+				installLocationUri = dirname(dirname(dirname(URI.file(this.environmentService.appRoot))));
+			} else {
+				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// appRoot = /usr/share/code-insiders/resources/app
+				installLocationUri = dirname(dirname(URI.file(this.environmentService.appRoot)));
+			}
+
+			for (const folder of this.contextService.getWorkspace().folders) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(folder.uri, installLocationUri)) {
+					this.bannerService.show({
+						id: 'appRootWarning.banner',
+						message: localize('appRootWarning.banner', "Files you store within the installation folder ('{0}') may be OVERWRITTEN or DELETED IRREVERSIBLY without warning at update time.", this.labelService.getUriLabel(installLocationUri)),
+						icon: Codicon.warning
+					});
+
+					break;
+				}
+			}
 		}
+
+		// Windows 7 warning
+		if (isWindows) {
+			const version = this.environmentService.os.release.split('.');
+
+			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
+			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
+				const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+					}],
+					{
+						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+					}
+				);
+			}
+		}
+
+		// Slow shell environment progress indicator
+		const shellEnv = process.shellEnv();
+		this.progressService.withProgress({
+			title: localize('resolveShellEnvironment', "Resolving shell environment..."),
+			location: ProgressLocation.Window,
+			delay: 1600,
+			buttons: [localize('learnMore', "Learn More")]
+		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
 	}
 
 	private setupDriver(): void {
 		const that = this;
+		let pendingQuit = false;
+
 		registerWindowDriver({
 			async exitApplication(): Promise<void> {
+				if (pendingQuit) {
+					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
+					return;
+				}
+
 				that.logService.info('[driver] handling exitApplication()');
 
+				pendingQuit = true;
 				return that.nativeHostService.quit();
 			}
 		});
@@ -726,13 +789,16 @@ export class NativeWindow extends Disposable {
 								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
 							}
 						} : undefined;
-						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
+						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
+						if (!tunnel) {
+							tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
+						}
 						if (tunnel) {
 							const addressAsUri = URI.parse(tunnel.localAddress);
 							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
 								resolved,
-								dispose: () => tunnel.dispose(),
+								dispose: () => tunnel?.dispose(),
 							};
 						}
 					}
@@ -852,7 +918,7 @@ export class NativeWindow extends Disposable {
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 		const mergeMode = !!(request.filesToMerge && (request.filesToMerge.length === 4));
 
-		const inputs = await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService);
+		const inputs = coalesce(await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService, this.logService));
 		if (inputs.length) {
 			const openedEditorPanes = await this.openResources(inputs, diffMode, mergeMode);
 

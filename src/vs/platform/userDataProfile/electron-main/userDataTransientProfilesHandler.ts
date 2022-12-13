@@ -18,7 +18,7 @@ export class UserDataTransientProfilesHandler extends Disposable {
 		super();
 		this._register(lifecycleMainService.onWillLoadWindow(e => {
 			if (e.reason === LoadReason.LOAD) {
-				this.unsetTransientProfileForWorkspace(e.window.previousWorkspace ?? 'empty-window');
+				this.unsetTransientProfileForWorkspace(e.window.openedWorkspace ?? 'empty-window');
 			}
 		}));
 		this._register(lifecycleMainService.onBeforeCloseWindow(window => this.unsetTransientProfileForWorkspace(window.openedWorkspace ?? 'empty-window')));

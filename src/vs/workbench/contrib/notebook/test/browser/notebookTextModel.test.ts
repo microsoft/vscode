@@ -1043,4 +1043,110 @@ suite('NotebookTextModel', () => {
 			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
 		});
 	});
+	test('Append multiple text/plain output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'text/plain', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'text/plain', data: VSBuffer.fromString('bar') }, { mime: 'text/plain', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 3);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foo');
+			assert.equal(model.cells[0].outputs[0].outputs[1].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[1].data.toString(), 'bar');
+			assert.equal(model.cells[0].outputs[0].outputs[2].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[2].data.toString(), 'baz');
+		});
+	});
+	test('Append multiple stdout stream output items to an output with another mime', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'text/plain', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 3);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foo');
+			assert.equal(model.cells[0].outputs[0].outputs[1].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[1].data.toString(), 'bar');
+			assert.equal(model.cells[0].outputs[0].outputs[2].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[2].data.toString(), 'baz');
+		});
+	});
+	test('Compress multiple stdout stream output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
+		});
+
+	});
+	test('Compress multiple stderr stream output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stderr', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stderr', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'application/vnd.code.notebook.stderr');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
+		});
+
+	});
 });

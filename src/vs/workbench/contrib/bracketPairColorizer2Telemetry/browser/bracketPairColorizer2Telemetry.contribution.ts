@@ -45,11 +45,11 @@ class BracketPairColorizer2TelemetryContribution {
 		type BracketPairColorizer2Event = {
 			nativeColorizationEnabled: boolean;
 		};
-		this.telemetryService.publicLog2<BracketPairColorizer2Event, BracketPairColorizer2InstalledClassification>('bracketPairColorizer2Usage', {
+		this.telemetryService.publicLog2<BracketPairColorizer2Event, BracketPairColorizer2InstalledClassification>('bracketPairColorizerTwoUsage', {
 			nativeColorizationEnabled
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BracketPairColorizer2TelemetryContribution, 'BracketPairColorizer2TelemetryContribution', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BracketPairColorizer2TelemetryContribution, LifecyclePhase.Restored);
 

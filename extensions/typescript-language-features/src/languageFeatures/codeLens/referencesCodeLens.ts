@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
@@ -16,7 +15,6 @@ import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
-const localize = nls.loadMessageBundle();
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
@@ -56,8 +54,8 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 
 	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
 		return locations.length === 1
-			? localize('oneReferenceLabel', '1 reference')
-			: localize('manyReferenceLabel', '{0} references', locations.length);
+			? vscode.l10n.t("1 reference")
+			: vscode.l10n.t("{0} references", locations.length);
 	}
 
 	protected extractSymbol(

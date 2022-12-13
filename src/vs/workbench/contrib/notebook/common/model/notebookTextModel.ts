@@ -100,7 +100,7 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	}
 }
 
-export class NotebookOperationManager {
+class NotebookOperationManager {
 	private _pendingStackOperation: StackOperation | null = null;
 	constructor(
 		private readonly _textModel: NotebookTextModel,
@@ -144,7 +144,7 @@ type TransformedEdit = {
 	originalIndex: number;
 };
 
-export class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
+class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
 	isDirtyEvent() {
 		for (const e of this._eventQueue) {
 			for (let i = 0; i < e.rawEvents.length; i++) {
@@ -173,7 +173,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
 
 	metadata: NotebookDocumentMetadata = {};
-	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false };
+	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} };
 	private _versionId = 0;
 
 	/**
@@ -402,7 +402,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			true,
 			undefined, () => undefined,
 			undefined,
-			true
+			false
 		);
 	}
 

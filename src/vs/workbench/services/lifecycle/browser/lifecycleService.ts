@@ -7,7 +7,7 @@ import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecyc
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -201,4 +201,4 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 }
 
-registerSingleton(ILifecycleService, BrowserLifecycleService, false);
+registerSingleton(ILifecycleService, BrowserLifecycleService, InstantiationType.Eager);

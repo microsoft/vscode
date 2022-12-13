@@ -51,13 +51,23 @@ export function waitForState<T, TState extends T>(observable: IObservable<T>, pr
 export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T>;
 export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T> {
 	return new Promise(resolve => {
+		let didRun = false;
+		let shouldDispose = false;
 		const d = autorun('waitForState', reader => {
 			const currentState = observable.read(reader);
 			if (predicate(currentState)) {
-				d.dispose();
+				if (!didRun) {
+					shouldDispose = true;
+				} else {
+					d.dispose();
+				}
 				resolve(currentState);
 			}
 		});
+		didRun = true;
+		if (shouldDispose) {
+			d.dispose();
+		}
 	});
 }
 
@@ -181,6 +191,42 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	protected override onLastObserverRemoved(): void {
 		this.subscription!.dispose();
 		this.subscription = undefined;
+	}
+
+	public override get(): void {
+		// NO OP
+	}
+}
+
+export function observableSignal(
+	debugName: string
+): IObservableSignal {
+	return new ObservableSignal(debugName);
+}
+
+export interface IObservableSignal extends IObservable<void> {
+	trigger(tx: ITransaction | undefined): void;
+}
+
+class ObservableSignal extends BaseObservable<void> implements IObservableSignal {
+	constructor(
+		public readonly debugName: string
+	) {
+		super();
+	}
+
+	public trigger(tx: ITransaction | undefined): void {
+		if (!tx) {
+			transaction(tx => {
+				this.trigger(tx);
+			}, () => `Trigger signal ${this.debugName}`);
+			return;
+		}
+
+		for (const o of this.observers) {
+			tx.updateObserver(o, this);
+			o.handleChange(this, undefined);
+		}
 	}
 
 	public override get(): void {

@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants } from 'vs/base/common/uint';
-import { Range } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { distinct } from 'vs/base/common/arrays';
+import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Constants } from 'vs/base/common/uint';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ILogService } from 'vs/platform/log/common/log';
+import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 
 export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hcDark: '#ffff0033', hcLight: '#ffff6673' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hcDark: '#7abd7a4d', hcLight: '#cee7ce73' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
@@ -107,8 +108,20 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 	return result;
 }
 
-export class CallStackEditorContribution implements IEditorContribution {
-	private toDispose: IDisposable[] = [];
+export class LazyCallStackEditorContribution extends Disposable {
+	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+
+		const listener = editor.onDidChangeModel(() => {
+			if (editor.hasModel()) {
+				listener.dispose();
+				this._register(instantiationService.createInstance(CallStackEditorContribution, editor));
+			}
+		});
+	}
+}
+
+class CallStackEditorContribution extends Disposable implements IEditorContribution {
 	private decorations = this.editor.createDecorationsCollection();
 
 	constructor(
@@ -117,15 +130,18 @@ export class CallStackEditorContribution implements IEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
+		super();
+
 		const setDecorations = () => this.decorations.set(this.createCallStackDecorations());
-		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
+		this._register(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
 			setDecorations();
 		}));
-		this.toDispose.push(this.editor.onDidChangeModel(e => {
+		this._register(this.editor.onDidChangeModel(e => {
 			if (e.newModelUrl) {
 				setDecorations();
 			}
 		}));
+		setDecorations();
 	}
 
 	private createCallStackDecorations(): IModelDeltaDecoration[] {
@@ -169,9 +185,9 @@ export class CallStackEditorContribution implements IEditorContribution {
 		return distinct(decorations, d => `${d.options.className} ${d.options.glyphMarginClassName} ${d.range.startLineNumber} ${d.range.startColumn}`);
 	}
 
-	dispose(): void {
+	override dispose(): void {
+		super.dispose();
 		this.decorations.clear();
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 

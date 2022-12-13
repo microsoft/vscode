@@ -37,7 +37,7 @@ export interface IAction {
 
 export interface IActionRunner extends IDisposable {
 	readonly onDidRun: Event<IRunEvent>;
-	readonly onBeforeRun: Event<IRunEvent>;
+	readonly onWillRun: Event<IRunEvent>;
 
 	run(action: IAction, context?: unknown): unknown;
 }
@@ -165,10 +165,10 @@ export interface IRunEvent {
 
 export class ActionRunner extends Disposable implements IActionRunner {
 
-	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun = this._onBeforeRun.event;
+	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
+	readonly onWillRun = this._onWillRun.event;
 
-	private _onDidRun = this._register(new Emitter<IRunEvent>());
+	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
 
 	async run(action: IAction, context?: unknown): Promise<void> {
@@ -176,7 +176,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 			return;
 		}
 
-		this._onBeforeRun.fire({ action });
+		this._onWillRun.fire({ action });
 
 		let error: Error | undefined = undefined;
 		try {
@@ -193,7 +193,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	}
 }
 
-export class Separator extends Action {
+export class Separator implements IAction {
 
 	/**
 	 * Joins all non-empty lists of actions with separators.
@@ -215,12 +215,14 @@ export class Separator extends Action {
 
 	static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string) {
-		super(Separator.ID, label, label ? 'separator text' : 'separator');
+	readonly id: string = Separator.ID;
 
-		this.checked = false;
-		this.enabled = false;
-	}
+	readonly label: string = '';
+	readonly tooltip: string = '';
+	readonly class: string = 'separator';
+	readonly enabled: boolean = false;
+	readonly checked: boolean = false;
+	async run() { }
 }
 
 export class SubmenuAction implements IAction {

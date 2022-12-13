@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -34,8 +34,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			description: nls.localize('useRelativeTime', "Determines if relative time will be used in comment timestamps (ex. '1 day ago').")
+		},
+		'comments.visible': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('comments.visible', "Controls the visibility of the comments bar and comment threads in editors that have commenting ranges and comments. Comments are still accessible via the Comments view and will cause commenting to be toggled on in the same way running the command \"Comments: Toggle Editor Commenting\" toggles comments.")
 		}
 	}
 });
 
-registerSingleton(ICommentService, CommentService, false);
+registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);

@@ -532,19 +532,19 @@ export class Menubar {
 
 		return new MenuItem(this.likeAction(commandId, {
 			label: item.label,
-			click: (menuItem, win, event) => {
+			click: async (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
-				const success = this.windowsMainService.open({
+				const success = (await this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentMainService.args,
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
 					gotoLineMode: false,
 					remoteAuthority: item.remoteAuthority
-				}).length > 0;
+				})).length > 0;
 
 				if (!success) {
-					this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
+					await this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
 				}
 			}
 		}, false));

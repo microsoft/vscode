@@ -95,7 +95,7 @@ export interface ITokenizationTextModelPart {
 	getLanguageId(): string;
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
-	setLanguageId(languageId: string): void;
+	setLanguageId(languageId: string, source?: string): void;
 
 	readonly backgroundTokenizationState: BackgroundTokenizationState;
 	readonly onBackgroundTokenizationStateChanged: Event<void>;

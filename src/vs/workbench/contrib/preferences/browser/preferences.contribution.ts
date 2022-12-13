@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/preferences';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -420,6 +420,23 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 				args = sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.openAccessibilitySettings',
+					title: { value: nls.localize('openAccessibilitySettings', "Open Accessibility Settings"), original: 'Open Accessibility Settings' },
+					category,
+					menu: {
+						id: MenuId.CommandPalette,
+						when: WorkbenchStateContext.notEqualsTo('empty')
+					}
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:accessibility' });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -1243,12 +1260,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-// PreferencesActionsContribution is heavy because it runs through various details to determine which actions to render.
-// We don't need it to start so early.
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, 'PreferencesActionsContribution', LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, 'PreferencesContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
-registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);
+registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);
 
 // Preferences menu
 

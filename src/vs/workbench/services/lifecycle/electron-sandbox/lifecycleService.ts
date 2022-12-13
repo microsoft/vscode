@@ -9,7 +9,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Promises, disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -192,4 +192,4 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 }
 
-registerSingleton(ILifecycleService, NativeLifecycleService, false);
+registerSingleton(ILifecycleService, NativeLifecycleService, InstantiationType.Eager);

@@ -15,13 +15,11 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
@@ -39,7 +37,6 @@ export class StartupTimings implements IWorkbenchContribution {
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
-		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._report().catch(onUnexpectedError);
 	}
@@ -109,10 +106,6 @@ export class StartupTimings implements IWorkbenchContribution {
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (activePanel) {
 			return 'Current active panel : ' + this._paneCompositeService.getPaneComposite(activePanel.getId(), ViewContainerLocation.Panel)?.name;
-		}
-		const noCachedData = this._environmentService.args['no-cached-data'];
-		if (!noCachedData && !didUseCachedData(this._productService, this._storageService, this._environmentService)) {
-			return 'Either cache data is rejected or not created';
 		}
 		if (!await this._updateService.isLatestVersion()) {
 			return 'Not on latest version, updates available';

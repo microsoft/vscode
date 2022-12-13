@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ViewPaneContainer, ViewPaneContainerAction, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -19,7 +19,6 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 interface IViewsCustomizations {
@@ -55,8 +54,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 
-	private readonly viewContainersCustomLocations: Map<string, ViewContainerLocation>;
-	private readonly viewDescriptorsCustomLocations: Map<string, string>;
+	private viewContainersCustomLocations: Map<string, ViewContainerLocation>;
+	private viewDescriptorsCustomLocations: Map<string, string>;
 
 	private readonly _onDidChangeViewContainers = this._register(new Emitter<{ added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>; removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }> }>());
 	readonly onDidChangeViewContainers = this._onDidChangeViewContainers.event;
@@ -114,11 +113,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
 
-		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
-			.registerKeys([{
-				key: ViewDescriptorService.VIEWS_CUSTOMIZATIONS,
-				description: localize('views customizations', "Views Customizations"),
-			}]);
 	}
 
 	private migrateToViewsCustomizationsStorage(): void {
@@ -573,6 +567,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		for (const { views, from, to } of viewsToMove) {
 			this.moveViewsWithoutSaving(views, from, to);
 		}
+
+		this.viewContainersCustomLocations = newViewContainerCustomizations;
+		this.viewDescriptorsCustomLocations = newViewDescriptorCustomizations;
 	}
 
 	// Generated Container Id Format
@@ -588,23 +585,24 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		for (const [containerId, location] of this.viewContainersCustomLocations) {
 			const container = this.getViewContainerById(containerId);
-			// Save only if the view container exists and
-			// the view container is generated or not at default location
-			if (container && (this.isGeneratedContainerId(containerId) || location !== this.getDefaultViewContainerLocation(container))) {
-				viewCustomizations.viewContainerLocations[containerId] = location;
+			// Skip if the view container is not a generated container and in default location
+			if (container && !this.isGeneratedContainerId(containerId) && location === this.getDefaultViewContainerLocation(container)) {
+				continue;
 			}
+			viewCustomizations.viewContainerLocations[containerId] = location;
 		}
 
-		for (const viewContainer of this.viewContainers) {
-			const viewContainerModel = this.getViewContainerModel(viewContainer);
-			for (const viewDescriptor of viewContainerModel.allViewDescriptors) {
-				const defaultContainer = this.getDefaultContainerById(viewDescriptor.id);
-				// Save only if the view is not in the default container
+		for (const [viewId, viewContainerId] of this.viewDescriptorsCustomLocations) {
+			const viewContainer = this.getViewContainerById(viewContainerId);
+			if (viewContainer) {
+				const defaultContainer = this.getDefaultContainerById(viewId);
+				// Skip if the view is at default location
 				// https://github.com/microsoft/vscode/issues/90414
-				if (defaultContainer?.id !== viewContainer.id) {
-					viewCustomizations.viewLocations[viewDescriptor.id] = viewContainer.id;
+				if (defaultContainer?.id === viewContainer.id) {
+					continue;
 				}
 			}
+			viewCustomizations.viewLocations[viewId] = viewContainerId;
 		}
 
 		this.viewCustomizations = viewCustomizations;
@@ -923,4 +921,4 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 }
 
-registerSingleton(IViewDescriptorService, ViewDescriptorService, true);
+registerSingleton(IViewDescriptorService, ViewDescriptorService, InstantiationType.Delayed);

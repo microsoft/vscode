@@ -42,8 +42,14 @@ import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
+import { hostname, release } from 'os';
+import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -86,6 +92,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
+	private static sandboxState: boolean | undefined = undefined;
+
 	//#region Events
 
 	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
@@ -119,11 +127,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
-	private _previousWorkspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	get previousWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._previousWorkspace; }
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
+	get profile(): IUserDataProfile | undefined {
+		if (!this.config) {
+			return undefined;
+		}
+		const profile = this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id);
+		if (this.isExtensionDevelopmentHost && profile) {
+			return profile;
+		}
+		return this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', profile ?? this.userDataProfilesService.defaultProfile);
+	}
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -182,7 +197,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
 
@@ -197,13 +213,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
+			if (typeof CodeWindow.sandboxState === 'undefined') {
+				// we should only check this once so that we do not end up
+				// with some windows in sandbox mode and some not!
+				CodeWindow.sandboxState = this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false);
+			}
+
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 			let useSandbox = false;
 			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
 				useSandbox = windowSettings.experimental.useSandbox;
+			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
+				useSandbox = true;
 			} else {
-				useSandbox = typeof product.quality === 'string' && product.quality !== 'stable';
+				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
 
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
@@ -217,12 +241,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
 					spellcheck: false,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+					autoplayPolicy: 'user-gesture-required',
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
@@ -275,7 +300,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
+				if (useWindowControlsOverlay(this.configurationService)) {
 
 					// This logic will not perfectly guess the right colors
 					// to use on initialization, but prefer to keep things
@@ -306,7 +331,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService, this.environmentMainService)) || isMacintosh)) {
+			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
 				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -519,9 +544,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerListeners(): void {
 
-		// Crashes & Unresponsive & Failed to load
+		// Window error conditions to handle
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, details));
 		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
 
 		// Prevent windows/iframes from blocking the unload
@@ -620,13 +645,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
-			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+			case WindowError.PROCESS_GONE:
+				this.logService.error(`CodeWindow: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
@@ -638,11 +663,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the crash better' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
-			comment: 'Provides insight into reasons the vscode window crashes.';
+			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
@@ -654,19 +679,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inform User if non-recoverable
 		switch (type) {
 			case WindowError.UNRESPONSIVE:
-			case WindowError.CRASHED:
+			case WindowError.PROCESS_GONE:
 
-				// If we run extension tests from CLI, showing a dialog is not
-				// very helpful in this case. Rather, we bring down the test run
-				// to signal back a failing run.
+				// If we run extension tests from CLI, we want to signal
+				// back this state to the test runner by exiting with a
+				// non-zero exit code.
 				if (this.isExtensionDevelopmentTestFromCli) {
 					this.lifecycleMainService.kill(1);
 					return;
 				}
 
-				// If we run smoke tests, we never want to show a blocking dialog
+				// If we run smoke tests, want to proceed with an orderly
+				// shutdown as much as possible by destroying the window
+				// and then calling the normal `quit` routine.
 				if (this.environmentMainService.args['enable-smoke-test-driver']) {
-					this.destroyWindow(false, false);
+					await this.destroyWindow(false, false);
+					this.lifecycleMainService.quit(); // still allow for an orderly shutdown
 					return;
 				}
 
@@ -702,40 +730,107 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Handle choice
 					if (result.response !== 1 /* keep waiting */) {
 						const reopen = result.response === 0;
-						this.destroyWindow(reopen, result.checkboxChecked);
+						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
 
-				// Crashed
-				else if (type === WindowError.CRASHED) {
-					let message: string;
-					if (!details) {
-						message = localize('appCrashed', "The window has crashed");
-					} else {
-						message = localize('appCrashedDetails', "The window has crashed (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+				// Process gone
+				else if (type === WindowError.PROCESS_GONE) {
+
+					// Windows: running as admin with AppLocker enabled is unsupported
+					//          when sandbox: true.
+					//          we cannot detect AppLocker use currently, but make a
+					//          guess based on the reason and exit code.
+					if (isWindows && details?.reason === 'launch-failed' && details.exitCode === 18 && await this.nativeHostMainService.isAdmin(undefined)) {
+						await this.handleWindowsAdminCrash(details);
 					}
 
-					// Show Dialog
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
-						type: 'warning',
-						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
-						],
-						message,
-						detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
-						noLink: true,
-						defaultId: 0,
-						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this._win);
+					// Any other crash: offer to restart
+					else {
+						let message: string;
+						if (!details) {
+							message = localize('appGone', "The window terminated unexpectedly");
+						} else {
+							message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+						}
 
-					// Handle choice
-					const reopen = result.response === 0;
-					this.destroyWindow(reopen, result.checkboxChecked);
+						// Show Dialog
+						const result = await this.dialogMainService.showMessageBox({
+							title: this.productService.nameLong,
+							type: 'warning',
+							buttons: [
+								mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							],
+							message,
+							detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+							noLink: true,
+							defaultId: 0,
+							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
+						}, this._win);
+
+						// Handle choice
+						const reopen = result.response === 0;
+						await this.destroyWindow(reopen, result.checkboxChecked);
+					}
 				}
 				break;
 		}
+	}
+
+	private async handleWindowsAdminCrash(details: { reason: string; exitCode: number }) {
+
+		// Prepare telemetry event (TODO@bpasero remove me eventually)
+		const appenders: ITelemetryAppender[] = [];
+		const isInternal = isInternalTelemetry(this.productService, this.configurationService);
+		if (supportsTelemetry(this.productService, this.environmentMainService)) {
+			if (this.productService.aiConfig && this.productService.aiConfig.ariaKey) {
+				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
+			}
+
+			const { installSourcePath } = this.environmentMainService;
+			const machineId = await resolveMachineId(this.stateMainService);
+
+			const config: ITelemetryServiceConfig = {
+				appenders,
+				sendErrorTelemetry: false,
+				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
+				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
+			};
+
+			const telemetryService = new TelemetryService(config, this.configurationService, this.productService);
+
+			type WindowAdminErrorClassification = {
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+				owner: 'bpasero';
+				comment: 'Provides insight into reasons the vscode window had an error when running as admin.';
+			};
+			type WindowAdminErrorEvent = {
+				reason: string | undefined;
+				code: number | undefined;
+			};
+			await telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
+		}
+
+		// Inform user
+		await this.dialogMainService.showMessageBox({
+			title: this.productService.nameLong,
+			type: 'error',
+			buttons: [
+				mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+			],
+			message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
+			detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
+			noLink: true,
+			defaultId: 0
+		}, this._win);
+
+		// Ensure to await flush telemetry
+		await Promise.all(appenders.map(appender => appender.flush()));
+
+		// Exit
+		await this.destroyWindow(false, false);
 	}
 
 	private async destroyWindow(reopen: boolean, skipRestoreEditors: boolean): Promise<void> {
@@ -756,7 +851,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// 'close' event will not be fired on destroy(), so signal crash via explicit event
 		this._onDidDestroy.fire();
 
-		// make sure to destroy the window as it has crashed
+		// make sure to destroy the window as its renderer process is gone
 		this._win?.destroy();
 
 		// ask the windows service to open a new fresh window if specified
@@ -774,7 +869,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = this.windowsMainService.open({
+			const [window] = await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -794,7 +889,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this._config?.workspace?.id === workspace.id && this._config) {
+		if (this._config?.workspace?.id === workspace.id) {
 			this._config.workspace = undefined;
 		}
 	}
@@ -854,8 +949,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win.setTitle(this.productService.nameLong);
 		}
 
-		this._previousWorkspace = this.openedWorkspace;
-
 		// Update configuration values based on our window context
 		// and set it into the config object URL for usage.
 		this.updateConfiguration(configuration, options);
@@ -878,7 +971,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -972,12 +1065,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
+		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
+		configuration.logLevel = this.logService.getLevel();
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1100,7 +1196,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// macOS: traffic lights
 		else if (isMacintosh && options.height !== undefined) {
-			this._win.setTrafficLightPosition({ x: 7, y: (options.height - 15) / 2 }); // 15px is the height of the traffic lights
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			this._win.setTrafficLightPosition({ x: verticalOffset, y: verticalOffset });
 		}
 	}
 

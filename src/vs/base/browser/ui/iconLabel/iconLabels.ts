@@ -14,7 +14,9 @@ export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | stri
 	let textStart = 0, textStop = 0;
 	while ((match = labelWithIconsRegex.exec(text)) !== null) {
 		textStop = match.index || 0;
-		elements.push(text.substring(textStart, textStop));
+		if (textStart < textStop) {
+			elements.push(text.substring(textStart, textStop));
+		}
 		textStart = (match.index || 0) + match[0].length;
 
 		const [, escaped, codicon] = match;

@@ -14,11 +14,10 @@ import { URI } from 'vs/base/common/uri';
 import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
-import { ExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/extensionsCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
+import { UnusedWorkspaceStorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,6 +31,7 @@ import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -49,7 +49,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { ConsoleLogger, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { FollowerLogService, LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { FollowerLogService, LoggerChannelClient, LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -69,7 +69,7 @@ import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataAutoSyncChannel, UserDataSyncAccountServiceChannel, UserDataSyncMachinesServiceChannel, UserDataSyncStoreManagementServiceChannel, UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
@@ -80,6 +80,8 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
+import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -106,12 +108,19 @@ import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/elect
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
+import { RemoteTunnelService } from 'vs/platform/remoteTunnel/electron-browser/remoteTunnelService';
+import { IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
+import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
+import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/contrib/extensions';
 
 class SharedProcessMain extends Disposable {
 
 	private server = this._register(new MessagePortServer());
 
 	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
+
+	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
@@ -122,7 +131,14 @@ class SharedProcessMain extends Disposable {
 	private registerListeners(): void {
 
 		// Shared process lifecycle
-		const onExit = () => this.dispose();
+		const onExit = async () => {
+			if (this.lifecycleService) {
+				await this.lifecycleService.fireOnWillShutdown();
+				this.lifecycleService.dispose();
+				this.lifecycleService = undefined;
+			}
+			this.dispose();
+		};
 		process.once('exit', onExit);
 		ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
 
@@ -167,16 +183,18 @@ class SharedProcessMain extends Disposable {
 		this._register(combinedDisposable(
 			instantiationService.createInstance(CodeCacheCleaner, this.configuration.codeCachePath),
 			instantiationService.createInstance(LanguagePackCachedDataCleaner),
-			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
+			instantiationService.createInstance(UnusedWorkspaceStorageDataCleaner),
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
-			instantiationService.createInstance(ExtensionsCleaner),
+			instantiationService.createInstance(ExtensionsContributions),
 			instantiationService.createInstance(UserDataProfilesCleaner)
 		));
 	}
 
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
+
+		// Lifecycle
 
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
@@ -208,6 +226,10 @@ class SharedProcessMain extends Disposable {
 
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
+
+		// Lifecycle
+		this.lifecycleService = new SharedProcessLifecycleService(logService);
+		services.set(ISharedProcessLifecycleService, this.lifecycleService);
 
 		// Worker
 		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
@@ -255,20 +277,20 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
+		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, productService, logService));
 
 		// Checksum
-		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
+		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
 
 		// V8 Inspect profiler
-		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService));
+		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
 		// Native Host
 		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
-		services.set(IDownloadService, new SyncDescriptor(DownloadService));
+		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
 
 		// Extension recommendations
 		const activeWindowManager = this._register(new ActiveWindowManager(nativeHostService));
@@ -309,35 +331,40 @@ class SharedProcessMain extends Disposable {
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
-		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
-		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Extension Tips
-		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService));
+		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService, undefined, false /* Eagerly scans and computes exe based recommendations */));
 
 		// Localizations
-		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
+		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false /* proxied to other processes */));
 
 		// Diagnostics
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, undefined, false /* proxied to other processes */));
 
 		// Settings Sync
-		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService));
-		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
+		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService, undefined, true));
+		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService, undefined, true));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(this.server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
-		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
-		services.set(IIgnoredExtensionsManagementService, new SyncDescriptor(IgnoredExtensionsManagementService));
+		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService, undefined, false /* Eagerly resets installed extensions */));
+		services.set(IIgnoredExtensionsManagementService, new SyncDescriptor(IgnoredExtensionsManagementService, undefined, true));
 		services.set(IExtensionStorageService, new SyncDescriptor(ExtensionStorageService));
-		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService));
-		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
-		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService));
-		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService));
-		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService));
-		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
+		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService, undefined, true));
+		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService, undefined, true));
+		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService, undefined, true));
+		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService, undefined, false /* Eagerly cleans up old backups */));
+		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
+		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService, undefined, false /* Initializes the Sync State */));
+		services.set(IUserDataProfileStorageService, new SyncDescriptor(UserDataProfileStorageService, undefined, true));
+		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
+
+		// Terminal
 
 		const ptyHostService = new PtyHostService({
 			graceTime: LocalReconnectConstants.GraceTime,
@@ -350,20 +377,26 @@ class SharedProcessMain extends Disposable {
 		);
 		ptyHostService.initialize();
 
-		// Terminal
 		services.set(ILocalPtyService, this._register(ptyHostService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
 		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
+		// Remote Tunnel
+		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
+
 		return new InstantiationService(services);
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
+
+		// Log Level
+		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService), accessor.get(ILoggerService));
+		this.server.registerChannel('logLevel', logLevelChannel);
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
@@ -403,7 +436,7 @@ class SharedProcessMain extends Disposable {
 		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(IUserDataProfilesService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
@@ -422,6 +455,10 @@ class SharedProcessMain extends Disposable {
 		// Worker
 		const sharedProcessWorkerChannel = ProxyChannel.fromService(accessor.get(ISharedProcessWorkerService));
 		this.server.registerChannel(ipcSharedProcessWorkerChannelName, sharedProcessWorkerChannel);
+
+		// Remote Tunnel
+		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
+		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
 
 	}
 

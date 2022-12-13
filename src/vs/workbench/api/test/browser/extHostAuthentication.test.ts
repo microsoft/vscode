@@ -171,9 +171,9 @@ suite('ExtHostAuthentication', () => {
 			scopes,
 			{});
 
-		assert.strictEqual(session.id, session2?.id);
-		assert.strictEqual(session.scopes[0], session2?.scopes[0]);
-		assert.strictEqual(session.accessToken, session2?.accessToken);
+		assert.strictEqual(session2?.id, session.id);
+		assert.strictEqual(session2?.scopes[0], session.scopes[0]);
+		assert.strictEqual(session2?.accessToken, session.accessToken);
 	});
 
 	// should behave the same as createIfNone: false
@@ -312,9 +312,9 @@ suite('ExtHostAuthentication', () => {
 
 		// clearing session preference causes us to get the first session
 		// because it would normally show a quick pick for the user to choose
-		assert.strictEqual(session.id, session3?.id);
-		assert.strictEqual(session.scopes[0], session3?.scopes[0]);
-		assert.strictEqual(session.accessToken, session3?.accessToken);
+		assert.strictEqual(session3?.id, session.id);
+		assert.strictEqual(session3?.scopes[0], session.scopes[0]);
+		assert.strictEqual(session3?.accessToken, session.accessToken);
 	});
 
 	test('silently getting session should return a session (if any) regardless of preference - fixes #137819', async () => {
@@ -347,18 +347,18 @@ suite('ExtHostAuthentication', () => {
 			'test-multiple',
 			scopes,
 			{});
-		assert.strictEqual(session.id, shouldBeSession1?.id);
-		assert.strictEqual(session.scopes[0], shouldBeSession1?.scopes[0]);
-		assert.strictEqual(session.accessToken, shouldBeSession1?.accessToken);
+		assert.strictEqual(shouldBeSession1?.id, session.id);
+		assert.strictEqual(shouldBeSession1?.scopes[0], session.scopes[0]);
+		assert.strictEqual(shouldBeSession1?.accessToken, session.accessToken);
 
 		const shouldBeSession2 = await extHostAuthentication.getSession(
 			extensionDescription,
 			'test-multiple',
 			scopes2,
 			{});
-		assert.strictEqual(session2.id, shouldBeSession2?.id);
-		assert.strictEqual(session2.scopes[0], shouldBeSession2?.scopes[0]);
-		assert.strictEqual(session2.accessToken, shouldBeSession2?.accessToken);
+		assert.strictEqual(shouldBeSession2?.id, session2.id);
+		assert.strictEqual(shouldBeSession2?.scopes[0], session2.scopes[0]);
+		assert.strictEqual(shouldBeSession2?.accessToken, session2.accessToken);
 	});
 
 	//#endregion

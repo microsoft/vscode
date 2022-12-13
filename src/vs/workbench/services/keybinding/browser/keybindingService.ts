@@ -15,7 +15,6 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -32,7 +31,7 @@ import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMappe
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -40,7 +39,6 @@ import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
@@ -202,21 +200,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
 		this.updateSchema();
 
-		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidChangeConfiguration((e) => {
-			const newDispatchConfig = getDispatchConfig(configurationService);
-			if (dispatchConfig === newDispatchConfig) {
-				return;
-			}
-
-			dispatchConfig = newDispatchConfig;
-			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver();
-		});
-
-		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
+		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
 		this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
-			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
+			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
 			this.updateResolver();
 		});
 
@@ -458,7 +444,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _assertBrowserConflicts(kb: (SimpleKeybinding | ScanCodeBinding)[], commandId: string): boolean {
+	private _assertBrowserConflicts(kb: (SimpleKeybinding | ScanCodeBinding)[], commandId: string | null): boolean {
 		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
@@ -902,24 +888,4 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 	schemaRegistry.notifySchemaChanged(schemaId);
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
-const keyboardConfiguration: IConfigurationNode = {
-	'id': 'keyboard',
-	'order': 15,
-	'type': 'object',
-	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'properties': {
-		'keyboard.dispatch': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'string',
-			enum: ['code', 'keyCode'],
-			default: 'code',
-			markdownDescription: nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
-			included: OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
-		}
-	}
-};
-
-configurationRegistry.registerConfiguration(keyboardConfiguration);
-
-registerSingleton(IKeybindingService, WorkbenchKeybindingService, false);
+registerSingleton(IKeybindingService, WorkbenchKeybindingService, InstantiationType.Eager);

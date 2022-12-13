@@ -35,6 +35,11 @@ import { Event } from 'vs/base/common/event';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService, ISaveAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -65,10 +70,19 @@ suite('Edit session sync', () => {
 			override onWillShutdown = Event.None;
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() { });
+		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {
+			override onDidSignIn = Event.None;
+			override onDidSignOut = Event.None;
+		});
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async show() {
+				return { choice: 1 };
+			}
+		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
@@ -99,6 +113,9 @@ suite('Edit session sync', () => {
 		});
 		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() {
 			override registerTextModelContentProvider = () => ({ dispose: () => { } });
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override saveAll = async (_options: ISaveAllEditorsOptions) => true;
 		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
@@ -133,6 +150,10 @@ suite('Edit session sync', () => {
 		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
 		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
 
+		// Ensure that user does not get prompted here
+		const dialogServiceShowStub = sandbox.stub();
+		instantiationService.stub(IDialogService, 'show', dialogServiceShowStub);
+
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
@@ -141,6 +162,7 @@ suite('Edit session sync', () => {
 
 		// Verify edit session was correctly applied
 		assert.equal((await fileService.readFile(fileUri)).value.toString(), fileContents);
+		assert.equal(dialogServiceShowStub.called, false);
 	});
 
 	test('Edit session not stored if there are no edits', async function () {
@@ -150,7 +172,7 @@ suite('Edit session sync', () => {
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
-		await editSessionsContribution.storeEditSession(true);
+		await editSessionsContribution.storeEditSession(true, new CancellationTokenSource().token);
 
 		// Verify that we did not attempt to write the edit session
 		assert.equal(writeStub.called, false);

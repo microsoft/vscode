@@ -20,7 +20,7 @@ import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -605,4 +605,4 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 }
 
-registerSingleton(IPreferencesService, PreferencesService, true);
+registerSingleton(IPreferencesService, PreferencesService, InstantiationType.Delayed);

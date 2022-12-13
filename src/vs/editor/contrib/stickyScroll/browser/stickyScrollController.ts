@@ -12,6 +12,9 @@ import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidge
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as dom from 'vs/base/browser/dom';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -26,6 +29,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		_editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService _instaService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
 		this._editor = _editor;
@@ -41,6 +45,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}));
 		this.readConfiguration();
+		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
+			this.onContextMenu(event);
+		}));
 	}
 
 	public get stickyScrollCandidateProvider() {
@@ -49,6 +56,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public get stickyScrollWidgetState() {
 		return this._widgetState;
+	}
+
+	private onContextMenu(event: MouseEvent) {
+		this._contextMenuService.showContextMenu({
+			menuId: MenuId.StickyScrollContext,
+			getAnchor: () => event,
+		});
 	}
 
 	private readConfiguration() {
@@ -62,7 +76,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this.renderStickyScroll()));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this.onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
-			this._sessionStore.add(this._stickyLineCandidateProvider.onStickyScrollChange(() => this.renderStickyScroll()));
+			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this.renderStickyScroll()));
 			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this.renderStickyScroll()));
@@ -98,12 +112,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		}
 		const model = this._editor.getModel();
-		if (this._stickyLineCandidateProvider.getVersionId() !== model.getVersionId()) {
-			// Old _ranges not updated yet
-			return;
+		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
+		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
+			this._widgetState = this.getScrollWidgetState();
+			this._stickyScrollWidget.setState(this._widgetState);
 		}
-		this._widgetState = this.getScrollWidgetState();
-		this._stickyScrollWidget.setState(this._widgetState);
 	}
 
 	public getScrollWidgetState(): StickyScrollWidgetState {

@@ -98,7 +98,7 @@ export class MergeMarkersController extends Disposable {
 					classNames.push('conflict-zone');
 
 					if (activeRange) {
-						const activeRangeInResult = vm.model.getRangeInResult(activeRange.baseRange, reader);
+						const activeRangeInResult = vm.model.getLineRangeInResult(activeRange.baseRange, reader);
 						if (activeRangeInResult.intersects(b.lineRange)) {
 							classNames.push('focused');
 						}

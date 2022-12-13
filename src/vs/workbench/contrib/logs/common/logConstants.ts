@@ -6,10 +6,12 @@
 export const mainLogChannelId = 'mainLog';
 export const sharedLogChannelId = 'sharedLog';
 export const rendererLogChannelId = 'rendererLog';
-export const extHostLogChannelId = 'extHostLog';
 export const telemetryLogChannelId = 'telemetryLog';
 export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
 export const userDataSyncLogChannelId = 'userDataSyncLog';
 export const editSessionsLogChannelId = 'editSessionsSyncLog';
+export const remoteServerLog = 'remoteServerLog';
+export const remotePtyHostLog = 'remotePtyHostLog';
+
 
 export const showWindowLogActionId = 'workbench.action.showWindowLog';

@@ -13,7 +13,6 @@ import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actio
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -161,6 +160,13 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/additionalActions',
+		id: MenuId.CommentThreadAdditionalActions,
+		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
+		supportsSubmenus: false,
+		proposed: 'contribCommentThreadAdditionalMenu'
+	},
+	{
 		key: 'comments/commentThread/title/context',
 		id: MenuId.CommentThreadTitleContext,
 		description: localize('commentThread.titleContext', "The contributed comment thread title's peek context menu, rendered as a right click menu on the comment thread's peek title."),
@@ -203,12 +209,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'notebook/cell/execute',
 		id: MenuId.NotebookCellExecute,
 		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
-	},
-	{
-		key: 'notebook/cell/executePrimary',
-		id: MenuId.NotebookCellExecutePrimary,
-		description: localize('notebook.cell.executePrimary', "The contributed primary notebook cell execution button"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/toolbar',
@@ -267,6 +267,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu")
+	},
+	{
 		key: 'file/share',
 		id: MenuId.MenubarShare,
 		description: localize('menus.share', "Share submenu shown in the top level File menu."),
@@ -286,12 +291,11 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribEditorContentMenu'
 	},
 	{
-		key: 'webview/context',
-		id: MenuId.WebviewContext,
-		description: localize('webview.context', "The webview context menu"),
-		proposed: 'contribWebviewContext'
+		key: 'mergeEditor/result/title',
+		id: MenuId.MergeInputResultToolbar,
+		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
+		proposed: 'contribMergeEditorMenus'
 	},
-
 ];
 
 namespace schema {
@@ -626,7 +630,14 @@ const _commandRegistrations = new DisposableStore();
 
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution
+	jsonSchema: schema.commandsContribution,
+	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.command) {
+				result.push(`onCommand:${contrib.command}`);
+			}
+		}
+	}
 });
 
 commandsExtensionPoint.setHandler(extensions => {
@@ -744,7 +755,7 @@ submenusExtensionPoint.setHandler(extensions => {
 	}
 });
 
-const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
+const _apiMenusByKey = new Map(apiMenus.map(menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
 const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 

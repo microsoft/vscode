@@ -17,12 +17,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
+import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelView';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
@@ -292,10 +290,10 @@ export class NotebookEditorToolbar extends Disposable {
 		readonly contextKeyService: IContextKeyService,
 		readonly notebookOptions: NotebookOptions,
 		readonly domNode: HTMLElement,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IMenuService readonly menuService: IMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService
@@ -306,16 +304,11 @@ export class NotebookEditorToolbar extends Disposable {
 		this._secondaryActions = [];
 		this._buildBody();
 
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
-				if (notebookEditor === this.notebookEditor) {
-					// this is the active editor
-					this._showNotebookActionsinEditorToolbar();
-					return;
-				}
-			}
-		}));
+		this._register(Event.debounce<void, void>(
+			this.editorService.onDidActiveEditorChange,
+			(last, _current) => last,
+			200
+		)(this._updatePerEditorChange, this));
 
 		this._registerNotebookActionsToolbar();
 	}
@@ -336,6 +329,17 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookTopRightToolbarContainer = document.createElement('div');
 		this._notebookTopRightToolbarContainer.classList.add('notebook-toolbar-right');
 		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);
+	}
+
+	private _updatePerEditorChange() {
+		if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+			const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
+			if (notebookEditor === this.notebookEditor) {
+				// this is the active editor
+				this._showNotebookActionsinEditorToolbar();
+				return;
+			}
+		}
 	}
 
 	private _registerNotebookActionsToolbar() {
@@ -540,12 +544,14 @@ export class NotebookEditorToolbar extends Disposable {
 
 		for (let i = 0; i < toolbar.getItemsLength(); i++) {
 			const action = toolbar.getItemAction(i);
-			actions.push({
-				action: action,
-				size: toolbar.getItemWidth(i),
-				visible: true,
-				renderLabel: true
-			});
+			if (action) {
+				actions.push({
+					action: action,
+					size: toolbar.getItemWidth(i),
+					visible: true,
+					renderLabel: true
+				});
+			}
 		}
 
 		this._primaryActions = actions;
@@ -612,14 +618,3 @@ export class NotebookEditorToolbar extends Disposable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveBackgroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
-			background-color: ${toolbarActiveBackgroundColor};
-		}
-		`);
-	}
-});

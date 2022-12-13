@@ -58,7 +58,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'welcome.showNewFileEntries',
 		title: localize('gettingStarted.newFile.title', "New File..."),
-		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
+		description: localize('gettingStarted.newFile.description', "Open a new untitled text file, notebook, or custom editor."),
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
@@ -355,7 +355,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
-		isFeatured: true,
+		isFeatured: false,
 		next: 'Intermediate',
 		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {

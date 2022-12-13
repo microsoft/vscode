@@ -3,43 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as lifecycle from 'vs/base/common/lifecycle';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { coalesce } from 'vs/base/common/arrays';
-import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isMacintosh } from 'vs/base/common/platform';
+import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
-		return Promise.resolve(null);
+		return null;
 	}
 
 	const children = await container.getChildren();
@@ -69,7 +70,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
-	allowEditorOverflow = true;
+	readonly allowEditorOverflow = true;
 
 	private _isVisible: boolean;
 	private showCancellationSource?: CancellationTokenSource;
@@ -84,19 +85,20 @@ export class DebugHoverWidget implements IContentWidget {
 	private treeContainer!: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
 	private scrollbar!: DomScrollableElement;
+	private debugHoverComputer: DebugHoverComputer;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
+		this.debugHoverComputer = this.instantiationService.createInstance(DebugHoverComputer, this.editor);
 	}
 
 	private create(): void {
@@ -193,81 +195,38 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(range: Range, focus: boolean): Promise<void> {
+	async showAt(position: Position, focus: boolean): Promise<void> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
-			return Promise.resolve(this.hide());
+			this.hide();
+			return;
 		}
 
-		const model = this.editor.getModel();
-		const pos = range.getStartPosition();
-
-		let rng: IRange | undefined = undefined;
-		let matchingExpression: string | undefined;
-
-		if (this.languageFeaturesService.evaluatableExpressionProvider.has(model)) {
-			const supports = this.languageFeaturesService.evaluatableExpressionProvider.ordered(model);
-
-			const promises = supports.map(support => {
-				return Promise.resolve(support.provideEvaluatableExpression(model, pos, cancellationSource.token)).then(expression => {
-					return expression;
-				}, err => {
-					//onUnexpectedExternalError(err);
-					return undefined;
-				});
-			});
-
-			const results = await Promise.all(promises).then(coalesce);
-			if (results.length > 0) {
-				matchingExpression = results[0].expression;
-				rng = results[0].range;
-
-				if (!matchingExpression) {
-					const lineContent = model.getLineContent(pos.lineNumber);
-					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn - 1);
-				}
-			}
-
-		} else {	// old one-size-fits-all strategy
-			const lineContent = model.getLineContent(pos.lineNumber);
-			const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
-
-			// use regex to extract the sub-expression #9821
-			matchingExpression = lineContent.substring(start - 1, end);
-			rng = new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length);
+		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
+		if (this.isVisible() && !result.rangeChanged) {
+			return;
 		}
 
-		if (!matchingExpression) {
-			return Promise.resolve(this.hide());
+		if (!result.range || cancellationSource.token.isCancellationRequested) {
+			this.hide();
+			return;
 		}
 
-		let expression;
-		if (session.capabilities.supportsEvaluateForHovers) {
-			expression = new Expression(matchingExpression);
-			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
-		} else {
-			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-			if (focusedStackFrame) {
-				expression = await findExpressionInStackFrame(focusedStackFrame, coalesce(matchingExpression.split('.').map(word => word.trim())));
-			}
-		}
-
+		const expression = await this.debugHoverComputer.evaluate(session);
 		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
 			return;
 		}
 
-		if (rng) {
-			this.highlightDecorations.set([{
-				range: rng,
-				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
-			}]);
-		}
+		this.highlightDecorations.set([{
+			range: result.range,
+			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
+		}]);
 
-		return this.doShow(pos, expression, focus);
+		return this.doShow(result.range.getStartPosition(), expression, focus);
 	}
 
 	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -298,7 +257,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
 		this.valueContainer.hidden = true;
@@ -394,5 +353,103 @@ class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
 
 	getTemplateId(element: IExpression): string {
 		return VariablesRenderer.ID;
+	}
+}
+
+interface IDebugHoverComputeResult {
+	rangeChanged: boolean;
+	range?: Range;
+}
+
+class DebugHoverComputer {
+	private _currentRange: Range | undefined;
+	private _currentExpression: string | undefined;
+
+	constructor(
+		private editor: ICodeEditor,
+		@IDebugService private readonly debugService: IDebugService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+	) { }
+
+	public async compute(position: Position, token: CancellationToken): Promise<IDebugHoverComputeResult> {
+		const session = this.debugService.getViewModel().focusedSession;
+
+		if (!session || !this.editor.hasModel()) {
+			return { rangeChanged: false };
+		}
+
+		const model = this.editor.getModel();
+
+		const result = await this.doCompute(model, position, token);
+		if (!result) {
+			return { rangeChanged: false };
+		}
+
+		const { range, matchingExpression } = result;
+		const rangeChanged = this._currentRange ?
+			!this._currentRange.equalsRange(range) :
+			true;
+		this._currentExpression = matchingExpression;
+		this._currentRange = Range.lift(range);
+		return { rangeChanged, range: this._currentRange };
+	}
+
+	private async doCompute(model: ITextModel, position: Position, token: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
+		if (this.languageFeaturesService.evaluatableExpressionProvider.has(model)) {
+			const supports = this.languageFeaturesService.evaluatableExpressionProvider.ordered(model);
+
+			const results = coalesce(await Promise.all(supports.map(async support => {
+				try {
+					return await support.provideEvaluatableExpression(model, position, token);
+				} catch (err) {
+					return undefined;
+				}
+			})));
+
+			if (results.length > 0) {
+				let matchingExpression = results[0].expression;
+				const range = results[0].range;
+
+				if (!matchingExpression) {
+					const lineContent = model.getLineContent(position.lineNumber);
+					matchingExpression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+				}
+
+				return { range, matchingExpression };
+			}
+		} else { // old one-size-fits-all strategy
+			const lineContent = model.getLineContent(position.lineNumber);
+			const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
+
+			// use regex to extract the sub-expression #9821
+			const matchingExpression = lineContent.substring(start - 1, end);
+			return {
+				matchingExpression,
+				range: new Range(position.lineNumber, start, position.lineNumber, start + matchingExpression.length)
+			};
+		}
+
+		return null;
+	}
+
+	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {
+		if (!this._currentExpression) {
+			throw new Error('No expression to evaluate');
+		}
+
+		if (session.capabilities.supportsEvaluateForHovers) {
+			const expression = new Expression(this._currentExpression);
+			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
+			return expression;
+		} else {
+			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (focusedStackFrame) {
+				return await findExpressionInStackFrame(
+					focusedStackFrame,
+					coalesce(this._currentExpression.split('.').map(word => word.trim())));
+			}
+		}
+
+		return undefined;
 	}
 }

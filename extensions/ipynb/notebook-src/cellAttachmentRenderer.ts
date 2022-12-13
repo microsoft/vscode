@@ -22,7 +22,7 @@ export async function activate(ctx: RendererContext<void>) {
 		md.renderer.rules.image = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			const src = token.attrGet('src');
-			const attachments: Record<string, Record<string, string>> = env.outputItem.metadata.custom?.attachments;
+			const attachments: Record<string, Record<string, string>> = env.outputItem.metadata.attachments;
 			if (attachments && src) {
 				const imageAttachment = attachments[src.replace('attachment:', '')];
 				if (imageAttachment) {

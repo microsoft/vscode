@@ -21,7 +21,7 @@ import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/commo
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { Promises, timeout } from 'vs/base/common/async';
@@ -1053,4 +1053,4 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 }
 
-registerSingleton(IEditorService, EditorService, false);
+registerSingleton(IEditorService, EditorService, InstantiationType.Eager);

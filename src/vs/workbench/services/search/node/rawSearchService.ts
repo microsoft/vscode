@@ -33,7 +33,7 @@ export class SearchService implements IRawSearchService {
 
 		const query = reviveQuery(config);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerDidAdd: () => {
+			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(token => {
 					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token);
 				});
@@ -42,7 +42,7 @@ export class SearchService implements IRawSearchService {
 					c => emitter.fire(c),
 					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				promise.cancel();
 			}
 		});
@@ -55,7 +55,7 @@ export class SearchService implements IRawSearchService {
 
 		const query = reviveQuery(rawQuery);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerDidAdd: () => {
+			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(token => {
 					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
 				});
@@ -64,7 +64,7 @@ export class SearchService implements IRawSearchService {
 					c => emitter.fire(c),
 					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				promise.cancel();
 			}
 		});

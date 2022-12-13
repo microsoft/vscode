@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtHostOutputService, ExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostWorkspace, ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostDecorations, ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
@@ -27,28 +27,28 @@ import { ExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerServi
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
-import { ExtHostTelemetryLogService, IExtHostTelemetryLogService } from 'vs/workbench/api/common/extHostTelemetryLogService';
+import { ExtHostLocalizationService, IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 
-registerSingleton(ILoggerService, ExtHostLoggerService, true);
-registerSingleton(ILogService, ExtHostLogService, true);
-registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, false);
-registerSingleton(IExtHostCommands, ExtHostCommands, false);
-registerSingleton(IExtHostConfiguration, ExtHostConfiguration, false);
-registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem, false);
-registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, false);
-registerSingleton(IExtHostDecorations, ExtHostDecorations, false);
-registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, false);
-registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo, false);
-registerSingleton(IExtHostOutputService, ExtHostOutputService, true);
-registerSingleton(IExtHostSearch, ExtHostSearch, false);
-registerSingleton(IExtHostStorage, ExtHostStorage, false);
-registerSingleton(IExtHostTask, WorkerExtHostTask, false);
-registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService, false);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService, false);
-registerSingleton(IExtHostWindow, ExtHostWindow, false);
-registerSingleton(IExtHostWorkspace, ExtHostWorkspace, false);
-registerSingleton(IExtHostSecretState, ExtHostSecretState, false);
-registerSingleton(IExtHostTelemetry, ExtHostTelemetry, false);
-registerSingleton(IExtHostTelemetryLogService, ExtHostTelemetryLogService, false);
-registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs, false);
-registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProviderService, false);
+registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
+registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
+registerSingleton(ILogService, ExtHostLogService, InstantiationType.Delayed);
+registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, InstantiationType.Delayed);
+registerSingleton(IExtHostCommands, ExtHostCommands, InstantiationType.Eager);
+registerSingleton(IExtHostConfiguration, ExtHostConfiguration, InstantiationType.Eager);
+registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem, InstantiationType.Eager);
+registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, InstantiationType.Eager);
+registerSingleton(IExtHostDecorations, ExtHostDecorations, InstantiationType.Eager);
+registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, InstantiationType.Eager);
+registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo, InstantiationType.Eager);
+registerSingleton(IExtHostOutputService, ExtHostOutputService, InstantiationType.Delayed);
+registerSingleton(IExtHostSearch, ExtHostSearch, InstantiationType.Eager);
+registerSingleton(IExtHostStorage, ExtHostStorage, InstantiationType.Eager);
+registerSingleton(IExtHostTask, WorkerExtHostTask, InstantiationType.Eager);
+registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService, InstantiationType.Eager);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
+registerSingleton(IExtHostWindow, ExtHostWindow, InstantiationType.Eager);
+registerSingleton(IExtHostWorkspace, ExtHostWorkspace, InstantiationType.Eager);
+registerSingleton(IExtHostSecretState, ExtHostSecretState, InstantiationType.Eager);
+registerSingleton(IExtHostTelemetry, ExtHostTelemetry, InstantiationType.Eager);
+registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs, InstantiationType.Eager);
+registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProviderService, InstantiationType.Eager);

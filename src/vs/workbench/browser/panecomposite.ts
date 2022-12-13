@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,6 +20,7 @@ import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/view
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IView } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { VIEWPANE_FILTER_ACTION } from 'vs/workbench/browser/parts/views/viewPane';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 
@@ -73,12 +74,27 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
 	}
 
+	override getMenuIds(): MenuId[] {
+		const result: MenuId[] = [];
+		if (this.viewPaneContainer?.menuActions) {
+			result.push(this.viewPaneContainer.menuActions.menuId);
+			if (this.viewPaneContainer.isViewMergedWithContainer()) {
+				result.push(this.viewPaneContainer.panes[0].menuActions.menuId);
+			}
+		}
+		return result;
+	}
+
 	override getActions(): readonly IAction[] {
 		const result = [];
 		if (this.viewPaneContainer?.menuActions) {
 			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
 			if (this.viewPaneContainer.isViewMergedWithContainer()) {
-				result.push(...this.viewPaneContainer.panes[0].menuActions.getPrimaryActions());
+				const viewPane = this.viewPaneContainer.panes[0];
+				if (viewPane.shouldShowFilterInHeader()) {
+					result.push(VIEWPANE_FILTER_ACTION);
+				}
+				result.push(...viewPane.menuActions.getPrimaryActions());
 			}
 		}
 		return result;

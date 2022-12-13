@@ -230,7 +230,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		const resource = input.resource;
 		const group = this.group;
 		const error = options.error;
-		const isFileNotFound = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+		const isFileNotFound = (<FileOperationError | undefined>error)?.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
 		// Error Label
 		let label: string;

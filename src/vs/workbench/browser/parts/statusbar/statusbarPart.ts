@@ -19,7 +19,7 @@ import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/c
 import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce, equals } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
@@ -284,7 +284,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// Track focus within container
@@ -618,4 +618,4 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-registerSingleton(IStatusbarService, StatusbarPart, false);
+registerSingleton(IStatusbarService, StatusbarPart, InstantiationType.Eager);

@@ -165,7 +165,7 @@ class LanguageSelection implements ILanguageSelection {
 		}
 		if (!this._emitter) {
 			this._emitter = new Emitter<string>({
-				onLastListenerRemove: () => {
+				onDidRemoveLastListener: () => {
 					this._dispose();
 				}
 			});

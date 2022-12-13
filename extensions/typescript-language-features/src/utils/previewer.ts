@@ -84,7 +84,7 @@ function getTagDocumentation(
 		case 'extends':
 		case 'param':
 		case 'template': {
-			const body = (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
+			const body = getTagBody(tag, filePathConverter);
 			if (body?.length === 3) {
 				const param = body[1];
 				const doc = body[2];
@@ -94,8 +94,20 @@ function getTagDocumentation(
 				}
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
 			}
+			break;
+		}
+
+		case 'return':
+		case 'returns': {
+			// For return(s), we require a non-empty body
+			if (!tag.text?.length) {
+				return undefined;
+			}
+
+			break;
 		}
 	}
+
 
 	// Generic tag
 	const label = `*@${tag.name}*`;
@@ -104,6 +116,18 @@ function getTagDocumentation(
 		return label;
 	}
 	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` \u2014 ${text}`);
+}
+
+function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResourceConverter): Array<string> | undefined {
+	if (tag.name === 'template') {
+		const parts = tag.text;
+		if (parts && typeof (parts) !== 'string') {
+			const params = parts.filter(p => p.kind === 'typeParameterName').map(p => p.text).join(', ');
+			const docs = parts.filter(p => p.kind === 'text').map(p => convertLinkTags(p.text.replace(/^\s*-?\s*/, ''), filePathConverter)).join(' ');
+			return params ? ['', params, docs] : undefined;
+		}
+	}
+	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 }
 
 export function plainWithLinks(
@@ -196,8 +220,8 @@ export function tagsMarkdownPreview(
 }
 
 export function markdownDocumentation(
-	documentation: Proto.SymbolDisplayPart[] | string,
-	tags: Proto.JSDocTagInfo[],
+	documentation: readonly Proto.SymbolDisplayPart[] | string,
+	tags: readonly Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
 	baseUri: vscode.Uri | undefined,
 ): vscode.MarkdownString {
@@ -209,8 +233,8 @@ export function markdownDocumentation(
 
 export function addMarkdownDocumentation(
 	out: vscode.MarkdownString,
-	documentation: Proto.SymbolDisplayPart[] | string | undefined,
-	tags: Proto.JSDocTagInfo[] | undefined,
+	documentation: readonly Proto.SymbolDisplayPart[] | string | undefined,
+	tags: readonly Proto.JSDocTagInfo[] | undefined,
 	converter: IFilePathToResourceConverter,
 ): vscode.MarkdownString {
 	if (documentation) {

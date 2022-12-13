@@ -23,6 +23,10 @@ export class CommentMenus implements IDisposable {
 		return this.getMenu(MenuId.CommentThreadActions, contextKeyService);
 	}
 
+	getCommentThreadAdditionalActions(contextKeyService: IContextKeyService): IMenu {
+		return this.getMenu(MenuId.CommentThreadAdditionalActions, contextKeyService);
+	}
+
 	getCommentTitleActions(comment: Comment, contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentTitle, contextKeyService);
 	}
@@ -33,10 +37,6 @@ export class CommentMenus implements IDisposable {
 
 	getCommentThreadTitleContextActions(contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadTitleContext, contextKeyService);
-	}
-
-	getCommentThreadCommentContextActions(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentThreadCommentContext, contextKeyService);
 	}
 
 	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {

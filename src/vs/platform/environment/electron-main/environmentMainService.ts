@@ -23,7 +23,6 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- backup paths
 	backupHome: string;
-	backupWorkspacesPath: string;
 
 	// --- V8 code caching
 	codeCachePath: string | undefined;
@@ -46,9 +45,6 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get backupHome(): string { return join(this.userDataPath, 'Backups'); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return join(this.backupHome, 'workspaces.json'); }
-
-	@memoize
 	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }
 
 	@memoize
@@ -59,6 +55,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
+
+	@memoize
+	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }

@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPastFutureElements, IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, ResourceEditStackSnapshot, UndoRedoElementType, UndoRedoGroup, UndoRedoSource, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
 
@@ -1393,4 +1393,4 @@ class WorkspaceVerificationError {
 	constructor(public readonly returnValue: Promise<void> | void) { }
 }
 
-registerSingleton(IUndoRedoService, UndoRedoService, false);
+registerSingleton(IUndoRedoService, UndoRedoService, InstantiationType.Delayed);

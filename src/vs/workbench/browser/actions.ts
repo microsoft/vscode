@@ -71,7 +71,7 @@ export class CompositeMenuActions extends Disposable {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
-		menuId: MenuId,
+		readonly menuId: MenuId,
 		private readonly contextMenuId: MenuId | undefined,
 		private readonly options: IMenuActionOptions | undefined,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,

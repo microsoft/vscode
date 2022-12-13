@@ -138,7 +138,7 @@ export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalL
 }
 
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
-	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	protected _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -156,13 +156,20 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		const pathSeparator = osPathModule(this._os).sep;
+		const osPath = osPathModule(this._os);
+		const pathSeparator = osPath.sep;
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
-		text = osPathModule(this._os).normalize(text).replace(/^(\.+[\\/])+/, '');
+		text = osPath.normalize(text).replace(/^(\.+[\\/])+/, '');
 
-		// Remove `:in` from the end which is how Ruby outputs stack traces
-		text = text.replace(/:in$/, '');
+		// Remove `:<one or more non number characters>` from the end of the link.
+		// Examples:
+		// - Ruby stack traces: <link>:in ...
+		// - Grep output: <link>:<result line>
+		// This only happens when the colon is _not_ followed by a forward- or back-slash as that
+		// would break absolute Windows paths (eg. `C:/Users/...`).
+		text = text.replace(/:[^\\/][^\d]+$/, '');
+
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
@@ -173,7 +180,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		});
 		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, osPath)?.[0] || text;
 		}
 
 		// Try open the cwd resolved link first
@@ -235,13 +242,32 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-					// Remove optional :row:col from the link as openEditor supports it
 					filePattern: sanitizedLink,
 					maxResults: 2
 				})
 			);
-			if (results.results.length === 1) {
-				resourceMatch = { uri: results.results[0].resource };
+			if (results.results.length > 0) {
+				if (results.results.length === 1) {
+					// If there's exactly 1 search result, return it regardless of whether it's
+					// exact or partial.
+					resourceMatch = { uri: results.results[0].resource };
+				} else if (!isAbsolute) {
+					// For non-absolute links, exact link matching is allowed only if there is a single an exact
+					// file match. For example searching for `foo.txt` when there is no cwd information
+					// available (ie. only the initial cwd) should open the file directly only if there is a
+					// single file names `foo.txt` anywhere within the folder. These same rules apply to
+					// relative paths with folders such as `src/foo.txt`.
+					const results = await this._searchService.fileSearch(
+						this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
+							filePattern: `**/${sanitizedLink}`
+						})
+					);
+					// Find an exact match if it exists
+					const exactMatches = results.results.filter(e => e.resource.toString().endsWith(sanitizedLink));
+					if (exactMatches.length === 1) {
+						resourceMatch = { uri: exactMatches[0].resource };
+					}
+				}
 			}
 		}
 		return resourceMatch;
@@ -249,16 +275,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
 		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
-		// For links made up of only a file name (no folder), disallow exact link matching. For
-		// example searching for `foo.txt` when there is no cwd information available (ie. only the
-		// initial cwd) should NOT search  as it's ambiguous if there are multiple matches.
-		//
-		// However, for a link like `src/foo.txt`, if there's an exact match for `src/foo.txt` in
-		// any folder we want to take it, even if there are partial matches like `src2/foo.txt`
-		// available.
-		if (!sanitizedLink.match(/[\\/]/)) {
-			return false;
-		}
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {
@@ -290,7 +306,7 @@ interface IResourceMatch {
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
-		@IOpenerService private readonly _openerService: IOpenerService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 	}
 
@@ -303,6 +319,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote,
 			allowContributedOpeners: true,
+			openExternal: true
 		});
 	}
 }

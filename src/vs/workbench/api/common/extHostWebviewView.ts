@@ -33,7 +33,6 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		viewType: string,
 		title: string | undefined,
 		webview: ExtHostWebview,
-		_extension: IExtensionDescription,
 		isVisible: boolean,
 	) {
 		super();
@@ -192,7 +191,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		const { provider, extension } = entry;
 
 		const webview = this._extHostWebview.createNewWebview(webviewHandle, { /* todo */ }, extension);
-		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, title, webview, extension, true);
+		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, title, webview, true);
 
 		this._webviewViews.set(webviewHandle, revivedView);
 

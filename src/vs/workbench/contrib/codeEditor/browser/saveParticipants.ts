@@ -14,9 +14,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/languages';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { applyCodeAction, ApplyCodeActionReason } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
@@ -359,10 +358,18 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		for (const codeActionKind of codeActionsOnSave) {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+			if (token.isCancellationRequested) {
+				actionsToRun.dispose();
+				return;
+			}
+
 			try {
 				for (const action of actionsToRun.validActions) {
 					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave);
+					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+					if (token.isCancellationRequested) {
+						return;
+					}
 				}
 			} catch {
 				// Failure to apply a code action should not block other on save actions
@@ -402,4 +409,4 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, 'SaveParticipantsContribution', LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, LifecyclePhase.Restored);

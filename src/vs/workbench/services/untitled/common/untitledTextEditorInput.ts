@@ -108,8 +108,8 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.setEncoding(encoding);
 	}
 
-	setLanguageId(languageId: string): void {
-		this.model.setLanguageId(languageId);
+	setLanguageId(languageId: string, source?: string): void {
+		this.model.setLanguageId(languageId, source);
 	}
 
 	getLanguageId(): string | undefined {

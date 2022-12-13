@@ -1,0 +1,16 @@
+{
+	"originalFileName": "./1.tst",
+	"modifiedFileName": "./2.tst",
+	"diffs": [
+		{
+			"originalRange": "[7,7)",
+			"modifiedRange": "[7,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[7,1 -> 7,1]",
+					"modifiedRange": "[7,1 -> 12,1]"
+				}
+			]
+		}
+	]
+}

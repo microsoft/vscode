@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 
@@ -17,7 +17,7 @@ class ToggleKeybindingsLogAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleKeybindingsLog',
 			title: { value: nls.localize('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"), original: 'Toggle Keyboard Shortcuts Troubleshooting' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

@@ -9,7 +9,7 @@ import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -40,6 +40,7 @@ import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common
 import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -90,6 +91,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	protected readonly _logService: ILogService;
 	protected readonly _extHostTunnelService: IExtHostTunnelService;
 	protected readonly _extHostTerminalService: IExtHostTerminalService;
+	protected readonly _extHostLocalizationService: IExtHostLocalizationService;
 
 	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -125,6 +127,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -136,6 +139,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService = logService;
 		this._extHostTunnelService = extHostTunnelService;
 		this._extHostTerminalService = extHostTerminalService;
+		this._extHostLocalizationService = extHostLocalizationService;
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
 		this._mainThreadTelemetryProxy = this._extHostContext.getProxy(MainContext.MainThreadTelemetry);
@@ -150,7 +154,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
-		this._storage = new ExtHostStorage(this._extHostContext);
+		this._storage = new ExtHostStorage(this._extHostContext, this._logService);
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
 
@@ -159,29 +163,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			[IExtHostSecretState, this._secretState]
 		));
 
-		let resolvedExtensions: ExtensionIdentifier[] = [];
-		let hostExtensions: ExtensionIdentifier[] = [];
-		if (this._initData.remote.isRemote) {
-			resolvedExtensions = this._initData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
-			hostExtensions = (
-				this._initData.allExtensions
-					.filter(extension => !myExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier.value)))
-					.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
-			);
-		}
-		const hostExtensionsSet = extensionIdentifiersArrayToSet(hostExtensions);
-
 		this._activator = this._register(new ExtensionsActivator(
 			this._myRegistry,
-			resolvedExtensions,
-			hostExtensions,
+			this._globalRegistry,
 			{
 				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: Error, missingExtensionDependency: MissingExtensionDependency | null): void => {
 					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, errors.transformErrorForSerialization(error), missingExtensionDependency);
 				},
 
 				actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
-					if (hostExtensionsSet.has(ExtensionIdentifier.toKey(extensionId))) {
+					if (ExtensionDescriptionRegistry.isHostExtension(extensionId, this._myRegistry, this._globalRegistry)) {
 						await this._mainThreadExtensionsProxy.$activateExtension(extensionId, reason);
 						return new HostExtension();
 					}

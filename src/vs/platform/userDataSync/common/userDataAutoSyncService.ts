@@ -17,21 +17,22 @@ import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type AutoSyncClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the sources triggering auto sync';
-	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Source that triggered auto sync' };
+	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source that triggered auto sync' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Auth provider id used for sync' };
 };
 
 type AutoSyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that causes auto sync to fail';
 	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings sync service for which this error has occurred' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings sync service for which this error has occurred' };
 };
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
@@ -204,8 +205,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				await this.userDataSyncService.resetLocal();
 			}
 		} catch (error) {
+			this.logService.error(error);
 			if (softTurnOffOnError) {
-				this.logService.error(error);
 				this.updateEnablement(false);
 			} else {
 				throw error;
@@ -264,6 +265,12 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				true /* do not disable machine because disabling a machine makes request to server and can fail with TooManyRequests */);
 			this.disableMachineEventually();
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
+		}
+
+		// Method Not Found
+		else if (userDataSyncError.code === UserDataSyncErrorCode.MethodNotFound) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because current client is making requests to server that are not supported');
 		}
 
 		// Upgrade Required or Gone
@@ -354,7 +361,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
 			this.logService.trace('activity sources', ...this.sources);
-			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
+			const providerId = this.userDataSyncAccountService.account?.authenticationProviderId || '';
+			this.telemetryService.publicLog2<{ sources: string[]; providerId: string }, AutoSyncClassification>('sync/triggered', { sources: this.sources, providerId });
 			this.sources = [];
 			if (this.autoSync.value) {
 				await this.autoSync.value.sync('Activity', disableCache);
@@ -384,7 +392,7 @@ class AutoSync extends Disposable {
 	readonly onDidFinishSync = this._onDidFinishSync.event;
 
 	private manifest: IUserDataManifest | null = null;
-	private syncTask: ISyncTask | undefined;
+	private syncTask: IUserDataSyncTask | undefined;
 	private syncPromise: CancelablePromise<void> | undefined;
 
 	constructor(
@@ -411,7 +419,6 @@ class AutoSync extends Disposable {
 			this.syncTask?.stop();
 			this.logService.info('Auto Sync: Stopped');
 		}));
-		this.logService.info('Auto Sync: Started');
 		this.sync(AutoSync.INTERVAL_SYNCING, false);
 	}
 
@@ -457,87 +464,103 @@ class AutoSync extends Disposable {
 	private async doSync(reason: string, disableCache: boolean, token: CancellationToken): Promise<void> {
 		this.logService.info(`Auto Sync: Triggered by ${reason}`);
 		this._onDidStartSync.fire();
+
 		let error: Error | undefined;
 		try {
-			this.syncTask = await this.userDataSyncService.createSyncTask(this.manifest, disableCache);
-			if (token.isCancellationRequested) {
-				return;
-			}
-			this.manifest = this.syncTask.manifest;
-
-			// Server has no data but this machine was synced before
-			if (this.manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
-				if (this.hasSyncServiceChanged()) {
-					if (await this.hasDefaultServiceChanged()) {
-						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
-					} else {
-						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
-					}
-				} else {
-					// Sync was turned off in the cloud
-					throw new UserDataAutoSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
-				}
-			}
-
-			const sessionId = this.storageService.get(sessionIdKey, StorageScope.APPLICATION);
-			// Server session is different from client session
-			if (sessionId && this.manifest && sessionId !== this.manifest.session) {
-				if (this.hasSyncServiceChanged()) {
-					if (await this.hasDefaultServiceChanged()) {
-						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
-					} else {
-						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
-					}
-				} else {
-					throw new UserDataAutoSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
-				}
-			}
-
-			const machines = await this.userDataSyncMachinesService.getMachines(this.manifest || undefined);
-			// Return if cancellation is requested
-			if (token.isCancellationRequested) {
-				return;
-			}
-
-			const currentMachine = machines.find(machine => machine.isCurrent);
-			// Check if sync was turned off from other machine
-			if (currentMachine?.disabled) {
-				// Throw TurnedOff error
-				throw new UserDataAutoSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
-			}
-
-			await this.syncTask.run();
-
-			// After syncing, get the manifest if it was not available before
-			if (this.manifest === null) {
-				try {
-					this.manifest = await this.userDataSyncStoreService.manifest(null);
-				} catch (error) {
-					throw new UserDataAutoSyncError(toErrorMessage(error), error instanceof UserDataSyncError ? error.code : UserDataSyncErrorCode.Unknown);
-				}
-			}
-
-			// Update local session id
-			if (this.manifest && this.manifest.session !== sessionId) {
-				this.storageService.store(sessionIdKey, this.manifest.session, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			}
-
-			// Return if cancellation is requested
-			if (token.isCancellationRequested) {
-				return;
-			}
-
-			// Add current machine
-			if (!currentMachine) {
-				await this.userDataSyncMachinesService.addCurrentMachine(this.manifest || undefined);
-			}
-
+			await this.createAndRunSyncTask(disableCache, token);
 		} catch (e) {
 			this.logService.error(e);
 			error = e;
+			if (UserDataSyncError.toUserDataSyncError(e).code === UserDataSyncErrorCode.MethodNotFound) {
+				try {
+					this.logService.info('Auto Sync: Client is making invalid requests. Cleaning up data...');
+					await this.userDataSyncService.cleanUpRemoteData();
+					this.logService.info('Auto Sync: Retrying sync...');
+					await this.createAndRunSyncTask(disableCache, token);
+					error = undefined;
+				} catch (e1) {
+					this.logService.error(e1);
+					error = e1;
+				}
+			}
 		}
 
 		this._onDidFinishSync.fire(error);
+	}
+
+	private async createAndRunSyncTask(disableCache: boolean, token: CancellationToken): Promise<void> {
+		this.syncTask = await this.userDataSyncService.createSyncTask(this.manifest, disableCache);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		this.manifest = this.syncTask.manifest;
+
+		// Server has no data but this machine was synced before
+		if (this.manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
+			if (this.hasSyncServiceChanged()) {
+				if (await this.hasDefaultServiceChanged()) {
+					throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
+				} else {
+					throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
+				}
+			} else {
+				// Sync was turned off in the cloud
+				throw new UserDataAutoSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
+			}
+		}
+
+		const sessionId = this.storageService.get(sessionIdKey, StorageScope.APPLICATION);
+		// Server session is different from client session
+		if (sessionId && this.manifest && sessionId !== this.manifest.session) {
+			if (this.hasSyncServiceChanged()) {
+				if (await this.hasDefaultServiceChanged()) {
+					throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
+				} else {
+					throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
+				}
+			} else {
+				throw new UserDataAutoSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+			}
+		}
+
+		const machines = await this.userDataSyncMachinesService.getMachines(this.manifest || undefined);
+		// Return if cancellation is requested
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const currentMachine = machines.find(machine => machine.isCurrent);
+		// Check if sync was turned off from other machine
+		if (currentMachine?.disabled) {
+			// Throw TurnedOff error
+			throw new UserDataAutoSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
+		}
+
+		await this.syncTask.run();
+
+		// After syncing, get the manifest if it was not available before
+		if (this.manifest === null) {
+			try {
+				this.manifest = await this.userDataSyncStoreService.manifest(null);
+			} catch (error) {
+				throw new UserDataAutoSyncError(toErrorMessage(error), error instanceof UserDataSyncError ? error.code : UserDataSyncErrorCode.Unknown);
+			}
+		}
+
+		// Update local session id
+		if (this.manifest && this.manifest.session !== sessionId) {
+			this.storageService.store(sessionIdKey, this.manifest.session, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+
+		// Return if cancellation is requested
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		// Add current machine
+		if (!currentMachine) {
+			await this.userDataSyncMachinesService.addCurrentMachine(this.manifest || undefined);
+		}
 	}
 
 	register<T extends IDisposable>(t: T): T {

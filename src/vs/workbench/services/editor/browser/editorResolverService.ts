@@ -19,7 +19,7 @@ import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPick
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -114,7 +114,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		const options = untypedEditor.options;
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
@@ -178,12 +177,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
-		// If it's the currently active editor we shouldn't do anything
-		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? activeEditor.matches(untypedEditor) : false;
-		if (activeEditor && isActive) {
-			return { editor: activeEditor, options, group };
-		}
 		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
@@ -829,4 +822,4 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 }
 
-registerSingleton(IEditorResolverService, EditorResolverService, false);
+registerSingleton(IEditorResolverService, EditorResolverService, InstantiationType.Eager);

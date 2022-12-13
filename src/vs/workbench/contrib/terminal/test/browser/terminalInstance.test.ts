@@ -21,7 +21,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Schemas } from 'vs/base/common/network';
 
-function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+export function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 	const capabilities = new TerminalCapabilityStore();
 	if (!isWindows) {
 		capabilities.add(TerminalCapability.NaiveCwdDetection, null!);

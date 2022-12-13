@@ -36,17 +36,21 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
+		this.logService.trace(`MainThreadSecretState#getPassword: Getting password for ${extensionId} extension: `, key);
 		const fullKey = await this.getFullKey(extensionId);
 		const password = await this.credentialsService.getPassword(fullKey, key);
 		if (!password) {
+			this.logService.trace('MainThreadSecretState#getPassword: No password found for: ', key);
 			return undefined;
 		}
 
 		let decrypted: string | null;
 		try {
+			this.logService.trace('MainThreadSecretState#getPassword: Decrypting password for: ', key);
 			decrypted = await this.encryptionService.decrypt(password);
 		} catch (e) {
 			this.logService.error(e);
+			this.logService.trace('MainThreadSecretState#getPassword: Trying migration for: ', key);
 
 			// If we are on a platform that newly started encrypting secrets before storing them,
 			// then passwords previously stored were stored un-encrypted (NOTE: but still being stored in a secure keyring).
@@ -63,6 +67,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 			try {
 				const value = JSON.parse(decrypted);
 				if (value.extensionId === extensionId) {
+					this.logService.trace('MainThreadSecretState#getPassword: Password found for: ', key);
 					return value.content;
 				}
 			} catch (parseError) {
@@ -79,16 +84,20 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 			}
 		}
 
+		this.logService.trace('MainThreadSecretState#getPassword: No password found for: ', key);
 		return undefined;
 	}
 
 	async $setPassword(extensionId: string, key: string, value: string): Promise<void> {
+		this.logService.trace(`MainThreadSecretState#setPassword: Setting password for ${extensionId} extension: `, key);
 		const fullKey = await this.getFullKey(extensionId);
 		const toEncrypt = JSON.stringify({
 			extensionId,
 			content: value
 		});
+		this.logService.trace('MainThreadSecretState#setPassword: Encrypting password for: ', key);
 		const encrypted = await this.encryptionService.encrypt(toEncrypt);
+		this.logService.trace('MainThreadSecretState#setPassword: Storing password for: ', key);
 		return await this.credentialsService.setPassword(fullKey, key, encrypted);
 	}
 

@@ -388,6 +388,19 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		this._register(this.modified.onDidChangeOutputLayout(() => {
 			this._layout({ recomputeOutput: true });
 		}));
+
+		this._register(this.modified.textModel.onDidChangeContent(() => {
+			if (mainDocumentTextModel.transientOptions.cellContentMetadata) {
+				const cellMetadataKeys = [...Object.keys(mainDocumentTextModel.transientOptions.cellContentMetadata)];
+				const modifiedMedataRaw = Object.assign({}, this.modified.metadata);
+				const originalCellMetadata = this.original.metadata;
+				for (const key of cellMetadataKeys) {
+					modifiedMedataRaw[key] = originalCellMetadata[key];
+				}
+
+				this.modified.textModel.metadata = modifiedMedataRaw;
+			}
+		}));
 	}
 
 	checkIfOutputsModified() {
