@@ -1391,7 +1391,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetBorderColor = theme.getColor(widgetBorder);
 	if (widgetBorderColor) {
-		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${widgetBorderColor}; }`);
+		collector.addRule(`.monaco-editor .find-widget { border-left: 1px solid ${widgetBorderColor}; border-right: 1px solid ${widgetBorderColor}; border-bottom: 1px solid ${widgetBorderColor}; }`);
 	}
 
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
