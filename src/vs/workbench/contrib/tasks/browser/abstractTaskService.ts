@@ -1205,10 +1205,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		if (this._inProgressTasks.has(task._label)) {
-			this._logService.info('Prevented duplicate task from running', task._label);
-			return;
-		}
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1834,6 +1830,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
+		if (this._inProgressTasks.has(task._label)) {
+			this._logService.info('Prevented duplicate task from running', task._label);
+			return { exitCode: 0 };
+		}
 		let taskToRun: Task = task;
 		this._inProgressTasks.add(task._label);
 		if (await this._saveBeforeRun()) {
