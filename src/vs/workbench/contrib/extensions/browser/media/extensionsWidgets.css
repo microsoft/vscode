@@ -63,3 +63,18 @@
 	border-top-color: var(--vscode-extensionButton-prominentBackground);
 	color: var(--vscode-extensionButton-prominentForeground);
 }
+
+.extension-ratings .codicon-extensions-star-full,
+.monaco-hover.extension-hover .markdown-hover .hover-contents .codicon-extensions-star-full,
+.extension-ratings .codicon-extensions-star-half {
+	color: var(--vscode-extensionIcon-starForeground);
+}
+
+.codicon.codicon-extensions-verified-publisher {
+	color: var(--vscode-extensionIcon-verifiedForeground);
+}
+
+.monaco-hover.extension-hover .markdown-hover .hover-contents .codicon-extensions-sponsor,
+.extension-editor > .header > .details > .subtitle .sponsor .codicon-extensions-sponsor {
+	color: var(--vscode-extensionIcon-sponsorForeground);
+}

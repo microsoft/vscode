@@ -20,7 +20,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { listFocusForeground, listFocusBackground, foreground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -337,14 +337,6 @@ export async function getExtensions(extensions: string[], extensionsWorkbenchSer
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const focusBackground = theme.getColor(listFocusBackground);
-	if (focusBackground) {
-		collector.addRule(`.extensions-grid-view .extension-container:focus { background-color: ${focusBackground}; outline: none; }`);
-	}
-	const focusForeground = theme.getColor(listFocusForeground);
-	if (focusForeground) {
-		collector.addRule(`.extensions-grid-view .extension-container:focus { color: ${focusForeground}; }`);
-	}
 	const foregroundColor = theme.getColor(foreground);
 	const editorBackgroundColor = theme.getColor(editorBackground);
 	if (foregroundColor && editorBackgroundColor) {
