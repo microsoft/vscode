@@ -377,6 +377,7 @@ export class MainThreadTextEditor {
 		}
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
+			newOpts.indentSize = newConfiguration.tabSize;
 		}
 		if (typeof newConfiguration.indentSize !== 'undefined') {
 			if (newConfiguration.indentSize === 'tabSize') {
