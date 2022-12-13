@@ -369,8 +369,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -441,7 +441,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this._wrapperElement));
-		this._scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
 
@@ -1849,7 +1849,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	updateAccessibilitySupport(): void {
 		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
-		if (isEnabled) {
+		if (isEnabled && this.xterm?.raw) {
 			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey, this._navigationModeActiveContextKey);
 			this.xterm!.raw.loadAddon(this._navigationModeAddon);
 		} else {

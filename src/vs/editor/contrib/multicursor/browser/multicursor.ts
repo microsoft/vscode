@@ -18,17 +18,15 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
 import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { getSelectionHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -1034,37 +1032,16 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		const hasFindOccurrences = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
 		const decorations = matches.map(r => {
 			return {
 				range: r,
-				// Show in overviewRuler only if model has no semantic highlighting
-				options: (hasFindOccurrences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
+				options: getSelectionHighlightDecorationOptions(hasSemanticHighlights)
 			};
 		});
 
 		this._decorations.set(decorations);
 	}
-
-	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
-		description: 'selection-highlight-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
-		},
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			position: OverviewRulerLane.Center
-		}
-	});
-
-	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
-		description: 'selection-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-	});
 
 	public override dispose(): void {
 		this._setState(null);

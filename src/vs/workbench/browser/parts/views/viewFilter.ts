@@ -230,7 +230,7 @@ export class FilterWidget extends Widget {
 
 	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
-		if (event.equals(KeyCode.Tab)) {
+		if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
 			this.toolbar.focus();
 			handled = true;
 		}

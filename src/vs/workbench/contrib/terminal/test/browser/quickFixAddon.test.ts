@@ -47,7 +47,7 @@ suite('QuickFixAddon', () => {
 		});
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
-		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event } as Partial<ITerminalQuickFixService>);
+		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event, onDidRegisterCommandSelector: new Emitter().event } as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
 		const capabilities = new TerminalCapabilityStore();

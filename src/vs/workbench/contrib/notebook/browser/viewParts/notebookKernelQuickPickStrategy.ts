@@ -25,7 +25,7 @@ import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IActiveNotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -46,7 +46,7 @@ type SourcePick = IQuickPickItem & { action: ISourceAction };
 function isSourcePick(item: QuickPickInput<IQuickPickItem>): item is SourcePick {
 	return 'action' in item;
 }
-type InstallExtensionPick = IQuickPickItem & { extensionId: string };
+type InstallExtensionPick = IQuickPickItem & { extensionIds: string[] };
 function isInstallExtensionPick(item: QuickPickInput<IQuickPickItem>): item is InstallExtensionPick {
 	return item.id === 'installSuggested' && 'extensionId' in item;
 }
@@ -244,7 +244,8 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
-				editor.textModel.viewType
+				editor.textModel.viewType,
+				[]
 			);
 			// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
 		} else if (isInstallExtensionPick(pick)) {
@@ -253,7 +254,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				this._extensionWorkbenchService,
 				this._extensionService,
 				editor.textModel.viewType,
-				pick.extensionId,
+				pick.extensionIds,
 				this._productService.quality !== 'stable'
 			);
 		} else if (isSourcePick(pick)) {
@@ -273,15 +274,22 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		extensionService: IExtensionService,
 		viewType: string,
-		extId?: string,
+		extIds: string[],
 		isInsiders?: boolean
 	) {
 		// If extension id is provided attempt to install the extension as the user has requested the suggested ones be installed
-		if (extId) {
+		const extensionsToInstall: IExtension[] = [];
+
+		for (const extId of extIds) {
 			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
 			const canInstall = await extensionWorkbenchService.canInstall(extension);
-			// If we can install then install it, otherwise we will fall out into searching the viewlet
 			if (canInstall) {
+				extensionsToInstall.push(extension);
+			}
+		}
+
+		if (extensionsToInstall.length) {
+			await Promise.all(extensionsToInstall.map(async extension => {
 				await extensionWorkbenchService.install(
 					extension,
 					{
@@ -290,9 +298,10 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 					},
 					ProgressLocation.Notification
 				);
-				await extensionService.activateByEvent(`onNotebook:${viewType}`);
-				return;
-			}
+			}));
+
+			await extensionService.activateByEvent(`onNotebook:${viewType}`);
+			return;
 		}
 
 		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
@@ -331,9 +340,9 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		const suggestedExtension: INotebookExtensionRecommendation | undefined = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;
 		if (suggestedExtension) {
 			await extensionWorkbenchService.queryLocal();
-			const extension = extensionWorkbenchService.installed.find(e => e.identifier.id === suggestedExtension.extensionId);
+			const extensions = extensionWorkbenchService.installed.filter(e => suggestedExtension.extensionIds.includes(e.identifier.id));
 
-			if (extension) {
+			if (extensions.length === suggestedExtension.extensionIds.length) {
 				// it's installed but might be detecting kernels
 				return undefined;
 			}
@@ -341,9 +350,9 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			// We have a suggested kernel, show an option to install it
 			quickPickItems.push({
 				id: 'installSuggested',
-				description: suggestedExtension.displayName ?? suggestedExtension.extensionId,
+				description: suggestedExtension.displayName ?? suggestedExtension.extensionIds.join(', '),
 				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install suggested extensions'),
-				extensionId: suggestedExtension.extensionId
+				extensionIds: suggestedExtension.extensionIds
 			});
 		}
 		// there is no kernel, show the install from marketplace

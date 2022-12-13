@@ -171,32 +171,26 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 			let extensions: IScannedProfileExtension[] = [];
 
 			// Read
-			let storedWebExtensions: IStoredProfileExtension[] | undefined;
+			let storedProfileExtensions;
 			try {
 				const content = await this.fileService.readFile(file);
-				storedWebExtensions = <IStoredProfileExtension[]>JSON.parse(content.value.toString());
+				storedProfileExtensions = JSON.parse(content.value.toString());
 			} catch (error) {
 				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 					throw error;
 				}
 				// migrate from old location, remove this after couple of releases
 				if (this.uriIdentityService.extUri.isEqual(file, this.userDataProfilesService.defaultProfile.extensionsResource)) {
-					storedWebExtensions = await this.migrateFromOldDefaultProfileExtensionsLocation();
+					storedProfileExtensions = await this.migrateFromOldDefaultProfileExtensionsLocation();
 				}
 			}
-			if (storedWebExtensions) {
-				for (const e of storedWebExtensions) {
-					if (!e.identifier) {
-						this.logService.info('Ignoring invalid extension while scanning. Identifier does not exist.', e);
-						continue;
-					}
-					if (!e.location) {
-						this.logService.info('Ignoring invalid extension while scanning. Location does not exist.', e);
-						continue;
-					}
-					if (!e.version) {
-						this.logService.info('Ignoring invalid extension while scanning. Version does not exist.', e);
-						continue;
+			if (storedProfileExtensions) {
+				if (!Array.isArray(storedProfileExtensions)) {
+					throw new Error(`Invalid extensions content in ${file.toString()}`);
+				}
+				for (const e of storedProfileExtensions) {
+					if (!isStoredProfileExtension(e)) {
+						throw new Error(`Invalid extensions content in ${file.toString()}`);
 					}
 					extensions.push({
 						identifier: e.identifier,
@@ -242,11 +236,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				let storedProfileExtensions: IStoredProfileExtension[] | undefined;
 				try {
 					const parsedData = JSON.parse(content);
-					if (Array.isArray(parsedData) && parsedData.every(candidate =>
-						!!(candidate && typeof candidate === 'object'
-							&& isIExtensionIdentifier(candidate.identifier)
-							&& isUriComponents(candidate.location)
-							&& candidate.version && typeof candidate.version === 'string'))) {
+					if (Array.isArray(parsedData) && parsedData.every(candidate => isStoredProfileExtension(candidate))) {
 						storedProfileExtensions = parsedData;
 					} else {
 						this.logService.warn('Skipping migrating from old default profile locaiton: Found invalid data', parsedData);
@@ -291,6 +281,13 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		}
 		return resourceQueue;
 	}
+}
+
+function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
+	return typeof candidate === 'object'
+		&& isIExtensionIdentifier(candidate.identifier)
+		&& isUriComponents(candidate.location)
+		&& candidate.version && typeof candidate.version === 'string';
 }
 
 function isUriComponents(thing: unknown): thing is UriComponents {

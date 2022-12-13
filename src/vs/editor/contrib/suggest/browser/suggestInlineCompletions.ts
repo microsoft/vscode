@@ -57,7 +57,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 			&& this.line === line
 			&& this.word.word.length > 0
 			&& this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
-			&& this.completionModel.incomplete.size === 0; // no incomplete results
+			&& this.completionModel.getIncompleteProvider().size === 0; // no incomplete results
 	}
 
 	get items(): SuggestInlineCompletion[] {

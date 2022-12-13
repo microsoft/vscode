@@ -212,7 +212,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 					const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						linkRange,
-						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)
+						previewValue ? new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue) : undefined
 					);
 					ref.dispose();
 				});
@@ -260,7 +260,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
+	private addDecoration(range: Range, hoverMessage: MarkdownString | undefined): void {
 
 		const newDecorations: IModelDeltaDecoration = {
 			range: range,

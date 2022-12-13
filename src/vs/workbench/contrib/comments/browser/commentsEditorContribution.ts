@@ -333,11 +333,11 @@ export class CommentController implements IEditorContribution {
 		@ICommentService private readonly commentService: ICommentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		this._commentInfos = [];

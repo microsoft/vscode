@@ -21,7 +21,7 @@ import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/brow
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
-import { lineAndColumnClause, TerminalLocalLinkDetector, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { TerminalLocalLinkDetector, winDrivePrefix } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -34,6 +34,7 @@ import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { removeLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -72,9 +73,21 @@ export class TerminalLinkManager extends DisposableStore {
 	) {
 		super();
 
+		let enableFileLinks: boolean = true;
+		const enableFileLinksConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks as ITerminalConfiguration['enableFileLinks'] | boolean;
+		switch (enableFileLinksConfig) {
+			case 'off':
+			case false: // legacy from v1.75
+				enableFileLinks = false;
+				break;
+			case 'notRemote':
+				enableFileLinks = !this._processManager.remoteAuthority;
+				break;
+		}
+
 		// Setup link detectors in their order of priority
 		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
-		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
+		if (enableFileLinks) {
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
@@ -321,15 +334,6 @@ export class TerminalLinkManager extends DisposableStore {
 		return newLinkProvider;
 	}
 
-	protected get _localLinkRegex(): RegExp {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
-		}
-		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-	}
-
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
@@ -465,7 +469,7 @@ export class TerminalLinkManager extends DisposableStore {
 			return null;
 		}
 
-		const linkUrl = this.extractLinkUrl(preprocessedLink);
+		const linkUrl = removeLinkSuffix(preprocessedLink);
 		if (!linkUrl) {
 			this._resolvedLinkCache.set(link, null);
 			return null;
@@ -499,19 +503,6 @@ export class TerminalLinkManager extends DisposableStore {
 			this._resolvedLinkCache.set(link, null);
 			return null;
 		}
-	}
-
-	/**
-	 * Returns url from link as link may contain line and column information.
-	 *
-	 * @param link url link which may contain line and column number.
-	 */
-	extractLinkUrl(link: string): string | null {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
-		if (!matches) {
-			return null;
-		}
-		return matches[1];
 	}
 }
 

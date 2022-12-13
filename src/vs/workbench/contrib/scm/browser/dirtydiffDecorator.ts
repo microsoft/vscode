@@ -26,6 +26,7 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -354,8 +355,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		});
 	}
 
-	protected override revealLine(lineNumber: number) {
-		this.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Smooth);
+	protected override revealRange(range: Range) {
+		this.editor.revealLineInCenterIfOutsideViewport(range.endLineNumber, ScrollType.Smooth);
 	}
 
 	hasFocus(): boolean {

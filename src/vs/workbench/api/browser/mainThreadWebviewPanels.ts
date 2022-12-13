@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -106,11 +107,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
-		this._register(_editorService.onDidActiveEditorChange(() => {
-			this.updateWebviewViewStates(this._editorService.activeEditor);
-		}));
-
-		this._register(_editorService.onDidVisibleEditorsChange(() => {
+		this._register(Event.any(
+			_editorService.onDidActiveEditorChange,
+			_editorService.onDidVisibleEditorsChange,
+			_editorGroupService.onDidAddGroup,
+			_editorGroupService.onDidRemoveGroup,
+			_editorGroupService.onDidMoveGroup,
+		)(() => {
 			this.updateWebviewViewStates(this._editorService.activeEditor);
 		}));
 

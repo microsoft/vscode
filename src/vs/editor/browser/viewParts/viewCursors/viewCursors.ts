@@ -16,6 +16,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class ViewCursors extends ViewPart {
 
@@ -113,8 +114,12 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[]): void {
-		this._primaryCursor.onCursorPositionChanged(position);
+	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[], reason: CursorChangeReason): void {
+		const pauseAnimation = (
+			this._secondaryCursors.length !== secondaryPositions.length
+			|| reason !== CursorChangeReason.Explicit
+		);
+		this._primaryCursor.onCursorPositionChanged(position, pauseAnimation);
 		this._updateBlinking();
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
@@ -135,7 +140,7 @@ export class ViewCursors extends ViewPart {
 		}
 
 		for (let i = 0; i < secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], pauseAnimation);
 		}
 
 	}
@@ -144,7 +149,7 @@ export class ViewCursors extends ViewPart {
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
 		}
-		this._onCursorPositionChanged(positions[0], positions.slice(1));
+		this._onCursorPositionChanged(positions[0], positions.slice(1), e.reason);
 
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
