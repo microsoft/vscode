@@ -1205,11 +1205,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		if (this._inProgressTasks.has(task.getQualifiedLabel())) {
-			this._logService.info('Prevented duplicate task from running', task.getQualifiedLabel());
+		const qualifiedLabel = task.getQualifiedLabel();
+		if (this._inProgressTasks.has(qualifiedLabel)) {
+			this._logService.info('Prevented duplicate task from running', qualifiedLabel);
 			return;
 		}
-		this._inProgressTasks.add(task.getQualifiedLabel());
+		this._inProgressTasks.add(qualifiedLabel);
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1226,7 +1227,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._handleError(error);
 			return Promise.reject(error);
 		} finally {
-			this._inProgressTasks.delete(task.getQualifiedLabel());
+			this._inProgressTasks.delete(qualifiedLabel);
 		}
 	}
 
@@ -1894,7 +1895,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		const response = await this._taskSystem.terminate(task);
-		this._inProgressTasks.delete(task.getQualifiedLabel());
 		if (response.success) {
 			try {
 				await this.run(task);
