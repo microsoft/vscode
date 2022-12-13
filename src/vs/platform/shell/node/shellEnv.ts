@@ -75,7 +75,7 @@ export async function getResolvedShellEnv(logService: ILogService, args: NativeP
 				// Give up resolving shell env after some time
 				const timeout = setTimeout(() => {
 					cts.dispose(true);
-					reject(new Error(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration.")));
+					reject(new Error(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration and restart.")));
 				}, MAX_SHELL_RESOLVE_TIME);
 
 				// Resolve shell env and handle errors

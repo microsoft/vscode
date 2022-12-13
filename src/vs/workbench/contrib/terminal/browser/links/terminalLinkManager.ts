@@ -21,7 +21,7 @@ import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/brow
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
-import { lineAndColumnClause, TerminalLocalLinkDetector, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { TerminalLocalLinkDetector, winDrivePrefix } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -34,6 +34,7 @@ import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { removeLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -333,15 +334,6 @@ export class TerminalLinkManager extends DisposableStore {
 		return newLinkProvider;
 	}
 
-	protected get _localLinkRegex(): RegExp {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
-		}
-		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-	}
-
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
@@ -477,7 +469,7 @@ export class TerminalLinkManager extends DisposableStore {
 			return null;
 		}
 
-		const linkUrl = this.extractLinkUrl(preprocessedLink);
+		const linkUrl = removeLinkSuffix(preprocessedLink);
 		if (!linkUrl) {
 			this._resolvedLinkCache.set(link, null);
 			return null;
@@ -511,19 +503,6 @@ export class TerminalLinkManager extends DisposableStore {
 			this._resolvedLinkCache.set(link, null);
 			return null;
 		}
-	}
-
-	/**
-	 * Returns url from link as link may contain line and column information.
-	 *
-	 * @param link url link which may contain line and column number.
-	 */
-	extractLinkUrl(link: string): string | null {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
-		if (!matches) {
-			return null;
-		}
-		return matches[1];
 	}
 }
 

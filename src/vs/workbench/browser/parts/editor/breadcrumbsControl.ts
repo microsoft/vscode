@@ -253,6 +253,10 @@ export class BreadcrumbsControl {
 		this.domNode.classList.toggle('hidden', true);
 	}
 
+	revealLast(): void {
+		this._widget.revealLast();
+	}
+
 	update(): boolean {
 		this._breadcrumbsDisposables.clear();
 
