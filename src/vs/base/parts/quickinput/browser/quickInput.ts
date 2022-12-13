@@ -147,12 +147,14 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _busy = false;
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
+	private buttonsUpdated = false;
+	private _toggles: IQuickInputToggle[] = [];
+	private togglesUpdated = false;
 	protected noValidationMessage = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
 	private _severity: Severity = Severity.Ignore;
 	private _lastSeverity: Severity | undefined;
-	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
@@ -252,6 +254,16 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
+	get toggles() {
+		return this._toggles;
+	}
+
+	set toggles(toggles: IQuickInputToggle[]) {
+		this._toggles = toggles ?? [];
+		this.togglesUpdated = true;
+		this.update();
+	}
+
 	get validationMessage() {
 		return this._validationMessage;
 	}
@@ -295,6 +307,11 @@ class QuickInput extends Disposable implements IQuickInput {
 			// if there are buttons, the ui.show() clears them out of the UI so we should
 			// rerender them.
 			this.buttonsUpdated = true;
+		}
+		if (this.toggles.length) {
+			// if there are toggles, the ui.show() clears them out of the UI so we should
+			// rerender them.
+			this.togglesUpdated = true;
 		}
 
 		this.update();
@@ -365,6 +382,14 @@ class QuickInput extends Disposable implements IQuickInput {
 				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
+		}
+		if (this.togglesUpdated) {
+			this.togglesUpdated = false;
+			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
+			// a layering issue as quick input's interface is in common but Toggle is in browser and
+			// it requires a HTMLElement on its interface
+			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) as Toggle[] ?? [];
+			this.ui.inputBox.toggles = concreteToggles;
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
@@ -741,14 +766,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set hideCheckAll(hideCheckAll: boolean) {
 		this._hideCheckAll = hideCheckAll;
 		this.update();
-	}
-
-	set toggles(toggles: IQuickInputToggle[] | undefined) {
-		// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
-		// a layering issue as quick input's interface is in common but Toggle is in browser and
-		// it requires a HTMLElement on its interface
-		const concreteToggles = toggles?.filter(opts => opts instanceof Toggle) as Toggle[];
-		this.ui.inputBox.toggles = concreteToggles;
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
@@ -1654,6 +1671,7 @@ export class QuickInputController extends Disposable {
 		ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
 		ui.inputBox.ariaLabel = '';
+		ui.inputBox.toggles = undefined;
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
