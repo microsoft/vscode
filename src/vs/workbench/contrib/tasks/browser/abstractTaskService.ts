@@ -1198,15 +1198,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return executeTaskResult;
 	}
 
-	private taskLabel(task: Task): string {
-		let label = task._label;
-		const workspaceFolder = task.getWorkspaceFolder();
-		if (workspaceFolder) {
-			label += ' (' + workspaceFolder.name + ')';
-		}
-		return label;
-	}
-
 	public async run(task: Task | undefined, options?: IProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
 		if (!(await this._trust())) {
 			return;
@@ -1214,11 +1205,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		if (this._inProgressTasks.has(this.taskLabel(task))) {
-			this._logService.info('Prevented duplicate task from running', this.taskLabel(task));
+		if (this._inProgressTasks.has(task.getQualifiedLabel())) {
+			this._logService.info('Prevented duplicate task from running', task.getQualifiedLabel());
 			return;
 		}
-		this._inProgressTasks.add(this.taskLabel(task));
+		this._inProgressTasks.add(task.getQualifiedLabel());
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1235,7 +1226,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._handleError(error);
 			return Promise.reject(error);
 		} finally {
-			this._inProgressTasks.delete(this.taskLabel(task));
+			this._inProgressTasks.delete(task.getQualifiedLabel());
 		}
 	}
 
@@ -1903,7 +1894,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		const response = await this._taskSystem.terminate(task);
-		this._inProgressTasks.delete(this.taskLabel(task));
+		this._inProgressTasks.delete(task.getQualifiedLabel());
 		if (response.success) {
 			try {
 				await this.run(task);
@@ -1923,7 +1914,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return { success: true, task: undefined };
 		}
-		this._inProgressTasks.delete(this.taskLabel(task));
+		this._inProgressTasks.delete(task.getQualifiedLabel());
 		return this._taskSystem.terminate(task);
 	}
 
