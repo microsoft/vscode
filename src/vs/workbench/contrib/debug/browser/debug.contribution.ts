@@ -224,7 +224,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 		original: 'Run',
 		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
 	},
-	when: ContextKeyExpr.or(CONTEXT_DEBUGGERS_AVAILABLE),
 	order: 6
 });
 
@@ -578,6 +577,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('debug.autoExpandLazyVariables', "Automatically show values for variables that are lazily resolved by the debugger, such as getters.")
+		},
+		'debug.enableStatusBarColor': {
+			type: 'boolean',
+			description: nls.localize('debug.enableStatusBarColor', "Color status bar when debugger is active"),
+			default: true
 		}
 	}
 });

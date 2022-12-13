@@ -1778,6 +1778,7 @@ declare namespace monaco.editor {
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+		get originalIndentSize(): number | 'tabSize';
 	}
 
 	export interface BracketPairColorizationOptions {
@@ -1787,7 +1788,7 @@ declare namespace monaco.editor {
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
-		indentSize?: number;
+		indentSize?: number | 'tabSize';
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
