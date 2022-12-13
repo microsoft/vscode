@@ -1650,6 +1650,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (!state) {
 			return {
 				editingCells: {},
+				cellLineNumberStates: {},
 				editorViewStates: {},
 				collapsedInputCells: {},
 				collapsedOutputCells: {},
@@ -1661,11 +1662,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const cellHeights: { [key: number]: number } = {};
 			for (let i = 0; i < this.viewModel!.length; i++) {
 				const elm = this.viewModel!.cellAt(i) as CellViewModel;
-				if (elm.cellKind === CellKind.Code) {
-					cellHeights[i] = elm.layoutInfo.totalHeight;
-				} else {
-					cellHeights[i] = elm.layoutInfo.totalHeight;
-				}
+				cellHeights[i] = elm.layoutInfo.totalHeight;
 			}
 
 			state.cellTotalHeights = cellHeights;
