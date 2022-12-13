@@ -14,6 +14,8 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+
 export class EditorScrollbar extends ViewPart {
 
 	private readonly scrollbar: SmoothScrollableElement;
@@ -127,6 +129,10 @@ export class EditorScrollbar extends ViewPart {
 
 	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
 		this.scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
+	}
+
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.scrollbar.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	// --- begin event handlers

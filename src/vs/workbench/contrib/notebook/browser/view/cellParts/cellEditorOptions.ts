@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -50,15 +50,35 @@ export class CellEditorOptions extends CellContentPart {
 	}
 
 	private _computeEditorOptions() {
-		const renderLineNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const lineNumbers: LineNumbersType = renderLineNumbers ? 'on' : 'off';
-
 		const value = this.base.value;
+		let cellRenderLineNumber = value.lineNumbers;
 
-		if (value.lineNumbers !== lineNumbers) {
+		switch (this._lineNumbers) {
+			case 'inherit':
+				// inherit from the notebook setting
+				if (this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on') {
+					if (value.lineNumbers === 'off') {
+						cellRenderLineNumber = 'on';
+					} // otherwise just use the editor setting
+				} else {
+					cellRenderLineNumber = 'off';
+				}
+				break;
+			case 'on':
+				// should turn on, ignore the editor line numbers off options
+				if (value.lineNumbers === 'off') {
+					cellRenderLineNumber = 'on';
+				} // otherwise just use the editor setting
+				break;
+			case 'off':
+				cellRenderLineNumber = 'off';
+				break;
+		}
+
+		if (value.lineNumbers !== cellRenderLineNumber) {
 			return {
 				...value,
-				...{ lineNumbers }
+				...{ lineNumbers: cellRenderLineNumber }
 			};
 		} else {
 			return Object.assign({}, value);
@@ -92,14 +112,7 @@ export class CellEditorOptions extends CellContentPart {
 
 	setLineNumbers(lineNumbers: 'on' | 'off' | 'inherit'): void {
 		this._lineNumbers = lineNumbers;
-		if (this._lineNumbers === 'inherit') {
-			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
-			this._value.lineNumbers = lineNumbers;
-		} else {
-			this._value.lineNumbers = lineNumbers as LineNumbersType;
-		}
-		this._onDidChange.fire();
+		this._recomputeOptions();
 	}
 }
 
