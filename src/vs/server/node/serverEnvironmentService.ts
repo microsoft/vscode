@@ -100,7 +100,7 @@ export interface ServerParsedArgs {
 
 	/**
 	 * A secret token that must be provided by the web client with all requests.
-	 * Use only `[0-9A-Za-z\-]`.
+	 * Use only `[0-9A-Za-z_-]`.
 	 *
 	 * By default, a UUID will be generated every time the server starts up.
 	 *
@@ -113,7 +113,7 @@ export interface ServerParsedArgs {
 	 * A path to a filename which will be read on startup.
 	 * Consider placing this file in a folder readable only by the same user (a `chmod 0700` directory).
 	 *
-	 * The contents of the file will be used as the connection token. Use only `[0-9A-Z\-]` as contents in the file.
+	 * The contents of the file will be used as the connection token. Use only `[0-9A-Za-z_-]` as contents in the file.
 	 * The file can optionally end in a `\n` which will be ignored.
 	 *
 	 * This secret must be communicated to any vscode instance via the resolver or embedder API.
