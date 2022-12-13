@@ -12,7 +12,7 @@ import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { acceptSelectedActionCommand, ActionList, IListMenuItem, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
-import { IActionItem, IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
+import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -21,7 +21,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 
 const ActionWidgetContextKeys = {
-	Visible: new RawContextKey<boolean>('actionWidgetVisible', false, localize('actionWidgetVisible', "Whether the action widget list is visible"))
+	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible"))
 };
 
 export interface IRenderDelegate<T extends IActionItem> {
@@ -58,10 +58,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		super();
 	}
 
-	async show(user: string, supportsPreview: boolean, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], resolver?: IActionKeybindingResolver): Promise<void> {
+	async show(user: string, supportsPreview: boolean, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): Promise<void> {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
-		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, resolver);
+		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate);
 		this.contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {

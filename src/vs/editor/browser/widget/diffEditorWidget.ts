@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import * as assert from 'vs/base/common/assert';
@@ -53,9 +54,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted, diffInsertedOutline, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved, diffRemovedOutline } from 'vs/platform/theme/common/colorRegistry';
+import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IDiffCodeEditorWidgetOptions {
@@ -309,6 +309,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._register(dom.addStandardDisposableListener(this._overviewDomElement, dom.EventType.POINTER_DOWN, (e) => {
 			this._modifiedEditor.delegateVerticalScrollbarPointerDown(e);
 		}));
+		this._register(dom.addDisposableListener(this._overviewDomElement, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			this._modifiedEditor.delegateScrollFromMouseWheelEvent(e);
+		}, { passive: false }));
 		if (this._options.renderOverviewRuler) {
 			this._containerDomElement.appendChild(this._overviewDomElement);
 		}
@@ -2754,16 +2757,6 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 }
 
 registerThemingParticipant((theme, collector) => {
-	const addedOutline = theme.getColor(diffInsertedOutline);
-	if (addedOutline) {
-		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${addedOutline}; }`);
-	}
-
-	const removedOutline = theme.getColor(diffRemovedOutline);
-	if (removedOutline) {
-		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${removedOutline}; }`);
-	}
-
 	const diffDiagonalFillColor = theme.getColor(diffDiagonalFill);
 	collector.addRule(`
 	.monaco-editor .diagonal-fill {

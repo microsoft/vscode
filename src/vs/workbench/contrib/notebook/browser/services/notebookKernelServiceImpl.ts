@@ -122,8 +122,8 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IMenuService readonly _menuService: IMenuService,
-		@IContextKeyService readonly _contextKeyService: IContextKeyService
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 

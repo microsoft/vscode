@@ -140,10 +140,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	constructor(
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,

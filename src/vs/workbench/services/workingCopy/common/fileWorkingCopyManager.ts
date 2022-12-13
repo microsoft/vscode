@@ -148,7 +148,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IFileService private readonly fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILabelService labelService: ILabelService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -423,7 +423,17 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		}
 
 		// Revert the source
-		await sourceWorkingCopy?.revert();
+		try {
+			await sourceWorkingCopy?.revert();
+		} catch (error) {
+
+			// It is possible that reverting the source fails, for example
+			// when a remote is disconnected and we cannot read it anymore.
+			// However, this should not interrupt the "Save As" flow, so
+			// we gracefully catch the error and just log it.
+
+			this.logService.error(error);
+		}
 
 		return targetStoredFileWorkingCopy;
 	}

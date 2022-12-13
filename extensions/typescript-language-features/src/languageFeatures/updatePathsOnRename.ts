@@ -155,11 +155,11 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: vscode.l10n.t("Always automatically update imports"),
+			title: vscode.l10n.t("Always"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: vscode.l10n.t("Never automatically update imports"),
+			title: vscode.l10n.t("Never"),
 		};
 
 		const response = await vscode.window.showInformationMessage(
@@ -185,15 +185,14 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
 				return true;
 			}
-			case neverItem:
-				{
-					const config = this.getConfiguration(newResources[0]);
-					config.update(
-						updateImportsOnFileMoveName,
-						UpdateImportsOnFileMoveSetting.Never,
-						this.getConfigTargetScope(config, updateImportsOnFileMoveName));
-					return false;
-				}
+			case neverItem: {
+				const config = this.getConfiguration(newResources[0]);
+				config.update(
+					updateImportsOnFileMoveName,
+					UpdateImportsOnFileMoveSetting.Never,
+					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
+				return false;
+			}
 			default: {
 				return false;
 			}

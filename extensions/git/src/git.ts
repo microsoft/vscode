@@ -686,9 +686,6 @@ export class Git {
 	}
 
 	async addSafeDirectory(repositoryPath: string): Promise<void> {
-		// safe.directory only supports paths with `/` as separator
-		repositoryPath = repositoryPath.replaceAll('\\', '/');
-
 		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
 		return;
 	}
@@ -714,7 +711,7 @@ interface GitConfigSection {
 class GitConfigParser {
 	private static readonly _lineSeparator = /\r?\n/;
 
-	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*"?([^"]+)"?$/;
 	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
 
 	static parse(raw: string): GitConfigSection[] {

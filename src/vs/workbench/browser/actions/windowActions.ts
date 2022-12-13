@@ -14,7 +14,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -196,7 +196,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			resource = recent.folderUri;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FOLDER);
 			openable = { folderUri: resource };
-			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
+			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: Verbosity.LONG });
 		}
 
 		// Workspace
@@ -204,7 +204,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			resource = recent.workspace.configPath;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.ROOT_FOLDER);
 			openable = { workspaceUri: resource };
-			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 			isWorkspace = true;
 		}
 

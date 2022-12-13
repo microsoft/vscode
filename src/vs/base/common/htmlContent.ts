@@ -140,7 +140,7 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 
 export function escapeMarkdownSyntaxTokens(text: string): string {
 	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-	return text.replace(/[\\`*_{}[\]()#+\-!]/g, '\\$&');
+	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&');
 }
 
 export function escapeDoubleQuotes(input: string) {
@@ -151,7 +151,7 @@ export function removeMarkdownEscapes(text: string): string {
 	if (!text) {
 		return text;
 	}
-	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!~])/g, '$1');
 }
 
 export function parseHrefAndDimensions(href: string): { href: string; dimensions: string[] } {
