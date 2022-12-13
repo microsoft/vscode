@@ -992,15 +992,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		// store the scrollTop before it is reset
 		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
-		const hideInput = !!this._hideInput && this._items.length > 0;
-		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
+		const hasDescription = !!this.description;
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
-			description: !!this.description,
+			description: hasDescription,
 			checkAll: this.canSelectMany && !this._hideCheckAll,
 			checkBox: this.canSelectMany,
-			inputBox: !hideInput,
-			progressBar: !hideInput,
+			inputBox: !this._hideInput,
+			progressBar: !this._hideInput || hasDescription,
 			visibleCount: true,
 			count: this.canSelectMany,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
@@ -1696,6 +1695,7 @@ export class QuickInputController extends Disposable {
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.display(!!visibilities.list);
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
+		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
 	}
 
