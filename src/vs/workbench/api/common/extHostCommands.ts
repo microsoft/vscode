@@ -27,6 +27,7 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface CommandHandler {
 	callback: Function;
@@ -273,7 +274,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
-			id: string;
+			id: TrustedTelemetryValue<string>;
 			duration: number;
 		};
 		type ExtensionActionTelemetryMeta = {
@@ -285,7 +286,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
-			id: id,
+			id: new TrustedTelemetryValue(id),
 			duration: duration,
 		});
 	}
