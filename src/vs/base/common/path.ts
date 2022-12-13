@@ -75,6 +75,8 @@ function validateString(value: string, name: string) {
 	}
 }
 
+const platformIsWin32 = (process.platform === 'win32');
+
 function isPathSeparator(code: number | undefined) {
 	return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 }
@@ -1073,6 +1075,21 @@ export const win32: IPath = {
 	posix: null
 };
 
+const posixCwd = (() => {
+	if (platformIsWin32) {
+		// Converts Windows' backslash path separators to POSIX forward slashes
+		// and truncates any drive indicator
+		const regexp = /\\/g;
+		return () => {
+			const cwd = process.cwd().replace(regexp, '/');
+			return cwd.slice(cwd.indexOf('/'));
+		};
+	}
+
+	// We're already on POSIX, no need for any transformations
+	return () => process.cwd();
+})();
+
 export const posix: IPath = {
 	// path.resolve([from ...], to)
 	resolve(...pathSegments: string[]): string {
@@ -1080,14 +1097,7 @@ export const posix: IPath = {
 		let resolvedAbsolute = false;
 
 		for (let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-			// const path = i >= 0 ? pathSegments[i] : process.cwd();
-			let path;
-			if (i >= 0) {
-				path = pathSegments[i];
-			} else {
-				const _ = process.cwd().replace(new RegExp(`\\${module.exports.sep}`, 'g'), posix.sep);
-				path = _.slice(_.indexOf(posix.sep));
-			}
+			const path = i >= 0 ? pathSegments[i] : posixCwd();
 
 			validateString(path, 'path');
 
@@ -1502,16 +1512,16 @@ export const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-export const normalize = (process.platform === 'win32' ? win32.normalize : posix.normalize);
-export const isAbsolute = (process.platform === 'win32' ? win32.isAbsolute : posix.isAbsolute);
-export const join = (process.platform === 'win32' ? win32.join : posix.join);
-export const resolve = (process.platform === 'win32' ? win32.resolve : posix.resolve);
-export const relative = (process.platform === 'win32' ? win32.relative : posix.relative);
-export const dirname = (process.platform === 'win32' ? win32.dirname : posix.dirname);
-export const basename = (process.platform === 'win32' ? win32.basename : posix.basename);
-export const extname = (process.platform === 'win32' ? win32.extname : posix.extname);
-export const format = (process.platform === 'win32' ? win32.format : posix.format);
-export const parse = (process.platform === 'win32' ? win32.parse : posix.parse);
-export const toNamespacedPath = (process.platform === 'win32' ? win32.toNamespacedPath : posix.toNamespacedPath);
-export const sep = (process.platform === 'win32' ? win32.sep : posix.sep);
-export const delimiter = (process.platform === 'win32' ? win32.delimiter : posix.delimiter);
+export const normalize = (platformIsWin32 ? win32.normalize : posix.normalize);
+export const isAbsolute = (platformIsWin32 ? win32.isAbsolute : posix.isAbsolute);
+export const join = (platformIsWin32 ? win32.join : posix.join);
+export const resolve = (platformIsWin32 ? win32.resolve : posix.resolve);
+export const relative = (platformIsWin32 ? win32.relative : posix.relative);
+export const dirname = (platformIsWin32 ? win32.dirname : posix.dirname);
+export const basename = (platformIsWin32 ? win32.basename : posix.basename);
+export const extname = (platformIsWin32 ? win32.extname : posix.extname);
+export const format = (platformIsWin32 ? win32.format : posix.format);
+export const parse = (platformIsWin32 ? win32.parse : posix.parse);
+export const toNamespacedPath = (platformIsWin32 ? win32.toNamespacedPath : posix.toNamespacedPath);
+export const sep = (platformIsWin32 ? win32.sep : posix.sep);
+export const delimiter = (platformIsWin32 ? win32.delimiter : posix.delimiter);
