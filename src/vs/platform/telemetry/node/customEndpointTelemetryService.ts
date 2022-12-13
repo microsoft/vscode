@@ -34,7 +34,7 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			telemetryInfo['common.vscodesessionid'] = sessionId;
 			const args = [endpoint.id, JSON.stringify(telemetryInfo), endpoint.aiKey];
 			const client = new TelemetryClient(
-				FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+				FileAccess.asFileUri('bootstrap-fork').fsPath,
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,

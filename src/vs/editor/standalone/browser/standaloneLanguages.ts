@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as model from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -23,11 +23,14 @@ import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneT
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Register information about a new language.
  */
 export function register(language: ILanguageExtensionPoint): void {
+	// Intentionally using the `ModesRegistry` here to avoid
+	// instantiating services too quickly in the standalone editor.
 	ModesRegistry.registerLanguage(language);
 }
 
@@ -70,7 +73,8 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
-	return LanguageConfigurationRegistry.register(languageId, configuration, 100);
+	const languageConfigurationService = StandaloneServices.get(ILanguageConfigurationService);
+	return languageConfigurationService.register(languageId, configuration, 100);
 }
 
 /**
@@ -371,7 +375,7 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
 			if (isATokensProvider(result)) {
 				return createTokenizationSupportAdapter(languageId, result);
 			}
-			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result));
+			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result), StandaloneServices.get(IConfigurationService));
 		}
 	};
 	return languages.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
@@ -402,7 +406,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
-		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, languageDef));
+		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, languageDef), StandaloneServices.get(IConfigurationService));
 	};
 	if (isThenable<IMonarchLanguage>(languageDef)) {
 		return registerTokensProviderFactory(languageId, { create: () => languageDef });
@@ -522,12 +526,13 @@ export function registerCodeActionProvider(languageSelector: LanguageSelector, p
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.codeActionProvider.register(languageSelector, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
+		documentation: metadata?.documentation,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);
 			const markers = markerService.read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only, trigger: context.trigger }, token);
 		},
 		resolveCodeAction: provider.resolveCodeAction
 	});
@@ -660,6 +665,11 @@ export interface CodeActionContext {
 	 * Requested kind of actions to return.
 	 */
 	readonly only?: string;
+
+	/**
+	 * The reason why code actions were requested.
+	 */
+	readonly trigger: languages.CodeActionTriggerType;
 }
 
 /**
@@ -693,6 +703,8 @@ export interface CodeActionProviderMetadata {
 	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 	 */
 	readonly providedCodeActionKinds?: readonly string[];
+
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: languages.Command }>;
 }
 
 /**
@@ -749,6 +761,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
+		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,

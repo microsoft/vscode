@@ -33,7 +33,8 @@ export interface IHoverService {
 	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
 
 	/**
-	 * Hides the hover if it was visible.
+	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
+	 * "locked" via the alt/option key.
 	 */
 	hideHover(): void;
 }
@@ -118,6 +119,13 @@ export interface IHoverOptions {
 	 * another in the same group so it looks like the hover is moving from one element to the other.
 	 */
 	skipFadeInAnimation?: boolean;
+
+	/**
+	 * Whether to trap focus in the following ways:
+	 * - When the hover closes, focus goes to the element that had focus before the hover opened
+	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
+	 */
+	trapFocus?: boolean;
 }
 
 export interface IHoverAction {

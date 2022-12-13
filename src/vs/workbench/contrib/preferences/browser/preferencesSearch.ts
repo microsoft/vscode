@@ -19,13 +19,13 @@ import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extens
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -191,7 +191,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			}
 
 			if (token && token.isCancellationRequested) {
-				throw canceled();
+				throw new CancellationError();
 			}
 
 			const resultKeys = Object.keys(remoteResult.scoredResults);
@@ -379,7 +379,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const hasMoreFilters = filters.length > (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS;
 
 		const body = JSON.stringify({
-			query: encodedQuery,
+			search: encodedQuery,
 			filters: encodeURIComponent(filterStr),
 			rawQuery: encodeURIComponent(verbatimQuery)
 		});
@@ -554,7 +554,7 @@ export class SettingMatches {
 		// Trim excess ending characters off the query.
 		singleWordQuery = singleWordQuery.toLowerCase().replace(/[\s-\._]+$/, '');
 		lineToSearch = lineToSearch.toLowerCase();
-		const singleWordRegex = new RegExp(`\\b${singleWordQuery}\\b`);
+		const singleWordRegex = new RegExp(`\\b${strings.escapeRegExpCharacters(singleWordQuery)}\\b`);
 		if (singleWordRegex.test(lineToSearch)) {
 			this.matchType |= SettingMatchType.WholeWordMatch;
 		}
@@ -607,4 +607,4 @@ export class SettingMatches {
 	}
 }
 
-registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, InstantiationType.Delayed);

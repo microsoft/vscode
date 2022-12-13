@@ -8,13 +8,13 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import * as languages from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),

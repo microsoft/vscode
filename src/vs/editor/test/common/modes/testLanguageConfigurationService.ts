@@ -3,35 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService, LanguageConfigurationRegistry, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
-export class TestLanguageConfigurationService implements ILanguageConfigurationService {
+export class TestLanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
 	_serviceBrand: undefined;
 
-	private registration: IDisposable | undefined = undefined;
+	private readonly _registry = this._register(new LanguageConfigurationRegistry());
 
-	private readonly onDidChangeEmitter = new Emitter<LanguageConfigurationServiceChangeEvent>({
-		onFirstListenerAdd: () => {
-			this.registration = LanguageConfigurationRegistry.onDidChange((e) => {
-				this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageId));
-			});
-		},
-		onLastListenerRemove: () => {
-			this.registration?.dispose();
-			this.registration = undefined;
-		}
-	});
-	public readonly onDidChange = this.onDidChangeEmitter.event;
+	private readonly _onDidChange = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>());
+	public readonly onDidChange = this._onDidChange.event;
 
-	register(languageId: string, configuration: LanguageConfiguration, priority?: number): IDisposable {
-		return LanguageConfigurationRegistry.register(languageId, configuration, priority);
+	constructor() {
+		super();
+		this._register(this._registry.onDidChange((e) => this._onDidChange.fire(new LanguageConfigurationServiceChangeEvent(e.languageId))));
 	}
 
-	getLanguageConfiguration(languageId: string, resource?: URI): ResolvedLanguageConfiguration {
-		return LanguageConfigurationRegistry.getLanguageConfiguration(languageId) ??
+	register(languageId: string, configuration: LanguageConfiguration, priority?: number): IDisposable {
+		return this._registry.register(languageId, configuration, priority);
+	}
+
+	getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
+		return this._registry.getLanguageConfiguration(languageId) ??
 			new ResolvedLanguageConfiguration('unknown', {});
 	}
 }

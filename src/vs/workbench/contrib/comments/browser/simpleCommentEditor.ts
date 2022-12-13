@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -24,6 +24,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 
@@ -50,11 +51,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: <IEditorContributionDescription[]>[
-				{ id: MenuPreventer.ID, ctor: MenuPreventer },
-				{ id: ContextMenuController.ID, ctor: ContextMenuController },
-				{ id: SuggestController.ID, ctor: SuggestController },
-				{ id: SnippetController2.ID, ctor: SnippetController2 },
-				{ id: TabCompletionController.ID, ctor: TabCompletionController },
+				{ id: MenuPreventer.ID, ctor: MenuPreventer, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
+				{ id: ContextMenuController.ID, ctor: ContextMenuController, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
+				{ id: SuggestController.ID, ctor: SuggestController, instantiation: EditorContributionInstantiation.Eager },
+				{ id: SnippetController2.ID, ctor: SnippetController2, instantiation: EditorContributionInstantiation.Lazy },
+				{ id: TabCompletionController.ID, ctor: TabCompletionController, instantiation: EditorContributionInstantiation.Eager }, // eager because it needs to define a context key
 			]
 		};
 
@@ -75,11 +76,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		return this._parentThread;
 	}
 
-	protected _getActions(): EditorAction[] {
+	protected _getActions(): Iterable<EditorAction> {
 		return EditorExtensionsRegistry.getEditorActions();
 	}
 
-	public static getEditorOptions(): IEditorOptions {
+	public static getEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 		return {
 			wordWrap: 'on',
 			glyphMargin: false,
@@ -103,6 +104,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			minimap: {
 				enabled: false
 			},
+			autoClosingBrackets: configurationService.getValue('editor.autoClosingBrackets'),
 			quickSuggestions: false
 		};
 	}

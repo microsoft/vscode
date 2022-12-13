@@ -48,7 +48,7 @@ export namespace ThemeIcon {
 		if (!match) {
 			return undefined;
 		}
-		let [, name] = match;
+		const [, name] = match;
 		return { id: name };
 	}
 
@@ -230,7 +230,7 @@ class ThemingRegistry implements IThemingRegistry {
 	}
 }
 
-let themingRegistry = new ThemingRegistry();
+const themingRegistry = new ThemingRegistry();
 platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
@@ -260,7 +260,7 @@ export class Themable extends Disposable {
 		this.updateStyles();
 	}
 
-	protected updateStyles(): void {
+	updateStyles(): void {
 		// Subclasses to override
 	}
 
@@ -276,6 +276,7 @@ export class Themable extends Disposable {
 }
 
 export interface IPartsSplash {
+	zoomLevel: number | undefined;
 	baseTheme: string;
 	colorInfo: {
 		background: string;

@@ -15,30 +15,38 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 	teardown(closeAllEditors);
 
 	test('style attribute & attribute value in html', async () => {
-		await testHtmlCompletionProvider('<div style="|"', [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='|'`, [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='p|'`, [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='color: #0|'`, [{ label: '#000000' }]);
+		await testCompletionProvider('html', '<div style="|"', [{ label: 'padding: ;' }]);
+		await testCompletionProvider('html', `<div style='|'`, [{ label: 'padding: ;' }]);
+		await testCompletionProvider('html', `<div style='p|'`, [{ label: 'padding: ;' }]);
+		await testCompletionProvider('html', `<div style='color: #0|'`, [{ label: '#000000' }]);
 	});
 
 	// https://github.com/microsoft/vscode/issues/79766
 	test('#79766, correct region determination', async () => {
-		await testHtmlCompletionProvider(`<div style="color: #000">di|</div>`, [
+		await testCompletionProvider('html', `<div style="color: #000">di|</div>`, [
 			{ label: 'div', documentation: `<div>|</div>` }
 		]);
 	});
 
 	// https://github.com/microsoft/vscode/issues/86941
 	test('#86941, widows should not be completed', async () => {
-		await testCssCompletionProvider(`.foo { wi| }`, [
-			{ label: 'widows: ;', documentation: `widows: ;` }
-		]);
+		await testCompletionProvider('css', `.foo { wi| }`, undefined);
 	});
 
 	// https://github.com/microsoft/vscode/issues/117020
 	test('#117020, ! at end of abbreviation should have completion', async () => {
-		await testCssCompletionProvider(`.foo { bdbn!| }`, [
+		await testCompletionProvider('css', `.foo { bdbn!| }`, [
 			{ label: 'border-bottom: none !important;', documentation: `border-bottom: none !important;` }
+		]);
+	});
+
+	// https://github.com/microsoft/vscode/issues/138461
+	test('#138461, JSX array noise', async () => {
+		await testCompletionProvider('jsx', 'a[i]', undefined);
+		await testCompletionProvider('jsx', 'Component[a b]', undefined);
+		await testCompletionProvider('jsx', '[a, b]', undefined);
+		await testCompletionProvider('jsx', '[a=b]', [
+			{ label: '<div a="b"></div>', documentation: '<div a="b">|</div>' }
 		]);
 	});
 });
@@ -49,11 +57,11 @@ interface TestCompletionItem {
 	documentation?: string;
 }
 
-function testHtmlCompletionProvider(contents: string, expectedItems: TestCompletionItem[]): Thenable<any> {
+function testCompletionProvider(fileExtension: string, contents: string, expectedItems: TestCompletionItem[] | undefined): Thenable<boolean> {
 	const cursorPos = contents.indexOf('|');
-	const htmlContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
+	const slicedContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
 
-	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
+	return withRandomFileEditor(slicedContents, fileExtension, async (editor, _doc) => {
 		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
@@ -69,51 +77,14 @@ function testHtmlCompletionProvider(contents: string, expectedItems: TestComplet
 
 		const completionList = await completionPromise;
 		if (!completionList || !completionList.items || !completionList.items.length) {
-			return Promise.resolve();
-		}
-
-		expectedItems.forEach(eItem => {
-			const matches = completionList.items.filter(i => i.label === eItem.label);
-			const match = matches && matches.length > 0 ? matches[0] : undefined;
-			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
-
-			if (match) {
-				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
-
-				if (eItem.documentation) {
-					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
-				}
+			if (completionList === undefined) {
+				assert.strictEqual(expectedItems, completionList);
 			}
-		});
-
-		return Promise.resolve();
-	});
-}
-
-function testCssCompletionProvider(contents: string, expectedItems: TestCompletionItem[]): Thenable<any> {
-	const cursorPos = contents.indexOf('|');
-	const cssContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
-
-	return withRandomFileEditor(cssContents, 'css', async (editor, _doc) => {
-		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
-		editor.selection = selection;
-		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(
-			editor.document,
-			editor.selection.active,
-			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
-		);
-		if (!completionPromise) {
 			return Promise.resolve();
 		}
 
-		const completionList = await completionPromise;
-		if (!completionList || !completionList.items || !completionList.items.length) {
-			return Promise.resolve();
-		}
-
-		expectedItems.forEach(eItem => {
+		assert.strictEqual(expectedItems === undefined, false);
+		expectedItems!.forEach(eItem => {
 			const matches = completionList.items.filter(i => i.label === eItem.label);
 			const match = matches && matches.length > 0 ? matches[0] : undefined;
 			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);

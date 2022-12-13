@@ -11,18 +11,20 @@ import { createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/t
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('bracket matching', () => {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageConfigurationService: ILanguageConfigurationService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createCodeEditorServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	teardown(() => {
@@ -31,7 +33,7 @@ suite('bracket matching', () => {
 
 	function createTextModelWithBrackets(text: string) {
 		const languageId = 'bracketMode';
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],

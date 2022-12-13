@@ -5,57 +5,47 @@
 
 import * as vscode from 'vscode';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 import DefinitionProviderBase from './definitionProviderBase';
 
 export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements vscode.DefinitionProvider {
-	constructor(
-		client: ITypeScriptServiceClient
-	) {
-		super(client);
-	}
 
 	public async provideDefinition(
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
-		if (this.client.apiVersion.gte(API.v270)) {
-			const filepath = this.client.toOpenedFilePath(document);
-			if (!filepath) {
-				return undefined;
-			}
-
-			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			const response = await this.client.execute('definitionAndBoundSpan', args, token);
-			if (response.type !== 'response' || !response.body) {
-				return undefined;
-			}
-
-			const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
-			return response.body.definitions
-				.map((location): vscode.DefinitionLink => {
-					const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-					if (location.contextStart && location.contextEnd) {
-						return {
-							originSelectionRange: span,
-							targetRange: typeConverters.Range.fromLocations(location.contextStart, location.contextEnd),
-							targetUri: target.uri,
-							targetSelectionRange: target.range,
-						};
-					}
-					return {
-						originSelectionRange: span,
-						targetRange: target.range,
-						targetUri: target.uri
-					};
-				});
+		const filepath = this.client.toOpenedFilePath(document);
+		if (!filepath) {
+			return undefined;
 		}
 
-		return this.getSymbolLocations('definition', document, position, token);
+		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+		const response = await this.client.execute('definitionAndBoundSpan', args, token);
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
+		}
+
+		const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
+		return response.body.definitions
+			.map((location): vscode.DefinitionLink => {
+				const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
+				if (location.contextStart && location.contextEnd) {
+					return {
+						originSelectionRange: span,
+						targetRange: typeConverters.Range.fromLocations(location.contextStart, location.contextEnd),
+						targetUri: target.uri,
+						targetSelectionRange: target.range,
+					};
+				}
+				return {
+					originSelectionRange: span,
+					targetRange: target.range,
+					targetUri: target.uri
+				};
+			});
 	}
 }
 

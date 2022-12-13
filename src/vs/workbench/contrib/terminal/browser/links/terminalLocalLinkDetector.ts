@@ -46,13 +46,15 @@ const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 
+// TODO: This should eventually move to the more structured terminalLinkParsing
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 export const lineAndColumnClause = [
+	'(([^:\\s\\(\\)<>\'\"\\[\\]]*) ((\\d+))(:(\\d+)))', // (file path) 336:9 [see #140780]
 	'((\\S*)[\'"], line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*)[\'"],((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
-	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
+	'((\\S*):\\s?line ((\\d+)(, col(?:umn)? (\\d+))?))', // (file path):line 8, column 13, (file path): line 8, col 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
@@ -66,6 +68,12 @@ export const lineAndColumnClauseGroupCount = 6;
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
+
+	// This was chosen as a reasonable maximum line length given the tradeoff between performance
+	// and how likely it is to encounter such a large line length. Some useful reference points:
+	// - Window old max length: 260 ($MAX_PATH)
+	// - Linux max length: 4096 ($PATH_MAX)
+	readonly maxLinkLength = 500;
 
 	constructor(
 		readonly xterm: Terminal,
@@ -140,17 +148,18 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
-			if (osPathModule(this._os).isAbsolute(link)) {
+			if (osPathModule(this._os).isAbsolute(link) || link.startsWith('~')) {
 				linkCandidates.push(link);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osPathModule(this._os).sep);
+					const osModule = osPathModule(this._os);
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osModule);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does
 					// not exist. Doing otherwise could cause unexpected results where handling via the
 					// word link detector is preferable.
 					if (absolutePath) {
-						linkCandidates.push(absolutePath);
+						linkCandidates.push(...absolutePath);
 					}
 				} else {
 					// Fallback to resolving against the initial cwd, removing any relative directory prefixes

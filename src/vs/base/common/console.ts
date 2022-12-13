@@ -11,7 +11,7 @@ export interface IRemoteConsoleLog {
 	arguments: string;
 }
 
-interface IStackArgument {
+export interface IStackArgument {
 	__$stack: string;
 }
 

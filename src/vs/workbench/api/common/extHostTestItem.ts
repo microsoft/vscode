@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import * as editorRange from 'vs/editor/common/core/range';
 import { createPrivateApiFor, getPrivateApiFor, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
+import { TestId, TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
 import { createTestItemChildren, ExtHostTestItemEvent, ITestChildrenLike, ITestItemApi, ITestItemChildren, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { ITestItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { denamespaceTestTag, ITestItem, ITestItemContext } from 'vs/workbench/contrib/testing/common/testTypes';
 import type * as vscode from 'vscode';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { URI } from 'vs/base/common/uri';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
@@ -66,7 +68,24 @@ const evSetProps = <T>(fn: (newValue: T) => Partial<ITestItem>): (newValue: T) =
 	v => ({ op: TestItemEventOp.SetProp, update: fn(v) });
 
 const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in keyof Required<WritableProps>]: PropertyDescriptor } => ({
-	range: testItemPropAccessor<'range'>(api, undefined, propComparators.range, evSetProps(r => ({ range: editorRange.Range.lift(Convert.Range.from(r)) }))),
+	range: (() => {
+		let value: vscode.Range | undefined;
+		const updateProps = evSetProps<vscode.Range | undefined>(r => ({ range: editorRange.Range.lift(Convert.Range.from(r)) }));
+		return {
+			enumerable: true,
+			configurable: false,
+			get() {
+				return value;
+			},
+			set(newValue: vscode.Range | undefined) {
+				api.listener?.({ op: TestItemEventOp.DocumentSynced });
+				if (!propComparators.range(value, newValue)) {
+					value = newValue;
+					api.listener?.(updateProps(newValue));
+				}
+			},
+		};
+	})(),
 	label: testItemPropAccessor<'label'>(api, label, propComparators.label, evSetProps(label => ({ label }))),
 	description: testItemPropAccessor<'description'>(api, undefined, propComparators.description, evSetProps(description => ({ description }))),
 	sortText: testItemPropAccessor<'sortText'>(api, undefined, propComparators.sortText, evSetProps(sortText => ({ sortText }))),
@@ -82,6 +101,27 @@ const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in k
 		old: previous.map(Convert.TestTag.from),
 	})),
 });
+
+const toItemFromPlain = (item: ITestItem.Serialized): TestItemImpl => {
+	const testId = TestId.fromString(item.extId);
+	const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri) || undefined);
+	testItem.range = Convert.Range.to(item.range || undefined);
+	testItem.description = item.description || undefined;
+	testItem.sortText = item.sortText || undefined;
+	testItem.tags = item.tags.map(t => Convert.TestTag.to({ id: denamespaceTestTag(t).tagId }));
+	return testItem;
+};
+
+export const toItemFromContext = (context: ITestItemContext): TestItemImpl => {
+	let node: TestItemImpl | undefined;
+	for (const test of context.tests) {
+		const next = toItemFromPlain(test.item);
+		getPrivateApiFor(next).parent = node;
+		node = next;
+	}
+
+	return node!;
+};
 
 export class TestItemImpl implements vscode.TestItem {
 	public readonly id!: string;
@@ -135,15 +175,18 @@ export class TestItemImpl implements vscode.TestItem {
 }
 
 export class TestItemRootImpl extends TestItemImpl {
+	public readonly _isRoot = true;
+
 	constructor(controllerId: string, label: string) {
 		super(controllerId, controllerId, label, undefined);
 	}
 }
 
 export class ExtHostTestItemCollection extends TestItemCollection<TestItemImpl> {
-	constructor(controllerId: string, controllerLabel: string) {
+	constructor(controllerId: string, controllerLabel: string, editors: ExtHostDocumentsAndEditors) {
 		super({
 			controllerId,
+			getDocumentVersion: uri => uri && editors.getDocument(uri)?.version,
 			getApiFor: getPrivateApiFor as (impl: TestItemImpl) => ITestItemApi<TestItemImpl>,
 			getChildren: (item) => item.children as ITestChildrenLike<TestItemImpl>,
 			root: new TestItemRootImpl(controllerId, controllerLabel),

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
-import { IEditor } from 'vs/editor/common/editorCommon';
+import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -119,14 +118,6 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
 	}
 
-	override addDecorations(editor: IEditor, range: IRange): void {
-		super.addDecorations(editor, range);
-	}
-
-	override clearDecorations(editor: IEditor): void {
-		super.clearDecorations(editor);
-	}
-
 	//#endregion
 
 	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
@@ -201,7 +192,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 						item.highlights = undefined;
 						return true;
 					}
-					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, true);
+					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 					if (!score) {
 						return false;
 					}
@@ -243,22 +234,13 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: GotoSymbolQuickAccessProvider,
-	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
-	contextKey: 'inFileSymbolsPicker',
-	placeholder: localize('gotoSymbolQuickAccessPlaceholder', "Type the name of a symbol to go to."),
-	helpEntries: [
-		{ description: localize('gotoSymbolQuickAccess', "Go to Symbol in Editor"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, needsEditor: true },
-		{ description: localize('gotoSymbolByCategoryQuickAccess', "Go to Symbol in Editor by Category"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY, needsEditor: true }
-	]
-});
+class GotoSymbolAction extends Action2 {
 
-registerAction2(class GotoSymbolAction extends Action2 {
+	static readonly ID = 'workbench.action.gotoSymbol';
 
 	constructor() {
 		super({
-			id: 'workbench.action.gotoSymbol',
+			id: GotoSymbolAction.ID,
 			title: {
 				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
 				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
@@ -270,15 +252,28 @@ registerAction2(class GotoSymbolAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO
 			},
-			menu: {
+			menu: [{
 				id: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 1
-			}
+			}]
 		});
 	}
 
 	run(accessor: ServicesAccessor) {
-		accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
+		accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX, { itemActivation: ItemActivation.NONE });
 	}
+}
+
+registerAction2(GotoSymbolAction);
+
+Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: GotoSymbolQuickAccessProvider,
+	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
+	contextKey: 'inFileSymbolsPicker',
+	placeholder: localize('gotoSymbolQuickAccessPlaceholder', "Type the name of a symbol to go to."),
+	helpEntries: [
+		{ description: localize('gotoSymbolQuickAccess', "Go to Symbol in Editor"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, commandId: GotoSymbolAction.ID },
+		{ description: localize('gotoSymbolByCategoryQuickAccess', "Go to Symbol in Editor by Category"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY }
+	]
 });

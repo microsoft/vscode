@@ -88,7 +88,7 @@ suite('URI', () => {
 	});
 
 	test('with, identity', () => {
-		let uri = URI.parse('foo:bar/path');
+		const uri = URI.parse('foo:bar/path');
 
 		let uri2 = uri.with(null!);
 		assert.ok(uri === uri2);
@@ -121,7 +121,7 @@ suite('URI', () => {
 	});
 
 	test('with, validation', () => {
-		let uri = URI.parse('foo:bar/path');
+		const uri = URI.parse('foo:bar/path');
 		assert.throws(() => uri.with({ scheme: 'fai:l' }));
 		assert.throws(() => uri.with({ scheme: 'fäil' }));
 		assert.throws(() => uri.with({ authority: 'fail' }));
@@ -281,14 +281,14 @@ suite('URI', () => {
 	});
 
 	test('VSCode URI module\'s driveLetterPath regex is incorrect, #32961', function () {
-		let uri = URI.parse('file:///_:/path');
+		const uri = URI.parse('file:///_:/path');
 		assert.strictEqual(uri.fsPath, isWindows ? '\\_:\\path' : '/_:/path');
 	});
 
 	test('URI#file, no path-is-uri check', () => {
 
 		// we don't complain here
-		let value = URI.file('file://path/to/file');
+		const value = URI.file('file://path/to/file');
 		assert.strictEqual(value.scheme, 'file');
 		assert.strictEqual(value.authority, '');
 		assert.strictEqual(value.path, '/file://path/to/file');
@@ -469,16 +469,16 @@ suite('URI', () => {
 		}), true);
 	});
 
-	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+	test('Unable to open \'%A0.txt\': URI malformed #76506, part 2', function () {
 		assert.strictEqual(URI.parse('file://some/%.txt').toString(), 'file://some/%25.txt');
 		assert.strictEqual(URI.parse('file://some/%A0.txt').toString(), 'file://some/%25A0.txt');
 	});
 
 	test.skip('Links in markdown are broken if url contains encoded parameters #79474', function () {
-		let strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
-		let uri1 = URI.parse(strIn);
-		let strOut = uri1.toString();
-		let uri2 = URI.parse(strOut);
+		const strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
+		const uri1 = URI.parse(strIn);
+		const strOut = uri1.toString();
+		const uri2 = URI.parse(strOut);
 
 		assert.strictEqual(uri1.scheme, uri2.scheme);
 		assert.strictEqual(uri1.authority, uri2.authority);
@@ -489,10 +489,10 @@ suite('URI', () => {
 	});
 
 	test.skip('Uri#parse can break path-component #45515', function () {
-		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
-		let uri1 = URI.parse(strIn);
-		let strOut = uri1.toString();
-		let uri2 = URI.parse(strOut);
+		const strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
+		const uri1 = URI.parse(strIn);
+		const strOut = uri1.toString();
+		const uri2 = URI.parse(strOut);
 
 		assert.strictEqual(uri1.scheme, uri2.scheme);
 		assert.strictEqual(uri1.authority, uri2.authority);
@@ -516,9 +516,9 @@ suite('URI', () => {
 		// console.profile();
 		// let c = 100000;
 		// while (c-- > 0) {
-		for (let value of values) {
-			let data = value.toJSON() as UriComponents;
-			let clone = URI.revive(data);
+		for (const value of values) {
+			const data = value.toJSON() as UriComponents;
+			const clone = URI.revive(data);
 
 			assert.strictEqual(clone.scheme, value.scheme);
 			assert.strictEqual(clone.authority, value.authority);
@@ -594,5 +594,12 @@ suite('URI', () => {
 
 		//https://github.com/microsoft/vscode/issues/93831
 		assertJoined('file:///c:/foo/bar', './other/foo.img', 'file:///c:/foo/bar/other/foo.img', false);
+	});
+
+	test('vscode-uri: URI.toString() wrongly encode IPv6 literals #154048', function () {
+		assert.strictEqual(URI.parse('http://[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+
+		assert.strictEqual(URI.parse('http://user@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://user@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+		assert.strictEqual(URI.parse('http://us[er@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://us%5Ber@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 	});
 });

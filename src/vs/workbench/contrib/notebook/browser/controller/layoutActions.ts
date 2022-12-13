@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -12,16 +13,22 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.select',
-			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
+			title: {
+				value: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
+				original: 'Select between Notebook Layouts'
+			},
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
@@ -57,7 +64,10 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.configure',
-			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
+			title: {
+				value: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
+				original: 'Customize Notebook Layout'
+			},
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
@@ -79,7 +89,10 @@ registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.configure.editorTitle',
-			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
+			title: {
+				value: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
+				original: 'Customize Notebook Layout'
+			},
 			f1: false,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
@@ -124,7 +137,7 @@ registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
 			f1: true,
 			toggled: {
 				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+				title: localize('notebook.showLineNumbers', "Notebook Line Numbers"),
 			}
 		});
 	}
@@ -173,20 +186,14 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-	},
-	group: 'notebookLayout',
-	order: 2
-});
-
 registerAction2(class SaveMimeTypeDisplayOrder extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.saveMimeTypeOrder',
-			title: localize('notebook.saveMimeTypeOrder', 'Save Mimetype Display Order'),
+			title: {
+				value: localize('notebook.saveMimeTypeOrder', 'Save Mimetype Display Order'),
+				original: 'Save Mimetype Display Order'
+			},
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -213,5 +220,40 @@ registerAction2(class SaveMimeTypeDisplayOrder extends Action2 {
 		qp.onDidHide(() => qp.dispose());
 
 		qp.show();
+	}
+});
+
+registerAction2(class NotebookWebviewResetAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.webview.reset',
+			title: {
+				value: localize('workbench.notebook.layout.webview.reset.label', "Reset Notebook Webview"),
+				original: 'Reset Notebook Webview'
+			},
+			f1: false,
+			category: NOTEBOOK_ACTIONS_CATEGORY
+		});
+	}
+	run(accessor: ServicesAccessor, args?: UriComponents): void {
+		const editorService = accessor.get(IEditorService);
+
+		if (args) {
+			const uri = URI.revive(args);
+			const notebookEditorService = accessor.get(INotebookEditorService);
+			const widgets = notebookEditorService.listNotebookEditors().filter(widget => widget.hasModel() && widget.textModel.uri.toString() === uri.toString());
+			for (const widget of widgets) {
+				if (widget.hasModel()) {
+					widget.getInnerWebview()?.reload();
+				}
+			}
+		} else {
+			const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+			if (!editor) {
+				return;
+			}
+
+			editor.getInnerWebview()?.reload();
+		}
 	}
 });

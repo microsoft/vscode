@@ -35,33 +35,33 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
+		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.APPLICATION, '');
 		if (skipVersion) {
 			return;
 		}
 
 		const date = new Date().toDateString();
-		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
+		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.APPLICATION, new Date(0).toDateString());
 
 		if (date === lastSessionDate) {
 			return;
 		}
 
-		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
-		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL, StorageTarget.USER);
+		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.APPLICATION, 0) || 0) + 1;
+		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.APPLICATION, StorageTarget.USER);
+		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.APPLICATION, StorageTarget.USER);
 
 		if (sessionCount < 9) {
 			return;
 		}
 
-		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
+		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.APPLICATION, false)
 			|| Math.random() < PROBABILITY;
 
-		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.APPLICATION, StorageTarget.USER);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 			return;
 		}
 
@@ -73,18 +73,18 @@ class NPSContribution implements IWorkbenchContribution {
 				run: () => {
 					telemetryService.getTelemetryInfo().then(info => {
 						openerService.open(URI.parse(`${productService.npsSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
-						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
+						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 					});
 				}
 			}, {
 				label: nls.localize('remindLater', "Remind Me later"),
-				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL, StorageTarget.USER)
+				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.APPLICATION, StorageTarget.USER)
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),
 				run: () => {
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
+					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
 			{ sticky: true }

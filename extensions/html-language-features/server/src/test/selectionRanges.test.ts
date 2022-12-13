@@ -15,7 +15,7 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 	const offset = content.indexOf('|');
 	content = content.substr(0, offset) + content.substr(offset + 1);
 
-	let workspace = {
+	const workspace = {
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};

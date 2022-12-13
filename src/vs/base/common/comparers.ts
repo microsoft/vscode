@@ -88,26 +88,6 @@ export function compareFileNamesUnicode(one: string | null, other: string | null
 	return one < other ? -1 : 1;
 }
 
-export function noIntlCompareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
-	if (!caseSensitive) {
-		one = one && one.toLowerCase();
-		other = other && other.toLowerCase();
-	}
-
-	const [oneName, oneExtension] = extractNameAndExtension(one);
-	const [otherName, otherExtension] = extractNameAndExtension(other);
-
-	if (oneName !== otherName) {
-		return oneName < otherName ? -1 : 1;
-	}
-
-	if (oneExtension === otherExtension) {
-		return 0;
-	}
-
-	return oneExtension < otherExtension ? -1 : 1;
-}
-
 /** Compares filenames by extension, then by name. Disambiguates by unicode comparison. */
 export function compareFileExtensions(one: string | null, other: string | null): number {
 	const [oneName, oneExtension] = extractNameAndExtension(one);
@@ -219,7 +199,7 @@ function extractExtension(str?: string | null): string {
 
 function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {
 	// Check for differences
-	let result = collator.compare(one, other);
+	const result = collator.compare(one, other);
 	if (result !== 0) {
 		return result;
 	}

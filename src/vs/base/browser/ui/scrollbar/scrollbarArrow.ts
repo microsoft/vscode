@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -103,7 +103,6 @@ export class ScrollbarArrow extends Widget {
 			e.target,
 			e.pointerId,
 			e.buttons,
-			standardPointerMoveMerger,
 			(pointerMoveData) => { /* Intentional empty */ },
 			() => {
 				this._pointerdownRepeatTimer.cancel();

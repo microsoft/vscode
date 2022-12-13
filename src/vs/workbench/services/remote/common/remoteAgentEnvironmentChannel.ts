@@ -12,6 +12,7 @@ import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEn
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionHostExitInfo } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Mutable } from 'vs/base/common/types';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;
@@ -118,7 +119,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
 		if (extension) {
-			(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+			(<Mutable<IExtensionDescription>>extension).extensionLocation = URI.revive(extension.extensionLocation);
 		}
 		return extension;
 	}
@@ -137,5 +138,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	static flushTelemetry(channel: IChannel): Promise<void> {
 		return channel.call<void>('flushTelemetry');
+	}
+
+	static async ping(channel: IChannel): Promise<void> {
+		await channel.call<void>('ping');
 	}
 }

@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
+import { CompletionItemKind, InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
@@ -98,6 +98,17 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		};
 
 		const position = this.editor.getPosition();
+
+		if (
+			state.selectedItem.isSnippetText ||
+			state.selectedItem.completionItemKind === CompletionItemKind.Snippet ||
+			state.selectedItem.completionItemKind === CompletionItemKind.File ||
+			state.selectedItem.completionItemKind === CompletionItemKind.Folder
+		) {
+			// Don't ask providers for these types of suggestions.
+			this.cache.clear();
+			return;
+		}
 
 		const promise = createCancelablePromise(async token => {
 			let result: TrackedInlineCompletions;
