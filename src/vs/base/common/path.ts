@@ -63,6 +63,12 @@ class ErrorInvalidArgType extends Error {
 	}
 }
 
+function validateObject(pathObject: object, name: string) {
+	if (pathObject === null || typeof pathObject !== 'object') {
+		throw new ErrorInvalidArgType(name, 'Object', pathObject);
+	}
+}
+
 function validateString(value: string, name: string) {
 	if (typeof value !== 'string') {
 		throw new ErrorInvalidArgType(name, 'string', value);
@@ -152,9 +158,7 @@ function normalizeString(path: string, allowAboveRoot: boolean, separator: strin
 }
 
 function _format(sep: string, pathObject: ParsedPath) {
-	if (pathObject === null || typeof pathObject !== 'object') {
-		throw new ErrorInvalidArgType('pathObject', 'Object', pathObject);
-	}
+	validateObject(pathObject, 'pathObject');
 	const dir = pathObject.dir || pathObject.root;
 	const base = pathObject.base ||
 		`${pathObject.name || ''}${pathObject.ext || ''}`;
