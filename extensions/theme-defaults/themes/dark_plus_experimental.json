@@ -104,7 +104,6 @@
 		"statusBar.debuggingForeground": "#000000",
 		"statusBar.foreground": "#ffffffc5",
 		"statusBar.noFolderBackground": "#1f1f1f",
-		"statusBarItem.activeBackground": "#202020",
 		"statusBarItem.focusBorder": "#2488d8",
 		"statusBarItem.prominentBackground": "#6e768166",
 		"statusBarItem.remoteBackground": "#2488d8",
