@@ -29,7 +29,7 @@ export interface IExternalTerminalService {
 
 export interface IExternalTerminalConfiguration {
 	terminal: {
-		explorerKind: 'integrated' | 'external';
+		explorerKind: 'integrated' | 'external' | 'both';
 		external: IExternalTerminalSettings;
 	};
 }
