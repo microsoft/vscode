@@ -138,6 +138,7 @@ export class ContextMenuHandler {
 				}
 
 				this.blockDisposable?.dispose();
+				this.blockDisposable = null;
 
 				if (!!this.lastContainer && (getActiveElement() === this.lastContainer || isAncestor(getActiveElement(), this.lastContainer))) {
 					this.focusToReturn?.focus();
