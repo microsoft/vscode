@@ -15,20 +15,16 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { basename } from 'vs/base/common/path';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
-		private readonly _os: OperatingSystem,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
 	}
