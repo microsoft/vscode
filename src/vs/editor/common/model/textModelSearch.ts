@@ -49,6 +49,7 @@ export class SearchParams {
 				unicode: true
 			});
 		} catch (err) {
+			console.error(err);
 			return null;
 		}
 
