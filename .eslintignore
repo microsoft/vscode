@@ -13,6 +13,9 @@
 **/extensions/notebook-renderers/renderer-out/index.js
 **/extensions/simple-browser/media/index.js
 **/extensions/typescript-language-features/test-workspace/**
+**/extensions/typescript-language-features/extension.webpack.config.js
+**/extensions/typescript-language-features/extension-browser.webpack.config.js
+**/extensions/typescript-language-features/web/**
 **/extensions/vscode-api-tests/testWorkspace/**
 **/extensions/vscode-api-tests/testWorkspace2/**
 **/fixtures/**

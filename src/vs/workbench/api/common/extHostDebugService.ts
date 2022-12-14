@@ -124,7 +124,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
 		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				this.startBreakpoints();
 			}
 		});
@@ -768,12 +768,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				}
 				return undefined;
 			}),
-			new Promise<never>((resolve, reject) => {
-				const timeout = setTimeout(() => {
-					clearTimeout(timeout);
-					reject(new Error('timeout'));
-				}, 1000);
-			})
+			new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 1000)),
 		]).catch(err => {
 			// ignore errors
 			return undefined;

@@ -37,11 +37,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Listen for message ports
-if (process.env['VSCODE_WILL_SEND_MESSAGE_PORT']) {
-	listenForMessagePort();
-}
-
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
@@ -234,23 +229,6 @@ function terminateWhenParentTerminates() {
 				process.exit();
 			}
 		}, 5000);
-	}
-}
-
-function listenForMessagePort() {
-	// We need to listen for the 'port' event as soon as possible,
-	// otherwise we might miss the event. But we should also be
-	// prepared in case the event arrives late.
-	// @ts-ignore
-	if (process.parentPort) {
-		// @ts-ignore
-		process.parentPort.on('message', (e) => {
-			if (global.vscodePortsCallback) {
-				global.vscodePortsCallback(e.ports);
-			} else {
-				global.vscodePorts = e.ports;
-			}
-		});
 	}
 }
 

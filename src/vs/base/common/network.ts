@@ -170,6 +170,22 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
+/**
+ * A string pointing to a path inside the app. It should not begin with ./ or ../
+ */
+export type AppResourcePath = (
+	`a${string}` | `b${string}` | `c${string}` | `d${string}` | `e${string}` | `f${string}`
+	| `g${string}` | `h${string}` | `i${string}` | `j${string}` | `k${string}` | `l${string}`
+	| `m${string}` | `n${string}` | `o${string}` | `p${string}` | `q${string}` | `r${string}`
+	| `s${string}` | `t${string}` | `u${string}` | `v${string}` | `w${string}` | `x${string}`
+	| `y${string}` | `z${string}`
+);
+
+export const builtinExtensionsPath: AppResourcePath = 'vs/../../extensions';
+export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
+export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
+export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
+
 class FileAccessImpl {
 
 	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
@@ -180,11 +196,18 @@ class FileAccessImpl {
 	 *
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
-	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath, require);
+		return this.uriToBrowserUri(uri);
+	}
 
+	/**
+	 * Returns a URI to use in contexts where the browser is responsible
+	 * for loading (e.g. fetch()) or when used within the DOM.
+	 *
+	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
+	 */
+	uriToBrowserUri(uri: URI): URI {
 		// Handle remote URIs via `RemoteAuthorities`
 		if (uri.scheme === Schemas.vscodeRemote) {
 			return RemoteAuthorities.rewrite(uri);
@@ -220,11 +243,16 @@ class FileAccessImpl {
 	 * Returns the `file` URI to use in contexts where node.js
 	 * is responsible for loading.
 	 */
-	asFileUri(uri: URI): URI;
-	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asFileUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath, require);
+		return this.uriToFileUri(uri);
+	}
 
+	/**
+	 * Returns the `file` URI to use in contexts where node.js
+	 * is responsible for loading.
+	 */
+	uriToFileUri(uri: URI): URI {
 		// Only convert the URI if it is `vscode-file:` scheme
 		if (uri.scheme === Schemas.vscodeFileResource) {
 			return uri.with({
@@ -241,12 +269,12 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
 	}
 }
 

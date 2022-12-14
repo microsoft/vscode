@@ -15,6 +15,7 @@ import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
 import { EventProfiling } from 'vs/base/common/event';
+import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/inputLatencyContrib';
 
 // -- startup performance view
 
@@ -127,3 +128,10 @@ registerAction2(class PrintEventProfiling extends Action2 {
 		}
 	}
 });
+
+// -- input latency
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	InputLatencyContrib,
+	LifecyclePhase.Eventually
+);

@@ -15,8 +15,13 @@ import type { IRawTheme, IOnigLib } from 'vscode-textmate';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
+
+const textmateModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-textmate`;
+const textmateModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-textmate`;
+const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
+const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
@@ -153,15 +158,17 @@ export class TextMateWorker {
 	}
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
-		require.config({
-			paths: {
-				'vscode-textmate': '../node_modules/vscode-textmate/release/main',
-				'vscode-oniguruma': '../node_modules/vscode-oniguruma/release/main',
-			}
-		});
-		const vscodeTextmate = await import('vscode-textmate');
-		const vscodeOniguruma = await import('vscode-oniguruma');
-		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
+		// TODO: asar support
+		const useAsar = false; // this._environmentService.isBuilt && !isWeb
+
+		const textmateLocation: AppResourcePath = useAsar ? textmateModuleLocation : textmateModuleLocationAsar;
+		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocation : onigurumaModuleLocationAsar;
+		const textmateMain: AppResourcePath = `${textmateLocation}/release/main.js`;
+		const onigurumaMain: AppResourcePath = `${onigurumaLocation}/release/main.js`;
+		const onigurumaWASM: AppResourcePath = `${onigurumaLocation}/release/onig.wasm`;
+		const vscodeTextmate = await import(FileAccess.asBrowserUri(textmateMain).toString(true));
+		const vscodeOniguruma = await import(FileAccess.asBrowserUri(onigurumaMain).toString(true));
+		const response = await fetch(FileAccess.asBrowserUri(onigurumaWASM).toString(true));
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.
 		// We therefore use the non-streaming compiler :(.

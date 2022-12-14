@@ -8,11 +8,11 @@ import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EXPAND_CELL_OUTPUT_COMMAND_ID, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
 const $ = DOM.$;
 
-export class CollapsedCellOutput extends CellPart {
+export class CollapsedCellOutput extends CellContentPart {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		cellOutputCollapseContainer: HTMLElement,

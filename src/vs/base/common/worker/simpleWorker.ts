@@ -136,12 +136,12 @@ class SimpleWorkerProtocol {
 	public listen(eventName: string, arg: any): Event<any> {
 		let req: string | null = null;
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				req = String(++this._lastSentReq);
 				this._pendingEmitters.set(req, emitter);
 				this._send(new SubscribeEventMessage(this._workerId, req, eventName, arg));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this._pendingEmitters.delete(req!);
 				this._send(new UnsubscribeEventMessage(this._workerId, req!));
 				req = null;

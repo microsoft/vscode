@@ -25,6 +25,7 @@ import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { MessagePortMain } from 'electron';
 import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import type { EventEmitter } from 'events';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -33,6 +34,24 @@ interface ParsedExtHostArgs {
 	transformURIs?: boolean;
 	skipWorkspaceStorageLock?: boolean;
 	useHostProxy?: 'true' | 'false'; // use a string, as undefined is also a valid value
+}
+
+interface ParentPort extends EventEmitter {
+
+	// Docs: https://electronjs.org/docs/api/parent-port
+
+	/**
+	 * Emitted when the process receives a message. Messages received on this port will
+	 * be queued up until a handler is registered for this event.
+	 */
+	on(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	once(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	addListener(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	removeListener(event: 'message', listener: (messageEvent: Electron.MessageEvent) => void): this;
+	/**
+	 * Sends a message from the process to its parent.
+	 */
+	postMessage(message: any): void;
 }
 
 // workaround for https://github.com/microsoft/vscode/issues/85490
@@ -62,7 +81,7 @@ const args = minimist(process.argv.slice(2), {
 // happening we essentially blocklist this module from getting loaded in any
 // extension by patching the node require() function.
 (function () {
-	const Module = require.__$__nodeRequire('module') as any;
+	const Module = globalThis._VSCODE_NODE_MODULES.module as any;
 	const originalLoad = Module._load;
 
 	Module._load = function (request: string) {
@@ -132,14 +151,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			if ((<any>global).vscodePorts) {
-				const ports = (<any>global).vscodePorts;
-				delete (<any>global).vscodePorts;
-				withPorts(ports);
-			} else {
-				(<any>global).vscodePortsCallback = withPorts;
-			}
-
+			(process as NodeJS.Process & { parentPort: ParentPort })?.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
@@ -313,7 +325,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				// So also use the native node module to do it from a separate thread
 				let watchdog: typeof nativeWatchdog;
 				try {
-					watchdog = require.__$__nodeRequire('native-watchdog');
+					watchdog = globalThis._VSCODE_NODE_MODULES['native-watchdog'];
 					watchdog.start(initData.parentPid);
 				} catch (err) {
 					// no problem...
@@ -332,7 +344,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-export async function startExtensionHostProcess(): Promise<void> {
+async function startExtensionHostProcess(): Promise<void> {
 
 	// Print a console message when rejection isn't handled within N seconds. For details:
 	// see https://nodejs.org/api/process.html#process_event_unhandledrejection

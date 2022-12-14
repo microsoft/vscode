@@ -9,9 +9,9 @@ use std::process::Command;
 use clap::Parser;
 use cli::{
 	commands::{args, tunnels, update, version, CommandContext},
+	constants::get_default_user_agent,
 	desktop, log as own_log,
 	state::LauncherPaths,
-	update_service::UpdateService,
 	util::{
 		errors::{wrap, AnyError},
 		is_integrated_cli,
@@ -39,16 +39,12 @@ async fn main() -> Result<(), std::convert::Infallible> {
 
 	let core = parsed.core();
 	let context = CommandContext {
-		http: reqwest::Client::new(),
+		http: reqwest::ClientBuilder::new()
+			.user_agent(get_default_user_agent())
+			.build()
+			.unwrap(),
 		paths: LauncherPaths::new(&core.global_options.cli_data_dir).unwrap(),
-		log: own_log::Logger::new(
-			SdkTracerProvider::builder().build().tracer("codecli"),
-			if core.global_options.verbose {
-				own_log::Level::Trace
-			} else {
-				core.global_options.log.unwrap_or(own_log::Level::Info)
-			},
-		),
+		log: make_logger(core),
 		args: core.clone(),
 	};
 
@@ -86,12 +82,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				args::VersionSubcommand::Use(use_version_args) => {
 					version::switch_to(context, use_version_args).await
 				}
-				args::VersionSubcommand::Uninstall(uninstall_version_args) => {
-					version::uninstall(context, uninstall_version_args).await
-				}
-				args::VersionSubcommand::List(list_version_args) => {
-					version::list(context, list_version_args).await
-				}
+				args::VersionSubcommand::Show => version::show(context).await,
 			},
 
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
@@ -117,6 +108,23 @@ async fn main() -> Result<(), std::convert::Infallible> {
 	}
 }
 
+fn make_logger(core: &args::CliCore) -> own_log::Logger {
+	let log_level = if core.global_options.verbose {
+		own_log::Level::Trace
+	} else {
+		core.global_options.log.unwrap_or(own_log::Level::Info)
+	};
+
+	let tracer = SdkTracerProvider::builder().build().tracer("codecli");
+	let mut log = own_log::Logger::new(tracer, log_level);
+	if let Some(f) = &core.global_options.log_to_file {
+		log =
+			log.tee(own_log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
+	}
+
+	log
+}
+
 fn print_and_exit<E>(err: E) -> !
 where
 	E: std::fmt::Display,
@@ -126,9 +134,12 @@ where
 }
 
 async fn start_code(context: CommandContext, args: Vec<String>) -> Result<i32, AnyError> {
+	// todo: once the integrated CLI takes the place of the Node.js CLI, this should
+	// redirect to the current installation without using the CodeVersionManager.
+
 	let platform = PreReqChecker::new().verify().await?;
-	let version_manager = desktop::CodeVersionManager::new(&context.paths, platform);
-	let update_service = UpdateService::new(context.log.clone(), context.http.clone());
+	let version_manager =
+		desktop::CodeVersionManager::new(context.log.clone(), &context.paths, platform);
 	let version = match &context.args.editor_options.code_options.use_version {
 		Some(v) => desktop::RequestedVersion::try_from(v.as_str())?,
 		None => version_manager.get_preferred_version(),
@@ -137,16 +148,16 @@ async fn start_code(context: CommandContext, args: Vec<String>) -> Result<i32, A
 	let binary = match version_manager.try_get_entrypoint(&version).await {
 		Some(ep) => ep,
 		None => {
-			desktop::prompt_to_install(&version)?;
-			version_manager.install(&update_service, &version).await?
+			desktop::prompt_to_install(&version);
+			return Ok(1);
 		}
 	};
 
-	let code = Command::new(binary)
+	let code = Command::new(&binary)
 		.args(args)
 		.status()
 		.map(|s| s.code().unwrap_or(1))
-		.map_err(|e| wrap(e, "error running VS Code"))?;
+		.map_err(|e| wrap(e, format!("error running editor from {}", binary.display())))?;
 
 	Ok(code)
 }

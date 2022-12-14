@@ -42,6 +42,11 @@ export const ViewAsTreeActionId = 'search.action.viewAsTree';
 export const ViewAsListActionId = 'search.action.viewAsList';
 export const ToggleQueryDetailsActionId = 'workbench.action.search.toggleQueryDetails';
 export const ExcludeFolderFromSearchId = 'search.action.excludeFromSearch';
+export const FocusNextInputActionId = 'search.focus.nextInputBox';
+export const FocusPreviousInputActionId = 'search.focus.previousInputBox';
+export const RestrictSearchToFolderId = 'search.action.restrictSearchToFolder';
+export const FindInFolderId = 'filesExplorer.findInFolder';
+export const FindInWorkspaceId = 'filesExplorer.findInWorkspace';
 
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);

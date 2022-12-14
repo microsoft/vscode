@@ -72,9 +72,6 @@ export interface ICommandAction {
 	 * or define toggle-info including an icon and a title that goes well with a checkmark.
 	 */
 	toggled?: ContextKeyExpression | ICommandActionToggleInfo;
-
-	/** @deprecated see https://github.com/microsoft/vscode/issues/162004 */
-	_isFakeAction?: true;
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;

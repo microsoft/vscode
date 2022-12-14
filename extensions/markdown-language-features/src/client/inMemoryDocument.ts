@@ -10,11 +10,11 @@ export class InMemoryDocument implements ITextDocument {
 
 	constructor(
 		public readonly uri: vscode.Uri,
-		private readonly contents: string,
+		private readonly _contents: string,
 		public readonly version = 0,
 	) { }
 
 	getText(): string {
-		return this.contents;
+		return this._contents;
 	}
 }

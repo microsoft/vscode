@@ -45,7 +45,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		if (!this.moduleLoadingPromise) {
 			this.moduleLoadingPromise = new Promise(
 				(resolve, reject) => require(
-					['vsce-sign'],
+					['node-vsce-sign'],
 					async (obj) => {
 						const instance = <typeof vsceSign>obj;
 

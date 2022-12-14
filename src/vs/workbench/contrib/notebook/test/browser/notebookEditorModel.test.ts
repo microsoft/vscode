@@ -44,9 +44,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, value: 'Hello Out' }] }] }],
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, data: VSBuffer.fromString('Hello Out') }] }] }],
 			{},
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }
 		);
 
 		{ // transient output
@@ -92,9 +92,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [] }],
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [] }],
 			{ foo: 123, bar: 456 },
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }
 		);
 
 		{ // transient
@@ -140,9 +140,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
 			{},
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false, }
 		);
 
 		{ // transient

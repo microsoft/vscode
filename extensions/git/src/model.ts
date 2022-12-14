@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Operation, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -11,7 +11,6 @@ import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable,
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
 import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider } from './api/git';
 import { Askpass } from './askpass';
@@ -19,8 +18,6 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
-
-const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -34,6 +31,36 @@ class RepositoryPick implements QuickPickItem {
 	}
 
 	constructor(public readonly repository: Repository, public readonly index: number) { }
+}
+
+/**
+ * Key   - normalized path used in user interface
+ * Value - path extracted from the output of the `git status` command
+ *         used when calling `git config --global --add safe.directory`
+ */
+class UnsafeRepositoryMap extends Map<string, string> {
+	constructor() {
+		super();
+		this.updateContextKey();
+	}
+
+	override set(key: string, value: string): this {
+		const result = super.set(key, value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	override delete(key: string): boolean {
+		const result = super.delete(key);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	private updateContextKey(): void {
+		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
+	}
 }
 
 export interface ModelChangeEvent {
@@ -113,6 +140,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
+	private _unsafeRepositories = new UnsafeRepositoryMap();
+	get unsafeRepositories(): Map<string, string> {
+		return this._unsafeRepositories;
+	}
+
 	private disposables: Disposable[] = [];
 
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
@@ -133,14 +165,25 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async doInitialScan(): Promise<void> {
-		await Promise.all([
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
 			this.scanWorkspaceFolders()
 		]);
 
-		const config = workspace.getConfiguration('git');
-		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		if (config.get<boolean>('showProgress', true)) {
+			await window.withProgress({ location: ProgressLocation.SourceControl }, initialScanFn);
+		} else {
+			await initialScanFn();
+		}
+
+		// Unsafe repositories notification
+		if (this._unsafeRepositories.size !== 0) {
+			this.showUnsafeRepositoryNotification();
+		}
 
 		/* __GDPR__
 			"git.repositoryInitialScan" : {
@@ -187,7 +230,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				}
 
 				if (path.isAbsolute(scanPath)) {
-					const notSupportedMessage = localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting.");
+					const notSupportedMessage = l10n.t('Absolute paths not supported in "git.scanRepositories" setting.');
 					this.logger.warn(notSupportedMessage);
 					console.warn(notSupportedMessage);
 					continue;
@@ -376,7 +419,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 				if (!isRepoInWorkspaceFolders) {
 					if (this.showRepoOnHomeDriveRootWarning) {
-						window.showWarningMessage(localize('repoOnHomeDriveRootWarning', "Unable to automatically open the git repository at '{0}'. To open that git repository, open it directly as a folder in VS Code.", repositoryRoot));
+						window.showWarningMessage(l10n.t('Unable to automatically open the git repository at "{0}". To open that git repository, open it directly as a folder in VS Code.', repositoryRoot));
 						this.showRepoOnHomeDriveRootWarning = false;
 					}
 
@@ -391,6 +434,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
+			// Handle unsafe repository
+			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(ex.stderr);
+			if (match && match.length === 3) {
+				const unsafeRepositoryPath = path.normalize(match[1]);
+				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
+
+				// Show a notification if the unsafe repository is opened after the initial repository scan
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(unsafeRepositoryPath)) {
+					this.showUnsafeRepositoryNotification();
+				}
+
+				this._unsafeRepositories.set(unsafeRepositoryPath, match[2]);
+
+				return;
+			}
+
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}
@@ -435,18 +494,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
+				this.logger.trace('Automatic detection of git submodules is not enabled.');
 				return;
 			}
 
 			if (repository.submodules.length > submodulesLimit) {
-				window.showWarningMessage(localize('too many submodules', "The '{0}' repository has {1} submodules which won't be opened automatically. You can still open each one individually by opening a file within.", path.basename(repository.root), repository.submodules.length));
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length));
 				statusListener.dispose();
 			}
 
 			repository.submodules
 				.slice(0, submodulesLimit)
 				.map(r => path.join(repository.root, r.path))
-				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+				.forEach(p => {
+					this.logger.trace(`Opening submodule: '${p}'`);
+					this.eventuallyScanPossibleGitRepository(p);
+				});
 		};
 
 		const updateMergeChanges = () => {
@@ -513,7 +576,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	async pickRepository(): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
-			throw new Error(localize('no repositories', "There are no available repositories"));
+			throw new Error(l10n.t('There are no available repositories'));
 		}
 
 		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
@@ -526,7 +589,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			picks.unshift(...picks.splice(index, 1));
 		}
 
-		const placeHolder = localize('pick repo', "Choose a repository");
+		const placeHolder = l10n.t('Choose a repository');
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
 		return pick && pick.repository;
@@ -605,7 +668,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
+			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
 				return liveRepository;
 			}
 		}
@@ -666,6 +729,24 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	private async showUnsafeRepositoryNotification(): Promise<void> {
+		const message = this._unsafeRepositories.size === 1 ?
+			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
+			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
+
+		const manageUnsafeRepositories = l10n.t('Manage Unsafe Repositories');
+		const learnMore = l10n.t('Learn More');
+
+		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
+		if (choice === manageUnsafeRepositories) {
+			// Manage Unsafe Repositories
+			commands.executeCommand('git.manageUnsafeRepositories');
+		} else if (choice === learnMore) {
+			// Learn More
+			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-unsafe-repository'));
+		}
 	}
 
 	dispose(): void {

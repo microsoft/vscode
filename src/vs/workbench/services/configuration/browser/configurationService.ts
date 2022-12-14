@@ -1127,11 +1127,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		const userSettingsSchema: IJSONSchema = this.environmentService.remoteAuthority ?
 			{
-				properties: {
-					...applicationSettings.properties,
-					...windowSettings.properties,
-					...resourceSettings.properties
-				},
+				properties: Object.assign({},
+					applicationSettings.properties,
+					windowSettings.properties,
+					resourceSettings.properties
+				),
 				patternProperties: allSettings.patternProperties,
 				additionalProperties: true,
 				allowTrailingCommas: true,
@@ -1140,12 +1140,12 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			: allSettingsSchema;
 
 		const profileSettingsSchema: IJSONSchema = {
-			properties: {
-				...machineSettings.properties,
-				...machineOverridableSettings.properties,
-				...windowSettings.properties,
-				...resourceSettings.properties
-			},
+			properties: Object.assign({},
+				machineSettings.properties,
+				machineOverridableSettings.properties,
+				windowSettings.properties,
+				resourceSettings.properties
+			),
 			patternProperties: allSettings.patternProperties,
 			additionalProperties: true,
 			allowTrailingCommas: true,
@@ -1153,12 +1153,12 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		};
 
 		const machineSettingsSchema: IJSONSchema = {
-			properties: {
-				...machineSettings.properties,
-				...machineOverridableSettings.properties,
-				...windowSettings.properties,
-				...resourceSettings.properties
-			},
+			properties: Object.assign({},
+				machineSettings.properties,
+				machineOverridableSettings.properties,
+				windowSettings.properties,
+				resourceSettings.properties
+			),
 			patternProperties: allSettings.patternProperties,
 			additionalProperties: true,
 			allowTrailingCommas: true,
@@ -1166,11 +1166,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		};
 
 		const workspaceSettingsSchema: IJSONSchema = {
-			properties: {
-				...this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
-				...this.checkAndFilterPropertiesRequiringTrust(windowSettings.properties),
-				...this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
-			},
+			properties: Object.assign({},
+				this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
+				this.checkAndFilterPropertiesRequiringTrust(windowSettings.properties),
+				this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
+			),
 			patternProperties: allSettings.patternProperties,
 			additionalProperties: true,
 			allowTrailingCommas: true,
@@ -1179,17 +1179,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		jsonRegistry.registerSchema(defaultSettingsSchemaId, {
 			properties: Object.keys(allSettings.properties).reduce<IJSONSchemaMap>((result, key) => {
-				result[key] = {
-					...allSettings.properties[key],
-					deprecationMessage: undefined
-				};
+				result[key] = Object.assign({ deprecationMessage: undefined }, allSettings.properties[key]);
 				return result;
 			}, {}),
 			patternProperties: Object.keys(allSettings.patternProperties).reduce<IJSONSchemaMap>((result, key) => {
-				result[key] = {
-					...allSettings.patternProperties[key],
-					deprecationMessage: undefined
-				};
+				result[key] = Object.assign({ deprecationMessage: undefined }, allSettings.patternProperties[key]);
 				return result;
 			}, {}),
 			additionalProperties: true,
@@ -1202,10 +1196,10 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		if (WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState()) {
 			const folderSettingsSchema: IJSONSchema = {
-				properties: {
-					...this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
-					...this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
-				},
+				properties: Object.assign({},
+					this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
+					this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
+				),
 				patternProperties: allSettings.patternProperties,
 				additionalProperties: true,
 				allowTrailingCommas: true,
@@ -1221,11 +1215,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		jsonRegistry.registerSchema(configurationDefaultsSchemaId, {
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
-			properties: {
-				...machineOverridableSettings.properties,
-				...windowSettings.properties,
-				...resourceSettings.properties
-			},
+			properties: Object.assign({},
+				machineOverridableSettings.properties,
+				windowSettings.properties,
+				resourceSettings.properties
+			),
 			patternProperties: {
 				[OVERRIDE_PROPERTY_PATTERN]: {
 					type: 'object',

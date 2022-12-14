@@ -37,7 +37,7 @@ export function connectProxyResolver(
 				case LogLevel.Info: extHostLogService.info(message, ...args); break;
 				case LogLevel.Warning: extHostLogService.warn(message, ...args); break;
 				case LogLevel.Error: extHostLogService.error(message, ...args); break;
-				case LogLevel.Critical: extHostLogService.critical(message, ...args); break;
+				case LogLevel.Critical: extHostLogService.error(message, ...args); break;
 				case LogLevel.Off: break;
 				default: never(level, message, args); break;
 			}
@@ -97,7 +97,7 @@ const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof 
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
-			const node_module = <any>require.__$__nodeRequire('module');
+			const node_module = <any>globalThis._VSCODE_NODE_MODULES.module;
 			const original = node_module._load;
 			node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 				if (request === 'tls') {

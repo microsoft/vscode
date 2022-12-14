@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -543,6 +543,40 @@ suite('ModelSemanticColoring', () => {
 		});
 	});
 
+	test('issue #161573: onDidChangeSemanticTokens doesn\'t consistently trigger provideDocumentSemanticTokens', async () => {
+		await runWithFakedTimers({}, async () => {
+
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
+
+			const emitter = new Emitter<void>();
+			let requestCount = 0;
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
+				onDidChange = emitter.event;
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					requestCount++;
+					if (requestCount === 1) {
+						await timeout(1000);
+						// send a change event
+						emitter.fire();
+						await timeout(1000);
+						return null;
+					}
+					return null;
+				}
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+				}
+			}));
+
+			disposables.add(modelService.createModel('', languageService.createById('testMode')));
+
+			await timeout(5000);
+			assert.deepStrictEqual(requestCount, 2);
+		});
+	});
+
 	test('DocumentSemanticTokens should be pick the token provider with actual items', async () => {
 		await runWithFakedTimers({}, async () => {
 
@@ -645,7 +679,7 @@ function getRandomString(minLength: number, maxLength: number): string {
 	const length = getRandomInt(minLength, maxLength);
 	const t = new StringBuilder(length);
 	for (let i = 0; i < length; i++) {
-		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
+		t.appendASCIICharCode(getRandomInt(CharCode.a, CharCode.z));
 	}
 	return t.build();
 }

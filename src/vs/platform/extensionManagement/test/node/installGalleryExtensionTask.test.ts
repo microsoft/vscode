@@ -21,11 +21,13 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsScanner, InstallGalleryExtensionTask } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -86,8 +88,17 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 	teardown(() => disposables.clear());
 
-	test('if verification is disabled by default, the task skips verification', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader('error'));
+	test('if verification is enabled by default, the task completes', async () => {
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader(true));
+
+		await testObject.run();
+
+		assert.strictEqual(testObject.wasVerified, true);
+		assert.strictEqual(testObject.installed, true);
+	});
+
+	test('if verification is disabled in stable, the task completes', async () => {
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader('error', undefined, 'stable'));
 
 		await testObject.run();
 
@@ -160,13 +171,14 @@ suite('InstallGalleryExtensionTask Tests', () => {
 		assert.strictEqual(testObject.installed, true);
 	});
 
-	function anExtensionsDownloader(verificationResult: string | boolean, isSignatureVerificationEnabled?: boolean): ExtensionsDownloader {
+	function anExtensionsDownloader(verificationResult: string | boolean, isSignatureVerificationEnabled?: boolean, quality?: string): ExtensionsDownloader {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
 
 		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IProductService, { quality: quality ?? 'insiders' });
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INativeEnvironmentService, <Partial<INativeEnvironmentService>>{ extensionsDownloadLocation: joinPath(ROOT, 'CachedExtensionVSIXs') });
@@ -180,7 +192,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService(isBoolean(isSignatureVerificationEnabled) ? { extensions: { verifySignature: isSignatureVerificationEnabled } } : undefined));
 		instantiationService.stub(IExtensionSignatureVerificationService, new TestExtensionSignatureVerificationService(verificationResult));
-		return instantiationService.createInstance(ExtensionsDownloader);
+		return instantiationService.createInstance(ExtensionsDownloader, Promise.resolve(TargetPlatform.LINUX_X64));
 	}
 
 	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: any = {}, assets: Partial<IGalleryExtensionAssets> = {}): IGalleryExtension {

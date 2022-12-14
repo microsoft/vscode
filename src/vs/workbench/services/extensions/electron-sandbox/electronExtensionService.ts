@@ -431,6 +431,11 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 					throw err;
 				}
 
+				if (RemoteAuthorityResolverError.isNotAvailable(err)) {
+					// The resolver is not available and asked us to not retry
+					throw err;
+				}
+
 				if (attempt >= MAX_ATTEMPTS) {
 					// Too many failed attempts, give up
 					throw err;

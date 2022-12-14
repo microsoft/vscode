@@ -13,7 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 
@@ -214,7 +214,7 @@ suite('GlobalStateSync', () => {
 		await testClient.sync();
 
 		const syncedProfile = testClient.instantiationService.get(IUserDataProfilesService).profiles.find(p => p.id === profile.id)!;
-		const profileStorage = await testClient.instantiationService.get(IUserDataSyncProfilesStorageService).readStorageData(syncedProfile);
+		const profileStorage = await testClient.instantiationService.get(IUserDataProfileStorageService).readStorageData(syncedProfile);
 		assert.strictEqual(profileStorage.get('a')?.value, 'value1');
 		assert.strictEqual(await readLocale(testClient), 'en');
 
@@ -241,7 +241,7 @@ suite('GlobalStateSync', () => {
 	}
 
 	async function updateUserStorageForProfile(key: string, value: string, profile: IUserDataProfile, client: UserDataSyncClient): Promise<void> {
-		const storageService = client.instantiationService.get(IUserDataSyncProfilesStorageService);
+		const storageService = client.instantiationService.get(IUserDataProfileStorageService);
 		const data = new Map<string, string>();
 		data.set(key, value);
 		await storageService.updateStorageData(profile, data, StorageTarget.USER);

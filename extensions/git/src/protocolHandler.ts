@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
-
-import { UriHandler, Uri, window, Disposable, commands, LogOutputChannel } from 'vscode';
+import { UriHandler, Uri, window, Disposable, commands, LogOutputChannel, l10n } from 'vscode';
 import { dispose } from './util';
 import * as querystring from 'querystring';
 
@@ -76,8 +73,8 @@ export class GitProtocolHandler implements UriHandler {
 		if (!(await commands.getCommands(true)).includes('git.clone')) {
 			this.logger.error('Could not complete git clone operation as git installation was not found.');
 
-			const errorMessage = localize('no git', 'Could not clone your repository as Git is not installed.');
-			const downloadGit = localize('download git', 'Download Git');
+			const errorMessage = l10n.t('Could not clone your repository as Git is not installed.');
+			const downloadGit = l10n.t('Download Git');
 
 			if (await window.showErrorMessage(errorMessage, { modal: true }, downloadGit) === downloadGit) {
 				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));

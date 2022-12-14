@@ -11,7 +11,7 @@ import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFile
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -127,11 +127,10 @@ suite('Files - FileEditorInput', () => {
 
 	test('reports as readonly with readonly file scheme', async function () {
 
-		class ReadonlyInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
-			override readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
-		}
+		const inMemoryFilesystemProvider = new InMemoryFileSystemProvider();
+		inMemoryFilesystemProvider.setReadOnly(true);
 
-		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', new ReadonlyInMemoryFileSystemProvider());
+		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', inMemoryFilesystemProvider);
 		try {
 			const input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingReadonlyScheme' }));
 

@@ -17,6 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 suite('NotebookKernelService', () => {
 
@@ -150,10 +151,17 @@ suite('NotebookKernelService', () => {
 		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
 		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
 
+		const transientOptions: TransientOptions = {
+			transientOutputs: false,
+			transientCellMetadata: {},
+			transientDocumentMetadata: {},
+			cellContentMetadata: {},
+		};
+
 		{
 			// open as jupyter -> bind event
 			const p1 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, {});
+			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, transientOptions);
 			onDidAddNotebookDocument.fire(d1);
 			const event = await p1;
 			assert.strictEqual(event.newKernel, jupyterKernel.id);
@@ -161,7 +169,7 @@ suite('NotebookKernelService', () => {
 		{
 			// RE-open as dotnet -> bind event
 			const p2 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, {});
+			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, transientOptions);
 			onDidAddNotebookDocument.fire(d2);
 			const event2 = await p2;
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);

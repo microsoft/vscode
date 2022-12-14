@@ -6,17 +6,15 @@
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
 	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
-	ShellQuotedString, ShellQuoting, commands, Location, CancellationTokenSource
+	ShellQuotedString, ShellQuoting, commands, Location, CancellationTokenSource, l10n
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
-import * as nls from 'vscode-nls';
 import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
-const localize = nls.loadMessageBundle();
 const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
 export interface INpmTaskDefinition extends TaskDefinition {
@@ -136,9 +134,9 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 		packageManagerName = name;
 		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
 		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', packageManagerName, folder.fsPath);
-			const neverShowAgain = localize('npm.multiplePMWarning.doNotShow', "Do not show again");
-			const learnMore = localize('npm.multiplePMWarning.learnMore', "Learn more");
+			const multiplePMWarning = l10n.t('Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', packageManagerName, folder.fsPath);
+			const neverShowAgain = l10n.t("Do not show again");
+			const learnMore = l10n.t("Learn more");
 			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
 				switch (result) {
 					case neverShowAgain: extensionContext.globalState.update(neverShowWarning, true); break;
@@ -447,7 +445,7 @@ export async function getScripts(packageJsonUri: Uri) {
 		const document: TextDocument = await workspace.openTextDocument(packageJsonUri);
 		return readScripts(document);
 	} catch (e) {
-		const localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);
+		const localizedParseError = l10n.t("Npm task detection: failed to parse the file {0}", packageJsonUri.fsPath);
 		throw new Error(localizedParseError);
 	}
 }

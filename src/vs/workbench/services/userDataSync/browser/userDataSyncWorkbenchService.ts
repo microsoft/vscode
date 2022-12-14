@@ -335,7 +335,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			await this.synchroniseUserDataSyncStoreType();
 		}
 
-		this.notificationService.info(localize('sync turned on', "{0} is turned on", `${SYNC_TITLE} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`));
+		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
@@ -368,7 +368,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async doTurnOnSync(token: CancellationToken): Promise<void> {
 		const disposables = new DisposableStore();
-		const manualSyncTask = disposables.add(await this.userDataSyncService.createManualSyncTask());
+		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,

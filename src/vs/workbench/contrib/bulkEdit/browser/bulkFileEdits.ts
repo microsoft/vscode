@@ -256,7 +256,7 @@ class DeleteOperation implements IFileOperation {
 				try {
 					fileContent = await this._fileService.readFile(edit.oldUri);
 				} catch (err) {
-					this._logService.critical(err);
+					this._logService.error(err);
 				}
 			}
 			if (fileContent !== undefined) {

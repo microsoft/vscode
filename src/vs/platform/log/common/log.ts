@@ -20,13 +20,12 @@ function now(): string {
 }
 
 export enum LogLevel {
+	Off,
 	Trace,
 	Debug,
 	Info,
 	Warning,
-	Error,
-	Critical,
-	Off
+	Error
 }
 
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
@@ -41,7 +40,6 @@ export interface ILogger extends IDisposable {
 	info(message: string, ...args: any[]): void;
 	warn(message: string, ...args: any[]): void;
 	error(message: string | Error, ...args: any[]): void;
-	critical(message: string | Error, ...args: any[]): void;
 
 	/**
 	 * An operation to flush the contents. Can be synchronous.
@@ -56,8 +54,8 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 		case LogLevel.Info: logger.info(message); break;
 		case LogLevel.Warning: logger.warn(message); break;
 		case LogLevel.Error: logger.error(message); break;
-		case LogLevel.Critical: logger.critical(message); break;
-		default: throw new Error('Invalid log level');
+		case LogLevel.Off: /* do nothing */ break;
+		default: throw new Error(`Invalid log level ${level}`);
 	}
 }
 
@@ -130,7 +128,7 @@ export interface ILoggerService {
 	getLogLevel(resource: URI): LogLevel | undefined;
 }
 
-export abstract class AbstractLogger extends Disposable {
+export abstract class AbstractLogger extends Disposable implements ILogger {
 
 	private level: LogLevel = DEFAULT_LOG_LEVEL;
 	private readonly _onDidChangeLogLevel: Emitter<LogLevel> = this._register(new Emitter<LogLevel>());
@@ -147,6 +145,16 @@ export abstract class AbstractLogger extends Disposable {
 		return this.level;
 	}
 
+	protected checkLogLevel(level: LogLevel): boolean {
+		return this.level !== LogLevel.Off && this.level <= level;
+	}
+
+	abstract trace(message: string, ...args: any[]): void;
+	abstract debug(message: string, ...args: any[]): void;
+	abstract info(message: string, ...args: any[]): void;
+	abstract warn(message: string, ...args: any[]): void;
+	abstract error(message: string | Error, ...args: any[]): void;
+	abstract flush(): void;
 }
 
 export abstract class AbstractMessageLogger extends AbstractLogger implements ILogger {
@@ -157,8 +165,8 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 		super();
 	}
 
-	private checkLogLevel(level: LogLevel): boolean {
-		return this.logAlways || this.getLevel() <= level;
+	protected override checkLogLevel(level: LogLevel): boolean {
+		return this.logAlways || super.checkLogLevel(level);
 	}
 
 	trace(message: string, ...args: any[]): void {
@@ -198,12 +206,6 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 		}
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Critical)) {
-			this.log(LogLevel.Critical, format([message, ...args]));
-		}
-	}
-
 	flush(): void { }
 }
 
@@ -219,7 +221,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.checkLogLevel(LogLevel.Trace)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -229,7 +231,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.checkLogLevel(LogLevel.Debug)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -239,7 +241,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.checkLogLevel(LogLevel.Info)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -249,7 +251,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.checkLogLevel(LogLevel.Warning)) {
 			if (this.useColors) {
 				console.warn(`\x1b[93m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -259,19 +261,9 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.checkLogLevel(LogLevel.Error)) {
 			if (this.useColors) {
 				console.error(`\x1b[91m[main ${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[main ${now()}]`, message, ...args);
-			}
-		}
-	}
-
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			if (this.useColors) {
-				console.error(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
 				console.error(`[main ${now()}]`, message, ...args);
 			}
@@ -296,38 +288,32 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.checkLogLevel(LogLevel.Trace)) {
 			console.log('%cTRACE', 'color: #888', message, ...args);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.checkLogLevel(LogLevel.Debug)) {
 			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.checkLogLevel(LogLevel.Info)) {
 			console.log('%c INFO', 'color: #33f', message, ...args);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.checkLogLevel(LogLevel.Warning)) {
 			console.log('%c WARN', 'color: #993', message, ...args);
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.checkLogLevel(LogLevel.Error)) {
 			console.log('%c  ERR', 'color: #f33', message, ...args);
-		}
-	}
-
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			console.log('%cCRITI', 'background: #f33; color: white', message, ...args);
 		}
 	}
 
@@ -348,38 +334,32 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.checkLogLevel(LogLevel.Trace)) {
 			this.adapter.log(LogLevel.Trace, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.checkLogLevel(LogLevel.Debug)) {
 			this.adapter.log(LogLevel.Debug, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.checkLogLevel(LogLevel.Info)) {
 			this.adapter.log(LogLevel.Info, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.checkLogLevel(LogLevel.Warning)) {
 			this.adapter.log(LogLevel.Warning, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	error(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.checkLogLevel(LogLevel.Error)) {
 			this.adapter.log(LogLevel.Error, [this.extractMessage(message), ...args]);
-		}
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.adapter.log(LogLevel.Critical, [this.extractMessage(message), ...args]);
 		}
 	}
 
@@ -388,7 +368,7 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 			return msg;
 		}
 
-		return toErrorMessage(msg, this.getLevel() <= LogLevel.Trace);
+		return toErrorMessage(msg, this.checkLogLevel(LogLevel.Trace));
 	}
 
 	override dispose(): void {
@@ -447,12 +427,6 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.critical(message, ...args);
-		}
-	}
-
 	flush(): void {
 		for (const logService of this.logServices) {
 			logService.flush();
@@ -504,10 +478,6 @@ export class LogService extends Disposable implements ILogService {
 
 	error(message: string | Error, ...args: any[]): void {
 		this.logger.error(message, ...args);
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		this.logger.critical(message, ...args);
 	}
 
 	flush(): void {
@@ -629,6 +599,17 @@ export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	return DEFAULT_LOG_LEVEL;
 }
 
+export function LogLevelToString(logLevel: LogLevel): string {
+	switch (logLevel) {
+		case LogLevel.Trace: return 'trace';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warn';
+		case LogLevel.Error: return 'error';
+		case LogLevel.Off: return 'off';
+	}
+}
+
 export function parseLogLevel(logLevel: string): LogLevel | undefined {
 	switch (logLevel) {
 		case 'trace':
@@ -642,21 +623,9 @@ export function parseLogLevel(logLevel: string): LogLevel | undefined {
 		case 'error':
 			return LogLevel.Error;
 		case 'critical':
-			return LogLevel.Critical;
+			return LogLevel.Error;
 		case 'off':
 			return LogLevel.Off;
 	}
 	return undefined;
-}
-
-export function LogLevelToString(logLevel: LogLevel): string {
-	switch (logLevel) {
-		case LogLevel.Trace: return 'trace';
-		case LogLevel.Debug: return 'debug';
-		case LogLevel.Info: return 'info';
-		case LogLevel.Warning: return 'warn';
-		case LogLevel.Error: return 'error';
-		case LogLevel.Critical: return 'critical';
-		case LogLevel.Off: return 'off';
-	}
 }

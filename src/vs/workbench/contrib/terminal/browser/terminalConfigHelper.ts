@@ -138,10 +138,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
-				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
-				const scaledCellWidth = scaledCharWidth + Math.round(letterSpacing);
-				const actualCellWidth = scaledCellWidth / window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+				const deviceCharWidth = Math.floor(rect.width * window.devicePixelRatio);
+				const deviceCellWidth = deviceCharWidth + Math.round(letterSpacing);
+				const cssCellWidth = deviceCellWidth / window.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
 			}
 		}
 
@@ -161,15 +161,18 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
 			if (this._linuxDistro === LinuxDistro.Fedora) {
-				fontFamily = '\'DejaVu Sans Mono\', monospace';
+				fontFamily = '\'DejaVu Sans Mono\'';
 			}
 			if (this._linuxDistro === LinuxDistro.Ubuntu) {
-				fontFamily = '\'Ubuntu Mono\', monospace';
+				fontFamily = '\'Ubuntu Mono\'';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
 				fontSize = this._clampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
+
+		// Always fallback to monospace, otherwise a proportional font may become the default
+		fontFamily += ', monospace';
 
 		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
@@ -185,14 +188,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xtermCore) {
-			if (xtermCore._renderService && xtermCore._renderService.dimensions?.actualCellWidth && xtermCore._renderService.dimensions?.actualCellHeight) {
+			if (xtermCore._renderService && xtermCore._renderService.dimensions?.css.cell.width && xtermCore._renderService.dimensions?.css.cell.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._renderService.dimensions.actualCellHeight / lineHeight,
-					charWidth: xtermCore._renderService.dimensions.actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio
+					charHeight: xtermCore._renderService.dimensions.css.cell.height / lineHeight,
+					charWidth: xtermCore._renderService.dimensions.css.cell.width - Math.round(letterSpacing) / window.devicePixelRatio
 				};
 			}
 		}

@@ -87,7 +87,7 @@ where
 			});
 
 			if let Some(p) = path.parent() {
-				fs::create_dir_all(&p)
+				fs::create_dir_all(p)
 					.map_err(|e| wrap(e, format!("could not create dir for {}", p.display())))?;
 			}
 

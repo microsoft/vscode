@@ -66,7 +66,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 	}
 
 	private updateCurrent(thread: CommentThread<IRange> | undefined) {
-		if (!this.editor) {
+		if (!this.editor || (thread?.resource && (thread.resource?.toString() !== this.editor.getModel()?.uri.toString()))) {
 			return;
 		}
 		this.currentThreadCollapseStateListener?.dispose();

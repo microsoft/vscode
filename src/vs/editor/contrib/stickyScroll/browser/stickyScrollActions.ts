@@ -17,18 +17,18 @@ export class ToggleStickyScroll extends Action2 {
 			id: 'editor.action.toggleStickyScroll',
 			title: {
 				value: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
-				mnemonicTitle: localize('mitoggleStickyScroll', "&&Toggle Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Sticky Scroll"),
 				original: 'Toggle Sticky Scroll',
 			},
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
 				title: localize('stickyScroll', "Sticky Scroll"),
-				mnemonicTitle: localize('miStickyScroll', "&&Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.MenubarEditorFeaturesMenu, order: 6 },
+				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 2 },
 				{ id: MenuId.StickyScrollContext }
 			]
 		});

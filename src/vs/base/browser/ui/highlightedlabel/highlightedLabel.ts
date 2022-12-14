@@ -85,7 +85,7 @@ export class HighlightedLabel {
 
 	private render(): void {
 
-		const children: HTMLSpanElement[] = [];
+		const children: Array<HTMLSpanElement | string> = [];
 		let pos = 0;
 
 		for (const highlight of this.highlights) {
@@ -95,7 +95,11 @@ export class HighlightedLabel {
 
 			if (pos < highlight.start) {
 				const substring = this.text.substring(pos, highlight.start);
-				children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
+				if (this.supportIcons) {
+					children.push(...renderLabelWithIcons(substring));
+				} else {
+					children.push(substring);
+				}
 				pos = highlight.start;
 			}
 
@@ -112,7 +116,11 @@ export class HighlightedLabel {
 
 		if (pos < this.text.length) {
 			const substring = this.text.substring(pos,);
-			children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
+			if (this.supportIcons) {
+				children.push(...renderLabelWithIcons(substring));
+			} else {
+				children.push(substring);
+			}
 		}
 
 		dom.reset(this.domNode, ...children);

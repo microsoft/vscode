@@ -9,9 +9,13 @@ import { isEqual } from 'vs/base/common/resources';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
+export interface MarkdownStringTrustedOptions {
+	readonly enabledCommands: readonly string[];
+}
+
 export interface IMarkdownString {
 	readonly value: string;
-	readonly isTrusted?: boolean;
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
 	readonly baseUri?: UriComponents;
@@ -26,14 +30,14 @@ export const enum MarkdownStringTextNewlineStyle {
 export class MarkdownString implements IMarkdownString {
 
 	public value: string;
-	public isTrusted?: boolean;
+	public isTrusted?: boolean | MarkdownStringTrustedOptions;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
 	public baseUri?: URI;
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -136,7 +140,7 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 
 export function escapeMarkdownSyntaxTokens(text: string): string {
 	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-	return text.replace(/[\\`*_{}[\]()#+\-!]/g, '\\$&');
+	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&');
 }
 
 export function escapeDoubleQuotes(input: string) {
@@ -147,7 +151,7 @@ export function removeMarkdownEscapes(text: string): string {
 	if (!text) {
 		return text;
 	}
-	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!~])/g, '$1');
 }
 
 export function parseHrefAndDimensions(href: string): { href: string; dimensions: string[] } {

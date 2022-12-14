@@ -145,9 +145,9 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
-	 * the selection of value, default to the whole word
+	 * the selection of value, default to the whole prefilled value
 	 */
-	valueSelection?: [number, number];
+	valueSelection?: readonly [number, number];
 
 	/**
 	 * the text to display underneath the input box
@@ -164,6 +164,9 @@ export interface IInputOptions {
 	 */
 	password?: boolean;
 
+	/**
+	 * an optional flag to not close the input on focus lost
+	 */
 	ignoreFocusLost?: boolean;
 
 	/**
@@ -291,6 +294,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
 
 	items: ReadonlyArray<T | IQuickPickSeparator>;
+
+	scrollTop: number; // used in tests
 
 	canSelectMany: boolean;
 

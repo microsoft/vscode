@@ -18,7 +18,7 @@ export interface IFoldingRangeData extends FoldingRange {
 const foldingContext: FoldingContext = {
 };
 
-export const ID_SYNTAX_PROVIDER = 'syntax';
+const ID_SYNTAX_PROVIDER = 'syntax';
 
 export class SyntaxRangeProvider implements RangeProvider {
 
@@ -82,7 +82,7 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 	});
 }
 
-export class RangesCollector {
+class RangesCollector {
 	private readonly _startIndexes: number[];
 	private readonly _endIndexes: number[];
 	private readonly _nestingLevels: number[];

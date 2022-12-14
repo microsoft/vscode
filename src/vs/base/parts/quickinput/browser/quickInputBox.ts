@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/quickInput';
@@ -21,11 +21,13 @@ export class QuickInputBox extends Disposable {
 	private findInput: FindInput;
 
 	constructor(
-		private parent: HTMLElement
+		private parent: HTMLElement,
+		inputBoxStyles: IInputBoxStyles,
+		toggleStyles: IToggleStyles
 	) {
 		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.findInput = this._register(new FindInput(this.container, undefined, { label: '' }));
+		this.findInput = this._register(new FindInput(this.container, undefined, { label: '', inputBoxStyles, toggleStyles }));
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -126,9 +128,5 @@ export class QuickInputBox extends Disposable {
 
 	layout(): void {
 		this.findInput.inputBox.layout();
-	}
-
-	style(styles: IInputBoxStyles): void {
-		this.findInput.style(styles);
 	}
 }

@@ -349,7 +349,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		// maximize on Windows/Linux would fire an event saying that the terminal was not
 		// visible.
 		if (!!this._canvasAddon) {
-			this._core._renderService?._onIntersectionChange({ intersectionRatio: 1 });
+			this._core._renderService?._handleIntersectionChange({ intersectionRatio: 1 });
 			// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 			// This can probably be removed when the above hack is fixed in Chromium.
 			this.raw.refresh(0, this.raw.rows - 1);

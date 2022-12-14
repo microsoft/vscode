@@ -83,6 +83,10 @@
 	text-decoration: underline;
 }
 
+.explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon {
+	margin-left: var(--vscode-explorer-align-offset-margin-left);
+}
+
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;

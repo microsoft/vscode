@@ -96,7 +96,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'telemetry.log');
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
 	}
 
 	@memoize

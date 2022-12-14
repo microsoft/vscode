@@ -15,7 +15,7 @@ const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 export class SmartLinesDiffComputer implements ILinesDiffComputer {
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff {
 		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-			maxComputationTime: options.maxComputationTime,
+			maxComputationTime: options.maxComputationTimeMs,
 			shouldIgnoreTrimWhitespace: options.ignoreTrimWhitespace,
 			shouldComputeCharChanges: true,
 			shouldMakePrettyDiff: true,

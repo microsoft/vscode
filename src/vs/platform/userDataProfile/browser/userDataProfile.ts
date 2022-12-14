@@ -10,13 +10,12 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG, reviveProfile, StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, reviveProfile, StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type BroadcastedProfileChanges = UriDto<Omit<DidChangeProfilesEvent, 'all'>>;
 
 export class BrowserUserDataProfilesService extends UserDataProfilesService implements IUserDataProfilesService {
 
-	protected override readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = true;
 	private readonly changesBroadcastChannel: BroadcastDataChannel<BroadcastedProfileChanges>;
 
 	constructor(
@@ -26,7 +25,6 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 		@ILogService logService: ILogService,
 	) {
 		super(environmentService, fileService, uriIdentityService, logService);
-		super.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
 		this.changesBroadcastChannel = this._register(new BroadcastDataChannel<BroadcastedProfileChanges>(`${UserDataProfilesService.PROFILES_KEY}.changes`));
 		this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
 			try {
@@ -65,11 +63,6 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 				this.transientProfilesObject.profiles.push(updated.find(p => profile.id === p.id) ?? profile);
 			}
 		}
-	}
-
-	override setEnablement(enabled: boolean): void {
-		super.setEnablement(enabled);
-		window.localStorage.setItem(PROFILES_ENABLEMENT_CONFIG, enabled ? 'true' : 'false');
 	}
 
 	protected override getStoredProfiles(): StoredUserDataProfile[] {

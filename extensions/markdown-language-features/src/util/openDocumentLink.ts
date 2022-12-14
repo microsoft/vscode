@@ -15,15 +15,15 @@ enum OpenMarkdownLinks {
 export class MdLinkOpener {
 
 	constructor(
-		private readonly client: MdLanguageClient,
+		private readonly _client: MdLanguageClient,
 	) { }
 
 	public async resolveDocumentLink(linkText: string, fromResource: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
-		return this.client.resolveLinkTarget(linkText, fromResource);
+		return this._client.resolveLinkTarget(linkText, fromResource);
 	}
 
 	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
-		const resolved = await this.client.resolveLinkTarget(linkText, fromResource);
+		const resolved = await this._client.resolveLinkTarget(linkText, fromResource);
 		if (!resolved) {
 			return;
 		}

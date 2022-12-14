@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 
-export interface IDataTransferFile {
+interface IDataTransferFile {
 	readonly name: string;
 	readonly uri?: URI;
 	data(): Promise<Uint8Array>;
@@ -92,3 +93,17 @@ export class VSDataTransfer {
 		return mimeType.toLowerCase();
 	}
 }
+
+
+export const UriList = Object.freeze({
+	// http://amundsen.com/hypermedia/urilist/
+	create: (entries: ReadonlyArray<string | URI>): string => {
+		return distinct(entries.map(x => x.toString())).join('\r\n');
+	},
+	split: (str: string): string[] => {
+		return str.split('\r\n');
+	},
+	parse: (str: string): string[] => {
+		return UriList.split(str).filter(value => !value.startsWith('#'));
+	}
+});
