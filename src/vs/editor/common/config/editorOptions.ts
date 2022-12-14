@@ -4247,7 +4247,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				'editor.suggest.selectQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.selectQuickSuggestions,
-					markdownDescription: nls.localize('suggest.selectQuickSuggestions', "Controls whether the suggest becomes active when triggered via quick suggest or trigger characters. ")
+					markdownDescription: nls.localize('suggest.selectQuickSuggestions', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters.")
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
