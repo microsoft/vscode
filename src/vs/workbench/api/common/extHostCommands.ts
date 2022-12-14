@@ -26,7 +26,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface CommandHandler {
 	callback: Function;
@@ -47,6 +47,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _apiCommands = new Map<string, ApiCommand>();
+	private readonly _activeCommandsByExtension = new Map<string, number>();
+
 	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
@@ -162,6 +164,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
+	isAnyExtensionCommandActive(id: ExtensionIdentifier): boolean {
+		const key = ExtensionIdentifier.toKey(id);
+		const count = this._activeCommandsByExtension.get(key);
+		return count !== undefined && count > 0;
+	}
+
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 		return this._doExecuteCommand(id, args, true);
@@ -175,7 +183,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			// - We still emit the corresponding activation event
 			//   BUT we don't await that event
 			this.#proxy.$fireCommandActivationEvent(id);
-			return this._executeContributedCommand<T>(id, args, false);
+			return this._executeContributedCommand<T>(id, args, false, -1);
 
 		} else {
 			// automagically convert some argument types
@@ -220,12 +228,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private async _executeContributedCommand<T = unknown>(id: string, args: any[], annotateError: boolean): Promise<T> {
+	private async _executeContributedCommand<T = unknown>(id: string, args: any[], annotateError: boolean, markExtensionActiveMS: number): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		const { callback, thisArg, description } = command;
+		const { callback, thisArg, description, extension } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
 				try {
@@ -234,6 +242,30 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
 				}
 			}
+		}
+
+		// mark the extension owning the command as running one more command, unmark when done or when time is up
+		let unmarkExtensionActive: ((didTimeout: boolean) => void) | undefined;
+		if (markExtensionActiveMS > 0 && extension) {
+			const key = ExtensionIdentifier.toKey(extension.identifier);
+			const count = this._activeCommandsByExtension.get(key) ?? 0;
+			this._activeCommandsByExtension.set(key, count + 1);
+
+			unmarkExtensionActive = (didTimeout: boolean) => {
+				if (!didTimeout) {
+					clearTimeout(handle);
+				}
+				const count = this._activeCommandsByExtension.get(key);
+				if (count === undefined) {
+					return; // already unmarked
+				} else if (count === 1) {
+					this._activeCommandsByExtension.delete(key);
+				} else {
+					this._activeCommandsByExtension.set(key, count - 1);
+				}
+			};
+
+			const handle = setTimeout(unmarkExtensionActive, markExtensionActiveMS, true);
 		}
 
 		const stopWatch = StopWatch.create();
@@ -261,8 +293,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					super(toErrorMessage(err));
 				}
 			};
-		}
-		finally {
+		} finally {
+			unmarkExtensionActive?.(false);
 			this._reportTelemetry(command, id, stopWatch.elapsed());
 		}
 	}
@@ -297,7 +329,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {
 			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
-			return this._executeContributedCommand(id, args, true);
+			return this._executeContributedCommand(id, args, true, 3000);
 		}
 	}
 
