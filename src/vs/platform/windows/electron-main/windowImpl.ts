@@ -52,18 +52,18 @@ import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 
 export interface IWindowCreationOptions {
-	state: IWindowState;
-	extensionDevelopmentPath?: string[];
-	isExtensionTestHost?: boolean;
+	readonly state: IWindowState;
+	readonly extensionDevelopmentPath?: string[];
+	readonly isExtensionTestHost?: boolean;
 }
 
 interface ITouchBarSegment extends SegmentedControlSegment {
-	id: string;
+	readonly id: string;
 }
 
 interface ILoadOptions {
-	isReload?: boolean;
-	disableExtensions?: boolean;
+	readonly isReload?: boolean;
+	readonly disableExtensions?: boolean;
 }
 
 const enum ReadyState {

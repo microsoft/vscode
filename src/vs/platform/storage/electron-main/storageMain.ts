@@ -27,7 +27,7 @@ export interface IStorageMainOptions {
 	 * If enabled, storage will not persist to disk
 	 * but into memory.
 	 */
-	useInMemoryStorage?: boolean;
+	readonly useInMemoryStorage?: boolean;
 }
 
 /**
@@ -103,7 +103,7 @@ export interface IStorageMain extends IDisposable {
 }
 
 export interface IStorageChangeEvent {
-	key: string;
+	readonly key: string;
 }
 
 abstract class BaseStorageMain extends Disposable implements IStorageMain {
