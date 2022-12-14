@@ -331,9 +331,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
 				this.onInvalidWorkspaceConfigurationFileError();
 				break;
-			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
-				this.onWorkspaceConfigurationFileDirtyError();
-				break;
 			default:
 				this.notificationService.error(error.message);
 		}
@@ -341,11 +338,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
 		const message = localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
-		this.askToOpenWorkspaceConfigurationFile(message);
-	}
-
-	private onWorkspaceConfigurationFileDirtyError(): void {
-		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file has unsaved changes. Please save it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
