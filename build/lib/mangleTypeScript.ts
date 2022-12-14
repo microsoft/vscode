@@ -322,6 +322,11 @@ class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 	realpath = ts.sys.realpath;
 }
 
+export interface MangleOutput {
+	out: string;
+	sourceMap?: string;
+}
+
 /**
  * TypeScript2TypeScript transformer that mangles all private and protected fields
  *
@@ -341,7 +346,7 @@ export class Mangler {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
-	computeNewFileContents(): Map<string, { out: string; sourceMap?: string }> {
+	computeNewFileContents(): Map<string, MangleOutput> {
 
 		// STEP: find all classes and their field info
 
@@ -469,7 +474,7 @@ export class Mangler {
 		this.log(`done preparing EDITS for ${editsByFile.size} files`);
 
 		// STEP: apply all rename edits (per file)
-		const result = new Map<string, { out: string; sourceMap?: string }>();
+		const result = new Map<string, MangleOutput>();
 		let savedBytes = 0;
 
 		for (const item of this.service.getProgram()!.getSourceFiles()) {
