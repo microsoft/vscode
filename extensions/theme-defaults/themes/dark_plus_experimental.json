@@ -58,6 +58,8 @@
 		"input.border": "#ffffff17",
 		"input.foreground": "#ffffffc5",
 		"input.placeholderForeground": "#ffffff79",
+		"inputOption.activeBackground": "#2489db82",
+		"inputOption.activeBorder": "#2488db",
 		"keybindingLabel.foreground": "#ffffffc5",
 		"list.activeSelectionBackground": "#ffffff0f",
 		"list.activeSelectionIconForeground": "#ffffff",
