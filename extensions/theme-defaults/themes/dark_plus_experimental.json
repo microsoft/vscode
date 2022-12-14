@@ -21,6 +21,7 @@
 		"button.secondaryHoverBackground": "#ffffff15",
 		"checkbox.background": "#313131",
 		"checkbox.border": "#ffffff15",
+		"debugToolBar.background": "#181818",
 		"descriptionForeground": "#8b949e",
 		"diffEditor.insertedLineBackground": "#23863633",
 		"diffEditor.insertedTextBackground": "#2386364d",
