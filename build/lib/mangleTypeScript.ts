@@ -7,7 +7,7 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 import { argv } from 'process';
-import { SourceMapGenerator } from 'source-map';
+import { Mapping, SourceMapGenerator } from 'source-map';
 import { pathToFileURL } from 'url';
 
 class ShortIdent {
@@ -490,10 +490,7 @@ export class Mangler {
 			} else {
 				// source map generator
 				const relativeFileName = path.relative(projectDir, item.fileName);
-				generator = new SourceMapGenerator({
-					file: path.basename(item.fileName),
-					sourceRoot: sourceMapRoot
-				});
+				const mappingsByLine = new Map<number, Mapping[]>();
 
 				// apply renames
 				edits.sort((a, b) => b.offset - a.offset);
@@ -502,15 +499,13 @@ export class Mangler {
 				let lastEdit: Edit | undefined;
 
 				for (const edit of edits) {
-					if (lastEdit) {
-						if (lastEdit.offset === edit.offset) {
-							//
-							if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
-								this.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
-								throw new Error('OVERLAPPING edit');
-							} else {
-								continue;
-							}
+					if (lastEdit && lastEdit.offset === edit.offset) {
+						//
+						if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
+							this.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
+							throw new Error('OVERLAPPING edit');
+						} else {
+							continue;
 						}
 					}
 					lastEdit = edit;
@@ -519,19 +514,39 @@ export class Mangler {
 
 					// source maps
 					const pos = item.getLineAndCharacterOfPosition(edit.offset);
-					generator.addMapping({
+
+
+					let mappings = mappingsByLine.get(pos.line);
+					if (!mappings) {
+						mappings = [];
+						mappingsByLine.set(pos.line, mappings);
+					}
+					mappings.unshift({
 						source: relativeFileName,
 						original: { line: pos.line + 1, column: pos.character },
 						generated: { line: pos.line + 1, column: pos.character },
 						name: mangledName
-					});
-					generator.addMapping({
+					}, {
 						source: relativeFileName,
 						original: { line: pos.line + 1, column: pos.character + edit.length },
-						generated: { line: pos.line + 1, column: pos.character + edit.newText.length }
+						generated: { line: pos.line + 1, column: pos.character + edit.newText.length },
 					});
-					generator.setSourceContent(relativeFileName, item.getFullText());
 				}
+
+				// source map generation, make sure to get mappings per line correct
+				generator = new SourceMapGenerator({ file: path.basename(item.fileName), sourceRoot: sourceMapRoot });
+				generator.setSourceContent(relativeFileName, item.getFullText());
+				for (const [, mappings] of mappingsByLine) {
+					let lineDelta = 0;
+					for (const mapping of mappings) {
+						generator.addMapping({
+							...mapping,
+							generated: { line: mapping.generated.line, column: mapping.generated.column - lineDelta }
+						});
+						lineDelta += mapping.original.column - mapping.generated.column;
+					}
+				}
+
 				newFullText = characters.join('');
 			}
 			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
