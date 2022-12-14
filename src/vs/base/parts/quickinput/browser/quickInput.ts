@@ -775,6 +775,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	onDidTriggerSeparatorButton = this.onDidTriggerSeparatorButtonEmitter.event;
 
 	private trySelectFirst() {
+		if (this.ui.isScreenReaderOptimized()) {
+			return;
+		}
 		if (this.autoFocusOnList) {
 			if (!this.canSelectMany) {
 				this.ui.list.focus(QuickInputListFocus.First);
