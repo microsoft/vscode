@@ -13,6 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export function provideDecorations(fileStat: ExplorerItem): IDecorationData | undefined {
 	if (fileStat.isRoot && fileStat.isError) {
@@ -50,7 +51,8 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 
 	constructor(
 		@IExplorerService private explorerService: IExplorerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService,
 	) {
 		this.toDispose.add(this._onDidChange);
 		this.toDispose.add(contextService.onDidChangeWorkspaceFolders(e => {
@@ -59,6 +61,9 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		this.toDispose.add(explorerRootErrorEmitter.event((resource => {
 			this._onDidChange.fire([resource]);
 		})));
+		this.toDispose.add(fileService.onDidFilesChange(e => {
+			this._onDidChange.fire([...e.rawAdded, ...e.rawUpdated]);
+		}));
 	}
 
 	get onDidChange(): Event<URI[]> {
