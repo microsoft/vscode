@@ -38,6 +38,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 	const future: ISnippetPick[] = [];
 
 	const seen = new Set<string>();
+	const added = new Set<string>();
 
 	for (const file of await snippetService.getSnippetFiles()) {
 
@@ -52,7 +53,13 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 
 			// list scopes for global snippets
 			const names = new Set<string>();
+			let source: string | undefined;
+
 			outer: for (const snippet of file.data) {
+				if (snippet.source && !source) {
+					source = snippet.source;
+				}
+
 				for (const scope of snippet.scopes) {
 					const name = languageService.getLanguageName(scope);
 					if (name) {
@@ -66,13 +73,19 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				}
 			}
 
+			let desc = names.size === 0
+				? nls.localize('global.scope', "(global)")
+				: nls.localize('global.1', "({0})", [...names].join(', '));
+			if (added.has(basename(file.location)) && source) {
+				desc = source + ' ' + desc;
+			}
+
 			existing.push({
 				label: basename(file.location),
 				filepath: file.location,
-				description: names.size === 0
-					? nls.localize('global.scope', "(global)")
-					: nls.localize('global.1', "({0})", [...names].join(', '))
+				description: desc
 			});
+			added.add(basename(file.location));
 
 		} else {
 			// language snippet
