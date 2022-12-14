@@ -25,9 +25,9 @@
 }
 
 .extension-list-item > .icon-container > .icon {
-	width: 42px;
-	height: 42px;
-	padding: 10px 14px 10px 0;
+	width: 32px;
+	height: 32px;
+	padding: 12px 12px 10px 0;
 	flex-shrink: 0;
 	object-fit: contain;
 }
@@ -54,7 +54,7 @@
 
 .extension-list-item > .details {
 	flex: 1;
-	padding: 4px 0;
+	padding: 10px 0;
 	overflow: hidden;
 }
 
