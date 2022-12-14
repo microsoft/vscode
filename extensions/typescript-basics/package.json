@@ -31,6 +31,7 @@
       {
         "id": "typescriptreact",
         "aliases": [
+          "TypeScript JSX",
           "TypeScript React",
           "tsx"
         ],

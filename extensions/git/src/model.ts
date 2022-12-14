@@ -33,21 +33,26 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
-class UnsafeRepositorySet extends Set<string> {
+/**
+ * Key   - normalized path used in user interface
+ * Value - path extracted from the output of the `git status` command
+ *         used when calling `git config --global --add safe.directory`
+ */
+class UnsafeRepositoryMap extends Map<string, string> {
 	constructor() {
 		super();
 		this.updateContextKey();
 	}
 
-	override add(value: string): this {
-		const result = super.add(value);
+	override set(key: string, value: string): this {
+		const result = super.set(key, value);
 		this.updateContextKey();
 
 		return result;
 	}
 
-	override delete(value: string): boolean {
-		const result = super.delete(value);
+	override delete(key: string): boolean {
+		const result = super.delete(key);
 		this.updateContextKey();
 
 		return result;
@@ -135,8 +140,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
-	private _unsafeRepositories = new UnsafeRepositorySet();
-	get unsafeRepositories(): Set<string> {
+	private _unsafeRepositories = new UnsafeRepositoryMap();
+	get unsafeRepositories(): Map<string, string> {
 		return this._unsafeRepositories;
 	}
 
@@ -430,8 +435,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// Handle unsafe repository
-			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'$/m.exec(ex.stderr);
-			if (match && match.length === 2) {
+			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(ex.stderr);
+			if (match && match.length === 3) {
 				const unsafeRepositoryPath = path.normalize(match[1]);
 				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
@@ -440,7 +445,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 					this.showUnsafeRepositoryNotification();
 				}
 
-				this._unsafeRepositories.add(unsafeRepositoryPath);
+				this._unsafeRepositories.set(unsafeRepositoryPath, match[2]);
 
 				return;
 			}
@@ -663,7 +668,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
+			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
 				return liveRepository;
 			}
 		}

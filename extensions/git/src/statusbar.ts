@@ -9,13 +9,29 @@ import { anyEvent, dispose, filterEvent } from './util';
 import { Branch, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
+interface CheckoutStatusBarState {
+	readonly isCommitRunning: boolean;
+}
+
 class CheckoutStatusBar {
 
 	private _onDidChange = new EventEmitter<void>();
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
+	private _state: CheckoutStatusBarState;
+	private get state() { return this._state; }
+	private set state(state: CheckoutStatusBarState) {
+		this._state = state;
+		this._onDidChange.fire();
+	}
+
 	constructor(private repository: Repository) {
+		this._state = {
+			isCommitRunning: false
+		};
+
+		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 		repository.onDidRunGitStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
@@ -25,11 +41,17 @@ class CheckoutStatusBar {
 		const label = `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
 
 		return {
-			command: 'git.checkout',
-			tooltip: l10n.t('{0}, Checkout branch/tag...', label),
+			command: this.state.isCommitRunning ? '' : 'git.checkout',
+			tooltip: this.state.isCommitRunning ? l10n.t('{0}, Committing changes...', label) : l10n.t('{0}, Checkout branch/tag...', label),
 			title: `${isBranchProtected ? '$(lock)' : '$(git-branch)'} ${label}`,
 			arguments: [this.repository.sourceControl]
 		};
+	}
+
+	private onDidChangeOperations(): void {
+		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
+
+		this.state = { ...this.state, isCommitRunning };
 	}
 
 	dispose(): void {
@@ -39,6 +61,7 @@ class CheckoutStatusBar {
 
 interface SyncStatusBarState {
 	readonly enabled: boolean;
+	readonly isCommitRunning: boolean;
 	readonly isSyncRunning: boolean;
 	readonly hasRemotes: boolean;
 	readonly HEAD: Branch | undefined;
@@ -61,6 +84,7 @@ class SyncStatusBar {
 	constructor(private repository: Repository, private remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
 		this._state = {
 			enabled: true,
+			isCommitRunning: false,
 			isSyncRunning: false,
 			hasRemotes: false,
 			HEAD: undefined,
@@ -86,11 +110,12 @@ class SyncStatusBar {
 	}
 
 	private onDidChangeOperations(): void {
+		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
 		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
 			this.repository.operations.isRunning(Operation.Push) ||
 			this.repository.operations.isRunning(Operation.Pull);
 
-		this.state = { ...this.state, isSyncRunning };
+		this.state = { ...this.state, isCommitRunning, isSyncRunning };
 	}
 
 	private onDidRunGitStatus(): void {
@@ -118,12 +143,14 @@ class SyncStatusBar {
 				return;
 			}
 
-			const tooltip = this.state.remoteSourcePublishers.length === 1
-				? l10n.t('Publish to {0}', this.state.remoteSourcePublishers[0].name)
-				: l10n.t('Publish to...');
+			const command = this.state.isCommitRunning ? '' : 'git.publish';
+			const tooltip = this.state.isCommitRunning ? l10n.t('Committing Changes...') :
+				this.state.remoteSourcePublishers.length === 1
+					? l10n.t('Publish to {0}', this.state.remoteSourcePublishers[0].name)
+					: l10n.t('Publish to...');
 
 			return {
-				command: 'git.publish',
+				command,
 				title: `$(cloud-upload)`,
 				tooltip,
 				arguments: [this.repository.sourceControl]
@@ -152,6 +179,11 @@ class SyncStatusBar {
 		} else {
 			command = '';
 			tooltip = '';
+		}
+
+		if (this.state.isCommitRunning) {
+			command = '';
+			tooltip = l10n.t('Committing Changes...');
 		}
 
 		if (this.state.isSyncRunning) {

@@ -12,9 +12,9 @@ import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keybo
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
-async function createKeyboardMapper(isUSStandard: boolean, file: string): Promise<WindowsKeyboardMapper> {
+async function createKeyboardMapper(isUSStandard: boolean, file: string, mapAltGrToCtrlAlt: boolean): Promise<WindowsKeyboardMapper> {
 	const rawMappings = await readRawMapping<IWindowsKeyboardMapping>(file);
-	return new WindowsKeyboardMapper(isUSStandard, rawMappings);
+	return new WindowsKeyboardMapper(isUSStandard, rawMappings, mapAltGrToCtrlAlt);
 }
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
@@ -27,7 +27,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
-		mapper = await createKeyboardMapper(false, 'win_de_ch');
+		mapper = await createKeyboardMapper(false, 'win_de_ch', false);
 	});
 
 	test('mapping', () => {
@@ -77,6 +77,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -119,6 +120,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.BracketRight,
 				code: null!
 			},
@@ -271,6 +273,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Home,
 				code: null!
 			},
@@ -319,6 +322,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},
@@ -341,7 +345,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
-		mapper = await createKeyboardMapper(true, 'win_en_us');
+		mapper = await createKeyboardMapper(true, 'win_en_us', false);
 	});
 
 	test('mapping', () => {
@@ -411,6 +415,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},
@@ -436,6 +441,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -461,6 +467,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Alt,
 				code: null!
 			},
@@ -486,6 +493,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: KeyCode.Meta,
 				code: null!
 			},
@@ -511,6 +519,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -526,6 +535,34 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			}
 		);
 	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', async () => {
+		const mapper = await createKeyboardMapper(true, 'win_en_us', true);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: KeyCode.KeyZ,
+				code: null!
+			},
+			{
+				label: 'Ctrl+Alt+Z',
+				ariaLabel: 'Control+Alt+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+Z'],
+				singleModifierDispatchParts: [null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - WINDOWS por_ptb', () => {
@@ -533,7 +570,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
-		mapper = await createKeyboardMapper(false, 'win_por_ptb');
+		mapper = await createKeyboardMapper(false, 'win_por_ptb', false);
 	});
 
 	test('mapping', () => {
@@ -549,6 +586,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.ABNT_C1,
 				code: null!
 			},
@@ -574,6 +612,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.ABNT_C2,
 				code: null!
 			},
@@ -596,7 +635,7 @@ suite('keyboardMapper - WINDOWS ru', () => {
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
-		mapper = await createKeyboardMapper(false, 'win_ru');
+		mapper = await createKeyboardMapper(false, 'win_ru', false);
 	});
 
 	test('mapping', () => {
@@ -638,7 +677,7 @@ suite('keyboardMapper - misc', () => {
 				'withAltGr': '',
 				'withShiftAltGr': ''
 			}
-		});
+		}, false);
 
 		_assertResolveKeybinding(
 			mapper,

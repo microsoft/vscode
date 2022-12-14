@@ -240,7 +240,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IModelService private readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ILabelService readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -523,7 +523,7 @@ export class FolderMatch extends Disposable {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ILabelService readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
