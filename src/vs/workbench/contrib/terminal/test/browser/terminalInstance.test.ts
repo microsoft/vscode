@@ -212,19 +212,6 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalLabelComputer.title, ROOT_1);
 			strictEqual(terminalLabelComputer.description, ROOT_1);
 		});
-		test('should resolve cwdFolder in a single root workspace if cwd differs from root', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwdFolder}' } } } });
-			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
-			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, cwd: ROOT_2, processName: 'zsh' }), new TestFileService(), mockContextService);
-			terminalLabelComputer.refreshLabel();
-			if (isWindows) {
-				strictEqual(terminalLabelComputer.title, 'zsh');
-				strictEqual(terminalLabelComputer.description, '');
-			} else {
-				strictEqual(terminalLabelComputer.title, 'zsh');
-				strictEqual(terminalLabelComputer.description, basename(ROOT_2));
-			}
-		});
 		test('should resolve workspaceFolder', () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${workspaceFolder}', description: '${workspaceFolder}' } } } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
