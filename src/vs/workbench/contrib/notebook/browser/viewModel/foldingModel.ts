@@ -170,8 +170,7 @@ export class FoldingModel implements IDisposable {
 				continue;
 			}
 
-			const headers = [...getMarkdownHeadersInCell(cell.getText())];
-			const minDepth = Math.min(7, ...headers.map(header => header.depth));
+			const minDepth = Math.min(7, ...Array.from(getMarkdownHeadersInCell(cell.getText()), header => header.depth));
 			if (minDepth < 7) {
 				// header 1 to 6
 				stack.push({ index: i, level: minDepth, endIndex: 0 });

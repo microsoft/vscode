@@ -452,8 +452,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 			if (isMarkdown) {
 				const fullContent = cell.getText().substring(0, 10_000);
-				const headers = [...getMarkdownHeadersInCell(fullContent)];
-				for (const { depth, text } of headers) {
+				for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
 					hasHeader = true;
 					entries.push(new OutlineEntry(entries.length, depth, cell, text, false, false));
 				}
