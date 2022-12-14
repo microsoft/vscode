@@ -64,7 +64,7 @@ export class ColorPickerModel {
 
 	guessColorPresentation(color: Color, originalText: string): void {
 		for (let i = 0; i < this.colorPresentations.length; i++) {
-			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
+			if (originalText.substring(0, 4) === this.colorPresentations[i].label.substring(0, 4)) {
 				this.presentationIndex = i;
 				this._onDidChangePresentation.fire(this.presentation);
 				break;
