@@ -68,22 +68,25 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
 		const { location, cleanup } = await this.downloadVsix(vsix);
 		try {
-			return await super.install(location, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+			options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+			return await super.install(location, options);
 		} finally {
 			await cleanup();
 		}
 	}
 
 	override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		return super.installFromGallery(extension, { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		installOptions = installOptions?.profileLocation ? installOptions : { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		return super.installFromGallery(extension, installOptions);
 	}
 
 	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		return super.uninstall(extension, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		return super.uninstall(extension, options);
 	}
 
-	override getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return super.getInstalled(type, this.userDataProfileService.currentProfile.extensionsResource);
+	override getInstalled(type: ExtensionType | null = null, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<ILocalExtension[]> {
+		return super.getInstalled(type, profileLocation);
 	}
 
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {

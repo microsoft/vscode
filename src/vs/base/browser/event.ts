@@ -20,6 +20,9 @@ export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap, Wind
 	'-monaco-gesturestart': GestureEvent;
 	'-monaco-gesturesend': GestureEvent;
 	'-monaco-gesturecontextmenu': GestureEvent;
+	'compositionstart': CompositionEvent;
+	'compositionupdate': CompositionEvent;
+	'compositionend': CompositionEvent;
 }
 
 export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {

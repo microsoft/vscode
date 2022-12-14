@@ -46,7 +46,7 @@
 .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
 	content: "";
 	position: absolute;
-	left: calc(var(--sash-size) / 2);
+	left: calc(var(--vscode-sash-size) / 2);
 	width: 0;
 	border-left: 1px solid transparent;
 }

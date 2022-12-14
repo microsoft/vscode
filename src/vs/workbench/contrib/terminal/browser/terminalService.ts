@@ -103,6 +103,8 @@ export class TerminalService implements ITerminalService {
 		return this._activeInstance;
 	}
 
+	private _editingTerminal: ITerminalInstance | undefined;
+
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
@@ -1132,6 +1134,14 @@ export class TerminalService implements ITerminalService {
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalGroupService.setContainer(terminalContainer);
+	}
+
+	getEditingTerminal(): ITerminalInstance | undefined {
+		return this._editingTerminal;
+	}
+
+	setEditingTerminal(instance: ITerminalInstance | undefined) {
+		this._editingTerminal = instance;
 	}
 }
 

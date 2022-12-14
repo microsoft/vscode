@@ -26,7 +26,7 @@ export class CodeActionKeybindingResolver {
 	];
 
 	constructor(
-		private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
 	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {

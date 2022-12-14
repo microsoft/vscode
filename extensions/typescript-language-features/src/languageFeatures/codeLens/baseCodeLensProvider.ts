@@ -36,7 +36,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 
 	public constructor(
 		protected client: ITypeScriptServiceClient,
-		private cachedResponse: CachedResponse<Proto.NavTreeResponse>
+		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>
 	) { }
 
 

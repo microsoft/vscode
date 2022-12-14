@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -29,7 +29,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	constructor(
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {

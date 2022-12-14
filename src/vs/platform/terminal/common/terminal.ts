@@ -7,10 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -794,21 +796,6 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-	quickFixes?: ITerminalQuickFixContribution[];
-}
-
-export interface ITerminalQuickFixContribution {
-	id: string;
-	commandLineMatcher: string | RegExp;
-	outputMatcher: ITerminalOutputMatcher;
-	exitStatus?: boolean;
-	commandToRun?: string;
-	linkToOpen?: string;
-}
-
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
@@ -817,10 +804,6 @@ export interface ITerminalProfileContribution {
 }
 
 export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
-	extensionIdentifier: string;
-}
-
-export interface IExtensionTerminalQuickFix extends ITerminalQuickFixContribution {
 	extensionIdentifier: string;
 }
 
@@ -833,6 +816,11 @@ export interface IShellIntegration {
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+	quickFixes?: ITerminalCommandSelector[];
 }
 
 export const enum ShellIntegrationStatus {

@@ -569,7 +569,7 @@ export class RawDebugSession implements IDisposable {
 						args.suspendDebuggee = suspendDebuggee;
 					}
 
-					this.send('disconnect', args, undefined, 2000);
+					await this.send('disconnect', args, undefined, 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {

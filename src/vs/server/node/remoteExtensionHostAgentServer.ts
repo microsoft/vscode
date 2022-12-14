@@ -727,7 +727,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('').fsPath, '../node_modules/vsda'));
 		if (hasVSDA) {
 			try {
-				return <typeof vsda>require.__$__nodeRequire('vsda');
+				return <typeof vsda>globalThis._VSCODE_NODE_MODULES['vsda'];
 			} catch (err) {
 				logService.error(err);
 			}

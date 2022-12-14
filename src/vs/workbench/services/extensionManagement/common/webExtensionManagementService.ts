@@ -105,6 +105,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
+	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		return this.install(location, { profileLocation });
+	}
+
 	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
 		return this.webExtensionsScannerService.scanMetadata(extension.location, this.userDataProfileService.currentProfile.extensionsResource);
 	}

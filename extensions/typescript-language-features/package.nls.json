@@ -165,7 +165,7 @@
 	"configuration.tsserver.watchOptions.synchronousWatchDirectory": "Disable deferred watching on directories. Deferred watching is useful when lots of file changes might occur at once (e.g. a change in node_modules from running npm install), but you might want to disable it with this flag for some less-common setups.",
 	"typescript.preferences.renameShorthandProperties.deprecationMessage": "The setting 'typescript.preferences.renameShorthandProperties' has been deprecated in favor of 'typescript.preferences.useAliasesForRenames'",
 	"typescript.preferences.useAliasesForRenames": "Enable/disable introducing aliases for object shorthand properties during renames.",
-	"typescript.workspaceSymbols.scope": "Controls which files are searched by [go to symbol in workspace](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name).",
+	"typescript.workspaceSymbols.scope": "Controls which files are searched by [Go to Symbol in Workspace](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name).",
 	"typescript.workspaceSymbols.scope.allOpenProjects": "Search all open JavaScript or TypeScript projects for symbols.",
 	"typescript.workspaceSymbols.scope.currentProject": "Only search for symbols in the current JavaScript or TypeScript project.",
 	"codeActions.refactor.extract.constant.title": "Extract constant",

@@ -183,14 +183,6 @@ export class RenameProfileAction extends Action2 {
 			category: PROFILES_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
-			menu: [
-				{
-					id: ManageProfilesSubMenu,
-					group: '3_manage_profiles',
-					when: PROFILES_ENABLEMENT_CONTEXT,
-					order: 1
-				}
-			]
 		});
 	}
 

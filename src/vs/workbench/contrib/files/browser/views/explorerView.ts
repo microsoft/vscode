@@ -276,7 +276,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.tree.layout(height, width);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.container = container;

@@ -73,6 +73,8 @@ export interface ICommandHandler {
 #include(vs/editor/common/core/wordHelper): IWordAtPosition
 #includeAll(vs/editor/common/model): IScrollEvent
 #include(vs/editor/common/diff/smartLinesDiffComputer): IChange, ICharChange, ILineChange
+#include(vs/editor/common/diff/documentDiffProvider): IDocumentDiffProvider, IDocumentDiffProviderOptions, IDocumentDiff
+#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, LineRange, RangeMapping
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):

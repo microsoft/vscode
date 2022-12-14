@@ -18,6 +18,7 @@ export interface IAppInsightsCore {
 }
 
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
+const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
@@ -68,6 +69,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	protected _aiCoreOrKey: IAppInsightsCore | string | undefined;
 	private _asyncAiCore: Promise<IAppInsightsCore> | null;
 	protected readonly endPointUrl = endpointUrl;
+	protected readonly endPointHealthUrl = endpointHealthUrl;
 
 	constructor(
 		private readonly _isInternalTelemetry: boolean,

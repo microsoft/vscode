@@ -414,7 +414,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private contentSize = 0;
 	private proportions: undefined | number[] = undefined;
 	private viewItems: ViewItem<TLayoutContext>[] = [];
-	private sashItems: ISashItem[] = [];
+	sashItems: ISashItem[] = []; // used in tests
 	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;

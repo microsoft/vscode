@@ -382,7 +382,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._container.style.height = `${heightInPixel}px`;
 	}
 
-	public override _onWidth(widthInPixel: number): void {
+	protected override _onWidth(widthInPixel: number): void {
 		this._message.layout(this._heightInPixel, widthInPixel);
 	}
 

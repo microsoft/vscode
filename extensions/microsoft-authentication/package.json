@@ -12,9 +12,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onAuthenticationRequest:microsoft"
-  ],
+  "activationEvents": [],
   "enabledApiProposals": [
     "telemetryLogger",
     "idToken"

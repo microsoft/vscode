@@ -83,7 +83,7 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	protected _isDirectoryResolved: boolean;
+	_isDirectoryResolved: boolean; // used in tests
 	public isError = false;
 	private _isExcluded = false;
 

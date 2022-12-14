@@ -59,6 +59,11 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 
 	/** This is controlled by the WorkbenchToolBar */
 	allowContextMenu?: never;
+
+	/**
+	 * Maximun number of items that can shown. Extra items will be shown in the overflow menu.
+	 */
+	maxNumberOfItems?: number;
 };
 
 /**
@@ -107,10 +112,11 @@ export class WorkbenchToolBar extends ToolBar {
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
 
+		const extraSecondary: IAction[] = [];
+
 		let someAreHidden = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
 		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
-			let shouldPrependSeparator = secondary.length > 0;
 			for (let i = 0; i < primary.length; i++) {
 				const action = primary[i];
 				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
@@ -129,17 +135,30 @@ export class WorkbenchToolBar extends ToolBar {
 					someAreHidden = true;
 					primary[i] = undefined!;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
-						if (shouldPrependSeparator) {
-							shouldPrependSeparator = false;
-							secondary.unshift(new Separator());
-						}
-						secondary.unshift(action);
+						extraSecondary[i] = action;
 					}
 				}
 			}
 		}
+
+		// count for max
+		if (this._options?.maxNumberOfItems !== undefined) {
+			let count = 0;
+			for (let i = 0; i < primary.length; i++) {
+				const action = primary[i];
+				if (!action) {
+					continue;
+				}
+				if (++count >= this._options.maxNumberOfItems) {
+					primary[i] = undefined!;
+					extraSecondary[i] = action;
+				}
+			}
+		}
+
 		coalesceInPlace(primary);
-		super.setActions(primary, secondary);
+		coalesceInPlace(extraSecondary);
+		super.setActions(primary, Separator.join(extraSecondary, secondary));
 
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
@@ -211,12 +230,6 @@ export interface IToolBarRenderOptions {
 	primaryGroup?: string | ((actionGroup: string) => boolean);
 
 	/**
-	 * Limits the number of items that make it in the primary group. The rest overflows into the
-	 * secondary menu.
-	 */
-	primaryMaxCount?: number;
-
-	/**
 	 * Inlinse submenus with just a single item
 	 */
 	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean;
@@ -269,7 +282,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				menu,
 				options?.menuOptions,
 				{ primary, secondary },
-				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.primaryMaxCount, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
+				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			super.setActions(primary, secondary);
 		};

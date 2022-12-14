@@ -112,12 +112,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		}
 		const model = this._editor.getModel();
-		if (this._stickyLineCandidateProvider.getVersionId() !== model.getVersionId()) {
-			// Old _ranges not updated yet
-			return;
+		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
+		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
+			this._widgetState = this.getScrollWidgetState();
+			this._stickyScrollWidget.setState(this._widgetState);
 		}
-		this._widgetState = this.getScrollWidgetState();
-		this._stickyScrollWidget.setState(this._widgetState);
 	}
 
 	public getScrollWidgetState(): StickyScrollWidgetState {

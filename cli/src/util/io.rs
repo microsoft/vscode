@@ -2,9 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use std::{io, task::Poll};
+use std::{
+	fs::File,
+	io::{self, BufRead, Seek},
+	task::Poll,
+	time::Duration,
+};
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::{
+	io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+	sync::mpsc,
+	time::sleep,
+};
 
 pub trait ReportCopyProgress {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64);
@@ -93,5 +102,268 @@ impl ReadBuffer {
 		}
 
 		Poll::Ready(Ok(()))
+	}
+}
+
+#[derive(Debug)]
+pub enum TailEvent {
+	/// A new line was read from the file. The line includes its trailing newline character.
+	Line(String),
+	/// The file appears to have been rewritten (size shrunk)
+	Reset,
+	/// An error was encountered with the file.
+	Err(io::Error),
+}
+
+/// Simple, naive implementation of `tail -f -n <n> <path>`. Uses polling, so
+/// it's not the fastest, but simple and working for easy cases.
+pub fn tailf(file: File, n: usize) -> mpsc::UnboundedReceiver<TailEvent> {
+	let (tx, rx) = mpsc::unbounded_channel();
+	let mut last_len = match file.metadata() {
+		Ok(m) => m.len(),
+		Err(e) => {
+			tx.send(TailEvent::Err(e)).ok();
+			return rx;
+		}
+	};
+
+	let mut reader = io::BufReader::new(file);
+	let mut pos = 0;
+
+	// Read the initial "n" lines back from the request. initial_lines
+	// is a small ring buffer.
+	let mut initial_lines = Vec::with_capacity(n);
+	let mut initial_lines_i = 0;
+	loop {
+		let mut line = String::new();
+		let bytes_read = match reader.read_line(&mut line) {
+			Ok(0) => break,
+			Ok(n) => n,
+			Err(e) => {
+				tx.send(TailEvent::Err(e)).ok();
+				return rx;
+			}
+		};
+
+		if !line.ends_with('\n') {
+			// EOF
+			break;
+		}
+
+		pos += bytes_read as u64;
+		if initial_lines.len() < initial_lines.capacity() {
+			initial_lines.push(line)
+		} else {
+			initial_lines[initial_lines_i] = line;
+		}
+
+		initial_lines_i = (initial_lines_i + 1) % n;
+	}
+
+	// remove tail lines...
+	if initial_lines_i < initial_lines.len() {
+		for line in initial_lines.drain((initial_lines_i)..) {
+			tx.send(TailEvent::Line(line)).ok();
+		}
+	}
+	// then the remaining lines
+	if !initial_lines.is_empty() {
+		for line in initial_lines.drain(0..) {
+			tx.send(TailEvent::Line(line)).ok();
+		}
+	}
+
+	// now spawn the poll process to keep reading new lines
+	tokio::spawn(async move {
+		let poll_interval = Duration::from_millis(500);
+
+		loop {
+			tokio::select! {
+				_ = sleep(poll_interval) => {},
+				_ = tx.closed() => return
+			}
+
+			match reader.get_ref().metadata() {
+				Err(e) => {
+					tx.send(TailEvent::Err(e)).ok();
+					return;
+				}
+				Ok(m) => {
+					if m.len() == last_len {
+						continue;
+					}
+
+					if m.len() < last_len {
+						tx.send(TailEvent::Reset).ok();
+						pos = 0;
+					}
+
+					last_len = m.len();
+				}
+			}
+
+			if let Err(e) = reader.seek(io::SeekFrom::Start(pos)) {
+				tx.send(TailEvent::Err(e)).ok();
+				return;
+			}
+
+			loop {
+				let mut line = String::new();
+				let n = match reader.read_line(&mut line) {
+					Ok(0) => break,
+					Ok(n) => n,
+					Err(e) => {
+						tx.send(TailEvent::Err(e)).ok();
+						return;
+					}
+				};
+
+				if n == 0 || !line.ends_with('\n') {
+					break;
+				}
+
+				pos += n as u64;
+				if tx.send(TailEvent::Line(line)).is_err() {
+					return;
+				}
+			}
+		}
+	});
+
+	rx
+}
+
+#[cfg(test)]
+mod tests {
+	use rand::Rng;
+	use std::{fs::OpenOptions, io::Write};
+
+	use super::*;
+
+	#[tokio::test]
+	async fn test_tailf_empty() {
+		let dir = tempfile::tempdir().unwrap();
+		let file_path = dir.path().join("tmp");
+
+		let read_file = OpenOptions::new()
+			.write(true)
+			.read(true)
+			.create(true)
+			.open(&file_path)
+			.unwrap();
+
+		let mut rx = tailf(read_file, 32);
+		assert!(rx.try_recv().is_err());
+
+		let mut append_file = OpenOptions::new()
+			.write(true)
+			.append(true)
+			.open(&file_path)
+			.unwrap();
+		writeln!(&mut append_file, "some line").unwrap();
+
+		let recv = rx.recv().await;
+		if let Some(TailEvent::Line(l)) = recv {
+			assert_eq!("some line\n".to_string(), l);
+		} else {
+			unreachable!("expect a line event, got {:?}", recv)
+		}
+
+		write!(&mut append_file, "partial ").unwrap();
+		writeln!(&mut append_file, "line").unwrap();
+
+		let recv = rx.recv().await;
+		if let Some(TailEvent::Line(l)) = recv {
+			assert_eq!("partial line\n".to_string(), l);
+		} else {
+			unreachable!("expect a line event, got {:?}", recv)
+		}
+	}
+
+	#[tokio::test]
+	async fn test_tailf_resets() {
+		let dir = tempfile::tempdir().unwrap();
+		let file_path = dir.path().join("tmp");
+
+		let mut read_file = OpenOptions::new()
+			.write(true)
+			.read(true)
+			.create(true)
+			.open(&file_path)
+			.unwrap();
+
+		writeln!(&mut read_file, "some existing content").unwrap();
+		let mut rx = tailf(read_file, 0);
+		assert!(rx.try_recv().is_err());
+
+		let mut append_file = File::create(&file_path).unwrap(); // truncates
+		writeln!(&mut append_file, "some line").unwrap();
+
+		let recv = rx.recv().await;
+		if let Some(TailEvent::Reset) = recv {
+			// ok
+		} else {
+			unreachable!("expect a reset event, got {:?}", recv)
+		}
+
+		let recv = rx.recv().await;
+		if let Some(TailEvent::Line(l)) = recv {
+			assert_eq!("some line\n".to_string(), l);
+		} else {
+			unreachable!("expect a line event, got {:?}", recv)
+		}
+	}
+
+	#[tokio::test]
+	async fn test_tailf_with_data() {
+		let dir = tempfile::tempdir().unwrap();
+		let file_path = dir.path().join("tmp");
+
+		let mut read_file = OpenOptions::new()
+			.write(true)
+			.read(true)
+			.create(true)
+			.open(&file_path)
+			.unwrap();
+		let mut rng = rand::thread_rng();
+
+		let mut written = vec![];
+		let base_line = "Elit ipsum cillum ex cillum. Adipisicing consequat cupidatat do proident ut in sunt Lorem ipsum tempor. Eiusmod ipsum Lorem labore exercitation sunt pariatur excepteur fugiat cillum velit cillum enim. Nisi Lorem cupidatat ad enim velit officia eiusmod esse tempor aliquip. Deserunt pariatur tempor in duis culpa esse sit nulla irure ullamco ipsum voluptate non laboris. Occaecat officia nulla officia mollit do aliquip reprehenderit ad incididunt.";
+		for i in 0..100 {
+			let line = format!("{}: {}", i, &base_line[..rng.gen_range(0..base_line.len())]);
+			writeln!(&mut read_file, "{}", line).unwrap();
+			written.push(line);
+		}
+		write!(&mut read_file, "partial line").unwrap();
+		read_file.seek(io::SeekFrom::Start(0)).unwrap();
+
+		let last_n = 32;
+		let mut rx = tailf(read_file, last_n);
+		for i in 0..last_n {
+			let recv = rx.try_recv().unwrap();
+			if let TailEvent::Line(l) = recv {
+				let mut expected = written[written.len() - last_n + i].to_string();
+				expected.push('\n');
+				assert_eq!(expected, l);
+			} else {
+				unreachable!("expect a line event, got {:?}", recv)
+			}
+		}
+
+		assert!(rx.try_recv().is_err());
+
+		let mut append_file = OpenOptions::new()
+			.write(true)
+			.append(true)
+			.open(&file_path)
+			.unwrap();
+		writeln!(append_file, " is now complete").unwrap();
+
+		let recv = rx.recv().await;
+		if let Some(TailEvent::Line(l)) = recv {
+			assert_eq!("partial line is now complete\n".to_string(), l);
+		} else {
+			unreachable!("expect a line event, got {:?}", recv)
+		}
 	}
 }

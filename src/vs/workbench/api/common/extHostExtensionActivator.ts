@@ -166,8 +166,7 @@ type ActivationIdAndReason = { id: ExtensionIdentifier; reason: ExtensionActivat
 export class ExtensionsActivator implements IDisposable {
 
 	private readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _resolvedExtensionsSet: Set<string>;
-	private readonly _externalExtensionsMap: Map<string, ExtensionIdentifier>;
+	private readonly _globalRegistry: ExtensionDescriptionRegistry;
 	private readonly _host: IExtensionsActivatorHost;
 	private readonly _operations: Map<string, ActivationOperation>;
 	/**
@@ -177,16 +176,12 @@ export class ExtensionsActivator implements IDisposable {
 
 	constructor(
 		registry: ExtensionDescriptionRegistry,
-		resolvedExtensions: ExtensionIdentifier[],
-		externalExtensions: ExtensionIdentifier[],
+		globalRegistry: ExtensionDescriptionRegistry,
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
 		this._registry = registry;
-		this._resolvedExtensionsSet = new Set<string>();
-		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
-		this._externalExtensionsMap = new Map<string, ExtensionIdentifier>();
-		externalExtensions.forEach((extensionId) => this._externalExtensionsMap.set(ExtensionIdentifier.toKey(extensionId), extensionId));
+		this._globalRegistry = globalRegistry;
 		this._host = host;
 		this._operations = new Map<string, ActivationOperation>();
 		this._alreadyActivatedEvents = Object.create(null);
@@ -249,7 +244,7 @@ export class ExtensionsActivator implements IDisposable {
 			return this._operations.get(ExtensionIdentifier.toKey(currentActivation.id))!;
 		}
 
-		if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
+		if (this._isHostExtension(currentActivation.id)) {
 			return this._createAndSaveOperation(currentActivation, null, [], null);
 		}
 
@@ -270,7 +265,7 @@ export class ExtensionsActivator implements IDisposable {
 		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		for (const depId of depIds) {
 
-			if (this._resolvedExtensionsSet.has(ExtensionIdentifier.toKey(depId))) {
+			if (this._isResolvedExtension(depId)) {
 				// This dependency is already resolved
 				continue;
 			}
@@ -281,10 +276,10 @@ export class ExtensionsActivator implements IDisposable {
 				continue;
 			}
 
-			if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(depId))) {
+			if (this._isHostExtension(depId)) {
 				// must first wait for the dependency to activate
 				deps.push(this._handleActivationRequest({
-					id: this._externalExtensionsMap.get(ExtensionIdentifier.toKey(depId))!,
+					id: this._globalRegistry.getExtensionDescription(depId)!.identifier,
 					reason: currentActivation.reason
 				}));
 				continue;
@@ -324,6 +319,19 @@ export class ExtensionsActivator implements IDisposable {
 		const operation = new ActivationOperation(activation.id, displayName, activation.reason, deps, value, this._host, this._logService);
 		this._operations.set(ExtensionIdentifier.toKey(activation.id), operation);
 		return operation;
+	}
+
+	private _isHostExtension(extensionId: ExtensionIdentifier | string): boolean {
+		return ExtensionDescriptionRegistry.isHostExtension(extensionId, this._registry, this._globalRegistry);
+	}
+
+	private _isResolvedExtension(extensionId: ExtensionIdentifier | string): boolean {
+		const extensionDescription = this._globalRegistry.getExtensionDescription(extensionId);
+		if (!extensionDescription) {
+			// unknown extension
+			return false;
+		}
+		return (!extensionDescription.main && !extensionDescription.browser);
 	}
 }
 

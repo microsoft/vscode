@@ -161,15 +161,18 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
 			if (this._linuxDistro === LinuxDistro.Fedora) {
-				fontFamily = '\'DejaVu Sans Mono\', monospace';
+				fontFamily = '\'DejaVu Sans Mono\'';
 			}
 			if (this._linuxDistro === LinuxDistro.Ubuntu) {
-				fontFamily = '\'Ubuntu Mono\', monospace';
+				fontFamily = '\'Ubuntu Mono\'';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
 				fontSize = this._clampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
+
+		// Always fallback to monospace, otherwise a proportional font may become the default
+		fontFamily += ', monospace';
 
 		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;

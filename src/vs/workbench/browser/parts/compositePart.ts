@@ -31,7 +31,7 @@ import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface ICompositeTitleLabel {
 
@@ -380,7 +380,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
+	protected override createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
@@ -455,10 +455,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return null;
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentContainer = append(parent, $('.content'));
 
-		this.progressBar = this._register(new ProgressBar(contentContainer, getProgressBarStyles()));
+		this.progressBar = this._register(new ProgressBar(contentContainer, defaultProgressBarStyles));
 		this.progressBar.hide();
 
 		return contentContainer;

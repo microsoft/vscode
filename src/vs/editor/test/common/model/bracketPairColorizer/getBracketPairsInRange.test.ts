@@ -11,6 +11,10 @@ import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 
@@ -18,6 +22,16 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		const languageId = 'testLanguage';
 		const instantiationService = createModelServices(store);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		store.add(languageService.registerLanguage({
+			id: languageId,
+		}));
+
+		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(languageId);
+		const document = new TokenizedDocument([
+			new TokenInfo(text, encodedMode1, StandardTokenType.Other, true)
+		]);
+		store.add(TokenizationRegistry.register(languageId, document.getTokenizationSupport()));
 
 		store.add(languageConfigurationService.register(languageId, {
 			colorizedBracketPairs: [
@@ -26,13 +40,15 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 				['(', ')'],
 			]
 		}));
-		return store.add(instantiateTextModel(instantiationService, text, languageId));
+		const textModel = store.add(instantiateTextModel(instantiationService, text, languageId));
+		return textModel;
 	}
 
 	test('Basic 1', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ) [ ² { } ] () } []`);
 			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			model.tokenization.getLineTokens(1).getLanguageId(0);
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))

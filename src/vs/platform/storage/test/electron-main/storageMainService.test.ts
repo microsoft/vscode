@@ -54,6 +54,7 @@ suite('StorageMainService', function () {
 	}
 
 	async function testStorage(storage: IStorageMain, scope: StorageScope): Promise<void> {
+		strictEqual(storage.isInMemory(), true);
 
 		// Telemetry: added after init unless workspace/profile scoped
 		if (scope === StorageScope.APPLICATION) {

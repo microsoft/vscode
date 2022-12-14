@@ -8,10 +8,9 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -38,6 +37,10 @@ export interface IDialogOptions {
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
 	readonly disableDefaultAction?: boolean;
+	readonly buttonStyles: IButtonStyles;
+	readonly checkboxStyles: ICheckboxStyles;
+	readonly inputBoxStyles: IInputBoxStyles;
+	readonly dialogStyles: IDialogStyles;
 }
 
 export interface IDialogResult {
@@ -46,19 +49,15 @@ export interface IDialogResult {
 	readonly values?: string[];
 }
 
-export interface IDialogStyles extends IButtonStyles, ICheckboxStyles {
-	readonly dialogForeground?: Color;
-	readonly dialogBackground?: Color;
-	readonly dialogShadow?: Color;
-	readonly dialogBorder?: Color;
-	readonly errorIconForeground?: Color;
-	readonly warningIconForeground?: Color;
-	readonly infoIconForeground?: Color;
-	readonly inputBackground?: Color;
-	readonly inputForeground?: Color;
-	readonly inputBorder?: Color;
-	readonly textLinkForeground?: Color;
-
+export interface IDialogStyles {
+	readonly dialogForeground: string | undefined;
+	readonly dialogBackground: string | undefined;
+	readonly dialogShadow: string | undefined;
+	readonly dialogBorder: string | undefined;
+	readonly errorIconForeground: string | undefined;
+	readonly warningIconForeground: string | undefined;
+	readonly infoIconForeground: string | undefined;
+	readonly textLinkForeground: string | undefined;
 }
 
 interface ButtonMapEntry {
@@ -77,12 +76,12 @@ export class Dialog extends Disposable {
 	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
 	private buttonBar: ButtonBar | undefined;
-	private styles: IDialogStyles | undefined;
 	private focusToReturn: HTMLElement | undefined;
 	private readonly inputs: InputBox[];
 	private readonly buttons: string[];
+	private readonly buttonStyles: IButtonStyles;
 
-	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
@@ -91,6 +90,8 @@ export class Dialog extends Disposable {
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
 		hide(this.element);
+
+		this.buttonStyles = options.buttonStyles;
 
 		if (Array.isArray(buttons) && buttons.length > 0) {
 			this.buttons = buttons;
@@ -136,6 +137,7 @@ export class Dialog extends Disposable {
 				const inputBox = this._register(new InputBox(inputRowElement, undefined, {
 					placeholder: input.placeholder,
 					type: input.type ?? 'text',
+					inputBoxStyles: options.inputBoxStyles
 				}));
 
 				if (input.value) {
@@ -151,7 +153,9 @@ export class Dialog extends Disposable {
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
 
-			const checkbox = this.checkbox = this._register(new Checkbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+			const checkbox = this.checkbox = this._register(
+				new Checkbox(this.options.checkboxLabel, !!this.options.checkboxChecked, options.checkboxStyles)
+			);
 
 			checkboxRowElement.appendChild(checkbox.domNode);
 
@@ -162,6 +166,8 @@ export class Dialog extends Disposable {
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
+
+		this.applyStyles();
 	}
 
 	private getIconAriaLabel(): string {
@@ -202,7 +208,7 @@ export class Dialog extends Disposable {
 			// Handle button clicks
 			buttonMap.forEach((entry, index) => {
 				const primary = buttonMap[index].index === 0;
-				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary })) : this._register(buttonBar.addButton({ title: true, secondary: !primary }));
+				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary, ...this.buttonStyles })) : this._register(buttonBar.addButton({ title: true, secondary: !primary, ...this.buttonStyles }));
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
 					button.description = this.options.buttonDetails![buttonMap[index].index];
@@ -387,7 +393,7 @@ export class Dialog extends Disposable {
 					});
 				}));
 
-				actionBar.push(action, { icon: true, label: false, });
+				actionBar.push(action, { icon: true, label: false });
 			}
 
 			this.applyStyles();
@@ -412,60 +418,47 @@ export class Dialog extends Disposable {
 	}
 
 	private applyStyles() {
-		if (this.styles) {
-			const style = this.styles;
+		const style = this.options.dialogStyles;
 
-			const fgColor = style.dialogForeground;
-			const bgColor = style.dialogBackground;
-			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
-			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
-			const linkFgColor = style.textLinkForeground;
+		const fgColor = style.dialogForeground;
+		const bgColor = style.dialogBackground;
+		const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
+		const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
+		const linkFgColor = style.textLinkForeground;
 
-			this.shadowElement.style.boxShadow = shadowColor;
+		this.shadowElement.style.boxShadow = shadowColor;
 
-			this.element.style.color = fgColor?.toString() ?? '';
-			this.element.style.backgroundColor = bgColor?.toString() ?? '';
-			this.element.style.border = border;
+		this.element.style.color = fgColor?.toString() ?? '';
+		this.element.style.backgroundColor = bgColor?.toString() ?? '';
+		this.element.style.border = border;
 
-			this.checkbox?.style(style);
+		// TODO fix
+		// if (fgColor && bgColor) {
+		// 	const messageDetailColor = fgColor.transparent(.9);
+		// 	this.messageDetailElement.style.mixBlendMode = messageDetailColor.makeOpaque(bgColor).toString();
+		// }
 
-			if (fgColor && bgColor) {
-				const messageDetailColor = fgColor.transparent(.9);
-				this.messageDetailElement.style.color = messageDetailColor.makeOpaque(bgColor).toString();
-			}
-
-			if (linkFgColor) {
-				for (const el of this.messageContainer.getElementsByTagName('a')) {
-					el.style.color = linkFgColor.toString();
-				}
-			}
-
-			let color;
-			switch (this.options.type) {
-				case 'error':
-					color = style.errorIconForeground;
-					break;
-				case 'warning':
-					color = style.warningIconForeground;
-					break;
-				default:
-					color = style.infoIconForeground;
-					break;
-			}
-			if (color) {
-				this.iconElement.style.color = color.toString();
-			}
-
-			for (const input of this.inputs) {
-				input.style(style);
+		if (linkFgColor) {
+			for (const el of this.messageContainer.getElementsByTagName('a')) {
+				el.style.color = linkFgColor;
 			}
 		}
-	}
 
-	style(style: IDialogStyles): void {
-		this.styles = style;
-
-		this.applyStyles();
+		let color;
+		switch (this.options.type) {
+			case 'error':
+				color = style.errorIconForeground;
+				break;
+			case 'warning':
+				color = style.warningIconForeground;
+				break;
+			default:
+				color = style.infoIconForeground;
+				break;
+		}
+		if (color) {
+			this.iconElement.style.color = color;
+		}
 	}
 
 	override dispose(): void {

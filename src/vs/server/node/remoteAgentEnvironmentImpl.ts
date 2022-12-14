@@ -29,7 +29,6 @@ import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/e
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
-import { INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -45,7 +44,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly _logService: ILogService,
 		private readonly _extensionHostStatusService: IExtensionHostStatusService,
 		private readonly _extensionsScannerService: IExtensionsScannerService,
-		private readonly _extensionManagementService: INativeServerExtensionManagementService,
 	) {
 		if (_environmentService.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] };
@@ -336,7 +334,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	private async _scanInstalledExtensions(language: string): Promise<IExtensionDescription[]> {
-		await this._extensionManagementService.migrateDefaultProfileExtensions();
+		await this._extensionsScannerService.initializeDefaultProfileExtensions();
 		const scannedExtensions = await this._extensionsScannerService.scanUserExtensions({ language, useCache: true });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}

@@ -12,6 +12,7 @@ import { DisposableStore, repositoryHasGitHubRemote } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
+import './importExportProfiles';
 
 export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(initializeGitBaseExtension());
