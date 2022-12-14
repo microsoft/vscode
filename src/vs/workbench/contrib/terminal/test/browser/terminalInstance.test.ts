@@ -15,7 +15,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
-import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
