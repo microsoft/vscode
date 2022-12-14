@@ -199,4 +199,4 @@ registerThemingParticipant((theme, collector) => {
  *
  * Note: this currently does not adjust for different locales.
  */
-export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';
+export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe UI Variable Small", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';

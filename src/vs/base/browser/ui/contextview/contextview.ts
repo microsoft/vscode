@@ -380,7 +380,7 @@ const SHADOW_ROOT_CSS = /* css */ `
 	}
 
 	:host {
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	}
 
 	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -389,11 +389,11 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
 	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
 
-	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-	:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-	:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-	:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+	:host-context(.windows) { font-family: "Segoe UI Variable Small", "Segoe UI", sans-serif; }
+	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe UI Variable Small", "Segoe UI", "Microsoft YaHei", sans-serif; }
+	:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe UI Variable Small", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+	:host-context(.windows:lang(ja)) { font-family: "Segoe UI Variable Small", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+	:host-context(.windows:lang(ko)) { font-family: "Segoe UI Variable Small", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
 
 	:host-context(.linux) { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
 	:host-context(.linux:lang(zh-Hans)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
