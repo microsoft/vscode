@@ -34,7 +34,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
 		const linkSuffix = getLinkSuffix(link.text);
-		const selection: ITextEditorSelection = {
+		const selection: ITextEditorSelection | undefined = linkSuffix?.row === undefined ? undefined : {
 			startLineNumber: linkSuffix?.row ?? 1,
 			startColumn: linkSuffix?.col ?? 1
 		};
