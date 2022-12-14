@@ -181,7 +181,12 @@
 
 .extension-list-item > .details > .footer > .author > .publisher-name {
 	font-size: 90%;
+	color: var(--vscode-descriptionForeground);
 	font-weight: 600;
+}
+
+.monaco-list-row.selected .extension-list-item > .details > .footer > .author > .publisher-name{
+	color: unset;
 }
 
 .extension-list-item > .details > .footer > .author > .publisher-name:not(:first-child) {
