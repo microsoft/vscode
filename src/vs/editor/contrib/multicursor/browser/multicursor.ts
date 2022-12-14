@@ -668,14 +668,18 @@ export abstract class MultiCursorSelectionControllerAction extends EditorAction 
 		if (!multiCursorController) {
 			return;
 		}
-		const findController = CommonFindController.get(editor) ?? accessor.get(IInstantiationService).createInstance(CommonFindController, editor);
-		if (!findController) {
-			return;
-		}
 		const viewModel = editor._getViewModel();
 		if (viewModel) {
 			const previousCursorState = viewModel.getCursorStates();
-			this._run(multiCursorController, findController);
+			const findController = CommonFindController.get(editor);
+			if (findController) {
+				this._run(multiCursorController, findController);
+			} else {
+				const newFindController = accessor.get(IInstantiationService).createInstance(CommonFindController, editor);
+				this._run(multiCursorController, newFindController);
+				newFindController.dispose();
+			}
+
 			announceCursorChange(previousCursorState, viewModel.getCursorStates());
 		}
 	}
