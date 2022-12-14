@@ -887,7 +887,7 @@ export class ExtensionsListView extends ViewPane {
 		if (recommendations.length) {
 			const extensions = await this.extensionsWorkbenchService.getExtensions(recommendations.map(id => ({ id })), { source: options.source }, token);
 			for (const extension of extensions) {
-				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+				if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
 					result.push(extension);
 				}
 			}

@@ -534,7 +534,6 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 
 		let mut cmd = self.get_base_command();
 		cmd.arg("--start-server")
-			.arg("--without-connection-token")
 			.arg("--enable-remote-auto-shutdown")
 			.arg(format!("--socket-path={}", socket.display()));
 

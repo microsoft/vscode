@@ -23,6 +23,8 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -338,6 +340,13 @@ class ProcessExplorer {
 
 		this.tree.setInput({ processes: { processRoots } });
 		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.onKeyDown(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.KeyE && event.altKey) {
+				const selectionPids = this.getSelectedPids();
+				void Promise.all(selectionPids.map((pid) => this.nativeHostService.killProcess(pid, 'SIGTERM'))).then(() => this.tree?.refresh());
+			}
+		});
 		this.tree.onContextMenu(e => {
 			if (isProcessItem(e.element)) {
 				this.showContextMenu(e.element, true);
@@ -500,12 +509,7 @@ class ProcessExplorer {
 			label: localize('copy', "Copy"),
 			click: () => {
 				// Collect the selected pids
-				const selectionPids = this.tree?.getSelection()?.map(e => {
-					if (!e || !('pid' in e)) {
-						return undefined;
-					}
-					return e.pid;
-				}).filter(e => !!e) as number[];
+				const selectionPids = this.getSelectedPids();
 				// If the selection does not contain the right clicked item, copy the right clicked
 				// item only.
 				if (!selectionPids?.includes(pid)) {
@@ -560,6 +564,15 @@ class ProcessExplorer {
 				this.requestProcessList(waited);
 			}
 		}, 200);
+	}
+
+	private getSelectedPids() {
+		return this.tree?.getSelection()?.map(e => {
+			if (!e || !('pid' in e)) {
+				return undefined;
+			}
+			return e.pid;
+		}).filter(e => !!e) as number[];
 	}
 }
 

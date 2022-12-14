@@ -4,26 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
+const fs = require('fs');
 const webpack = require('webpack');
 const { Mangler } = require('../build/lib/mangleTypeScript');
 
-let map;
+/**
+ * Map of project paths to mangled file contents
+ *
+ * @type {Map<string, Map<string, string>>}
+ */
+const mangleMap = new Map();
+
 /**
  * @param {string} projectPath
  */
 function getMangledFileContents(projectPath) {
-	if (!map) {
+	let entry = mangleMap.get(projectPath);
+	if (!entry) {
+		console.log(`Mangling ${projectPath}`);
 		const ts2tsMangler = new Mangler(projectPath, console.log);
-		map = ts2tsMangler.computeNewFileContents();
+		entry = ts2tsMangler.computeNewFileContents();
+		mangleMap.set(projectPath, entry);
 	}
 
-	return map;
+	return entry;
 }
 
 /**
  * @type {webpack.LoaderDefinitionFunction}
  */
 module.exports = async function (source, sourceMap, meta) {
+	if (source !== fs.readFileSync(this.resourcePath).toString()) {
+		// File content has changed by previous webpack steps.
+		// Skip mangling.
+		return source;
+	}
+
 	const options = this.getOptions();
 	const callback = this.async();
 

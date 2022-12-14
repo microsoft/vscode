@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::str::FromStr;
 use sysinfo::{Pid, SystemExt};
@@ -18,6 +19,7 @@ use super::{
 	CommandContext,
 };
 
+use crate::tunnels::dev_tunnels::ActiveTunnel;
 use crate::{
 	auth::Auth,
 	log::{self, Logger},
@@ -234,11 +236,18 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	serve_with_csa(paths, log, gateway_args, csa, None).await
 }
 
+fn get_connection_token(tunnel: &ActiveTunnel) -> String {
+	let mut hash = Sha256::new();
+	hash.update(tunnel.id.as_bytes());
+	let result = hash.finalize();
+	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
+}
+
 async fn serve_with_csa(
 	paths: LauncherPaths,
 	log: Logger,
 	gateway_args: TunnelServeArgs,
-	csa: CodeServerArgs,
+	mut csa: CodeServerArgs,
 	shutdown_rx: Option<mpsc::UnboundedReceiver<ShutdownSignal>>,
 ) -> Result<i32, AnyError> {
 	// Intentionally read before starting the server. If the server updated and
@@ -255,6 +264,8 @@ async fn serve_with_csa(
 		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name)
 			.await
 	}?;
+
+	csa.connection_token = Some(get_connection_token(&tunnel));
 
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
 		tx

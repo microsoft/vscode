@@ -216,6 +216,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 	toggleEscapeSequenceLogging(): Promise<void>;
+
+	getEditingTerminal(): ITerminalInstance | undefined;
+	setEditingTerminal(instance: ITerminalInstance | undefined): void;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
@@ -412,14 +415,6 @@ export interface ISearchOptions {
 	caseSensitive?: boolean;
 	/** Whether the search should start at the current search position (not the next row). */
 	incremental?: boolean;
-}
-
-export interface ITerminalBeforeHandleLinkEvent {
-	terminal?: ITerminalInstance;
-	/** The text of the link */
-	link: string;
-	/** Call with whether the link was handled by the interceptor */
-	resolve(wasHandled: boolean): void;
 }
 
 export interface ITerminalInstance {

@@ -30,6 +30,10 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,8 +46,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -69,6 +76,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		if (isWeb) {
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
 		}
+
+		this.reportWorkspaceProfileInfo();
 	}
 
 	private registerConfiguration(): void {
@@ -367,7 +376,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							}
 						}
 					} catch (error) {
-						notificationService.error(error);
+						notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
 					}
 				}));
 				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
@@ -421,5 +430,24 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			},
 		}));
 		return disposables;
+	}
+
+	private async reportWorkspaceProfileInfo(): Promise<void> {
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+		const workspaceId = await this.workspaceTagsService.getTelemetryWorkspaceId(this.workspaceContextService.getWorkspace(), this.workspaceContextService.getWorkbenchState());
+		type WorkspaceProfileInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report profile information of the current workspace';
+			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A UUID given to a workspace to identify it.' };
+			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the profile of the workspace is default or not.' };
+		};
+		type WorkspaceProfileInfoEvent = {
+			workspaceId: string | undefined;
+			defaultProfile: boolean;
+		};
+		this.telemetryService.publicLog2<WorkspaceProfileInfoEvent, WorkspaceProfileInfoClassification>('workspaceProfileInfo', {
+			workspaceId,
+			defaultProfile: this.userDataProfileService.currentProfile.isDefault
+		});
 	}
 }

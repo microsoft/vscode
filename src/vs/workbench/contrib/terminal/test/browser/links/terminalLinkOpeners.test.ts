@@ -27,7 +27,7 @@ import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/servic
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
-export interface ITerminalLinkActivationResult {
+interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
 	link: string;
 	selection?: ITextEditorSelection;

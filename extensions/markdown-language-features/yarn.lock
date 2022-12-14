@@ -253,6 +253,11 @@
     "@microsoft/applicationinsights-web-basic" "^2.8.9"
     applicationinsights "2.3.6"
 
+"@vscode/l10n@^0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@vscode/l10n/-/l10n-0.0.10.tgz#9c513107c690c0dd16e3ec61e453743de15ebdb0"
+  integrity sha512-E1OCmDcDWa0Ya7vtSjp/XfHFGqYJfh+YPC1RkATU71fTac+j1JjCcB3qwSzmlKAighx2WxhLlfhS0RwAN++PFQ==
+
 applicationinsights@2.3.6:
   version "2.3.6"
   resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-2.3.6.tgz#91277ce44e5f6d2f85336922c05d90f8699c2e70"
@@ -601,21 +606,16 @@ vscode-languageserver-types@3.17.2, vscode-languageserver-types@^3.17.1, vscode-
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.2.tgz#b2c2e7de405ad3d73a883e91989b850170ffc4f2"
   integrity sha512-zHhCWatviizPIq9B7Vh9uvrH6x3sK8itC84HkamnBWoDFJtzBf7SWlpLCZUit72b3os45h6RWQNC9xHRDF8dRA==
 
-vscode-markdown-languageservice@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.2.0.tgz#93e230a1ed826786792e820a6e993e50139a0119"
-  integrity sha512-3Jh7/eN6zEPqfkT6cjL+AwGoQ7euL8RtW3FYf24IfPksz4nAZJcRibRtpSdlCaOKpwEoy/f5Axh94cmWPIGBMw==
+vscode-markdown-languageservice@^0.3.0-alpha.3:
+  version "0.3.0-alpha.3"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.3.0-alpha.3.tgz#219a4880cfc0ea037b5a1833bc0b0039bfd1e2db"
+  integrity sha512-KPjIuCkSqabkzci7TnlLKep5FYIC45tS7UC5H8zoOii7aoKJru5mZBDXJt86bM3XTgnfpW7rUYqhNnvXbbCBbw==
   dependencies:
+    "@vscode/l10n" "^0.0.10"
     picomatch "^2.3.1"
     vscode-languageserver-textdocument "^1.0.5"
     vscode-languageserver-types "^3.17.1"
-    vscode-nls "^5.0.1"
     vscode-uri "^3.0.3"
-
-vscode-nls@^5.0.1:
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.1.tgz#ba23fc4d4420d25e7f886c8e83cbdcec47aa48b2"
-  integrity sha512-hHQV6iig+M21lTdItKPkJAaWrxALQb/nqpVffakO4knJOh3DrU2SXOMzUzNgo1eADPzu3qSsJY1weCzvR52q9A==
 
 vscode-uri@^3.0.3:
   version "3.0.3"

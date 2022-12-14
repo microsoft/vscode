@@ -1205,11 +1205,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		if (this._inProgressTasks.has(task._label)) {
-			this._logService.info('Prevented duplicate task from running', task._label);
+		const qualifiedLabel = task.getQualifiedLabel();
+		if (this._inProgressTasks.has(qualifiedLabel)) {
+			this._logService.info('Prevented duplicate task from running', qualifiedLabel);
 			return;
 		}
-		this._inProgressTasks.add(task._label);
+		this._inProgressTasks.add(qualifiedLabel);
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1226,7 +1227,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._handleError(error);
 			return Promise.reject(error);
 		} finally {
-			this._inProgressTasks.delete(task._label);
+			this._inProgressTasks.delete(qualifiedLabel);
 		}
 	}
 
@@ -1913,6 +1914,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return { success: true, task: undefined };
 		}
+		this._inProgressTasks.delete(task.getQualifiedLabel());
 		return this._taskSystem.terminate(task);
 	}
 
@@ -2362,6 +2364,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const taskSystemInfo: ITaskSystemInfo | undefined = workspaceFolder ? this._getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		const problemReporter = new ProblemReporter(this._outputChannel);
+		if (!taskSystemInfo) {
+			problemReporter.fatal(nls.localize('TaskSystem.workspaceFolderError', 'Workspace folder was undefined'));
+			return true;
+		}
 		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2824,8 +2830,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							return true;
 						}
 					}
-				} else if (type && t.type === type) {
+				} else if (type && t.type === type || (CustomTask.is(t) && t.customizes()?.type === type)) {
 					return true;
+
 				}
 				return false;
 			});

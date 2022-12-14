@@ -15,20 +15,9 @@ class ShortIdent {
 		'import', 'in', 'instanceof', 'let', 'new', 'null', 'return', 'static', 'super', 'switch', 'this', 'throw',
 		'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield']);
 
-	static alphabet: string[] = [];
-
-	static {
-		for (let i = 97; i < 122; i++) {
-			this.alphabet.push(String.fromCharCode(i));
-		}
-		for (let i = 65; i < 90; i++) {
-			this.alphabet.push(String.fromCharCode(i));
-		}
-	}
-
+	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 	private _value = 0;
-
 	private readonly _isNameTaken: (name: string) => boolean;
 
 	constructor(isNameTaken: (name: string) => boolean) {
@@ -46,11 +35,11 @@ class ShortIdent {
 	}
 
 	private static convert(n: number): string {
-		const base = this.alphabet.length;
+		const base = this._alphabet.length;
 		let result = '';
 		do {
 			const rest = n % base;
-			result += this.alphabet[rest];
+			result += this._alphabet[rest];
 			n = (n / base) | 0;
 		} while (n > 0);
 		return result;

@@ -20,7 +20,6 @@ import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS }
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { getMachineId } from 'vs/base/node/id';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { getDelayedChannel, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
@@ -71,7 +70,7 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -109,6 +108,7 @@ import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/e
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -524,7 +524,7 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await this.resolveMachineId();
+		const machineId = await resolveMachineId(this.stateMainService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
@@ -559,20 +559,6 @@ export class CodeApplication extends Disposable {
 
 		// Transient profiles handler
 		this._register(instantiationService.createInstance(UserDataTransientProfilesHandler));
-	}
-
-	private async resolveMachineId(): Promise<string> {
-
-		// We cache the machineId for faster lookups on startup
-		// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
-		let machineId = this.stateMainService.getItem<string>(machineIdKey);
-		if (!machineId || (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead')) {
-			machineId = await getMachineId();
-
-			this.stateMainService.setItem(machineIdKey, machineId);
-		}
-
-		return machineId;
 	}
 
 	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {

@@ -216,7 +216,7 @@ export function getShellIntegrationInjection(
 	return undefined;
 }
 
-export enum ShellIntegrationExecutable {
+enum ShellIntegrationExecutable {
 	WindowsPwsh = 'windows-pwsh',
 	WindowsPwshLogin = 'windows-pwsh-login',
 	Pwsh = 'pwsh',
@@ -226,7 +226,7 @@ export enum ShellIntegrationExecutable {
 	Bash = 'bash'
 }
 
-export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
+const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 // The try catch swallows execution policy errors in the case of the archive distributable
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);

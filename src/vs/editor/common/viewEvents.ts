@@ -7,6 +7,7 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -61,13 +62,11 @@ export class ViewCursorStateChangedEvent {
 
 	public readonly type = ViewEventType.ViewCursorStateChanged;
 
-	public readonly selections: Selection[];
-	public readonly modelSelections: Selection[];
-
-	constructor(selections: Selection[], modelSelections: Selection[]) {
-		this.selections = selections;
-		this.modelSelections = modelSelections;
-	}
+	constructor(
+		public readonly selections: Selection[],
+		public readonly modelSelections: Selection[],
+		public readonly reason: CursorChangeReason
+	) { }
 }
 
 export class ViewDecorationsChangedEvent {
