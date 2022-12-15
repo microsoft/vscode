@@ -14,6 +14,7 @@
 	justify-content: center;
 	align-items: center;
 	border: 1px solid var(--vscode-button-border, transparent);
+	line-height: 18px;
 }
 
 .monaco-text-button:focus {
@@ -28,10 +29,6 @@
 .monaco-button.disabled {
 	opacity: 0.4 !important;
 	cursor: default;
-}
-
-.monaco-text-button span {
-	line-height: 18px;
 }
 
 .monaco-text-button > .codicon {
