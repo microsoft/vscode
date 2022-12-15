@@ -53,7 +53,9 @@ import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 
-interface EditorInputLabel {
+interface IEditorInputLabel {
+	editor: EditorInput;
+
 	name?: string;
 	description?: string;
 	forceDescription?: boolean;
@@ -78,8 +80,6 @@ interface IScheduledTabsTitleControlLayout extends IDisposable {
 	 */
 	options?: ITabsTitleControlLayoutOptions;
 }
-
-type EditorInputLabelAndEditor = EditorInputLabel & { editor: EditorInput };
 
 export class TabsTitleControl extends TitleControl {
 
@@ -111,7 +111,9 @@ export class TabsTitleControl extends TitleControl {
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-	private tabLabels: EditorInputLabel[] = [];
+	private tabLabels: IEditorInputLabel[] = [];
+	private activeTabLabel: IEditorInputLabel | undefined;
+
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
@@ -430,14 +432,58 @@ export class TabsTitleControl extends TitleControl {
 			tabsContainer.appendChild(this.createTab(i, tabsContainer, tabsScrollbar));
 		}
 
-		// An add of a tab requires to recompute all labels
+		// Make sure to recompute tab labels and detect
+		// if a label change occurred that requires a
+		// redraw of tabs and update of breadcrumbs.
+
+		const activeEditorChanged = this.didActiveEditorChange();
+		const oldActiveTabLabel = this.activeTabLabel;
+		const oldTabLabelsLength = this.tabLabels.length;
 		this.computeTabLabels();
 
-		// Redraw all tabs
-		this.redraw({ forceRevealActiveTab: true });
+		// Redraw and update in these cases
+		if (
+			activeEditorChanged ||													// active editor changed
+			oldTabLabelsLength !== this.tabLabels.length ||							// number of tabs changed
+			!this.equalsEditorInputLabel(oldActiveTabLabel, this.activeTabLabel)	// active editor label changed
+		) {
+			this.redraw({ forceRevealActiveTab: true });
+			this.breadcrumbsControl?.update();
+		}
 
-		// Update Breadcrumbs
-		this.breadcrumbsControl?.update();
+		// Otherwise only layout for revealing in tabs and breadcrumbs
+		else {
+			this.layout(this.dimensions, { forceRevealActiveTab: true });
+			this.breadcrumbsControl?.revealLast();
+		}
+	}
+
+	private didActiveEditorChange(): boolean {
+		if (
+			!this.activeTabLabel?.editor && this.group.activeEditor || 							// active editor changed from null => editor
+			this.activeTabLabel?.editor && !this.group.activeEditor || 							// active editor changed from editor => null
+			(!this.activeTabLabel?.editor || !this.group.isActive(this.activeTabLabel.editor))	// active editor changed from editorA => editorB
+		) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private equalsEditorInputLabel(labelA: IEditorInputLabel | undefined, labelB: IEditorInputLabel | undefined): boolean {
+		if (labelA === labelB) {
+			return true;
+		}
+
+		if (!labelA || !labelB) {
+			return false;
+		}
+
+		return labelA.name === labelB.name &&
+			labelA.description === labelB.description &&
+			labelA.forceDescription === labelB.forceDescription &&
+			labelA.title === labelB.title &&
+			labelA.ariaLabel === labelB.ariaLabel;
 	}
 
 	closeEditor(editor: EditorInput, index: number | undefined): void {
@@ -480,6 +526,7 @@ export class TabsTitleControl extends TitleControl {
 			this.tabDisposables = dispose(this.tabDisposables);
 			this.tabResourceLabels.clear();
 			this.tabLabels = [];
+			this.activeTabLabel = undefined;
 			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
@@ -608,7 +655,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private forEachTab(fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: EditorInputLabel, tabActionBar: ActionBar) => void, fromIndex?: number, toIndex?: number): void {
+	private forEachTab(fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void, fromIndex?: number, toIndex?: number): void {
 		this.group.editors.forEach((editor, index) => {
 			if (typeof fromIndex === 'number' && fromIndex > index) {
 				return; // do nothing if we are not yet at `fromIndex`
@@ -622,11 +669,11 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private withTab(editor: EditorInput, fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: EditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private withTab(editor: EditorInput, fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
 		this.doWithTab(this.group.getIndexOfEditor(editor), editor, fn);
 	}
 
-	private doWithTab(index: number, editor: EditorInput, fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: EditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private doWithTab(index: number, editor: EditorInput, fn: (editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
 		const tabsContainer = assertIsDefined(this.tabsContainer);
 		const tabContainer = tabsContainer.children[index] as HTMLElement;
 		const tabResourceLabel = this.tabResourceLabels.get(index);
@@ -985,27 +1032,38 @@ export class TabsTitleControl extends TitleControl {
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
-		const labels: EditorInputLabelAndEditor[] = this.group.editors.map((editor, index) => ({
-			editor,
-			name: editor.getName(),
-			description: editor.getDescription(verbosity),
-			forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
-			title: editor.getTitle(Verbosity.LONG),
-			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
-		}));
+		const labels: IEditorInputLabel[] = [];
+		let activeEditorIndex = -1;
+		for (let i = 0; i < this.group.editors.length; i++) {
+			const editor = this.group.editors[i];
+			labels.push({
+				editor,
+				name: editor.getName(),
+				description: editor.getDescription(verbosity),
+				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
+				title: editor.getTitle(Verbosity.LONG),
+				ariaLabel: computeEditorAriaLabel(editor, i, this.group, this.editorGroupService.count)
+			});
+
+			if (editor === this.group.activeEditor) {
+				activeEditorIndex = i;
+			}
+		}
 
 		// Shorten labels as needed
 		if (shortenDuplicates) {
 			this.shortenTabLabels(labels);
 		}
 
+		// Remember for fast lookup
 		this.tabLabels = labels;
+		this.activeTabLabel = labels[activeEditorIndex];
 	}
 
-	private shortenTabLabels(labels: EditorInputLabelAndEditor[]): void {
+	private shortenTabLabels(labels: IEditorInputLabel[]): void {
 
 		// Gather duplicate titles, while filtering out invalid descriptions
-		const mapNameToDuplicates = new Map<string, EditorInputLabelAndEditor[]>();
+		const mapNameToDuplicates = new Map<string, IEditorInputLabel[]>();
 		for (const label of labels) {
 			if (typeof label.description === 'string') {
 				getOrSet(mapNameToDuplicates, label.name, []).push(label);
@@ -1026,7 +1084,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// Identify duplicate descriptions
-			const mapDescriptionToDuplicates = new Map<string, EditorInputLabelAndEditor[]>();
+			const mapDescriptionToDuplicates = new Map<string, IEditorInputLabel[]>();
 			for (const duplicateLabel of duplicateLabels) {
 				getOrSet(mapDescriptionToDuplicates, duplicateLabel.description, []).push(duplicateLabel);
 			}
@@ -1119,7 +1177,7 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimensions, options);
 	}
 
-	private redrawTab(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: EditorInputLabel, tabActionBar: ActionBar): void {
+	private redrawTab(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
 		const isTabSticky = this.group.isSticky(index);
 		const options = this.accessor.partOptions;
 
@@ -1179,7 +1237,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabActionBar);
 	}
 
-	private redrawTabLabel(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: EditorInputLabel): void {
+	private redrawTabLabel(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const options = this.accessor.partOptions;
 
 		// Unless tabs are sticky compact, show the full label and description

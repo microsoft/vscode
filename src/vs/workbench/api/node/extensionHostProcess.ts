@@ -81,7 +81,7 @@ const args = minimist(process.argv.slice(2), {
 // happening we essentially blocklist this module from getting loaded in any
 // extension by patching the node require() function.
 (function () {
-	const Module = require.__$__nodeRequire('module') as any;
+	const Module = globalThis._VSCODE_NODE_MODULES.module as any;
 	const originalLoad = Module._load;
 
 	Module._load = function (request: string) {
@@ -325,7 +325,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				// So also use the native node module to do it from a separate thread
 				let watchdog: typeof nativeWatchdog;
 				try {
-					watchdog = require.__$__nodeRequire('native-watchdog');
+					watchdog = globalThis._VSCODE_NODE_MODULES['native-watchdog'];
 					watchdog.start(initData.parentPid);
 				} catch (err) {
 					// no problem...

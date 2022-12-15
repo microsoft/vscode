@@ -50,7 +50,9 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		}
 
 		let kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
-		if (!kernel) {
+		const noPendingKernelDetections = this._notebookKernelService.getKernelDetectionTasks(notebook).length === 0;
+		// do not auto run source action when there is pending kernel detections
+		if (!kernel && noPendingKernelDetections) {
 			kernel = await this.resolveSourceActions(notebook, contextKeyService);
 		}
 

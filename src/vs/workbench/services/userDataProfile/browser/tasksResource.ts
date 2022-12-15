@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceTreeItem } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ITasksResourceContent {
 	tasks: string | null;
@@ -62,10 +62,11 @@ export class TasksResource implements IProfileResource {
 
 export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 
+	readonly type = ProfileResourceType.Tasks;
 	readonly handle = this.profile.tasksResource.toString();
 	readonly label = { label: localize('tasks', "User Tasks") };
 	readonly collapsibleState = TreeItemCollapsibleState.None;
-	checkbox: ITreeItemCheckboxState | undefined = { isChecked: true };
+	checkbox: ITreeItemCheckboxState = { isChecked: true };
 	readonly command = {
 		id: API_OPEN_EDITOR_COMMAND_ID,
 		title: '',

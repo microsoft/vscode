@@ -36,7 +36,7 @@ export class PartsSplash {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
-		@IConfigurationService configService: IConfigurationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
@@ -49,7 +49,7 @@ export class PartsSplash {
 			savePartsSplashSoon.schedule();
 		}, undefined, this._disposables);
 
-		configService.onDidChangeConfiguration(e => {
+		_configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.titleBarStyle')) {
 				this._didChangeTitleBarStyle = true;
 				this._savePartsSplash();
@@ -69,6 +69,7 @@ export class PartsSplash {
 		const theme = this._themeService.getColorTheme();
 
 		this._partSplashService.saveWindowSplash({
+			zoomLevel: this._configService.getValue<undefined>('window.zoomLevel'),
 			baseTheme: getThemeTypeSelector(theme.type),
 			colorInfo: {
 				foreground: theme.getColor(foreground)?.toString(),

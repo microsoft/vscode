@@ -18,7 +18,7 @@ import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, Window
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IWindowState {
-	windowId?: number;
+	readonly windowId?: number;
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
 	backupPath?: string;

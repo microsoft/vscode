@@ -1369,7 +1369,8 @@ export namespace CoreNavigationCommands {
 
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
-				const visibleViewRange = viewModel.getCompletelyVisibleViewRange();
+				const futureViewport = viewModel.viewLayout.getFutureViewport();
+				const visibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(futureViewport.top);
 				const visibleModelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 
 				let desiredTopModelLineNumber: number;

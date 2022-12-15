@@ -143,8 +143,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
-		@IWebviewService readonly webviewService: IWebviewService,
-		@IOpenerService readonly openerService: IOpenerService,
+		@IWebviewService private readonly webviewService: IWebviewService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -215,7 +215,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _logRendererDebugMessage(msg: string) {
-		this._renderLogger.debug(`${this.id} - ${msg}`);
+		this._renderLogger.debug(`${this.documentUri} (${this.id}) - ${msg}`);
 	}
 
 	private _updateStyles() {
@@ -274,8 +274,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
-		const findHighlight = this.getColor(editorFindMatch);
-		const currentMatchHighlight = this.getColor(editorFindMatchHighlight);
+		const currentHighlight = this.getColor(editorFindMatch);
+		const findMatchHighlight = this.getColor(editorFindMatchHighlight);
 		return /* html */`
 		<html lang="en">
 			<head>
@@ -293,11 +293,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				">` : ''}
 				<style nonce="${this.nonce}">
 					::highlight(find-highlight) {
-						background-color: var(--vscode-editor-findMatchBackground, ${findHighlight});
+						background-color: var(--vscode-editor-findMatchBackground, ${findMatchHighlight});
 					}
 
 					::highlight(current-find-highlight) {
-						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentMatchHighlight});
+						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentHighlight});
 					}
 
 					#container .cell_container {

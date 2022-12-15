@@ -454,7 +454,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.registerKeyboardNavigationListeners();
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		this.content = document.createElement('div');

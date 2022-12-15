@@ -318,7 +318,7 @@ export class SettingsEditor2 extends EditorPane {
 		return this._currentFocusContext;
 	}
 
-	createEditor(parent: HTMLElement): void {
+	protected createEditor(parent: HTMLElement): void {
 		parent.setAttribute('tabindex', '-1');
 		this.rootElement = DOM.append(parent, $('.settings-editor', { tabindex: '-1' }));
 
@@ -1078,7 +1078,7 @@ export class SettingsEditor2 extends EditorPane {
 			value = undefined;
 		}
 
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
+		return this.configurationService.updateValue(key, value, overrides, configurationTarget, { handleDirtyFile: 'save' })
 			.then(() => {
 				const query = this.searchWidget.getValue();
 				if (query.includes(`@${MODIFIED_SETTING_TAG}`)) {

@@ -697,6 +697,7 @@ export class MimeTypeDisplayOrder {
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 

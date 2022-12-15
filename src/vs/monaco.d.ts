@@ -445,6 +445,7 @@ declare namespace monaco {
 		readonly shiftKey: boolean;
 		readonly altKey: boolean;
 		readonly metaKey: boolean;
+		readonly altGraphKey: boolean;
 		readonly keyCode: KeyCode;
 		readonly code: string;
 		equals(keybinding: number): boolean;
@@ -667,11 +668,11 @@ declare namespace monaco {
 		/**
 		 * Test if this range equals other.
 		 */
-		equalsRange(other: IRange | null): boolean;
+		equalsRange(other: IRange | null | undefined): boolean;
 		/**
 		 * Test if range `a` equals `b`.
 		 */
-		static equalsRange(a: IRange | null, b: IRange | null): boolean;
+		static equalsRange(a: IRange | null | undefined, b: IRange | null | undefined): boolean;
 		/**
 		 * Return the end position (which will be after or equal to the start position)
 		 */
@@ -705,13 +706,21 @@ declare namespace monaco {
 		 */
 		collapseToStart(): Range;
 		/**
-		 * Moves the range by the given amount of lines.
-		 */
-		delta(lineCount: number): Range;
-		/**
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
+		/**
+		 * Create a new empty range using this range's end position.
+		 */
+		collapseToEnd(): Range;
+		/**
+		 * Create a new empty range using this range's end position.
+		 */
+		static collapseToEnd(range: IRange): Range;
+		/**
+		 * Moves the range by the given amount of lines.
+		 */
+		delta(lineCount: number): Range;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
@@ -1769,6 +1778,7 @@ declare namespace monaco.editor {
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+		get originalIndentSize(): number | 'tabSize';
 	}
 
 	export interface BracketPairColorizationOptions {
@@ -1778,7 +1788,7 @@ declare namespace monaco.editor {
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
-		indentSize?: number;
+		indentSize?: number | 'tabSize';
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
@@ -3058,9 +3068,9 @@ declare namespace monaco.editor {
 		cursorSurroundingLinesStyle?: 'default' | 'all';
 		/**
 		 * Render last line number when the file ends with a newline.
-		 * Defaults to true.
+		 * Defaults to 'on' for Windows and macOS and 'dimmed' for Linux.
 		*/
-		renderFinalNewline?: boolean;
+		renderFinalNewline?: 'on' | 'off' | 'dimmed';
 		/**
 		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 		 * Defaults to 'prompt'.
@@ -3175,9 +3185,9 @@ declare namespace monaco.editor {
 		mouseStyle?: 'text' | 'default' | 'copy';
 		/**
 		 * Enable smooth caret animation.
-		 * Defaults to false.
+		 * Defaults to 'off'.
 		 */
-		cursorSmoothCaretAnimation?: boolean;
+		cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 		/**
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
@@ -3192,6 +3202,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		fontLigatures?: boolean | string;
+		/**
+		 * Enable font variations.
+		 * Defaults to false.
+		 */
+		fontVariations?: boolean | string;
 		/**
 		 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 		 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -3273,6 +3288,12 @@ declare namespace monaco.editor {
 		 */
 		wordWrapBreakAfterCharacters?: string;
 		/**
+		 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+		 * When wordBreak = 'normal', Use the default line break rule.
+		 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+		 */
+		wordBreak?: 'normal' | 'keepAll';
+		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
 		 * Use -1 to never stop rendering
@@ -3335,6 +3356,10 @@ declare namespace monaco.editor {
 		 * Defaults to 'spread'.
 		 */
 		multiCursorPaste?: 'spread' | 'full';
+		/**
+		 * Controls the max number of text cursors that can be in an active editor at once.
+		 */
+		multiCursorLimit?: number;
 		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
@@ -3540,6 +3565,11 @@ declare namespace monaco.editor {
 		 */
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
+		 * Enable experimental whitespace rendering.
+		 * Defaults to 'svg'.
+		 */
+		experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
+		/**
 		 * Enable rendering of whitespace.
 		 * Defaults to 'selection'.
 		 */
@@ -3566,7 +3596,7 @@ declare namespace monaco.editor {
 		/**
 		 * The font family
 		 */
-		fontFamily?: string | string[];
+		fontFamily?: string;
 		/**
 		 * The font weight
 		 */
@@ -3825,7 +3855,7 @@ declare namespace monaco.editor {
 		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
 		/**
-		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
 	}
@@ -4577,107 +4607,111 @@ declare namespace monaco.editor {
 		dragAndDrop = 31,
 		dropIntoEditor = 32,
 		emptySelectionClipboard = 33,
-		extraEditorClassName = 34,
-		fastScrollSensitivity = 35,
-		find = 36,
-		fixedOverflowWidgets = 37,
-		folding = 38,
-		foldingStrategy = 39,
-		foldingHighlight = 40,
-		foldingImportsByDefault = 41,
-		foldingMaximumRegions = 42,
-		unfoldOnClickAfterEndOfLine = 43,
-		fontFamily = 44,
-		fontInfo = 45,
-		fontLigatures = 46,
-		fontSize = 47,
-		fontWeight = 48,
-		formatOnPaste = 49,
-		formatOnType = 50,
-		glyphMargin = 51,
-		gotoLocation = 52,
-		hideCursorInOverviewRuler = 53,
-		hover = 54,
-		inDiffEditor = 55,
-		inlineSuggest = 56,
-		letterSpacing = 57,
-		lightbulb = 58,
-		lineDecorationsWidth = 59,
-		lineHeight = 60,
-		lineNumbers = 61,
-		lineNumbersMinChars = 62,
-		linkedEditing = 63,
-		links = 64,
-		matchBrackets = 65,
-		minimap = 66,
-		mouseStyle = 67,
-		mouseWheelScrollSensitivity = 68,
-		mouseWheelZoom = 69,
-		multiCursorMergeOverlapping = 70,
-		multiCursorModifier = 71,
-		multiCursorPaste = 72,
-		occurrencesHighlight = 73,
-		overviewRulerBorder = 74,
-		overviewRulerLanes = 75,
-		padding = 76,
-		parameterHints = 77,
-		peekWidgetDefaultFocus = 78,
-		definitionLinkOpensInPeek = 79,
-		quickSuggestions = 80,
-		quickSuggestionsDelay = 81,
-		readOnly = 82,
-		renameOnType = 83,
-		renderControlCharacters = 84,
-		renderFinalNewline = 85,
-		renderLineHighlight = 86,
-		renderLineHighlightOnlyWhenFocus = 87,
-		renderValidationDecorations = 88,
-		renderWhitespace = 89,
-		revealHorizontalRightPadding = 90,
-		roundedSelection = 91,
-		rulers = 92,
-		scrollbar = 93,
-		scrollBeyondLastColumn = 94,
-		scrollBeyondLastLine = 95,
-		scrollPredominantAxis = 96,
-		selectionClipboard = 97,
-		selectionHighlight = 98,
-		selectOnLineNumbers = 99,
-		showFoldingControls = 100,
-		showUnused = 101,
-		snippetSuggestions = 102,
-		smartSelect = 103,
-		smoothScrolling = 104,
-		stickyScroll = 105,
-		stickyTabStops = 106,
-		stopRenderingLineAfter = 107,
-		suggest = 108,
-		suggestFontSize = 109,
-		suggestLineHeight = 110,
-		suggestOnTriggerCharacters = 111,
-		suggestSelection = 112,
-		tabCompletion = 113,
-		tabIndex = 114,
-		unicodeHighlighting = 115,
-		unusualLineTerminators = 116,
-		useShadowDOM = 117,
-		useTabStops = 118,
-		wordSeparators = 119,
-		wordWrap = 120,
-		wordWrapBreakAfterCharacters = 121,
-		wordWrapBreakBeforeCharacters = 122,
-		wordWrapColumn = 123,
-		wordWrapOverride1 = 124,
-		wordWrapOverride2 = 125,
-		wrappingIndent = 126,
-		wrappingStrategy = 127,
-		showDeprecated = 128,
-		inlayHints = 129,
-		editorClassName = 130,
-		pixelRatio = 131,
-		tabFocusMode = 132,
-		layoutInfo = 133,
-		wrappingInfo = 134
+		experimentalWhitespaceRendering = 34,
+		extraEditorClassName = 35,
+		fastScrollSensitivity = 36,
+		find = 37,
+		fixedOverflowWidgets = 38,
+		folding = 39,
+		foldingStrategy = 40,
+		foldingHighlight = 41,
+		foldingImportsByDefault = 42,
+		foldingMaximumRegions = 43,
+		unfoldOnClickAfterEndOfLine = 44,
+		fontFamily = 45,
+		fontInfo = 46,
+		fontLigatures = 47,
+		fontSize = 48,
+		fontWeight = 49,
+		fontVariations = 50,
+		formatOnPaste = 51,
+		formatOnType = 52,
+		glyphMargin = 53,
+		gotoLocation = 54,
+		hideCursorInOverviewRuler = 55,
+		hover = 56,
+		inDiffEditor = 57,
+		inlineSuggest = 58,
+		letterSpacing = 59,
+		lightbulb = 60,
+		lineDecorationsWidth = 61,
+		lineHeight = 62,
+		lineNumbers = 63,
+		lineNumbersMinChars = 64,
+		linkedEditing = 65,
+		links = 66,
+		matchBrackets = 67,
+		minimap = 68,
+		mouseStyle = 69,
+		mouseWheelScrollSensitivity = 70,
+		mouseWheelZoom = 71,
+		multiCursorMergeOverlapping = 72,
+		multiCursorModifier = 73,
+		multiCursorPaste = 74,
+		multiCursorLimit = 75,
+		occurrencesHighlight = 76,
+		overviewRulerBorder = 77,
+		overviewRulerLanes = 78,
+		padding = 79,
+		parameterHints = 80,
+		peekWidgetDefaultFocus = 81,
+		definitionLinkOpensInPeek = 82,
+		quickSuggestions = 83,
+		quickSuggestionsDelay = 84,
+		readOnly = 85,
+		renameOnType = 86,
+		renderControlCharacters = 87,
+		renderFinalNewline = 88,
+		renderLineHighlight = 89,
+		renderLineHighlightOnlyWhenFocus = 90,
+		renderValidationDecorations = 91,
+		renderWhitespace = 92,
+		revealHorizontalRightPadding = 93,
+		roundedSelection = 94,
+		rulers = 95,
+		scrollbar = 96,
+		scrollBeyondLastColumn = 97,
+		scrollBeyondLastLine = 98,
+		scrollPredominantAxis = 99,
+		selectionClipboard = 100,
+		selectionHighlight = 101,
+		selectOnLineNumbers = 102,
+		showFoldingControls = 103,
+		showUnused = 104,
+		snippetSuggestions = 105,
+		smartSelect = 106,
+		smoothScrolling = 107,
+		stickyScroll = 108,
+		stickyTabStops = 109,
+		stopRenderingLineAfter = 110,
+		suggest = 111,
+		suggestFontSize = 112,
+		suggestLineHeight = 113,
+		suggestOnTriggerCharacters = 114,
+		suggestSelection = 115,
+		tabCompletion = 116,
+		tabIndex = 117,
+		unicodeHighlighting = 118,
+		unusualLineTerminators = 119,
+		useShadowDOM = 120,
+		useTabStops = 121,
+		wordBreak = 122,
+		wordSeparators = 123,
+		wordWrap = 124,
+		wordWrapBreakAfterCharacters = 125,
+		wordWrapBreakBeforeCharacters = 126,
+		wordWrapColumn = 127,
+		wordWrapOverride1 = 128,
+		wordWrapOverride2 = 129,
+		wrappingIndent = 130,
+		wrappingStrategy = 131,
+		showDeprecated = 132,
+		inlayHints = 133,
+		editorClassName = 134,
+		pixelRatio = 135,
+		tabFocusMode = 136,
+		layoutInfo = 137,
+		wrappingInfo = 138
 	}
 
 	export const EditorOptions: {
@@ -4705,7 +4739,7 @@ declare namespace monaco.editor {
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
 		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
-		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, boolean>;
+		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, 'on' | 'off' | 'explicit'>;
 		cursorStyle: IEditorOption<EditorOption.cursorStyle, TextEditorCursorStyle>;
 		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
 		cursorSurroundingLinesStyle: IEditorOption<EditorOption.cursorSurroundingLinesStyle, 'default' | 'all'>;
@@ -4717,6 +4751,7 @@ declare namespace monaco.editor {
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
+		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
@@ -4732,6 +4767,7 @@ declare namespace monaco.editor {
 		fontLigatures2: IEditorOption<EditorOption.fontLigatures, string>;
 		fontSize: IEditorOption<EditorOption.fontSize, number>;
 		fontWeight: IEditorOption<EditorOption.fontWeight, string>;
+		fontVariations: IEditorOption<EditorOption.fontVariations, string>;
 		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, boolean>;
 		formatOnType: IEditorOption<EditorOption.formatOnType, boolean>;
 		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean>;
@@ -4741,7 +4777,7 @@ declare namespace monaco.editor {
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, Readonly<Required<IEditorLightbulbOptions>>>;
-		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, string | number>;
+		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, number>;
 		lineHeight: IEditorOption<EditorOption.lineHeight, number>;
 		lineNumbers: IEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions>;
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;
@@ -4755,6 +4791,7 @@ declare namespace monaco.editor {
 		multiCursorMergeOverlapping: IEditorOption<EditorOption.multiCursorMergeOverlapping, boolean>;
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
+		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
@@ -4767,7 +4804,7 @@ declare namespace monaco.editor {
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
-		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean>;
+		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
 		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;
 		renderValidationDecorations: IEditorOption<EditorOption.renderValidationDecorations, 'on' | 'off' | 'editable'>;
@@ -4802,6 +4839,7 @@ declare namespace monaco.editor {
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
+		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
@@ -5756,6 +5794,7 @@ declare namespace monaco.editor {
 		readonly fontWeight: string;
 		readonly fontSize: number;
 		readonly fontFeatureSettings: string;
+		readonly fontVariationSettings: string;
 		readonly lineHeight: number;
 		readonly letterSpacing: number;
 	}
@@ -6441,6 +6480,7 @@ declare namespace monaco.languages {
 	}
 
 	export enum CompletionItemInsertTextRule {
+		None = 0,
 		/**
 		 * Adjust whitespace/indentation of multiline insert texts to
 		 * match the current line indentation.

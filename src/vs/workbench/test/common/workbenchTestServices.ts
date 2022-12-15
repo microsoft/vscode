@@ -127,7 +127,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 export class TestStorageService extends InMemoryStorageService {
 
-	override emitWillSaveState(reason: WillSaveStateReason): void {
+	testEmitWillSaveState(reason: WillSaveStateReason): void {
 		super.emitWillSaveState(reason);
 	}
 }

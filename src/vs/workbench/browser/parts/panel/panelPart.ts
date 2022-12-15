@@ -541,7 +541,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		}));
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
+	protected override  createTitleArea(parent: HTMLElement): HTMLElement {
 		const element = super.createTitleArea(parent);
 		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
 
@@ -677,7 +677,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		};
 	}
 
-	override onTitleAreaUpdate(compositeId: string): void {
+	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
 
 		// If title actions change, relayout the composite bar

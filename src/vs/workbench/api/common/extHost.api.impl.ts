@@ -95,6 +95,7 @@ import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled }
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
+import { ExtHostProfileContentHandlers } from 'vs/workbench/api/common/extHostProfileContentHandler';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -186,6 +187,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
 	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostCommands, extHostDocumentsAndEditors));
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
+	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 
 	// Check that no named customers are missing
@@ -730,6 +732,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTerminalProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 				return extHostTerminalService.registerProfileProvider(extension, id, provider);
 			},
+			registerTerminalQuickFixProvider(id: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'terminalQuickFixProvider');
+				return extHostTerminalService.registerTerminalQuickFixProvider(id, extension.identifier.value, provider);
+			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
 			},
@@ -791,6 +797,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerExternalUriOpener(id: string, opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
 				checkProposedApiEnabled(extension, 'externalUriOpener');
 				return extHostUriOpeners.registerExternalUriOpener(extension.identifier, id, opener, metadata);
+			},
+			registerProfileContentHandler(id: string, handler: vscode.ProfileContentHandler) {
+				checkProposedApiEnabled(extension, 'profileContentHandlers');
+				return extHostProfileContentHandlers.registrProfileContentHandler(extension, id, handler);
 			},
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
@@ -1204,6 +1214,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			workspace,
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
+			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
@@ -1304,8 +1315,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
+			TerminalQuickFixCommand: extHostTypes.TerminalQuickFixCommand,
+			TerminalQuickFixOpener: extHostTypes.TerminalQuickFixOpener,
 			TerminalLocation: extHostTypes.TerminalLocation,
 			TerminalProfile: extHostTypes.TerminalProfile,
+			TerminalExitReason: extHostTypes.TerminalExitReason,
+			TerminalQuickFixType: extHostTypes.TerminalQuickFixType,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
@@ -1380,7 +1395,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TrustedTelemetryValue: TrustedTelemetryValue,
-			TerminalExitReason: extHostTypes.TerminalExitReason,
 			LogLevel: LogLevel,
 			EditSessionIdentityMatch: EditSessionIdentityMatch
 		};

@@ -369,6 +369,11 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 			if (shouldRenderIndentGuides !== this.shouldRenderIndentGuides) {
 				this.shouldRenderIndentGuides = shouldRenderIndentGuides;
+
+				for (const [node, templateData] of this.renderedNodes) {
+					this._renderIndentGuides(node, templateData);
+				}
+
 				this.indentGuidesDisposable.dispose();
 
 				if (shouldRenderIndentGuides) {
@@ -469,6 +474,10 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			templateData.twistie.classList.remove('collapsible', 'collapsed');
 		}
 
+		this._renderIndentGuides(node, templateData);
+	}
+
+	private _renderIndentGuides(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
 		clearNode(templateData.indent);
 		templateData.indentGuidesDisposable.dispose();
 
@@ -1317,7 +1326,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		return new TreeNodeListMouseController(this, options.tree);
 	}
 
-	override splice(start: number, deleteCount: number, elements: ITreeNode<T, TFilterData>[] = []): void {
+	override splice(start: number, deleteCount: number, elements: readonly ITreeNode<T, TFilterData>[] = []): void {
 		super.splice(start, deleteCount, elements);
 
 		if (elements.length === 0) {

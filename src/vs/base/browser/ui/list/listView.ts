@@ -22,6 +22,7 @@ import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 interface IItem<T> {
 	readonly id: string;
@@ -49,7 +50,7 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
-	getRole?(element: T): string | undefined;
+	getRole?(element: T): AriaRole | undefined;
 	isChecked?(element: T): boolean | IObservableValue<boolean> | undefined;
 }
 
@@ -179,7 +180,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 
 	readonly getSetSize: (element: any, index: number, listLength: number) => number;
 	readonly getPosInSet: (element: any, index: number) => number;
-	readonly getRole: (element: T) => string | undefined;
+	readonly getRole: (element: T) => AriaRole | undefined;
 	readonly isChecked: (element: T) => boolean | IObservableValue<boolean> | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
@@ -467,7 +468,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
+	splice(start: number, deleteCount: number, elements: readonly T[] = []): T[] {
 		if (this.splicing) {
 			throw new Error('Can\'t run recursive splices.');
 		}
@@ -482,7 +483,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	private _splice(start: number, deleteCount: number, elements: T[] = []): T[] {
+	private _splice(start: number, deleteCount: number, elements: readonly T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const deleteRange = { start, end: start + deleteCount };
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
@@ -759,17 +760,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		for (const range of rangesToInsert) {
-			for (let i = range.start; i < range.end; i++) {
-				this.insertItemInDOM(i, beforeElement);
+		this.cache.transact(() => {
+			for (const range of rangesToRemove) {
+				for (let i = range.start; i < range.end; i++) {
+					this.removeItemFromDOM(i);
+				}
 			}
-		}
 
-		for (const range of rangesToRemove) {
-			for (let i = range.start; i < range.end; i++) {
-				this.removeItemFromDOM(i);
+			for (const range of rangesToInsert) {
+				for (let i = range.start; i < range.end; i++) {
+					this.insertItemInDOM(i, beforeElement);
+				}
 			}
-		}
+		});
 
 		if (renderLeft !== undefined) {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
@@ -790,8 +793,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private insertItemInDOM(index: number, beforeElement: HTMLElement | null, row?: IRow): void {
 		const item = this.items[index];
 
+		let isStale = false;
 		if (!item.row) {
-			item.row = row ?? this.cache.alloc(item.templateId);
+			if (row) {
+				item.row = row;
+			} else {
+				const result = this.cache.alloc(item.templateId);
+				item.row = result.row;
+				isStale = result.isReusingConnectedDomNode;
+			}
 		}
 
 		const role = this.accessibilityProvider.getRole(item.element) || 'listitem';
@@ -807,7 +817,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			item.checkedDisposable = checked.onDidChange(update);
 		}
 
-		if (!item.row.domNode.parentElement) {
+		if (isStale || !item.row.domNode.parentElement) {
 			if (beforeElement) {
 				this.rowsContainer.insertBefore(item.row.domNode, beforeElement);
 			} else {
@@ -1373,7 +1383,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return item.size - size;
 		}
 
-		const row = this.cache.alloc(item.templateId);
+		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
 		this.rowsContainer.appendChild(row.domNode);
 

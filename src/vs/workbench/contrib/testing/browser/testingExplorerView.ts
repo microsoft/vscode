@@ -1027,7 +1027,7 @@ class TestExplorerActionRunner extends ActionRunner {
 }
 
 const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
-	let label = labelForTestInState(element.label, element.state);
+	let label = labelForTestInState(element.description || element.label, element.state);
 
 	if (element instanceof TestItemTreeElement) {
 		if (element.duration !== undefined) {
