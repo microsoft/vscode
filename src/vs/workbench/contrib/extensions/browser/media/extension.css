@@ -22,12 +22,14 @@
 
 .extension-list-item > .icon-container {
 	position: relative;
+	display: flex;
+	align-items: center;
 }
 
 .extension-list-item > .icon-container > .icon {
 	width: 42px;
 	height: 42px;
-	padding: 13px 14px 10px 0;
+	padding-right: 14px;
 	flex-shrink: 0;
 	object-fit: contain;
 }
@@ -54,8 +56,10 @@
 
 .extension-list-item > .details {
 	flex: 1;
-	padding: 10px 0;
+	display: flex;
 	overflow: hidden;
+	flex-direction: column;
+	justify-content: center;
 }
 
 .extension-list-item > .details > .header-container {
@@ -153,6 +157,7 @@
 
 .extension-list-item > .details > .description {
 	padding-right: 11px;
+	padding-top: 1px;
 	color: var(--vscode-descriptionForeground);
 }
 
