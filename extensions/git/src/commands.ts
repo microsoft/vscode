@@ -2031,16 +2031,21 @@ export class CommandCenter {
 					throw err;
 				}
 
-				const force = l10n.t('Force Checkout');
 				const stash = l10n.t('Stash & Checkout');
-				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, force, stash);
+				const migrate = l10n.t('Migrate Changes');
+				const force = l10n.t('Force Checkout');
+				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
 
 				if (choice === force) {
 					await this.cleanAll(repository);
 					await item.run(opts);
-				} else if (choice === stash) {
+				} else if (choice === stash || choice === migrate) {
 					await this.stash(repository);
 					await item.run(opts);
+
+					if (choice === migrate) {
+						await this.stashPopLatest(repository);
+					}
 				}
 			}
 		}
