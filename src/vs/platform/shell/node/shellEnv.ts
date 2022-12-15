@@ -17,6 +17,7 @@ import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { clamp } from 'vs/base/common/numbers';
 
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
@@ -69,7 +70,7 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 				let timeoutValue = 10000; // default to 10 seconds
 				const configuredTimeoutValue = configurationService.getValue<unknown>('application.shellEnvironmentResolutionTimeout');
 				if (typeof configuredTimeoutValue === 'number') {
-					timeoutValue = configuredTimeoutValue * 1000 /* convert from seconds */;
+					timeoutValue = clamp(configuredTimeoutValue, 1, 120) * 1000 /* convert from seconds */;
 				}
 
 				// Give up resolving shell env after some time

@@ -137,6 +137,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'type': 'number',
 				'default': 10,
 				'minimum': 1,
+				'maximum': 120,
 				'included': !isWindows,
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
