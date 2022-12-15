@@ -56,7 +56,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 			let source: string | undefined;
 
 			outer: for (const snippet of file.data) {
-				if (snippet.source && !source) {
+				if (!source) {
 					source = snippet.source;
 				}
 
@@ -77,7 +77,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				? nls.localize('global.scope', "(global)")
 				: nls.localize('global.1', "({0})", [...names].join(', '));
 			if (added.has(basename(file.location)) && source) {
-				desc = source + ' ' + desc;
+				desc = nls.localize('detail.label', "({0} {1})", source, desc);
 			}
 
 			existing.push({
