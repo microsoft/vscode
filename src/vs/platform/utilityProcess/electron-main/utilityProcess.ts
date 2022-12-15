@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, app, MessageChannelMain, MessagePortMain, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -356,7 +356,7 @@ export class UtilityProcess extends Disposable {
 		this.process.postMessage(message, transfer);
 	}
 
-	connect(payload?: unknown): MessagePortMain {
+	connect(payload?: unknown): Electron.MessagePortMain {
 		const { port1: outPort, port2: utilityProcessPort } = new MessageChannelMain();
 		this.postMessage(payload, [utilityProcessPort]);
 
