@@ -1553,8 +1553,19 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async checkout(treeish: string, opts?: { detached?: boolean }): Promise<void> {
-		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
+	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
+		await this.run(Operation.Checkout, async () => {
+			if (opts?.pullBeforeCheckout) {
+				try {
+					await this.fastForwardBranch(treeish);
+				}
+				catch (err) {
+					// noop
+				}
+			}
+
+			await this.repository.checkout(treeish, [], opts);
+		});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
