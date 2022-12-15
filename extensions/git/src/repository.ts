@@ -1581,7 +1581,16 @@ export class Repository implements Disposable {
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		await this.run(Operation.CheckoutTracking, async () => {
+			// Create tracking branch
+			await this.repository.checkout(treeish, [], { track: true });
+
+			// Since '--detach' cannot be used with '-b/-B/--orphan' we first
+			// create the tracking branch and then checkout the detached ref
+			if (opts.detached) {
+				await this.repository.checkout(treeish, [], opts);
+			}
+		});
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
