@@ -38,7 +38,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 	const future: ISnippetPick[] = [];
 
 	const seen = new Set<string>();
-	const added = new Set<string>();
+	const added = new Map<string, { snippet: ISnippetPick; detail: string }>();
 
 	for (const file of await snippetService.getSnippetFiles()) {
 
@@ -73,19 +73,26 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				}
 			}
 
-			let desc = names.size === 0
-				? nls.localize('global.scope', "(global)")
-				: nls.localize('global.1', "({0})", [...names].join(', '));
-			if (added.has(basename(file.location)) && source) {
-				desc = nls.localize('detail.label', "({0} {1})", source, desc);
-			}
-
-			existing.push({
+			const snippet: ISnippetPick = {
 				label: basename(file.location),
 				filepath: file.location,
-				description: desc
-			});
-			added.add(basename(file.location));
+				description: names.size === 0
+					? nls.localize('global.scope', "(global)")
+					: nls.localize('global.1', "({0})", [...names].join(', '))
+			};
+			existing.push(snippet);
+
+			if (!source) {
+				continue;
+			}
+
+			const detail = nls.localize('detail.label', "({0})", source);
+			const lastItem = added.get(basename(file.location));
+			if (lastItem) {
+				snippet.detail = detail;
+				lastItem.snippet.detail = lastItem.detail;
+			}
+			added.set(basename(file.location), { snippet, detail });
 
 		} else {
 			// language snippet
