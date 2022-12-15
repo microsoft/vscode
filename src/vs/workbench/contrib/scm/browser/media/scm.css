@@ -229,9 +229,6 @@
 	flex-wrap: wrap;
 	padding: 0 4px;
 	overflow: hidden;
-	height: 30px;
-	line-height: 20px;
-	border: 1px solid var(--vscode-button-background);
 }
 
 .scm-view .button-container .monaco-description-button:hover {
@@ -257,15 +254,13 @@
 
 .scm-view .button-container .codicon.codicon-cloud-upload,
 .scm-view .button-container .codicon.codicon-sync {
-	line-height: 20px;
-	margin: 0 0.4em 0 0;
+	margin: 0 4px 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,
 .scm-view .button-container .codicon.codicon-arrow-down {
-	line-height: 20px;
 	font-size: small !important;
-	margin: 0 0.2em 0 0;
+	margin: 0 4px 0 0;
 }
 
 .scm-view .button-container > .monaco-button-dropdown {
