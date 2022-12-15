@@ -27,7 +27,7 @@
 .extension-list-item > .icon-container > .icon {
 	width: 42px;
 	height: 42px;
-	padding: 10px 14px 10px 0;
+	padding: 13px 14px 10px 0;
 	flex-shrink: 0;
 	object-fit: contain;
 }
@@ -54,7 +54,7 @@
 
 .extension-list-item > .details {
 	flex: 1;
-	padding: 4px 0;
+	padding: 10px 0;
 	overflow: hidden;
 }
 
@@ -181,7 +181,12 @@
 
 .extension-list-item > .details > .footer > .author > .publisher-name {
 	font-size: 90%;
+	color: var(--vscode-descriptionForeground);
 	font-weight: 600;
+}
+
+.monaco-list-row.selected .extension-list-item > .details > .footer > .author > .publisher-name{
+	color: unset;
 }
 
 .extension-list-item > .details > .footer > .author > .publisher-name:not(:first-child) {
