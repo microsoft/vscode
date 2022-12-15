@@ -31,6 +31,7 @@ import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -283,6 +284,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			&& mouseEvent.isLeftClick
 			&& mouseEvent.isNoneOrSingleMouseDown
 			&& mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+			&& !(mouseEvent.target.detail.injectedText?.options instanceof ModelDecorationInjectedTextOptions)
 			&& (mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false))
 			&& this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
 	}
@@ -301,7 +303,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return this.editor.invokeWithinContext((accessor) => {
 			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
 			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-			return action.run(accessor, this.editor);
+			return action.run(accessor);
 		});
 	}
 
