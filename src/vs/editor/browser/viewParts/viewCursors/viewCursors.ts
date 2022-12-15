@@ -318,7 +318,7 @@ export class ViewCursors extends ViewPart {
 		} else {
 			result += ' cursor-solid';
 		}
-		if (this._cursorSmoothCaretAnimation) {
+		if (this._cursorSmoothCaretAnimation === 'on' || this._cursorSmoothCaretAnimation === 'explicit') {
 			result += ' cursor-smooth-caret-animation';
 		}
 		return result;

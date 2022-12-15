@@ -123,7 +123,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 
 		try {
-			return await getResolvedShellEnv(this._logService, { _: [] }, process.env);
+			return await getResolvedShellEnv(this._configurationService, this._logService, { _: [] }, process.env);
 		} catch (error) {
 			this._logService.error('ptyHost was unable to resolve shell environment', error);
 
