@@ -6,7 +6,7 @@
 import 'vs/css!./media/menubarControl';
 import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -17,7 +17,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { MENUBAR_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
@@ -421,27 +420,6 @@ export class CustomMenubarControl extends MenubarControl {
 		this.registerListeners();
 
 		this.registerActions();
-
-		registerThemingParticipant((theme, collector) => {
-			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
-			if (menubarSelectedBorderColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
-						outline: dashed 1px;
-					}
-					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
-					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
-						outline: solid 1px;
-					}
-					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
-					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
-					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
-						outline-color: ${menubarSelectedBorderColor};
-						outline-offset: -1px;
-					}
-				`);
-			}
-		});
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
