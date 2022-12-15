@@ -1778,6 +1778,7 @@ declare namespace monaco.editor {
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+		get originalIndentSize(): number | 'tabSize';
 	}
 
 	export interface BracketPairColorizationOptions {
@@ -1787,7 +1788,7 @@ declare namespace monaco.editor {
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
-		indentSize?: number;
+		indentSize?: number | 'tabSize';
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
@@ -3184,9 +3185,9 @@ declare namespace monaco.editor {
 		mouseStyle?: 'text' | 'default' | 'copy';
 		/**
 		 * Enable smooth caret animation.
-		 * Defaults to false.
+		 * Defaults to 'off'.
 		 */
-		cursorSmoothCaretAnimation?: boolean;
+		cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 		/**
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
@@ -4738,7 +4739,7 @@ declare namespace monaco.editor {
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
 		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
-		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, boolean>;
+		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, 'on' | 'off' | 'explicit'>;
 		cursorStyle: IEditorOption<EditorOption.cursorStyle, TextEditorCursorStyle>;
 		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
 		cursorSurroundingLinesStyle: IEditorOption<EditorOption.cursorSurroundingLinesStyle, 'default' | 'all'>;

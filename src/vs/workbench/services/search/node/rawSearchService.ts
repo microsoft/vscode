@@ -18,7 +18,7 @@ import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fi
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
 export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
-export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
+type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
 export class SearchService implements IRawSearchService {
 

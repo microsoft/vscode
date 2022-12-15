@@ -6,9 +6,11 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Terminal } from 'xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
@@ -21,6 +23,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		configurationService = new TestConfigurationService();
 
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.set(IProductService, TestProductService);
 
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);

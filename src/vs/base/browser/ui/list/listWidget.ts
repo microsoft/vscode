@@ -905,10 +905,18 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.tableColumnsBorder) {
 			content.push(`
-				.monaco-table:hover > .monaco-split-view2,
-				.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-table > .monaco-split-view2,
+				.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before,
+				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2,
+				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
-			}`);
+				}
+
+				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
+				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+					border-color: transparent;
+				}
+			`);
 		}
 
 		if (styles.tableOddRowsBackgroundColor) {

@@ -7,6 +7,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { contrastBorder, editorErrorForeground, editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import 'vs/css!./media/testing';
 

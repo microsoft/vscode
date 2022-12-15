@@ -268,7 +268,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
-		if (!command.extension || command.extension.isBuiltin) {
+		if (!command.extension) {
 			return;
 		}
 		type ExtensionActionTelemetry = {
