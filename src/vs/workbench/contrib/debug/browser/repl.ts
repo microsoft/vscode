@@ -176,6 +176,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
+		this._register(this.debugService.onDidEndSession(async session => {
+			// Update view, since orphaned sessions might now be separate
+			await Promise.resolve(); // allow other listeners to go first, so sessions can update parents
+			this.multiSessionRepl.set(this.isMultiSessionView);
+		}));
 		this._register(this.themeService.onDidColorThemeChange(() => {
 			this.refreshReplElements(false);
 			if (this.isVisible()) {
@@ -646,6 +651,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
+		// We must respect some accessibility related settings
+		options.accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+		options.cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 

@@ -656,16 +656,30 @@ export class SnippetParser {
 			return true;
 		});
 
-		for (const placeholder of incompletePlaceholders) {
+		const fillInIncompletePlaceholder = (placeholder: Placeholder, stack: Set<number>) => {
 			const defaultValues = placeholderDefaultValues.get(placeholder.index);
-			if (defaultValues) {
-				const clone = new Placeholder(placeholder.index);
-				clone.transform = placeholder.transform;
-				for (const child of defaultValues) {
-					clone.appendChild(child.clone());
-				}
-				snippet.replace(placeholder, [clone]);
+			if (!defaultValues) {
+				return;
 			}
+			const clone = new Placeholder(placeholder.index);
+			clone.transform = placeholder.transform;
+			for (const child of defaultValues) {
+				const newChild = child.clone();
+				clone.appendChild(newChild);
+
+				// "recurse" on children that are again placeholders
+				if (newChild instanceof Placeholder && placeholderDefaultValues.has(newChild.index) && !stack.has(newChild.index)) {
+					stack.add(newChild.index);
+					fillInIncompletePlaceholder(newChild, stack);
+					stack.delete(newChild.index);
+				}
+			}
+			snippet.replace(placeholder, [clone]);
+		};
+
+		const stack = new Set<number>();
+		for (const placeholder of incompletePlaceholders) {
+			fillInIncompletePlaceholder(placeholder, stack);
 		}
 
 		return snippet.children.slice(offset);

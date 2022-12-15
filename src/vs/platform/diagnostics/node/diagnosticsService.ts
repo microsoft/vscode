@@ -19,18 +19,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
-export interface VersionInfo {
-	vscodeVersion: string;
-	os: string;
-}
-
-export interface ProcessInfo {
-	cpu: number;
-	memory: number;
-	pid: number;
-	name: string;
-}
-
 interface ConfigFilePatterns {
 	tag: string;
 	filePattern: RegExp;

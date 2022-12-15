@@ -674,9 +674,6 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
-				if (!outputMatcher.multipleMatches && match) {
-					return { regexMatch: match };
-				}
 			}
 		}
 	} else {
@@ -693,9 +690,6 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
-				if (!outputMatcher.multipleMatches && match) {
-					return { regexMatch: match };
-				}
 			}
 		}
 	}

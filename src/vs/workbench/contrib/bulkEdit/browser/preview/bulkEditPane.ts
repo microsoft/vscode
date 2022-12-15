@@ -156,7 +156,7 @@ export class BulkEditPane extends ViewPane {
 		btnConfirm.label = localize('ok', 'Apply');
 		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
 
-		const btnCancel = buttonBar.addButton(defaultButtonStyles /*{  secondary: true } */);
+		const btnCancel = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
 		btnCancel.label = localize('cancel', 'Discard');
 		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
 
@@ -280,6 +280,8 @@ export class BulkEditPane extends ViewPane {
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
+			first.setChecked(!first.isChecked());
+		} else if (first instanceof CategoryElement) {
 			first.setChecked(!first.isChecked());
 		}
 	}
