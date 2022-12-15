@@ -3185,9 +3185,9 @@ declare namespace monaco.editor {
 		mouseStyle?: 'text' | 'default' | 'copy';
 		/**
 		 * Enable smooth caret animation.
-		 * Defaults to false.
+		 * Defaults to 'off'.
 		 */
-		cursorSmoothCaretAnimation?: boolean;
+		cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 		/**
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
@@ -4739,7 +4739,7 @@ declare namespace monaco.editor {
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
 		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
-		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, boolean>;
+		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, 'on' | 'off' | 'explicit'>;
 		cursorStyle: IEditorOption<EditorOption.cursorStyle, TextEditorCursorStyle>;
 		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
 		cursorSurroundingLinesStyle: IEditorOption<EditorOption.cursorSurroundingLinesStyle, 'default' | 'all'>;

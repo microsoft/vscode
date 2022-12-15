@@ -17,10 +17,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { isObject, isString } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
-	location: UriComponents;
+	location: UriComponents | string;
 	version: string;
 	metadata?: Metadata;
 }
@@ -188,16 +190,32 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				if (!Array.isArray(storedProfileExtensions)) {
 					throw new Error(`Invalid extensions content in ${file.toString()}`);
 				}
+				// TODO @sandy081: Remove this migration after couple of releases
+				let migrate = false;
 				for (const e of storedProfileExtensions) {
 					if (!isStoredProfileExtension(e)) {
 						throw new Error(`Invalid extensions content in ${file.toString()}`);
 					}
+					let location: URI;
+					if (isString(e.location)) {
+						location = this.resolveExtensionLocation(file, e.location);
+					} else {
+						location = URI.revive(e.location);
+						const relativePath = this.toRelativePath(file, location);
+						if (relativePath) {
+							migrate = true;
+							e.location = relativePath;
+						}
+					}
 					extensions.push({
 						identifier: e.identifier,
-						location: URI.revive(e.location),
+						location,
 						version: e.version,
 						metadata: e.metadata,
 					});
+				}
+				if (migrate) {
+					await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
 				}
 			}
 
@@ -207,7 +225,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					location: e.location.toJSON(),
+					location: this.toRelativePath(file, e.location) ?? e.location.toJSON(),
 					metadata: e.metadata
 				}));
 				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
@@ -215,6 +233,22 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 
 			return extensions;
 		});
+	}
+
+	private toRelativePath(extensionsProfileLocation: URI, extensionLocation: URI): string | undefined {
+		// Extension Profile location scheme is always vscode-userdata and Extension location scheme is always file
+		// Hence we need to convert the Extension Profile location scheme to file to resolve the relative path
+		const parent = this.uriIdentityService.extUri.dirname(extensionsProfileLocation).with({ scheme: Schemas.file });
+		if (this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, parent)) {
+			return this.uriIdentityService.extUri.relativePath(parent, extensionLocation);
+		}
+		return undefined;
+	}
+
+	private resolveExtensionLocation(extensionsProfileLocation: URI, path: string): URI {
+		// Extension Profile location scheme is always vscode-userdata and Extension location scheme is always file
+		// Hence we need to convert the Extension Profile location scheme to file to resolve extension location
+		return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extensionsProfileLocation), path).with({ scheme: Schemas.file });
 	}
 
 	private _migrationPromise: Promise<IStoredProfileExtension[] | undefined> | undefined;
@@ -284,16 +318,16 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 }
 
 function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
-	return typeof candidate === 'object'
+	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
-		&& isUriComponents(candidate.location)
-		&& candidate.version && typeof candidate.version === 'string';
+		&& (isUriComponents(candidate.location) || isString(candidate.location))
+		&& candidate.version && isString(candidate.version);
 }
 
 function isUriComponents(thing: unknown): thing is UriComponents {
 	if (!thing) {
 		return false;
 	}
-	return typeof (<any>thing).path === 'string' &&
-		typeof (<any>thing).scheme === 'string';
+	return isString((<any>thing).path) &&
+		isString((<any>thing).scheme);
 }

@@ -573,7 +573,7 @@ export class RawDebugSession implements IDisposable {
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
-					this.stopAdapter(error);
+					await this.stopAdapter(error);
 				}
 			} else {
 				return this.stopAdapter(error);

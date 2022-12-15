@@ -694,15 +694,22 @@ export class Configuration {
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): IConfigurationValue<C> {
 		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(key, overrides, workspace);
-		const overrideIdentifiers: string[] = arrays.distinct(consolidateConfigurationModel.overrides.map(override => override.identifiers).flat()).filter(overrideIdentifier => consolidateConfigurationModel.getOverrideValue(key, overrideIdentifier) !== undefined);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
+		const overrideIdentifiers = new Set<string>();
+		for (const override of consolidateConfigurationModel.overrides) {
+			for (const overrideIdentifier of override.identifiers) {
+				if (consolidateConfigurationModel.getOverrideValue(key, overrideIdentifier) !== undefined) {
+					overrideIdentifiers.add(overrideIdentifier);
+				}
+			}
+		}
 
 		return new ConfigurationInspectValue<C>(
 			key,
 			overrides,
 			consolidateConfigurationModel.getValue<C>(key),
-			overrideIdentifiers.length ? overrideIdentifiers : undefined,
+			overrideIdentifiers.size ? [...overrideIdentifiers] : undefined,
 			this._defaultConfiguration,
 			this._policyConfiguration.isEmpty() ? undefined : this._policyConfiguration.freeze(),
 			this.applicationConfiguration.isEmpty() ? undefined : this.applicationConfiguration.freeze(),

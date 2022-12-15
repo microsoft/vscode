@@ -197,12 +197,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
 			const id = selector.id;
 			await this._extensionService.activateByEvent(`onTerminalQuickFixRequest:${id}`);
-			const provider = this._quickFixService.providers.get(id);
-			if (!provider) {
-				this._logService.warn('No provider when trying to resolve terminal quick fix for provider: ', id);
-				return;
-			}
-			return provider.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, commandExitResult: selector.commandExitResult, id: selector.id }, new CancellationTokenSource().token);
+			return this._quickFixService.providers.get(id)?.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, commandExitResult: selector.commandExitResult, id: selector.id }, new CancellationTokenSource().token);
 		};
 		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {

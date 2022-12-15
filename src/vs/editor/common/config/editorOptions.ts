@@ -214,9 +214,9 @@ export interface IEditorOptions {
 	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
 	 * Enable smooth caret animation.
-	 * Defaults to false.
+	 * Defaults to 'off'.
 	 */
-	cursorSmoothCaretAnimation?: boolean;
+	cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -4244,6 +4244,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: defaults.shareSuggestSelections,
 					markdownDescription: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`).")
 				},
+				'editor.suggest.selectQuickSuggestions': {
+					type: 'boolean',
+					default: defaults.selectQuickSuggestions,
+					markdownDescription: nls.localize('suggest.selectQuickSuggestions', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters.")
+				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
@@ -5014,9 +5019,18 @@ export const EditorOptions = {
 		_cursorBlinkingStyleFromString,
 		{ description: nls.localize('cursorBlinking', "Control the cursor animation style.") }
 	)),
-	cursorSmoothCaretAnimation: register(new EditorBooleanOption(
-		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false,
-		{ description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.") }
+	cursorSmoothCaretAnimation: register(new EditorStringEnumOption(
+		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation',
+		'off' as 'off' | 'explicit' | 'on',
+		['off', 'explicit', 'on'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('cursorSmoothCaretAnimation.off', "Smooth caret animation is disabled."),
+				nls.localize('cursorSmoothCaretAnimation.explicit', "Smooth caret animation is enabled only when the user moves the cursor with an explicit gesture."),
+				nls.localize('cursorSmoothCaretAnimation.on', "Smooth caret animation is always enabled.")
+			],
+			description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.")
+		}
 	)),
 	cursorStyle: register(new EditorEnumOption(
 		EditorOption.cursorStyle, 'cursorStyle',
