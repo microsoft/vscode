@@ -43,19 +43,19 @@
 }
 
 .monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
-	outline: dashed 1px;
+	outline: dashed 1px var(--vscode-menubar-selectionBorder);
 }
 
 .monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
 .monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
-	outline: solid 1px;
+	outline: solid 1px var(--vscode-menubar-selectionBorder);
 }
 
 .monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
 .monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
 .monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 	outline-color: var(--vscode-menubar-selectionBorder);
-	outline-offset: -1px;
+	outline-offset: -1px var(--vscode-menubar-selectionBorder);
 }
 
 
