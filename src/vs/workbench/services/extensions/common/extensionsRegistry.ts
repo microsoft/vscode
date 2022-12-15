@@ -239,6 +239,14 @@ export const schema: IJSONSchema = {
 				markdownEnumDescriptions: Object.values(allApiProposals)
 			}
 		},
+		api: {
+			markdownDescription: nls.localize('vscode.extension.api', 'Describe the API provided by this extension. For more details visit: https://code.visualstudio.com/api/advanced-topics/remote-extensions#handling-dependencies-with-remote-extensions'),
+			type: 'string',
+			enum: ['none'],
+			enumDescriptions: [
+				nls.localize('vscode.extension.api.none', "Give up entirely the ability to export any APIs. This allows other extensions that depend on this extension to run in a separate extension host process or in a remote machine.")
+			]
+		},
 		activationEvents: {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',

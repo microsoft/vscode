@@ -17,6 +17,14 @@
 
 /* Misc */
 
+.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight,
+.monaco-tl-contents .monaco-highlighted-label .highlight {
+	color: unset !important;
+	background-color: var(--vscode-list-filterMatchBackground);
+	border: 1px dotted var(--vscode-list-filterMatchBorder);
+	box-sizing: border-box;
+}
+
 .monaco-workbench .tree-explorer-viewlet-tree-view {
 	height: 100%;
 }

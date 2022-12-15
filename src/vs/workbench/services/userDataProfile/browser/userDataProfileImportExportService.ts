@@ -182,7 +182,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				let exportProfile = await this.selectProfileResources(
 					userDataProfilesExportState,
 					localize('export title', "{0}: {1} ({2})", PROFILES_CATEGORY.value, title, this.userDataProfileService.currentProfile.name),
-					localize('export description', "Chose what to export")
+					localize('export description', "Choose what to export")
 				);
 
 				if (exportProfile === undefined) {
@@ -265,7 +265,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					let importProfile = await this.selectProfileResources(
 						userDataProfileImportState,
 						localize('import title', "{0}: {1} ({2})", PROFILES_CATEGORY.value, title, profileTemplate.name),
-						localize('import description', "Chose what to import")
+						localize('import description', "Choose what to import")
 					);
 
 					if (importProfile === undefined) {

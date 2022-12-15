@@ -35,8 +35,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
-import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { ISandboxKeyboardLayoutService, SandboxKeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/sandboxKeyboardLayout';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -274,10 +273,10 @@ export class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createKeyboardLayoutService(mainProcessService).then(service => {
+			this.createSandboxKeyboardLayoutService(mainProcessService).then(service => {
 
 				// KeyboardLayout
-				serviceCollection.set(IKeyboardLayoutService, service);
+				serviceCollection.set(ISandboxKeyboardLayoutService, service);
 
 				return service;
 			})
@@ -365,17 +364,17 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
-		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+	private async createSandboxKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<SandboxKeyboardLayoutService> {
+		const sandboxKeyboardLayoutService = new SandboxKeyboardLayoutService(mainProcessService);
 
 		try {
-			await keyboardLayoutService.initialize();
+			await sandboxKeyboardLayoutService.initialize();
 
-			return keyboardLayoutService;
+			return sandboxKeyboardLayoutService;
 		} catch (error) {
 			onUnexpectedError(error);
 
-			return keyboardLayoutService;
+			return sandboxKeyboardLayoutService;
 		}
 	}
 }

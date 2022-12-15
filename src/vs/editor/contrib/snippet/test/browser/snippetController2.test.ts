@@ -21,6 +21,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 
 suite('SnippetController2', function () {
 
@@ -704,6 +705,20 @@ suite('SnippetController2', function () {
 		ctrl.insert('Qualifier="$0"');
 		assert.strictEqual(model.getValue(), '<Element1 Attr1="foo" Qualifier="">\n  <Element2 Attr1=""/>\n"\n</Element1>');
 		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 34, 1, 34)]);
+
+	});
+
+	test('EOL-Sequence (CRLF) shifts tab stop in isFileTemplate snippets #167386', function () {
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		model.setValue('');
+		model.setEOL(EndOfLineSequence.CRLF);
+
+		ctrl.apply([{
+			range: model.getFullModelRange(),
+			template: 'line 54321${1:FOO}\nline 54321${1:FOO}\n(no tab stop)\nline 54321${1:FOO}\nline 54321'
+		}]);
+
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 11, 1, 14), new Selection(2, 11, 2, 14), new Selection(4, 11, 4, 14)]);
 
 	});
 });
