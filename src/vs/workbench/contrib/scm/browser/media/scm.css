@@ -201,7 +201,7 @@
 }
 
 .scm-view .scm-editor-container .monaco-editor {
-	border-radius: 2px !important;
+	border-radius: 2px;
 }
 
 .scm-view .scm-editor-container .monaco-editor .focused .selected-text {
@@ -301,10 +301,10 @@
 .scm-view .scm-editor-container {
 	position: relative;
 	box-sizing: border-box;
-	padding: 1px;
-	outline-offset: -1px;
-	outline: 1px solid var(--vscode-input-border);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
 	border-radius: 2px;
+	height: 26px;
 }
 
 .scm-view .scm-editor-container.synthetic-focus {
@@ -384,7 +384,7 @@
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 3px 6px;
+	padding: 2px 6px;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;
@@ -401,7 +401,7 @@
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .monaco-editor .margin {
 	color: inherit;
-	background-color: var(--vscode-input-background);
+	background-color: unset
 }
 
 .scm-view .scm-editor-container .mtk1 {
