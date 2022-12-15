@@ -56,7 +56,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	setTerminalInstance(instance: ITerminalInstance): void {
@@ -162,7 +162,11 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		}));
 
 		const disposeListeners = [
-			instance.onExit(() => this.dispose()),
+			instance.onExit((e) => {
+				if (!instance.waitOnExit) {
+					this.dispose();
+				}
+			}),
 			instance.onDisposed(() => this.dispose()),
 			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),

@@ -61,9 +61,20 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 		return result.data.html_url ? vscode.Uri.parse(result.data.html_url) : null;
 	}
 
+	private _public_octokit: Promise<Octokit> | undefined;
+	private getPublicOctokit(): Promise<Octokit> {
+		if (!this._public_octokit) {
+			this._public_octokit = (async () => {
+				const { Octokit } = await import('@octokit/rest');
+				return new Octokit({ request: { agent: this.getAgent() }, userAgent: 'GitHub VSCode' });
+			})();
+		}
+		return this._public_octokit;
+	}
+
 	async readProfile(uri: vscode.Uri): Promise<string | null> {
 		const gist_id = basename(uri.path);
-		const octokit = await this.getOctokit();
+		const octokit = await this.getPublicOctokit();
 		try {
 			const gist = await octokit.gists.get({ gist_id });
 			if (gist.data.files) {

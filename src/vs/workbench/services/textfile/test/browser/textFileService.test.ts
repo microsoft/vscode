@@ -160,6 +160,28 @@ suite('Files - TextFileService', () => {
 		registration.dispose();
 	});
 
+	test('Filename Suggestion - Preserve extension if it matchers', () => {
+		const registration = accessor.languageService.registerLanguage({
+			id: 'plumbus2',
+			extensions: ['.shleem', '.gazorpazorp'],
+		});
+
+		const suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1.gazorpazorp');
+		assert.strictEqual(suggested, 'Untitled-1.gazorpazorp');
+		registration.dispose();
+	});
+
+	test('Filename Suggestion - Rewrite extension according to language', () => {
+		const registration = accessor.languageService.registerLanguage({
+			id: 'plumbus2',
+			extensions: ['.shleem', '.gazorpazorp'],
+		});
+
+		const suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1.foobar');
+		assert.strictEqual(suggested, 'Untitled-1.shleem');
+		registration.dispose();
+	});
+
 	test('Filename Suggestion - Suggest filename if there are no extensions', () => {
 		const registration = accessor.languageService.registerLanguage({
 			id: 'plumbus2',
@@ -167,6 +189,28 @@ suite('Files - TextFileService', () => {
 		});
 
 		const suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1');
+		assert.strictEqual(suggested, 'plumbus');
+		registration.dispose();
+	});
+
+	test('Filename Suggestion - Preserve filename if it matches', () => {
+		const registration = accessor.languageService.registerLanguage({
+			id: 'plumbus2',
+			filenames: ['plumbus', 'shleem', 'gazorpazorp']
+		});
+
+		const suggested = accessor.textFileService.suggestFilename('plumbus2', 'gazorpazorp');
+		assert.strictEqual(suggested, 'gazorpazorp');
+		registration.dispose();
+	});
+
+	test('Filename Suggestion - Rewrites filename according to language', () => {
+		const registration = accessor.languageService.registerLanguage({
+			id: 'plumbus2',
+			filenames: ['plumbus', 'shleem', 'gazorpazorp']
+		});
+
+		const suggested = accessor.textFileService.suggestFilename('plumbus2', 'foobar');
 		assert.strictEqual(suggested, 'plumbus');
 		registration.dispose();
 	});

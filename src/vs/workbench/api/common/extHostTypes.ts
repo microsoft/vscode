@@ -46,13 +46,13 @@ function es5ClassCompat(target: Function): any {
 }
 
 export enum TerminalOutputAnchor {
-	top = 'top',
-	bottom = 'bottom'
+	Top = 0,
+	Bottom = 1
 }
 
 export enum TerminalQuickFixType {
-	command = 'command',
-	opener = 'opener'
+	Command = 0,
+	Opener = 1
 }
 
 @es5ClassCompat
@@ -492,7 +492,7 @@ export class ResolvedAuthority {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
 				throw illegalArgument('connectionToken');
 			}
 		}
@@ -1923,6 +1923,20 @@ export class TerminalLink implements vscode.TerminalLink {
 		if (tooltip !== undefined && typeof tooltip !== 'string') {
 			throw illegalArgument('tooltip');
 		}
+	}
+}
+
+export class TerminalQuickFixOpener {
+	uri: vscode.Uri;
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+export class TerminalQuickFixCommand {
+	terminalCommand: string;
+	constructor(terminalCommand: string) {
+		this.terminalCommand = terminalCommand;
 	}
 }
 

@@ -77,6 +77,7 @@ suite('AbstractKeybindingService', () => {
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
+				altGraphKey: false,
 				keyCode: keybinding.keyCode,
 				code: null!
 			}, null!);

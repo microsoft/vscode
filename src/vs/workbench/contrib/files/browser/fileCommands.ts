@@ -655,7 +655,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		args: [
 			{
 				isOptional: true,
-				name: 'New Untitled File args',
+				name: 'New Untitled Text File args',
 				description: 'The editor view type, language ID, or resource path if known',
 				schema: {
 					'type': 'object',

@@ -58,7 +58,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 						}
 					});
 
-					if (shouldStartDetection) {
+					if (shouldStartDetection && !this._detectionMap.has(notebookType)) {
 						const task = this._notebookKernelService.registerNotebookKernelDetectionTask({
 							notebookType: notebookType
 						});

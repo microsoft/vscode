@@ -50,7 +50,7 @@ export interface IEditData {
 	undoStopAfter: boolean;
 }
 
-export class TextEditorEdit {
+class TextEditorEdit {
 
 	private readonly _document: vscode.TextDocument;
 	private readonly _documentVersionId: number;

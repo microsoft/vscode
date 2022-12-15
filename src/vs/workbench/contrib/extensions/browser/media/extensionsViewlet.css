@@ -96,6 +96,14 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .extension-list-item.loading {
+	background-image: url('loading-dark.svg');
+}
+
+.monaco-workbench.hc-black .extensions-viewlet > .extensions .extension-list-item.loading {
+	background-image: url('loading-hc.svg');
+}
+
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }

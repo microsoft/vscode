@@ -465,7 +465,7 @@ const enum InteractionState {
 	Session = 'Session'
 }
 
-export class PersistentTerminalProcess extends Disposable {
+class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _autoReplies: Map<string, TerminalAutoResponder> = new Map();
@@ -951,7 +951,7 @@ function printTime(ms: number): string {
 	return `${_h}${_m}${_s}${_ms}`;
 }
 
-export interface ITerminalSerializer {
+interface ITerminalSerializer {
 	handleData(data: string): void;
 	freeRawReviveBuffer(): void;
 	handleResize(cols: number, rows: number): void;

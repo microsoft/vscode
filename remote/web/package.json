@@ -10,7 +10,7 @@
 		"jschardet": "3.0.0",
 		"tas-client-umd": "0.1.6",
 		"vscode-oniguruma": "1.7.0",
-		"vscode-textmate": "7.0.1",
+		"vscode-textmate": "8.0.0",
 		"xterm": "5.1.0-beta.63",
 		"xterm-addon-canvas": "0.3.0-beta.27",
 		"xterm-addon-search": "0.11.0-beta.7",
