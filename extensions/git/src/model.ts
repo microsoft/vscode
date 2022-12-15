@@ -529,21 +529,34 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		});
 		checkForSubmodules();
 
-		const updateCommitInProgressContext = () => {
+		const updateOperationInProgressContext = () => {
 			let commitInProgress = false;
+			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
 				if (repository.operations.isRunning(Operation.Commit)) {
 					commitInProgress = true;
-					break;
+				}
+
+				// When one of the following operations is running, we want to
+				// disable most commands in order to avoid multiple commands
+				// running at the same time.
+				if (repository.operations.isRunning(Operation.Checkout) ||
+					repository.operations.isRunning(Operation.CheckoutTracking) ||
+					repository.operations.isRunning(Operation.Commit) ||
+					repository.operations.isRunning(Operation.Pull) ||
+					repository.operations.isRunning(Operation.Push) ||
+					repository.operations.isRunning(Operation.Sync)) {
+					operationInProgress = true;
 				}
 			}
 
 			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
 		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
-		const operationListener = operationEvent(() => updateCommitInProgressContext());
-		updateCommitInProgressContext();
+		const operationListener = operationEvent(() => updateOperationInProgressContext());
+		updateOperationInProgressContext();
 
 		const dispose = () => {
 			disappearListener.dispose();

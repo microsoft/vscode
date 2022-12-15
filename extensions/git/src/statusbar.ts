@@ -94,8 +94,9 @@ class CheckoutStatusBar {
 	}
 
 	private onDidChangeOperations(): void {
-		const isCheckoutRunning = this.repository.operations.isRunning(Operation.Checkout);
 		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
+		const isCheckoutRunning = this.repository.operations.isRunning(Operation.Checkout) ||
+			this.repository.operations.isRunning(Operation.CheckoutTracking);
 		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
 			this.repository.operations.isRunning(Operation.Push) ||
 			this.repository.operations.isRunning(Operation.Pull);
@@ -161,8 +162,9 @@ class SyncStatusBar {
 	}
 
 	private onDidChangeOperations(): void {
-		const isCheckoutRunning = this.repository.operations.isRunning(Operation.Checkout);
 		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
+		const isCheckoutRunning = this.repository.operations.isRunning(Operation.Checkout) ||
+			this.repository.operations.isRunning(Operation.CheckoutTracking);
 		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
 			this.repository.operations.isRunning(Operation.Push) ||
 			this.repository.operations.isRunning(Operation.Pull);
