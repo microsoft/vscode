@@ -27,6 +27,7 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import product from 'vs/platform/product/common/product';
+import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Actions
 (function registerActions(): void {
@@ -127,6 +128,21 @@ import product from 'vs/platform/product/common/product';
 // Configuration
 (function registerConfiguration(): void {
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	// Application
+	registry.registerConfiguration({
+		...applicationConfigurationNodeBase,
+		'properties': {
+			'application.shellEnvironmentResolutionTimeout': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'included': !isWindows,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
+			}
+		}
+	});
 
 	// Window
 	registry.registerConfiguration({
