@@ -1958,10 +1958,10 @@ registerThemingParticipant((theme, collector) => {
 	const borderColor = theme.getColor(TAB_BORDER);
 	if (borderColor) {
 		collector.addRule(`
-				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
-					border-bottom: 1px solid ${borderColor};
-				}
-			`);
+			.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
+				border-bottom: 1px solid ${borderColor};
+			}
+		`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)
