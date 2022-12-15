@@ -7,7 +7,7 @@
 	box-sizing: border-box;
 	display: flex;
 	width: 100%;
-	padding: 4px;
+	padding: 3px 4px;
 	border-radius: 2px;
 	text-align: center;
 	cursor: pointer;
@@ -28,6 +28,10 @@
 .monaco-button.disabled {
 	opacity: 0.4 !important;
 	cursor: default;
+}
+
+.monaco-text-button span {
+	line-height: 18px;
 }
 
 .monaco-text-button > .codicon {
