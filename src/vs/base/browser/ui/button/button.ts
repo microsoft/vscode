@@ -82,13 +82,10 @@ export class Button extends Disposable implements IButton {
 
 		const background = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
 		const foreground = options.secondary ? options.buttonSecondaryForeground : options.buttonForeground;
-		const border = options.buttonBorder;
 
 		this._element.style.color = foreground || '';
 		this._element.style.backgroundColor = background || '';
-		if (border) {
-			this._element.style.border = `1px solid ${border}`;
-		}
+
 
 		container.appendChild(this._element);
 
