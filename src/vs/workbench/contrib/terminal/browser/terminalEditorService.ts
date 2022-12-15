@@ -153,7 +153,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 						forceReload: true,
 						preserveFocus: editorOptions?.preserveFocus
 					}
-				}, editorOptions?.viewColumn || ACTIVE_GROUP)
+				}, editorOptions?.viewColumn ?? ACTIVE_GROUP)
 			};
 			await this._activeOpenEditorRequest?.promise;
 			this._activeOpenEditorRequest = undefined;
