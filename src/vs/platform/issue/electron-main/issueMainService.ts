@@ -41,6 +41,8 @@ interface IBrowserWindowOptions {
 	alwaysOnTop: boolean;
 }
 
+type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
+
 export interface IIssueMainService extends ICommonIssueService {
 	stopTracing(): Promise<void>;
 }
@@ -274,15 +276,13 @@ export class IssueMainService implements IIssueMainService {
 
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
 
-				let position: IWindowState = this.safeParseJson(this.applicationStorageMainService.get(processExplorerWindowState, StorageScope.APPLICATION), undefined);
-				if (!position) {
-					position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
-				}
+				const savedPosition = this.safeParseJson(this.applicationStorageMainService.get(processExplorerWindowState, StorageScope.APPLICATION), undefined);
+				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
 				// Correct dimensions to take scale/dpr into account
 				const displayToUse = screen.getDisplayNearestPoint({ x: position.x!, y: position.y! });
-				position.width! /= displayToUse.scaleFactor;
-				position.height! /= displayToUse.scaleFactor;
+				position.width /= displayToUse.scaleFactor;
+				position.height /= displayToUse.scaleFactor;
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
@@ -392,7 +392,7 @@ export class IssueMainService implements IIssueMainService {
 		return this.diagnosticsService.getDiagnostics(info, remoteData);
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IStrictWindowState {
 
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Display | undefined;
@@ -423,14 +423,14 @@ export class IssueMainService implements IIssueMainService {
 			}
 		}
 
-		const state: IWindowState = {
-			width: defaultWidth,
-			height: defaultHeight
-		};
-
 		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
+
+		const state: IStrictWindowState = {
+			width: defaultWidth,
+			height: defaultHeight,
+			x: displayBounds.x + (displayBounds.width / 2) - (defaultWidth / 2),
+			y: displayBounds.y + (displayBounds.height / 2) - (defaultHeight / 2)
+		};
 
 		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
 			if (state.x < displayBounds.x) {
@@ -493,4 +493,16 @@ export class IssueMainService implements IIssueMainService {
 		// Show item in explorer
 		this.nativeHostMainService.showItemInFolder(undefined, path);
 	}
+}
+
+function isStrictWindowState(obj: unknown): obj is IStrictWindowState {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	return (
+		'x' in obj &&
+		'y' in obj &&
+		'width' in obj &&
+		'height' in obj
+	);
 }
