@@ -162,15 +162,15 @@ export function getShellIntegrationInjection(
 		}
 		case 'fish': {
 			if (!originalArgs || originalArgs.length === 0) {
-				newArgs = []
+				newArgs = [];
 			} else if (Array.isArray(originalArgs)) {
-				newArgs = originalArgs
+				newArgs = originalArgs;
 			} else {
-				newArgs = [originalArgs]
+				newArgs = [originalArgs];
 			}
-			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share'
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data')
-			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`
+			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
 			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
