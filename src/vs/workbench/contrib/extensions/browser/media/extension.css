@@ -157,7 +157,7 @@
 
 .extension-list-item > .details > .description {
 	padding-right: 11px;
-	padding-top: 1px;
+	margin-bottom: -1px;
 	color: var(--vscode-descriptionForeground);
 }
 
