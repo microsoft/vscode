@@ -25,7 +25,8 @@ Language server host for typescript using vscode's sync-api in the browser
    - invert the logic from TypeScriptServiceClient.normalizedPath for requests
    - invert the function from webServer.ts for responses (maybe)
    - something with getWorkspaceRootForResource (or anything else that checks `resouce.scheme`)
-- [ ] fill in missing environment files like lib.dom.d.ts
+- [x] put files one level down from virtual root
+- [x] fill in missing environment files like lib.dom.d.ts
    - toResource's isWeb branch *probably* knows where to find this, just need to put it in the virtual FS
    - I guess during setup in serverProcess.browser.ts.
    - Not sure whether it needs to have the data or just a fs entry.
@@ -39,16 +40,19 @@ Language server host for typescript using vscode's sync-api in the browser
    - looks like `isWeb()` is a way to check for being on the web
 - [ ] create multiple watchers
    - on-demand instead of watching everything and checking on watch firing
-- [ ] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
+- [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
 - [ ] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
 - [ ] clear out TODOs
+- [ ] think about implementing all the other ServerHost methods
+  - also copy details from previous implementation (although it's syntax-only so only covers part)
+- [ ] organise webServer.ts into multiple files
 
 ### Bugs
 
 - [ ] Response `seq` is always 0.
 - [ ] current method of encoding /scheme/authority means that (node) module resolution looks for /scheme/node_modules and /node_modules
   - even though they can't possibly exist
-  - probably not a problem though
+  - probably not a problem thoughG
 - [x] problems pane doesn't clear problems issued on tsconfig.
   - This is a known problem in normal usage as well.
 - [x] renaming a file throws a No Project error to the console.
@@ -58,13 +62,6 @@ Language server host for typescript using vscode's sync-api in the browser
   - then the response body is mapped over location.file >> client.toResource >> fromTextSpan
   - toResource has isWeb support, as well as (now unused) inMemoryResourcePrefix support
   - so I can just redo whatever that did and it'll be fine
-
-### Final
-
-- [ ] put files one level down from virtual root
-- [ ] think about implementing all the other ServerHost methods
-  - also copy details from previous implementation (although it's syntax-only so only covers part)
-- [ ] organise webServer.ts into multiple files
 
 ### Done
 - [x] need to update 0.2 -> 0.7.* API (once it's working properly)

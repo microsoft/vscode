@@ -65,6 +65,7 @@ export interface TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		extensionUri: vscode.Uri,
 	): TsServerProcess;
 }
 

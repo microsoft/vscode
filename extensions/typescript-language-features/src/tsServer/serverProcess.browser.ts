@@ -11,6 +11,7 @@ import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptVersion } from './versionProvider';
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { Requests, ApiService } from '@vscode/sync-api-service';
+import { TypeScriptVersionManager } from './versionManager';
 
 export class WorkerServerProcess implements TsServerProcess {
 
@@ -19,10 +20,12 @@ export class WorkerServerProcess implements TsServerProcess {
 		args: readonly string[],
 		_kind: TsServerProcessKind,
 		_configuration: TypeScriptServiceConfiguration,
+		_versionManager: TypeScriptVersionManager,
+		extensionUri: vscode.Uri,
 	) {
 		const tsServerPath = version.tsServerPath;
 		const worker = new Worker(tsServerPath);
-		return new WorkerServerProcess(worker, [
+		return new WorkerServerProcess(worker, extensionUri, [
 			...args,
 
 			// Explicitly give TS Server its path so it can
@@ -44,6 +47,7 @@ export class WorkerServerProcess implements TsServerProcess {
 	public constructor(
 		/** For logging and initial setup */
 		private readonly mainChannel: Worker,
+		extensionUri: vscode.Uri,
 		args: readonly string[],
 	) {
 		const tsserverChannel = new MessageChannel();
@@ -91,7 +95,10 @@ export class WorkerServerProcess implements TsServerProcess {
 		fsWatcher.onDidCreate(e => this.watcher.postMessage({ type: 'watch', event: 'create', path: e.path }));
 		fsWatcher.onDidDelete(e => this.watcher.postMessage({ type: 'watch', event: 'delete', path: e.path }));
 		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
-		mainChannel.postMessage({ args }, [syncChannel.port2, tsserverChannel.port1, watcherChannel.port1]);
+		mainChannel.postMessage(
+			{ args, extensionUri: { scheme: extensionUri.scheme, authority: extensionUri.authority, path: extensionUri.path } },
+			[syncChannel.port2, tsserverChannel.port1, watcherChannel.port1]
+		);
 		const connection = new ServiceConnection<Requests>(syncChannel.port1);
 		new ApiService('vscode-wasm-typescript', connection);
 		connection.signalReady();

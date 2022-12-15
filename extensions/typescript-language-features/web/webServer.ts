@@ -16,23 +16,26 @@ let session: WorkerSession | undefined;
 // BEGIN misc internals
 const indent: (str: string) => string = (ts as any).server.indent;
 const setSys: (s: ts.System) => void = (ts as any).setSys;
-
 // End misc internals
 // BEGIN webServer/webServer.ts
-/**
- * Copied from toResource in typescriptServiceClient.ts
- * Note that ts-nul-authority might show up for real in-memory files
- * Also, uh-oh, real in-memory files might also start with ^, so might have to have two encodings
- * TODO: Test in-memory files in the browser
- */
-function parseUri(filepath: string) {
-	const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
-	if (!parts) {
-		throw new Error("complex regex failed to match " + filepath)
+function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
+	/**
+	 * Copied from toResource in typescriptServiceClient.ts
+	 */
+	function toResource(filepath: string) {
+		if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
+			return URI.from({
+				scheme: extensionUri.scheme,
+				authority: extensionUri.authority,
+				path: extensionUri.path + '/dist/browser/typescript/' + filepath.slice(1)
+			})
+		}
+		const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
+		if (!parts) {
+			throw new Error("complex regex failed to match " + filepath)
+		}
+		return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
 	}
-	return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
-}
-function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
 	const fs = apiClient.vscode.workspace.fileSystem
 	logger.info(`starting serverhost`)
 	return {
@@ -92,7 +95,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		readFile(path) {
 			try {
 				logger.info('calling readFile on ' + path)
-				const bytes = fs.readFile(parseUri(path))
+				const bytes = fs.readFile(toResource(path))
 				return new TextDecoder().decode(new Uint8Array(bytes).slice())
 				// (common/connection.ts says that Uint8Array is only a view on the bytes which could change, which is why the slice exists)
 			}
@@ -105,7 +108,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		getFileSize(path) {
 			try {
 				logger.info('calling getFileSize on ' + path)
-				return fs.stat(parseUri(path)).size
+				return fs.stat(toResource(path)).size
 			}
 			catch (e) {
 				logger.info(`Error fs.getFileSize`)
@@ -116,7 +119,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		writeFile(path, data) {
 			try {
 				logger.info('calling writeFile on ' + path)
-				fs.writeFile(parseUri(path), new TextEncoder().encode(data))
+				fs.writeFile(toResource(path), new TextEncoder().encode(data))
 			}
 			catch (e) {
 				logger.info(`Error fs.writeFile`)
@@ -130,9 +133,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		fileExists(path: string): boolean {
 			try {
-				logger.info(`calling fileExists on ${path} (as ${parseUri(path)})`)
+				logger.info(`calling fileExists on ${path} (as ${toResource(path)})`)
 				// TODO: FileType.File might be correct! (need to learn about vscode's FileSystem.stat)
-				return fs.stat(parseUri(path)).type === FileType.File
+				return fs.stat(toResource(path)).type === FileType.File
 			}
 			catch (e) {
 				logger.info(`Error fs.fileExists for ${path}`)
@@ -142,9 +145,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		directoryExists(path: string): boolean {
 			try {
-				logger.info(`calling directoryExists on ${path} (as ${parseUri(path)})`)
+				logger.info(`calling directoryExists on ${path} (as ${toResource(path)})`)
 				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
-				return fs.stat(parseUri(path)).type === FileType.Directory
+				return fs.stat(toResource(path)).type === FileType.Directory
 			}
 			catch (e) {
 				logger.info(`Error fs.directoryExists for ${path}`)
@@ -154,9 +157,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		createDirectory(path: string): void {
 			try {
-				logger.info(`calling createDirectory on ${path} (as ${parseUri(path)})`)
+				logger.info(`calling createDirectory on ${path} (as ${toResource(path)})`)
 				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
-				fs.createDirectory(parseUri(path))
+				fs.createDirectory(toResource(path))
 			}
 			catch (e) {
 				logger.info(`Error fs.createDirectory`)
@@ -173,7 +176,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		getDirectories(path: string): string[] {
 			try {
 				logger.info('calling getDirectories on ' + path)
-				const entries = fs.readDirectory(parseUri(path))
+				const entries = fs.readDirectory(toResource(path))
 				return entries.filter(([_, type]) => type === FileType.Directory).map(([f, _]) => f)
 			}
 			catch (e) {
@@ -190,7 +193,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		readDirectory(path: string, extensions?: readonly string[], exclude?: readonly string[]): string[] {
 			try {
 				logger.info('calling readDirectory on ' + path)
-				const entries = fs.readDirectory(parseUri(path))
+				const entries = fs.readDirectory(toResource(path))
 				return entries
 					.filter(([f, type]) => type === FileType.File && (!extensions || extensions.some(ext => f.endsWith(ext))) && (!exclude || !exclude.includes(f)))
 					.map(([e, _]) => e)
@@ -204,7 +207,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		getModifiedTime(path: string): Date | undefined {
 			try {
 				logger.info('calling getModifiedTime on ' + path)
-				return new Date(fs.stat(parseUri(path)).mtime)
+				return new Date(fs.stat(toResource(path)).mtime)
 			}
 			catch (e) {
 				logger.info(`Error fs.getModifiedTime`)
@@ -217,7 +220,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 			// But I don't have any idea of how to set the modified time to an arbitrary date!
 		},
 		deleteFile(path: string): void {
-			const uri = parseUri(path)
+			const uri = toResource(path)
 			try {
 				logger.info(`calling deleteFile on ${uri}`)
 				fs.delete(uri)
@@ -240,7 +243,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		/** For module resolution only; symlinks aren't supported yet. */
 		realpath(path: string): string {
-			const uri = parseUri(path)
+			const uri = toResource(path)
 			const out = [uri.scheme]
 			if (uri.authority)
 				out.push(uri.authority)
@@ -266,9 +269,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 	}
 }
 
-function createWebSystem(connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void)) {
+function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void)) {
 	logger.info("in createWebSystem")
-	const sys = createServerHost(logger, new ApiClient(connection), [])
+	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), [])
 	setSys(sys)
 	logger.info("finished creating web system")
 	return sys
@@ -384,8 +387,8 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(options: StartSessionOptions, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), cancellationToken: ts.server.ServerCancellationToken) {
-	session = new WorkerSession(createWebSystem(connection, logger), options, tsserver, logger, cancellationToken, hrtime)
+function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), cancellationToken: ts.server.ServerCancellationToken) {
+	session = new WorkerSession(createWebSystem(extensionUri, connection, logger), options, tsserver, logger, cancellationToken, hrtime)
 	session.listen(tsserver)
 }
 // END tsserver/webServer.ts
@@ -401,7 +404,7 @@ serverLogger.msg = s => postMessage({ type: "log", body: s + '\n' })
 serverLogger.startGroup = () => { }
 serverLogger.endGroup = () => { }
 serverLogger.getLogFileName = () => "tsserver.log"
-function initializeSession(args: string[], platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>): void {
+function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>): void {
 	// TODO: Parse args for partial semantic mode -- need to have both but right now both start in semantic mode.
 	// webServer.ts
 	// getWebPath
@@ -424,6 +427,7 @@ function initializeSession(args: string[], platform: string, tsserver: MessagePo
 		syntaxOnly: false,
 		serverMode
 	},
+		extensionUri,
 		tsserver,
 		connection,
 		serverLogger,
@@ -464,7 +468,7 @@ const listener = async (e: any) => {
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			watcher.onmessage = (e: any) => updateWatch(e.data.event, e.data.path, serverLogger);
 			const connection = new ClientConnection<Requests>(sync);
-			initial = connection.serviceReady().then(() => initializeSession(e.data.args, "web-sync-api", tsserver, connection));
+			initial = connection.serviceReady().then(() => initializeSession(e.data.args, URI.from(e.data.extensionUri), "vscode-web", tsserver, connection));
 		}
 		else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
