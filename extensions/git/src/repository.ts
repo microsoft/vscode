@@ -901,6 +901,12 @@ export class Repository implements Disposable {
 		return this.repository.dotGit;
 	}
 
+	// TODO@lszomoru - Move this to operation state
+	private _checkoutRef: string | undefined;
+	get checkoutRef(): string | undefined {
+		return this._checkoutRef;
+	}
+
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
@@ -1554,18 +1560,24 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		await this.run(Operation.Checkout, async () => {
-			if (opts?.pullBeforeCheckout) {
-				try {
-					await this.fastForwardBranch(treeish);
-				}
-				catch (err) {
-					// noop
-				}
-			}
+		this._checkoutRef = treeish;
 
-			await this.repository.checkout(treeish, [], opts);
-		});
+		try {
+			await this.run(Operation.Checkout, async () => {
+				if (opts?.pullBeforeCheckout) {
+					try {
+						await this.fastForwardBranch(treeish);
+					}
+					catch (err) {
+						// noop
+					}
+				}
+
+				await this.repository.checkout(treeish, [], opts);
+			});
+		} finally {
+			this._checkoutRef = undefined;
+		}
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {

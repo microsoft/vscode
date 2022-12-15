@@ -41,7 +41,7 @@ class CheckoutStatusBar {
 
 	get command(): Command | undefined {
 		const rebasing = !!this.repository.rebaseCommit;
-		const label = `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
+		const label = this.repository.checkoutRef ?? `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
 		const command = (this.state.isCheckoutRunning || this.state.isCommitRunning || this.state.isSyncRunning) ? '' : 'git.checkout';
 
 		return {
