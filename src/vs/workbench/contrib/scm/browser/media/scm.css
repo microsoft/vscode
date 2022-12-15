@@ -302,9 +302,8 @@
 	position: relative;
 	box-sizing: border-box;
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border);
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 2px;
-	height: 26px;
 }
 
 .scm-view .scm-editor-container.synthetic-focus {
