@@ -6,7 +6,7 @@
 import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
-import { Branch, RemoteSourcePublisher } from './api/git';
+import { Branch, RefType, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 
 interface CheckoutStatusBarState {
@@ -41,17 +41,39 @@ class CheckoutStatusBar {
 
 	get command(): Command | undefined {
 		const rebasing = !!this.repository.rebaseCommit;
-		const isBranchProtected = this.repository.isBranchProtected();
 		const label = `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
-		const icon = this.state.isCheckoutRunning ? '$(loading~spin)' : isBranchProtected ? '$(lock)' : '$(git-branch)';
 		const command = (this.state.isCheckoutRunning || this.state.isCommitRunning || this.state.isSyncRunning) ? '' : 'git.checkout';
 
 		return {
 			command,
 			tooltip: `${label}, ${this.getTooltip()}`,
-			title: `${icon} ${label}`,
+			title: `${this.getIcon()} ${label}`,
 			arguments: [this.repository.sourceControl]
 		};
+	}
+
+	private getIcon(): string {
+		if (!this.repository.HEAD) {
+			return '';
+		}
+
+		// Checkout
+		if (this.state.isCheckoutRunning) {
+			return '$(loading~spin)';
+		}
+
+		// Branch
+		if (this.repository.HEAD?.name) {
+			return this.repository.isBranchProtected() ? '$(lock)' : '$(git-branch)';
+		}
+
+		// Tag
+		if (this.repository.HEAD?.commit && this.repository.refs.filter(iref => iref.type === RefType.Tag && iref.commit === this.repository.HEAD!.commit).length) {
+			return '$(tag)';
+		}
+
+		// Commit
+		return '$(git-commit)';
 	}
 
 	private getTooltip(): string {
