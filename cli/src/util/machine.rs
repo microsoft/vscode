@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use crate::util::errors;
+
 use std::path::Path;
 use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
 
@@ -48,31 +48,4 @@ pub fn find_running_process(name: &Path) -> Option<u32> {
 		}
 	}
 	None
-}
-
-#[cfg(not(target_family = "unix"))]
-pub async fn set_executable_permission<P: AsRef<std::path::Path>>(
-	_file: P,
-) -> Result<(), errors::WrappedError> {
-	Ok(())
-}
-
-#[cfg(target_family = "unix")]
-pub async fn set_executable_permission<P: AsRef<std::path::Path>>(
-	file: P,
-) -> Result<(), errors::WrappedError> {
-	use std::os::unix::prelude::PermissionsExt;
-
-	let mut permissions = tokio::fs::metadata(&file)
-		.await
-		.map_err(|e| errors::wrap(e, "failed to read executable file metadata"))?
-		.permissions();
-
-	permissions.set_mode(0o750);
-
-	tokio::fs::set_permissions(&file, permissions)
-		.await
-		.map_err(|e| errors::wrap(e, "failed to set executable permissions"))?;
-
-	Ok(())
 }

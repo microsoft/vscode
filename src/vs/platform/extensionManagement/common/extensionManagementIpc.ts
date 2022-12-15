@@ -10,7 +10,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
@@ -64,6 +64,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));
 			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
 			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer), revive(args[1]));
+			case 'installFromLocation': return this.service.installFromLocation(transformIncomingURI(args[0], uriTransformer), URI.revive(args[1]));
 			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
 			case 'getTargetPlatform': return this.service.getTargetPlatform();
 			case 'canInstall': return this.service.canInstall(args[0]);
@@ -75,6 +76,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'updateMetadata': return this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
 			case 'updateExtensionScope': return this.service.updateExtensionScope(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
 			case 'getExtensionsControlManifest': return this.service.getExtensionsControlManifest();
+			case 'download': return this.service.download(args[0], args[1]);
 		}
 
 		throw new Error('Invalid call');
@@ -138,6 +140,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix, options])).then(local => transformIncomingExtension(local, null));
 	}
 
+	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('installFromLocation', [location, profileLocation])).then(local => transformIncomingExtension(local, null));
+	}
+
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
 		return Promise.resolve(this.channel.call<IExtensionManifest>('getManifest', [vsix]));
 	}
@@ -177,6 +183,11 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<IExtensionsControlManifest>('getExtensionsControlManifest'));
 	}
 
+	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+		const result = await this.channel.call<UriComponents>('download', [extension, operation]);
+		return URI.revive(result);
+	}
+
 	registerParticipant() { throw new Error('Not Supported'); }
 }
 
@@ -194,7 +205,6 @@ export class ExtensionTipsChannel implements IServerChannel {
 			case 'getConfigBasedTips': return this.service.getConfigBasedTips(URI.revive(args[0]));
 			case 'getImportantExecutableBasedTips': return this.service.getImportantExecutableBasedTips();
 			case 'getOtherExecutableBasedTips': return this.service.getOtherExecutableBasedTips();
-			case 'getAllWorkspacesTips': return this.service.getAllWorkspacesTips();
 		}
 
 		throw new Error('Invalid call');

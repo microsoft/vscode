@@ -197,6 +197,7 @@ async function parsePort(host, strPort) {
 			if (port !== undefined) {
 				return port;
 			}
+			// Remote-SSH extension relies on this exact port error message, treat as an API
 			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end} (inclusive).`);
 			process.exit(1);
 

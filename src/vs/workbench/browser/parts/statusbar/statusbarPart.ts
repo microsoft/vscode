@@ -284,7 +284,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// Track focus within container

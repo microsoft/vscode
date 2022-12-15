@@ -722,7 +722,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.input.focus',
-			title: { value: localize('interactive.input.focus', "Focus input editor in the interactive window"), original: 'Focus input editor in the interactive window' },
+			title: { value: localize('interactive.input.focus', "Focus Input Editor"), original: 'Focus Input Editor' },
 			category: interactiveWindowCategory,
 			f1: true
 		});
@@ -757,7 +757,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.focus',
-			title: { value: localize('interactive.history.focus', "Focus history in the interactive window"), original: 'Focus input editor in the interactive window' },
+			title: { value: localize('interactive.history.focus', "Focus History"), original: 'Focus History' },
 			category: interactiveWindowCategory,
 			f1: true,
 			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),

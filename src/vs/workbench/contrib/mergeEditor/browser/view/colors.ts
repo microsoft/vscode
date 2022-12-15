@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { mergeCurrentHeaderBackground, mergeIncomingHeaderBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
 export const diff = registerColor(
 	'mergeEditor.change.background',
@@ -32,7 +32,7 @@ export const diffWordBase = registerColor(
 
 export const conflictBorderUnhandledUnfocused = registerColor(
 	'mergeEditor.conflict.unhandledUnfocused.border',
-	{ dark: '#ffa6007a', light: '#ffa6007a', hcDark: '#ffa6007a', hcLight: '#ffa6007a', },
+	{ dark: '#ffa6007a', light: '#ffa600FF', hcDark: '#ffa6007a', hcLight: '#ffa6007a', },
 	localize('mergeEditor.conflict.unhandledUnfocused.border', 'The border color of unhandled unfocused conflicts.')
 );
 
@@ -70,4 +70,17 @@ export const conflictingLinesBackground = registerColor(
 	'mergeEditor.conflictingLines.background',
 	{ dark: '#ffea0047', light: '#ffea0047', hcDark: '#ffea0047', hcLight: '#ffea0047', },
 	localize('mergeEditor.conflictingLines.background', 'The background of the "Conflicting Lines" text.')
+);
+
+const contentTransparency = 0.4;
+export const conflictInput1Background = registerColor(
+	'mergeEditor.conflict.input1.background',
+	{ dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hcDark: transparent(mergeCurrentHeaderBackground, contentTransparency), hcLight: transparent(mergeCurrentHeaderBackground, contentTransparency) },
+	localize('mergeEditor.conflict.input1.background', 'The background color of decorations in input 1.')
+);
+
+export const conflictInput2Background = registerColor(
+	'mergeEditor.conflict.input2.background',
+	{ dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hcDark: transparent(mergeIncomingHeaderBackground, contentTransparency), hcLight: transparent(mergeIncomingHeaderBackground, contentTransparency) },
+	localize('mergeEditor.conflict.input2.background', 'The background color of decorations in input 2.')
 );

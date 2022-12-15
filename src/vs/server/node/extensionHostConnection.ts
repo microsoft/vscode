@@ -228,7 +228,7 @@ export class ExtensionHostConnection {
 
 	public async start(startParams: IRemoteExtensionHostStartParams): Promise<void> {
 		try {
-			let execArgv: string[] = [];
+			let execArgv: string[] = process.execArgv ? process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)) : [];
 			if (startParams.port && !(<any>process).pkg) {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
 			}
@@ -257,7 +257,7 @@ export class ExtensionHostConnection {
 			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
 			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
-			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, args, opts);
+			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork').fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;
 			this._log(`<${pid}> Launched Extension Host Process.`);
 

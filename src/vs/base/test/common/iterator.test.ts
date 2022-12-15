@@ -24,4 +24,9 @@ suite('Iterable', function () {
 		assert.strictEqual(Iterable.first(customIterable), 'one');
 		assert.strictEqual(Iterable.first(customIterable), 'one'); // fresh
 	});
+
+	test('wrap', function () {
+		assert.deepStrictEqual([...Iterable.wrap(1)], [1]);
+		assert.deepStrictEqual([...Iterable.wrap([1, 2, 3])], [1, 2, 3]);
+	});
 });

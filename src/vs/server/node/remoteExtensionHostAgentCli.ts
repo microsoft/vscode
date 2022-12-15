@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/product/common/product';
@@ -42,9 +43,10 @@ import { buildHelpMessage, buildVersionMessage, OptionDescriptions } from 'vs/pl
 import { isWindows } from 'vs/base/common/platform';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { ServerUserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 
 class CliMain extends Disposable {
 
@@ -96,7 +98,7 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		const userDataProfilesService = this._register(new ServerUserDataProfilesService(uriIdentityService, environmentService, fileService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
@@ -110,6 +112,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 

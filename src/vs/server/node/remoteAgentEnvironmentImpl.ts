@@ -334,6 +334,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	private async _scanInstalledExtensions(language: string): Promise<IExtensionDescription[]> {
+		await this._extensionsScannerService.initializeDefaultProfileExtensions();
 		const scannedExtensions = await this._extensionsScannerService.scanUserExtensions({ language, useCache: true });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}

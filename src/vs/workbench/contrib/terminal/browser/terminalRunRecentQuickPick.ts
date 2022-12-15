@@ -13,8 +13,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssValue, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
@@ -43,7 +43,6 @@ export async function showRunRecentQuickPick(
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
-	const themeService = accessor.get(IThemeService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -208,9 +207,9 @@ export async function showRunRecentQuickPick(
 		title: 'Fuzzy search',
 		icon: commandHistoryFuzzySearchIcon,
 		isChecked: filterMode === 'fuzzy',
-		inputActiveOptionBorder: themeService.getColorTheme().getColor(inputActiveOptionBorder),
-		inputActiveOptionForeground: themeService.getColorTheme().getColor(inputActiveOptionForeground),
-		inputActiveOptionBackground: themeService.getColorTheme().getColor(inputActiveOptionBackground)
+		inputActiveOptionBorder: asCssValue(inputActiveOptionBorder),
+		inputActiveOptionForeground: asCssValue(inputActiveOptionForeground),
+		inputActiveOptionBackground: asCssValue(inputActiveOptionBackground)
 	});
 	fuzzySearchToggle.onChange(() => {
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);

@@ -61,7 +61,7 @@ export interface WebviewView {
 /**
  * Fill in the contents of a newly created webview view.
  */
-export interface IWebviewViewResolver {
+interface IWebviewViewResolver {
 	/**
 	 * Fill in the contents of a webview view.
 	 */

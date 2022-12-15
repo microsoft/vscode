@@ -606,20 +606,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		const info = this._notebookProviderInfoStore?.get(viewType);
-		const waitFor: Promise<any>[] = [Event.toPromise(Event.filter(this.onAddViewType, () => {
-			return this._notebookProviders.has(viewType);
-		}))];
-
-		if (info && info.extension) {
-			const extensionManifest = await this._extensionService.getExtension(info.extension.value);
-			if (extensionManifest?.activationEvents && extensionManifest.activationEvents.indexOf(`onNotebook:${viewType}`) >= 0) {
-				waitFor.push(this._extensionService._activateById(info.extension, { startup: false, activationEvent: `onNotebook:${viewType}}`, extensionId: info.extension }));
-			}
-		}
-
-		await Promise.race(waitFor);
+		await this._extensionService.activateByEvent(`onNotebookSerializer:${viewType}`);
 
 		return this._notebookProviders.has(viewType);
 	}

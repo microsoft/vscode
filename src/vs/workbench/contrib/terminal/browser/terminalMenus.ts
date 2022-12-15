@@ -11,6 +11,7 @@ import { IMenu, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions'
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -23,12 +24,6 @@ const enum ContextMenuGroup {
 	Clear = '3_clear',
 	Kill = '4_kill',
 	Config = '5_config'
-}
-
-export const enum TerminalTabContextMenuGroup {
-	Default = '1_create_default',
-	Profile = '2_create_profile',
-	Configure = '3_configure'
 }
 
 export const enum TerminalMenuBarGroup {
@@ -334,9 +329,9 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.SelectDefaultProfile,
-						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
+						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
 					},
-					group: TerminalTabContextMenuGroup.Configure
+					group: '3_configure'
 				}
 			},
 			{
@@ -346,8 +341,32 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.ConfigureTerminalSettings,
 						title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
 					},
-					group: TerminalTabContextMenuGroup.Configure
+					group: '3_configure'
 				}
+			},
+			{
+				id: MenuId.TerminalNewDropdownContext,
+				item: {
+					command: {
+						id: 'workbench.action.tasks.runTask',
+						title: localize('workbench.action.tasks.runTask', "Run Task...")
+					},
+					when: TaskExecutionSupportedContext,
+					group: '4_tasks',
+					order: 1
+				},
+			},
+			{
+				id: MenuId.TerminalNewDropdownContext,
+				item: {
+					command: {
+						id: 'workbench.action.tasks.configureTaskRunner',
+						title: localize('workbench.action.tasks.configureTaskRunner', "Configure Tasks...")
+					},
+					when: TaskExecutionSupportedContext,
+					group: '4_tasks',
+					order: 2
+				},
 			}
 		]
 	);
@@ -797,15 +816,8 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		dropdownActions.push(new SubmenuAction('split.profile', localize('splitTerminal', 'Split Terminal'), submenuActions));
 		dropdownActions.push(new Separator());
 	}
-
-	for (const [, configureActions] of dropdownMenu.getActions()) {
-		for (const action of configureActions) {
-			// make sure the action is a MenuItemAction
-			if ('alt' in action) {
-				dropdownActions.push(action);
-			}
-		}
-	}
+	const actions = dropdownMenu.getActions();
+	dropdownActions.push(...Separator.join(...actions.map(a => a[1])));
 
 	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
 	if (defaultSubmenuProfileAction) {

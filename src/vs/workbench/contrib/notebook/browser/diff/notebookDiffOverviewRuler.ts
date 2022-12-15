@@ -8,8 +8,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Color } from 'vs/base/common/color';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
+import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
@@ -214,32 +214,3 @@ export class NotebookDiffOverviewRuler extends Themable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.notebook-text-diff-editor .diffViewport {
-				background: ${scrollbarSliderBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.notebook-text-diff-editor .diffViewport:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.notebook-text-diff-editor .diffViewport:active {
-				background: ${scrollbarSliderActiveBackgroundColor};
-			}
-		`);
-	}
-});

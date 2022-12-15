@@ -127,7 +127,7 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 		super();
 
 		this._register(vscode.extensions.onDidChange(() => {
-			const currentContributions = this.getCurrentContributions();
+			const currentContributions = this._getCurrentContributions();
 			const existingContributions = this._contributions || MarkdownContributions.Empty;
 			if (!MarkdownContributions.equal(existingContributions, currentContributions)) {
 				this._contributions = currentContributions;
@@ -144,11 +144,11 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 	public readonly onContributionsChanged = this._onContributionsChanged.event;
 
 	public get contributions(): MarkdownContributions {
-		this._contributions ??= this.getCurrentContributions();
+		this._contributions ??= this._getCurrentContributions();
 		return this._contributions;
 	}
 
-	private getCurrentContributions(): MarkdownContributions {
+	private _getCurrentContributions(): MarkdownContributions {
 		return vscode.extensions.all
 			.map(MarkdownContributions.fromExtension)
 			.reduce(MarkdownContributions.merge, MarkdownContributions.Empty);

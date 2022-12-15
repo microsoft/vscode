@@ -7,7 +7,6 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -24,7 +23,7 @@ import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, V
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options, IMenuService, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -45,6 +44,7 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/views/viewFilter';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -149,27 +149,6 @@ class ViewWelcomeController {
 	}
 }
 
-class ViewMenuActions extends CompositeMenuActions {
-	constructor(
-		element: HTMLElement,
-		viewId: string,
-		menuId: MenuId,
-		contextMenuId: MenuId,
-		donotForwardArgs: boolean,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-	) {
-		const scopedContextKeyService = contextKeyService.createScoped(element);
-		scopedContextKeyService.createKey('view', viewId);
-		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
-		super(menuId, contextMenuId, { shouldForwardArgs: !donotForwardArgs }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
-	}
-
-}
-
 export abstract class ViewPane extends Pane implements IView {
 
 	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
@@ -202,7 +181,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	readonly menuActions: ViewMenuActions;
+	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
@@ -219,6 +198,8 @@ export abstract class ViewPane extends Pane implements IView {
 	private viewWelcomeContainer!: HTMLElement;
 	private viewWelcomeDisposable: IDisposable = Disposable.None;
 	private viewWelcomeController: ViewWelcomeController;
+
+	protected readonly scopedContextKeyService: IContextKeyService;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -239,7 +220,12 @@ export abstract class ViewPane extends Pane implements IView {
 		this._titleDescription = options.titleDescription;
 		this.showActionsAlways = !!options.showActionsAlways;
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext, !!options.donotForwardArgs));
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		this.scopedContextKeyService.createKey('view', this.id);
+		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
+		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
+
+		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
@@ -466,8 +452,7 @@ export abstract class ViewPane extends Pane implements IView {
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
 		}
 
@@ -602,14 +587,13 @@ export abstract class ViewPane extends Pane implements IView {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, disposables);
 					disposables.add(button);
-					disposables.add(attachButtonStyler(button, this.themeService));
 
 					if (precondition) {
 						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
@@ -680,9 +664,7 @@ export abstract class FilterViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
-		scopedContextKeyService.createKey('view', options.id);
-		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
+		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 
 	override getFilterWidget(): FilterWidget {

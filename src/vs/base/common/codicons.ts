@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-
-export interface IIconRegistry {
-	readonly all: IterableIterator<Codicon>;
-	readonly onDidRegister: Event<Codicon>;
-	get(id: string): Codicon | undefined;
-}
-
 // Selects all codicon names encapsulated in the `$()` syntax and wraps the
 // results with spaces so that screen readers can read the text better.
 export function getCodiconAriaLabel(text: string | undefined) {
@@ -565,6 +557,7 @@ export class Codicon implements CSSIcon {
 	public static readonly gitPullRequestGoToChanges = new Codicon('git-pull-request-go-to-changes', { fontCharacter: '\\ec0b' });
 	public static readonly gitPullRequestNewChanges = new Codicon('git-pull-request-new-changes', { fontCharacter: '\\ec0c' });
 	public static readonly searchFuzzy = new Codicon('search-fuzzy', { fontCharacter: '\\ec0d' });
+	public static readonly commentDraft = new Codicon('comment-draft', { fontCharacter: '\\ec0e' });
 
 
 	// derived icons, that could become separate icons
@@ -598,14 +591,6 @@ export class Codicon implements CSSIcon {
 	public static readonly quickInputBack = new Codicon('quick-input-back', Codicon.arrowLeft.definition);
 }
 
-export function getClassNamesArray(id: string, modifier?: string) {
-	const classNames = ['codicon', 'codicon-' + id];
-	if (modifier) {
-		classNames.push('codicon-modifier-' + modifier);
-	}
-	return classNames;
-}
-
 export interface CSSIcon {
 	readonly id: string;
 }
@@ -630,7 +615,7 @@ export namespace CSSIcon {
 		const [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substr(1));
+			classNames.push('codicon-modifier-' + modifier.substring(1));
 		}
 		return classNames;
 	}

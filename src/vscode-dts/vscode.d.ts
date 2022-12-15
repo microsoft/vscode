@@ -1751,8 +1751,9 @@ declare module 'vscode' {
 
 		/**
 		 * Optional flag indicating if this item is picked initially. This is only honored when using
-		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
-		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * the {@link window.showQuickPick showQuickPick()} API. To do the same thing with
+		 * the {@link window.createQuickPick createQuickPick()} API, simply set the {@link QuickPick.selectedItems}
+		 * to the items you want picked initially.
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
@@ -1771,8 +1772,8 @@ declare module 'vscode' {
 		/**
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
-		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
-		 * the {@link window.showQuickPick()} API.
+		 * created by the {@link window.createQuickPick createQuickPick()} API. Buttons are not rendered when using
+		 * the {@link window.showQuickPick showQuickPick()} API.
 		 *
 		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
@@ -2018,7 +2019,7 @@ declare module 'vscode' {
 		/**
 		 * Selection of the pre-filled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
 		 * otherwise the defined range will be selected.
 		 */
 		valueSelection?: [number, number];
@@ -2065,7 +2066,9 @@ declare module 'vscode' {
 	export class RelativePattern {
 
 		/**
-		 * A base file path to which this pattern will be matched against relatively.
+		 * A base file path to which this pattern will be matched against relatively. The
+		 * file path must be absolute, should not have any trailing path separators and
+		 * not include any relative segments (`.` or `..`).
 		 */
 		baseUri: Uri;
 
@@ -2751,8 +2754,12 @@ declare module 'vscode' {
 		/**
 		 * Indicates that this markdown string is from a trusted source. Only *trusted*
 		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
+		 *
+		 * Defaults to `false` (commands are disabled).
+		 *
+		 * If this is an object, only the set of commands listed in `enabledCommands` are allowed.
 		 */
-		isTrusted?: boolean;
+		isTrusted?: boolean | { readonly enabledCommands: readonly string[] };
 
 		/**
 		 * Indicates that this markdown string can contain {@link ThemeIcon ThemeIcons}, e.g. `$(zap)`.
@@ -3640,22 +3647,6 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) notebook edits for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: readonly NotebookEdit[]): void;
-
-		/**
-		 * Set (and replace) notebook edits with metadata for a resource.
-		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of edits.
-		 */
-		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
-
-		/**
 		 * Set (and replace) text edits or snippet edits for a resource.
 		 *
 		 * @param uri A resource identifier.
@@ -3670,6 +3661,22 @@ declare module 'vscode' {
 		 * @param edits An array of edits.
 		 */
 		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) notebook edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -6459,6 +6466,70 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A channel for containing log output.
+	 *
+	 * To get an instance of a `LogOutputChannel` use
+	 * {@link window.createOutputChannel createOutputChannel}.
+	 */
+	export interface LogOutputChannel extends OutputChannel {
+
+		/**
+		 * The current log level of the channel. Defaults to {@link env.logLevel editor log level}.
+		 */
+		readonly logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the channel changes.
+		 */
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+
+		/**
+		 * Outputs the given trace message to the channel. Use this method to log verbose information.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Trace trace} log level.
+		 *
+		 * @param message trace message to log
+		 */
+		trace(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given debug message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
+		 *
+		 * @param message debug message to log
+		 */
+		debug(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given information message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Info info} log level or lower.
+		 *
+		 * @param message info message to log
+		 */
+		info(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given warning message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
+		 *
+		 * @param message warning message to log
+		 */
+		warn(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given error or error message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Error error} log level or lower.
+		 *
+		 * @param error Error or error message to log
+		 */
+		error(error: string | Error, ...args: any[]): void;
+	}
+
+	/**
 	 * Accessibility information which controls screen reader behavior.
 	 */
 	export interface AccessibilityInformation {
@@ -9187,6 +9258,42 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Log levels
+	 */
+	export enum LogLevel {
+
+		/**
+		 * No messages are logged with this level.
+		 */
+		Off = 0,
+
+		/**
+		 * All messages are logged with this level.
+		 */
+		Trace = 1,
+
+		/**
+		 * Messages with debug and higher log level are logged with this level.
+		 */
+		Debug = 2,
+
+		/**
+		 * Messages with info and higher log level are logged with this level.
+		 */
+		Info = 3,
+
+		/**
+		 * Messages with warning and higher log level are logged with this level.
+		 */
+		Warning = 4,
+
+		/**
+		 * Only error messages are logged with this level.
+		 */
+		Error = 5
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -9350,6 +9457,16 @@ declare module 'vscode' {
 		 * @return A uri that can be used on the client machine.
 		 */
 		export function asExternalUri(target: Uri): Thenable<Uri>;
+
+		/**
+		 * The current log level of the editor.
+		 */
+		export const logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the editor changes.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	/**
@@ -9914,6 +10031,14 @@ declare module 'vscode' {
 		 * @param languageId The identifier of the language associated with the channel.
 		 */
 		export function createOutputChannel(name: string, languageId?: string): OutputChannel;
+
+		/**
+		 * Creates a new {@link LogOutputChannel log output channel} with the given name.
+		 *
+		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param options Options for the log output channel.
+		 */
+		export function createOutputChannel(name: string, options: { log: true }): LogOutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
@@ -11316,7 +11441,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Optional placeholder shown in the filter textbox when no filter has been entered.
 		 */
 		placeholder: string | undefined;
 
@@ -11408,7 +11533,18 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Selection range in the input value. Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 *
+		 * This property does not get updated when the user types or makes a selection,
+		 * but it can be updated by the extension.
+		 */
+		valueSelection: readonly [number, number] | undefined;
+
+		/**
+		 * Optional placeholder shown when no value has been input.
 		 */
 		placeholder: string | undefined;
 
@@ -11689,7 +11825,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be deleted.
 	 *
 	 * To make modifications to the workspace before the files are deleted,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillDeleteEvent {
@@ -11749,7 +11885,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be renamed.
 	 *
 	 * To make modifications to the workspace before the files are renamed,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
@@ -11974,9 +12110,11 @@ declare module 'vscode' {
 		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
 		 * behavior can be used to add, remove and change workspace folders in a single operation.
 		 *
-		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
-		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
-		 * updated to point to the first workspace folder.
+		 * **Note:** in some cases calling this method may result in the currently executing extensions (including the
+		 * one that called this method) to be terminated and restarted. For example when the first workspace folder is
+		 * added, removed or changed the (deprecated) `rootPath` property is updated to point to the first workspace
+		 * folder. Another case is when transitioning from an empty or single-folder workspace into a multi-folder
+		 * workspace (see also: https://code.visualstudio.com/docs/editor/workspaces).
 		 *
 		 * Use the {@linkcode onDidChangeWorkspaceFolders onDidChangeWorkspaceFolders()} event to get notified when the
 		 * workspace folders have been updated.
@@ -15622,9 +15760,13 @@ declare module 'vscode' {
 
 	/**
 	 * Namespace for localization-related functionality in the extension API. To use this properly,
-	 * you must have `l10n` defined in your `package.json` and have bundle.l10n.<language>.json files.
+	 * you must have `l10n` defined in your extension manifest and have bundle.l10n.<language>.json files.
 	 * For more information on how to generate bundle.l10n.<language>.json files, check out the
 	 * [vscode-l10n repo](https://github.com/microsoft/vscode-l10n).
+	 *
+	 * Note: Built-in extensions (for example, Git, TypeScript Language Features, GitHub Authentication)
+	 * are excluded from the `l10n` property requirement. In other words, they do not need to specify
+	 * a `l10n` in the extension manifest because their translated strings come from Language Packs.
 	 */
 	export namespace l10n {
 		/**
@@ -15636,7 +15778,7 @@ declare module 'vscode' {
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.localize('hello', 'Hello {0}!', 'World');`
+		 * @example `l10n.t('Hello {0}!', 'World');`
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 

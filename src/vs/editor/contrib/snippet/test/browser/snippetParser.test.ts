@@ -790,4 +790,20 @@ suite('SnippetParser', () => {
 		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, '\\');
 		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
 	});
+
+	test('Snippet placeholder empty right after expansion #152553', function () {
+
+		const snippet = new SnippetParser().parse('${1:prog}: ${2:$1.cc} - $2');
+		const actual = snippet.toString();
+		assert.strictEqual(actual, 'prog: prog.cc - prog.cc');
+
+		const snippet2 = new SnippetParser().parse('${1:prog}: ${3:${2:$1.cc}.33} - $2 $3');
+		const actual2 = snippet2.toString();
+		assert.strictEqual(actual2, 'prog: prog.cc.33 - prog.cc prog.cc.33');
+
+		// cyclic references of placeholders
+		const snippet3 = new SnippetParser().parse('${1:$2.one} <> ${2:$1.two}');
+		const actual3 = snippet3.toString();
+		assert.strictEqual(actual3, '.two.one.two.one <> .one.two.one.two');
+	});
 });

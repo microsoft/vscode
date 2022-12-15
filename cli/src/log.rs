@@ -5,8 +5,8 @@
 
 use chrono::Local;
 use opentelemetry::{
-	sdk::trace::Tracer,
-	trace::{SpanBuilder, Tracer as TraitTracer},
+	sdk::trace::{Tracer, TracerProvider},
+	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
 };
 use std::fmt;
 use std::{env, path::Path, sync::Arc};
@@ -186,6 +186,14 @@ impl LogSink for FileLogSink {
 }
 
 impl Logger {
+	pub fn test() -> Self {
+		Self {
+			tracer: TracerProvider::builder().build().tracer("codeclitest"),
+			sink: vec![],
+			prefix: None,
+		}
+	}
+
 	pub fn new(tracer: Tracer, level: Level) -> Self {
 		Self {
 			tracer,
@@ -209,9 +217,9 @@ impl Logger {
 		}
 	}
 
-	pub fn result(&self, message: &str) {
+	pub fn result(&self, message: impl AsRef<str>) {
 		for sink in &self.sink {
-			sink.write_result(message);
+			sink.write_result(message.as_ref());
 		}
 	}
 

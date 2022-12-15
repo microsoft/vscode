@@ -17,6 +17,14 @@
 
 /* Misc */
 
+.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight,
+.monaco-tl-contents .monaco-highlighted-label .highlight {
+	color: unset !important;
+	background-color: var(--vscode-list-filterMatchBackground);
+	border: 1px dotted var(--vscode-list-filterMatchBorder);
+	box-sizing: border-box;
+}
+
 .monaco-workbench .tree-explorer-viewlet-tree-view {
 	height: 100%;
 }
@@ -119,6 +127,11 @@
 	overflow: hidden;
 	flex-wrap: nowrap;
 	padding-left: 3px;
+}
+
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
+	background-color: var(--vscode-checkbox-selectBackground);
+	border: 1px solid var(--vscode-checkbox-selectBorder);
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {

@@ -47,7 +47,8 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { NullOpenerService } from 'vs/platform/opener/test/common/nullOpenerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

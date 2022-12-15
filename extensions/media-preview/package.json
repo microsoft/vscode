@@ -2,6 +2,9 @@
   "name": "media-preview",
   "displayName": "%displayName%",
   "description": "%description%",
+  "enabledApiProposals": [
+    "telemetryLogger"
+  ],
   "extensionKind": [
     "ui",
     "workspace"
@@ -101,8 +104,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.2.0"
+    "@vscode/extension-telemetry": "0.7.1-preview",
+    "vscode-uri": "^3.0.6"
   },
   "repository": {
     "type": "git",

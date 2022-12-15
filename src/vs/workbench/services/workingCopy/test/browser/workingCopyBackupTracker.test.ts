@@ -69,7 +69,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			return this.unrestoredBackups;
 		}
 
-		override async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
+		async testRestoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
 			return super.restoreBackups(handler);
 		}
 	}
@@ -242,7 +242,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		let isOpenCounter = 0;
 		let createEditorCounter = 0;
 
-		await tracker.restoreBackups({
+		await tracker.testRestoreBackups({
 			handles: workingCopy => {
 				handlesCounter++;
 
@@ -279,7 +279,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	test('Restore backups (basics, none handled)', async function () {
 		const [tracker, accessor, disposables] = await restoreBackupsInit();
 
-		await tracker.restoreBackups({
+		await tracker.testRestoreBackups({
 			handles: workingCopy => false,
 			isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
 			createEditor: workingCopy => { throw new Error('unexpected'); }
@@ -295,7 +295,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const [tracker, , disposables] = await restoreBackupsInit();
 
 		try {
-			await tracker.restoreBackups({
+			await tracker.testRestoreBackups({
 				handles: workingCopy => true,
 				isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
 				createEditor: workingCopy => { throw new Error('unexpected'); }
@@ -312,7 +312,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	test('Restore backups (multiple handlers)', async function () {
 		const [tracker, accessor, disposables] = await restoreBackupsInit();
 
-		const firstHandler = tracker.restoreBackups({
+		const firstHandler = tracker.testRestoreBackups({
 			handles: workingCopy => {
 				return workingCopy.typeId === 'testBackupTypeId';
 			},
@@ -324,7 +324,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			}
 		});
 
-		const secondHandler = tracker.restoreBackups({
+		const secondHandler = tracker.testRestoreBackups({
 			handles: workingCopy => {
 				return workingCopy.typeId.length === 0;
 			},
@@ -366,7 +366,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		editor1.resolved = false;
 		editor2.resolved = false;
 
-		await tracker.restoreBackups({
+		await tracker.testRestoreBackups({
 			handles: workingCopy => {
 				handlesCounter++;
 

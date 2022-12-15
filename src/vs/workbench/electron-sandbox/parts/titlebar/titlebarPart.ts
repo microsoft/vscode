@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventType, hide, prepend, show } from 'vs/base/browser/dom';
+import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
+import { $, addDisposableListener, append, EventType, hide, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,7 +25,6 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
-	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
@@ -148,7 +147,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const ret = super.createContentArea(parent);
 
 		// Native menu controller
@@ -165,12 +164,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			})));
 		}
 
-		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
-
 		// Window Controls (Native Windows/Linux)
-		const hasWindowControlsOverlay = typeof (navigator as any).windowControlsOverlay !== 'undefined';
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !hasWindowControlsOverlay && this.windowControls) {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.windowControls) {
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {

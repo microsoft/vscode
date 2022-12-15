@@ -8,7 +8,6 @@ import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/a
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./toggle';
@@ -22,34 +21,38 @@ export interface IToggleOpts extends IToggleStyles {
 }
 
 export interface IToggleStyles {
-	inputActiveOptionBorder?: Color;
-	inputActiveOptionForeground?: Color;
-	inputActiveOptionBackground?: Color;
+	readonly inputActiveOptionBorder: string | undefined;
+	readonly inputActiveOptionForeground: string | undefined;
+	readonly inputActiveOptionBackground: string | undefined;
 }
 
 export interface ICheckboxStyles {
-	checkboxBackground?: Color;
-	checkboxBorder?: Color;
-	checkboxForeground?: Color;
+	readonly checkboxBackground: string | undefined;
+	readonly checkboxBorder: string | undefined;
+	readonly checkboxForeground: string | undefined;
 }
 
-const defaultOpts = {
-	inputActiveOptionBorder: Color.fromHex('#007ACC00'),
-	inputActiveOptionForeground: Color.fromHex('#FFFFFF'),
-	inputActiveOptionBackground: Color.fromHex('#0E639C50')
+export const unthemedToggleStyles = {
+	inputActiveOptionBorder: '#007ACC00',
+	inputActiveOptionForeground: '#FFFFFF',
+	inputActiveOptionBackground: '#0E639C50'
 };
 
 export class ToggleActionViewItem extends BaseActionViewItem {
 
 	protected readonly toggle: Toggle;
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions | undefined) {
+	constructor(context: any, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
+
 		this.toggle = this._register(new Toggle({
 			actionClassName: this._action.class,
 			isChecked: !!this._action.checked,
 			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
-			notFocusable: true
+			notFocusable: true,
+			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
+			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
+			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
 		}));
 		this._register(this.toggle.onChange(() => this._action.checked = !!this.toggle && this.toggle.checked));
 	}
@@ -59,7 +62,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 		this.element.appendChild(this.toggle.domNode);
 	}
 
-	override updateEnabled(): void {
+	protected override updateEnabled(): void {
 		if (this.toggle) {
 			if (this.isEnabled()) {
 				this.toggle.enable();
@@ -69,7 +72,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.toggle.checked = !!this._action.checked;
 	}
 
@@ -106,7 +109,7 @@ export class Toggle extends Widget {
 	constructor(opts: IToggleOpts) {
 		super();
 
-		this._opts = { ...defaultOpts, ...opts };
+		this._opts = opts;
 		this._checked = this._opts.isChecked;
 
 		const classes = ['monaco-custom-toggle'];
@@ -191,24 +194,11 @@ export class Toggle extends Widget {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
-	style(styles: IToggleStyles): void {
-		if (styles.inputActiveOptionBorder) {
-			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
-		}
-		if (styles.inputActiveOptionForeground) {
-			this._opts.inputActiveOptionForeground = styles.inputActiveOptionForeground;
-		}
-		if (styles.inputActiveOptionBackground) {
-			this._opts.inputActiveOptionBackground = styles.inputActiveOptionBackground;
-		}
-		this.applyStyles();
-	}
-
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : '';
-			this.domNode.style.color = this._checked && this._opts.inputActiveOptionForeground ? this._opts.inputActiveOptionForeground.toString() : 'inherit';
-			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : '';
+			this.domNode.style.borderColor = (this._checked && this._opts.inputActiveOptionBorder) || '';
+			this.domNode.style.color = (this._checked && this._opts.inputActiveOptionForeground) || 'inherit';
+			this.domNode.style.backgroundColor = (this._checked && this._opts.inputActiveOptionBackground) || '';
 		}
 	}
 
@@ -232,18 +222,16 @@ export class Checkbox extends Widget {
 
 	readonly domNode: HTMLElement;
 
-	constructor(private title: string, private isChecked: boolean) {
+	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
 		super();
 
-		this.checkbox = new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox' });
+		this.checkbox = new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox', ...unthemedToggleStyles });
 
 		this.domNode = this.checkbox.domNode;
 
-		this.styles = {};
+		this.styles = styles;
 
-		this.checkbox.onChange(() => {
-			this.applyStyles();
-		});
+		this.applyStyles();
 	}
 
 	get checked(): boolean {
@@ -252,8 +240,6 @@ export class Checkbox extends Widget {
 
 	set checked(newIsChecked: boolean) {
 		this.checkbox.checked = newIsChecked;
-
-		this.applyStyles();
 	}
 
 	focus(): void {
@@ -264,15 +250,9 @@ export class Checkbox extends Widget {
 		return this.domNode === document.activeElement;
 	}
 
-	style(styles: ICheckboxStyles): void {
-		this.styles = styles;
-
-		this.applyStyles();
-	}
-
 	protected applyStyles(): void {
-		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : '';
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : '';
-		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : '';
+		this.domNode.style.color = this.styles.checkboxForeground || '';
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground || '';
+		this.domNode.style.borderColor = this.styles.checkboxBorder || '';
 	}
 }

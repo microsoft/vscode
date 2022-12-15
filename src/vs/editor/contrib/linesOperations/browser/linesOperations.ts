@@ -660,7 +660,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+	protected _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection | null = null;
 		const endCursorState: Selection[] = [];
 		let deletedLines = 0;
@@ -690,7 +690,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
+	protected _getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		const selections = editor.getSelections();
 		if (selections === null) {
 			return [];
@@ -738,7 +738,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+	protected _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection | null = null;
 		const endCursorState: Selection[] = [];
 		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
@@ -759,7 +759,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
+	protected _getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		const model = editor.getModel();
 		if (model === null) {
 			return [];

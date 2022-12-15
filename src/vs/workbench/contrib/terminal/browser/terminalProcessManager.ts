@@ -177,8 +177,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	async freePortKillProcess(port: string): Promise<void> {
 		try {
 			if (this._process?.freePortKillProcess) {
-				const result = await this._process?.freePortKillProcess(port);
-				this._notificationService.notify({ message: localize('killportsuccess', 'Killed process with PID {0} listening on port {1}', result.processId, result.port), severity: Severity.Info });
+				await this._process?.freePortKillProcess(port);
 			}
 		} catch (e) {
 			this._notificationService.notify({ message: localize('killportfailure', 'Could not kill process listening on port {0}, command exited with error {1}', port, e), severity: Severity.Warning });
@@ -374,7 +373,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._onRestoreCommands.fire(e);
 			}));
 		}
-
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
 				this._setProcessState(ProcessState.Running);
@@ -419,7 +417,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		} else {
 			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		}
-
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;

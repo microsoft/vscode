@@ -18,7 +18,6 @@
     "findTextInFiles",
     "fsChunks",
     "notebookCellExecutionState",
-    "notebookContentProvider",
     "notebookControllerKind",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -43,9 +42,7 @@
     "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry",
-    "extensionLog",
-    "localization"
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],

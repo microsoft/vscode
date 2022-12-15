@@ -37,7 +37,6 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { once } from 'vs/base/common/functional';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
@@ -47,6 +46,7 @@ import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -138,6 +138,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
+
+			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+				return;
+			}
+
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
 				e.element?.focus(true);
 			}
@@ -146,6 +151,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
 		this.onMouseClick(async e => {
+			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+				return;
+			}
+
 			if (e.browserEvent.altKey && e.element) {
 				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
 			} else if (this._getFocusMode() === 'singleClick') {
@@ -394,9 +403,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					};
 				}
 			},
-			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
+			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel."),
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this._themeService);
 		inputBox.element.style.height = '22px';
 		inputBox.value = value;
 		inputBox.focus();
@@ -443,8 +452,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -557,6 +565,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
+		if (this._terminalService.getEditingTerminal()?.instanceId === instance.instanceId) {
+			return null;
+		}
+
 		return instance.resource.toString();
 	}
 

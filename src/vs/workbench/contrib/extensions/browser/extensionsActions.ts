@@ -28,7 +28,7 @@ import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, buttonHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from 'vs/platform/theme/common/colorRegistry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -66,7 +66,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 export class PromptExtensionInstallFailureAction extends Action {
@@ -844,10 +844,18 @@ abstract class AbstractUpdateAction extends ExtensionAction {
 export class UpdateAction extends AbstractUpdateAction {
 
 	constructor(
+		private readonly verbose: boolean,
 		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super(`extensions.update`, localize('update', "Update"), extensionsWorkbenchService);
+	}
+
+	override update(): void {
+		super.update();
+		if (this.extension) {
+			this.label = this.verbose ? localize('update to', "Update to v{0}", this.extension.latestVersion) : localize('update', "Update");
+		}
 	}
 
 	override async run(): Promise<any> {
@@ -900,7 +908,7 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 
 export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent migrate`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} migrate`;
 	private static readonly DisabledClass = `${MigrateDeprecatedExtensionAction.EnabledClass} disabled`;
 
 	constructor(
@@ -1027,7 +1035,6 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
 	return instantiationService.invokeFunction(async accessor => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const languagePackService = accessor.get(ILanguagePackService);
 		const menuService = accessor.get(IMenuService);
 		const extensionRecommendationsService = accessor.get(IExtensionRecommendationsService);
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
@@ -1055,7 +1062,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionHasProductIconThemes', productIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
 
 			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
-			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === languagePackService.getLocale(extension.gallery)]);
+			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === getLocale(extension.gallery)]);
 		}
 
 		const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService.createOverlay(cksOverlay));
@@ -1712,7 +1719,6 @@ export class SetLanguageAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 	) {
 		super(SetLanguageAction.ID, SetLanguageAction.TITLE.value, SetLanguageAction.DisabledClass, false);
 		this.update();
@@ -1727,7 +1733,7 @@ export class SetLanguageAction extends ExtensionAction {
 		if (!this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}
-		if (this.extension.gallery && language === this.languagePackService.getLocale(this.extension.gallery)) {
+		if (this.extension.gallery && language === getLocale(this.extension.gallery)) {
 			return;
 		}
 		this.enabled = true;
@@ -1749,7 +1755,6 @@ export class ClearLanguageAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super(ClearLanguageAction.ID, ClearLanguageAction.TITLE.value, ClearLanguageAction.DisabledClass, false);
@@ -1765,7 +1770,7 @@ export class ClearLanguageAction extends ExtensionAction {
 		if (!this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}
-		if (this.extension.gallery && language !== this.languagePackService.getLocale(this.extension.gallery)) {
+		if (this.extension.gallery && language !== getLocale(this.extension.gallery)) {
 			return;
 		}
 		this.enabled = true;
@@ -2493,6 +2498,7 @@ export class ReinstallAction extends Action {
 	constructor(
 		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
@@ -2515,7 +2521,7 @@ export class ReinstallAction extends Action {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
-					.filter(extension => !extension.isBuiltin)
+					.filter(extension => !extension.isBuiltin && extension.server !== this.extensionManagementServerService.webExtensionManagementServer)
 					.map(extension => {
 						return {
 							id: extension.identifier.id,
@@ -2843,79 +2849,59 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 		});
 });
 
+registerColor('extensionButton.background', {
+	dark: buttonBackground,
+	light: buttonBackground,
+	hcDark: null,
+	hcLight: null
+}, localize('extensionButtonBackground', "Button background color for extension actions."));
+
+registerColor('extensionButton.foreground', {
+	dark: buttonForeground,
+	light: buttonForeground,
+	hcDark: null,
+	hcLight: null
+}, localize('extensionButtonForeground', "Button foreground color for extension actions."));
+
+registerColor('extensionButton.hoverBackground', {
+	dark: buttonHoverBackground,
+	light: buttonHoverBackground,
+	hcDark: null,
+	hcLight: null
+}, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
+
+registerColor('extensionButton.separator', {
+	dark: buttonSeparator,
+	light: buttonSeparator,
+	hcDark: buttonSeparator,
+	hcLight: buttonSeparator
+}, localize('extensionButtonSeparator', "Button separator color for extension actions"));
+
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: buttonBackground,
 	light: buttonBackground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
+}, localize('extensionButtonProminentBackground', "Button background color for extension actions that stand out (e.g. install button)."));
 
-export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
+registerColor('extensionButton.prominentForeground', {
 	dark: buttonForeground,
 	light: buttonForeground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
+}, localize('extensionButtonProminentForeground', "Button foreground color for extension actions that stand out (e.g. install button)."));
 
-export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
+registerColor('extensionButton.prominentHoverBackground', {
 	dark: buttonHoverBackground,
 	light: buttonHoverBackground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
+}, localize('extensionButtonProminentHoverBackground', "Button background hover color for extension actions that stand out (e.g. install button)."));
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const foregroundColor = theme.getColor(foreground);
-	if (foregroundColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
-	}
-
-	const buttonBackgroundColor = theme.getColor(buttonBackground);
-	if (buttonBackgroundColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
-		collector.addRule(`.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator { background-color: ${buttonBackgroundColor}; }`);
-	}
-
-	const buttonForegroundColor = theme.getColor(buttonForeground);
-	if (buttonForegroundColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
-	}
-
-	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
-	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label:hover { background-color: ${buttonHoverBackgroundColor}; }`);
-	}
-
-	const buttonSeparatorColor = theme.getColor(buttonSeparator);
-	if (buttonSeparatorColor) {
-		collector.addRule(`.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div { background-color: ${buttonSeparatorColor}; }`);
-	}
-
-	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
-	if (extensionButtonProminentBackground) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-		collector.addRule(`.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-	}
-
-	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
-	if (extensionButtonProminentForeground) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
-	}
-
-	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
-	if (extensionButtonProminentHoverBackground) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent:hover { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
-	}
-
-	const contrastBorderColor = theme.getColor(contrastBorder);
-	if (contrastBorderColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
-		collector.addRule(`.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator { border-top: 1px solid ${contrastBorderColor}; border-bottom: 1px solid ${contrastBorderColor}; }`);
-	}
 
 	const errorColor = theme.getColor(editorErrorForeground);
 	if (errorColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
@@ -2923,7 +2909,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const warningColor = theme.getColor(editorWarningForeground);
 	if (warningColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
@@ -2931,7 +2916,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const infoColor = theme.getColor(editorInfoForeground);
 	if (infoColor) {
-		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);

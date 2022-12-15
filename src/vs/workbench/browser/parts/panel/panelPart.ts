@@ -19,11 +19,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
+import { contrastBorder, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { IActivityHoverOptions, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { IActivityHoverOptions, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper, $, asCSSUrl, createCSSRule } from 'vs/base/browser/dom';
@@ -44,14 +44,15 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { PlaceHolderToggleCompositeBadgeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 
 interface ICachedPanel {
 	id: string;
 	name?: string;
 	pinned: boolean;
+	badgeEnabled: boolean;
 	order?: number;
 	visible: boolean;
 	views?: { when?: string }[];
@@ -109,7 +110,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private compositeBar: CompositeBar;
-	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
+	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction }>();
 
 	private globalToolBar: ToolBar | undefined;
 	private globalActions: CompositeMenuActions;
@@ -184,6 +185,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			openComposite: (compositeId, preserveFocus) => this.openPaneComposite(compositeId, !preserveFocus).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
+			getCompositeBadgeAction: compositeId => this.getCompositeActions(compositeId).badgeAction,
 			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
@@ -210,12 +212,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		// Global Panel Actions
 		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, partId === Parts.PANEL_PART ? MenuId.PanelTitle : MenuId.AuxiliaryBarTitle, undefined, undefined));
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
-
-		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
-			.registerKeys([{
-				key: this.pinnedPanelsKey,
-				description: localize('pinned view containers', "Panel entries visibility customizations")
-			}]);
 	}
 
 	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
@@ -545,7 +541,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		}));
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
+	protected override  createTitleArea(parent: HTMLElement): HTMLElement {
 		const element = super.createTitleArea(parent);
 		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
 
@@ -681,7 +677,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		};
 	}
 
-	override onTitleAreaUpdate(compositeId: string): void {
+	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
 
 		// If title actions change, relayout the composite bar
@@ -733,7 +729,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			// const panel = this.getPaneComposite(compositeId);
@@ -743,12 +739,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
 					activityAction: this.instantiationService.createInstance(PanelActivityAction, this.toActivity(viewContainerModel), this.viewContainerLocation),
-					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
+					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar),
+					badgeAction: new ToggleCompositeBadgeAction(this.toActivity(viewContainerModel), this.compositeBar)
 				};
 			} else {
 				compositeActions = {
 					activityAction: this.instantiationService.createInstance(PlaceHolderPanelActivityAction, compositeId, this.viewContainerLocation),
-					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
+					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar),
+					badgeAction: new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar)
 				};
 			}
 
@@ -798,6 +796,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 					name: cachedPanel.name,
 					order: cachedPanel.order,
 					pinned: cachedPanel.pinned,
+					badgeEnabled: cachedPanel.badgeEnabled,
 					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
 				});
 			}
@@ -822,10 +821,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
 			}
 		}
 
@@ -838,7 +837,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
 		const cachedPanels = storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, badgeEnabled: true } : c;
 			const registered = registeredPanels.some(p => p.id === serialized.id);
 			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;
@@ -1008,90 +1007,3 @@ export class PanelPart extends BasePanelPart {
 		};
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Panel Background: since panels can host editors, we apply a background rule if the panel background
-	// color is different from the editor background color. This is a bit of a hack though. The better way
-	// would be to have a way to push the background color onto each editor widget itself somehow.
-	const panelBackground = theme.getColor(PANEL_BACKGROUND);
-	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .content .monaco-editor,
-			.monaco-workbench .part.panel > .content .monaco-editor .margin,
-			.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
-				background-color: ${panelBackground};
-			}
-		`);
-	}
-
-	// Title Active
-	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	if (titleActive) {
-		collector.addRule(`
-		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-			color: ${titleActive} !important;
-		}
-		`);
-		collector.addRule(`
-		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-			color: ${titleActive} !important;
-		}
-		`);
-	}
-
-	const inputBorder = theme.getColor(PANEL_INPUT_BORDER);
-	if (inputBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.panel .monaco-inputbox {
-				border-color: ${inputBorder}
-			}
-		`);
-	}
-
-
-	// Base Panel Styles
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`
-				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-					border-top-color: ${focusBorderColor};
-				}
-				`);
-		collector.addRule(`
-				.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-					outline: none;
-				}
-				`);
-	}
-
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActiveBorder) {
-		collector.addRule(`
-				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-					.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
-					border-top-color: ${titleActiveBorder};
-				}
-			`);
-	}
-
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		collector.addRule(`
-				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-					outline-color: ${outline};
-					outline-width: 1px;
-					outline-style: solid;
-					border-bottom: none;
-					outline-offset: -1px;
-				}
-
-				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
-					outline-style: dashed;
-				}
-			`);
-	}
-});

@@ -203,9 +203,8 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Output Channels
 		const channels = this.outputService.getChannelDescriptors();
 		for (const channel of channels) {
-			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
 			viewEntries.push({
-				label,
+				label: channel.label,
 				containerLabel: localize('channels', "Output"),
 				accept: () => this.outputService.showChannel(channel.id)
 			});

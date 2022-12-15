@@ -13,7 +13,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./goToDefinitionAtPosition';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -27,12 +27,11 @@ import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -166,10 +165,22 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return;
 			}
 
+			const linkRange = results[0].originSelectionRange
+				? Range.lift(results[0].originSelectionRange)
+				: new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+
 			// Multiple results
 			if (results.length > 1) {
+
+				let combinedRange = linkRange;
+				for (const { originSelectionRange } of results) {
+					if (originSelectionRange) {
+						combinedRange = Range.plusRange(combinedRange, originSelectionRange);
+					}
+				}
+
 				this.addDecoration(
-					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+					combinedRange,
 					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length))
 				);
 			}
@@ -199,18 +210,10 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 					}
 
 					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
-
-					let wordRange: Range;
-					if (result.originSelectionRange) {
-						wordRange = Range.lift(result.originSelectionRange);
-					} else {
-						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-					}
-
 					const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
-						wordRange,
-						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)
+						linkRange,
+						previewValue ? new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue) : undefined
 					);
 					ref.dispose();
 				});
@@ -258,7 +261,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
+	private addDecoration(range: Range, hoverMessage: MarkdownString | undefined): void {
 
 		const newDecorations: IModelDeltaDecoration = {
 			range: range,
@@ -281,6 +284,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			&& mouseEvent.isLeftClick
 			&& mouseEvent.isNoneOrSingleMouseDown
 			&& mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+			&& !(mouseEvent.target.detail.injectedText?.options instanceof ModelDecorationInjectedTextOptions)
 			&& (mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false))
 			&& this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
 	}
@@ -299,7 +303,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return this.editor.invokeWithinContext((accessor) => {
 			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
 			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-			return action.run(accessor, this.editor);
+			return action.run(accessor);
 		});
 	}
 
@@ -313,11 +317,4 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 }
 
-registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution);
-
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
-	}
-});
+registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution, EditorContributionInstantiation.BeforeFirstInteraction);

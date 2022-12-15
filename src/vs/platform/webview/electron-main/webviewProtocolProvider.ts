@@ -5,7 +5,7 @@
 
 import { protocol } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { COI, FileAccess, Schemas } from 'vs/base/common/network';
+import { AppResourcePath, COI, FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
 
@@ -33,8 +33,8 @@ export class WebviewProtocolProvider extends Disposable {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
 			if (typeof entry === 'string') {
-				const relativeResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
-				const url = FileAccess.asFileUri(relativeResourcePath, require);
+				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
+				const url = FileAccess.asFileUri(relativeResourcePath);
 				return callback({
 					path: decodeURIComponent(url.fsPath),
 					headers: {

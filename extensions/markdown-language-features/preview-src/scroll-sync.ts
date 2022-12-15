@@ -133,8 +133,9 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 	if (next && next.line !== previous.line) {
 		// Between two elements. Go to percentage offset between them.
 		const betweenProgress = (line - previous.line) / (next.line - previous.line);
-		const elementOffset = next.element.getBoundingClientRect().top - previousTop;
-		scrollTo = previousTop + betweenProgress * elementOffset;
+		const previousEnd = previousTop + rect.height;
+		const betweenHeight = next.element.getBoundingClientRect().top - previousEnd;
+		scrollTo = previousEnd + betweenProgress * betweenHeight;
 	} else {
 		const progressInElement = line - Math.floor(line);
 		scrollTo = previousTop + (rect.height * progressInElement);

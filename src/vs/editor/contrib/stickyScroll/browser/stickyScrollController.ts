@@ -76,7 +76,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this.renderStickyScroll()));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this.onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
-			this._sessionStore.add(this._stickyLineCandidateProvider.onStickyScrollChange(() => this.renderStickyScroll()));
+			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this.renderStickyScroll()));
 			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this.renderStickyScroll()));
@@ -112,12 +112,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		}
 		const model = this._editor.getModel();
-		if (this._stickyLineCandidateProvider.getVersionId() !== model.getVersionId()) {
-			// Old _ranges not updated yet
-			return;
+		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
+		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
+			this._widgetState = this.getScrollWidgetState();
+			this._stickyScrollWidget.setState(this._widgetState);
 		}
-		this._widgetState = this.getScrollWidgetState();
-		this._stickyScrollWidget.setState(this._widgetState);
 	}
 
 	public getScrollWidgetState(): StickyScrollWidgetState {

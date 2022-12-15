@@ -6,7 +6,7 @@
 import * as os from 'os';
 import * as cp from 'child_process';
 import { promises as fs } from 'fs';
-import path = require('path');
+import * as path from 'path';
 
 let hasWSLFeaturePromise: Promise<boolean> | undefined;
 
