@@ -223,10 +223,10 @@
   resolved "https://registry.yarnpkg.com/@types/which/-/which-1.0.28.tgz#016e387629b8817bed653fe32eab5d11279c8df6"
   integrity sha1-AW44dim4gXvtZT/jLqtdESecjfY=
 
-"@vscode/extension-telemetry@0.7.1-preview":
-  version "0.7.1-preview"
-  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.7.1-preview.tgz#1b954b8932b7f27a3993abda25299b8ba7f97233"
-  integrity sha512-7GdA8lMrcMhRfFxVpk7KBNbx+Bh/OpG702C1uPcyOQqp5lH1txJ/8SZAacFqFMKLRnBdGlJRKBREQe/Fs1X/eQ==
+"@vscode/extension-telemetry@0.7.3-preview":
+  version "0.7.3-preview"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.7.3-preview.tgz#3e45609c862022e7eec52e47fe45176149d82b6c"
+  integrity sha512-V+TanZXj8jhCX8mwGHbRDOTJ5YSWCmngHKs7ZrRoR7sXc4vZYQX+1syp07hDX2BVnPpuBHJiovZ8GZ4zbmQvYw==
   dependencies:
     "@microsoft/1ds-core-js" "^3.2.8"
     "@microsoft/1ds-post-js" "^3.2.8"
