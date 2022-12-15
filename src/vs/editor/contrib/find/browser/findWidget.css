@@ -17,6 +17,9 @@
 	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
 	border: 1px solid var(--vscode-contrastBorder);
 	color: var(--vscode-editorWidget-foreground);
+	border-left: 1px solid var(--vscode-widget-border);
+	border-right: 1px solid var(--vscode-widget-border);
+	border-bottom: 1px solid var(--vscode-widget-border);
 	border-bottom-left-radius: 4px;
 	border-bottom-right-radius: 4px;
 }
@@ -260,3 +263,21 @@
 .monaco-editor .find-widget .codicon-find-selection:hover {
 	background-color: var(--vscode-toolbar-hoverBackground) !important;
 }
+
+.monaco-editor.findMatch {
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+}
+
+.monaco-editor.currentFindMatch {
+	background-color: var(--vscode-editor-findMatchBackground);
+}
+
+.monaco-editor.findScope {
+	background-color: var(--vscode-editor-findRangeHighlightBackground);
+}
+
+.monaco-editor.findMatch {
+	background-color: var(--vscode-editorWidget-background);
+}
+
+
