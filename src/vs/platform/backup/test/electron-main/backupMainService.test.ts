@@ -81,11 +81,6 @@ flakySuite('BackupMainService', () => {
 		return workspace;
 	}
 
-	function ensureEmptyWindowExists(id: string): Promise<void> {
-		const backupFolder = service.toBackupPath(id);
-		return createBackupFolder(backupFolder);
-	}
-
 	async function createBackupFolder(backupFolder: string): Promise<void> {
 		if (!fs.existsSync(backupFolder)) {
 			fs.mkdirSync(backupFolder);
@@ -169,73 +164,6 @@ flakySuite('BackupMainService', () => {
 
 	teardown(() => {
 		return Promises.rm(testDir);
-	});
-
-	test('service migrates from old workspace.json', async function () {
-		const legacyWorkspaceJsonPath = path.join(backupHome, 'workspaces.json');
-
-		// malformed file
-		stateMainService.removeItem('backupWorkspaces');
-		await Promises.writeFile(legacyWorkspaceJsonPath, '{ hello world');
-		await service.initialize();
-		assert.ok(!await Promises.exists(legacyWorkspaceJsonPath));
-		assert.equal(service.getEmptyWindowBackups().length, 0);
-		assert.equal(service.testGetFolderBackups().length, 0);
-		assert.equal(service.testGetWorkspaceBackups().length, 0);
-
-		// file with empty contents (1)
-		stateMainService.removeItem('backupWorkspaces');
-		await Promises.writeFile(legacyWorkspaceJsonPath, '{}');
-		await service.initialize();
-		assert.ok(!await Promises.exists(legacyWorkspaceJsonPath));
-		assert.equal(service.getEmptyWindowBackups().length, 0);
-		assert.equal(service.testGetFolderBackups().length, 0);
-		assert.equal(service.testGetWorkspaceBackups().length, 0);
-
-		// file with empty contents (2)
-		stateMainService.removeItem('backupWorkspaces');
-		await Promises.writeFile(legacyWorkspaceJsonPath, JSON.stringify({
-			rootURIWorkspaces: [],
-			folderWorkspaceInfos: [],
-			emptyWorkspaceInfos: []
-		}));
-		await service.initialize();
-		assert.ok(!await Promises.exists(legacyWorkspaceJsonPath));
-		assert.equal(service.getEmptyWindowBackups().length, 0);
-		assert.equal(service.testGetFolderBackups().length, 0);
-		assert.equal(service.testGetWorkspaceBackups().length, 0);
-
-		// file with contents
-
-		const workspacePath = path.join(testDir, 'Foo.code-workspace');
-		const workspace1 = await ensureWorkspaceExists(toWorkspace(workspacePath));
-		await ensureFolderExists(existingTestFolder1);
-		const emptyWindowWorkspaceId = '1662626964151';
-		await ensureEmptyWindowExists(emptyWindowWorkspaceId);
-
-		stateMainService.removeItem('backupWorkspaces');
-		await Promises.writeFile(legacyWorkspaceJsonPath, JSON.stringify({
-			rootURIWorkspaces: [workspace1].map(toSerializedWorkspace),
-			folderWorkspaceInfos: [{ folderUri: existingTestFolder1.toString() }],
-			emptyWorkspaceInfos: [{ backupFolder: emptyWindowWorkspaceId }]
-		}));
-		await service.initialize();
-		assert.ok(!await Promises.exists(legacyWorkspaceJsonPath));
-		assert.equal(service.getEmptyWindowBackups().length, 1);
-		assert.equal(service.testGetFolderBackups().length, 1);
-		assert.equal(service.testGetWorkspaceBackups().length, 1);
-
-		// subsequent initialize ignores file
-
-		await Promises.writeFile(legacyWorkspaceJsonPath, JSON.stringify({
-			rootURIWorkspaces: [],
-			folderWorkspaceInfos: [],
-			emptyWorkspaceInfos: []
-		}));
-		await service.initialize();
-		assert.equal(service.getEmptyWindowBackups().length, 1);
-		assert.equal(service.testGetFolderBackups().length, 1);
-		assert.equal(service.testGetWorkspaceBackups().length, 1);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {

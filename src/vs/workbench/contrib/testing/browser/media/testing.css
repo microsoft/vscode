@@ -3,6 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/** -- icons */
+
+.monaco-workbench .codicon-testing-error-icon {
+	color: var(--vscode-testing-iconErrored);
+}
+
+.monaco-workbench .codicon-testing-failed-icon {
+	color: var(--vscode-testing-iconFailed);
+}
+
+.monaco-workbench .codicon-testing-passed-icon {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.monaco-workbench .codicon-testing-queued-icon {
+	color: var(--vscode-testing-iconQueued);
+}
+
+.monaco-workbench .codicon-testing-skipped-icon {
+	color: var(--vscode-testing-iconSkipped);
+}
+
+.monaco-workbench .codicon-testing-unset-icon {
+	color: var(--vscode-testing-iconUnset);
+}
+
 /** -- explorer */
 .test-explorer {
 	display: flex;
@@ -176,6 +202,12 @@
 	align-items: center;
 }
 
+.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked {
+	border-color: var(--vscode-inputOption-activeBorder);
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
 .testing-filter-action-bar .testing-filter-action-item {
 	max-width: none;
 }
@@ -205,6 +237,7 @@
 
 .monaco-editor .testing-run-glyph {
 	cursor: pointer;
+	color: var(--vscode-testingColorRunAction);
 }
 
 .testing-diff-title-widget {
@@ -232,4 +265,23 @@
 	margin-left: 0.5em;
 	font-size: .9em;
 	white-space: pre;
+}
+
+.testing-diff-lens-widget {
+	color: var(--vscode-editorCodeLens-foreground);
+}
+
+.test-message-inline-content-s0 {
+	color: var(--vscode-testing-message-error-decorationForeground) !important;
+}
+
+.test-message-inline-content-s1 {
+	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+.monaco-editor .testing-inline-message-severity-0 {
+	color: var(--vscode-testing-message-error-decorationForeground) !important;
+}
+.monaco-editor .testing-inline-message-severity-1 {
+	color: var(--vscode-testing-message-info-decorationForeground) !important;
 }

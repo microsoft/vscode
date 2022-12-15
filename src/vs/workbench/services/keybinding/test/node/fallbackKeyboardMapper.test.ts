@@ -6,12 +6,12 @@
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
 import { SimpleKeybinding, createKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
+import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
 import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 
 suite('keyboardMapper - MAC fallback', () => {
 
-	const mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
+	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
@@ -58,6 +58,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -106,6 +107,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
+				altGraphKey: false,
 				keyCode: KeyCode.Meta,
 				code: null!
 			},
@@ -131,6 +133,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -156,6 +159,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: false,
 				altKey: true,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Alt,
 				code: null!
 			},
@@ -172,31 +176,6 @@ suite('keyboardMapper - MAC fallback', () => {
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Meta+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
-			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: false,
-				altKey: false,
-				metaKey: true,
-				keyCode: KeyCode.Meta,
-				code: null!
-			},
-			{
-				label: '⌘',
-				ariaLabel: 'Command',
-				electronAccelerator: null,
-				userSettingsLabel: 'cmd',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['meta'],
-			}
-		);
-	});
-
 	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
@@ -206,6 +185,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				shiftKey: true,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Shift,
 				code: null!
 			},
@@ -221,11 +201,39 @@ suite('keyboardMapper - MAC fallback', () => {
 			}
 		);
 	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', () => {
+		const mapper = new FallbackKeyboardMapper(true, OperatingSystem.Macintosh);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: KeyCode.KeyZ,
+				code: null!
+			},
+			{
+				label: '⌃⌥Z',
+				ariaLabel: 'Control+Option+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+Z'],
+				singleModifierDispatchParts: [null],
+			}
+		);
+	});
 });
 
 suite('keyboardMapper - LINUX fallback', () => {
 
-	const mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
+	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
@@ -272,6 +280,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.KeyZ,
 				code: null!
 			},
@@ -334,6 +343,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
+				altGraphKey: false,
 				keyCode: KeyCode.Ctrl,
 				code: null!
 			},
@@ -346,6 +356,34 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['ctrl'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent mapAltGrToCtrlAlt AltGr+Z', () => {
+		const mapper = new FallbackKeyboardMapper(true, OperatingSystem.Linux);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				altGraphKey: true,
+				keyCode: KeyCode.KeyZ,
+				code: null!
+			},
+			{
+				label: 'Ctrl+Alt+Z',
+				ariaLabel: 'Control+Alt+Z',
+				electronAccelerator: 'Ctrl+Alt+Z',
+				userSettingsLabel: 'ctrl+alt+z',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});

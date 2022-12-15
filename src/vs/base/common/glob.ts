@@ -729,7 +729,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 					return null;
 				}
 
-				const clausePattern = when.replace('$(basename)', name!);
+				const clausePattern = when.replace('$(basename)', () => name!);
 				const matched = hasSibling(clausePattern);
 				return isThenable(matched) ?
 					matched.then(match => match ? pattern : null) :

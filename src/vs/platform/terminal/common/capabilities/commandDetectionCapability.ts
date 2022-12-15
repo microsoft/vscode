@@ -649,7 +649,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
+function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -674,9 +674,6 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
-				if (!outputMatcher.multipleMatches && match) {
-					return { regexMatch: match };
-				}
 			}
 		}
 	} else {
@@ -693,9 +690,6 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
-				if (!outputMatcher.multipleMatches && match) {
-					return { regexMatch: match };
-				}
 			}
 		}
 	}

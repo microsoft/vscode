@@ -52,6 +52,7 @@ export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STAT
 const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
 
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
+const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
 
 type ExistingSessionItem = { session: AuthenticationSession; providerId: string; label: string; description: string };
@@ -487,6 +488,21 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const clipboardService = accessor.get(IClipboardService);
 				const commandService = accessor.get(ICommandService);
 				const storageService = accessor.get(IStorageService);
+				const dialogService = accessor.get(IDialogService);
+
+				const didNotifyPreview = storageService.getBoolean(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, StorageScope.APPLICATION, false);
+				if (!didNotifyPreview) {
+					const result = await dialogService.confirm({
+						message: localize('tunnel.preview', 'Remote Tunnels is currently in preview. Please report any problems using the "Help: Report Issue" command.'),
+						primaryButton: localize('enable', 'Enable'),
+						secondaryButton: localize('cancel', 'Cancel'),
+					});
+					if (!result.confirmed) {
+						return;
+					}
+
+					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+				}
 
 				const connectionInfo = await that.startTunnel(false);
 				if (connectionInfo) {
@@ -548,7 +564,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: RemoteTunnelCommandIds.connecting,
-					title: localize('remoteTunnel.actions.manage.connecting', 'Remote Tunnel Access in Connecting'),
+					title: localize('remoteTunnel.actions.manage.connecting', 'Remote Tunnel Access is Connecting'),
 					category: REMOTE_TUNNEL_CATEGORY,
 					menu: [{
 						id: MenuId.AccountsContext,
@@ -738,8 +754,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
 			scope: ConfigurationScope.MACHINE,
-			pattern: '^[\\w-]*$',
-			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name can only consist of letters, numbers, underscore and minus."),
+			pattern: '^\\w[\\w-]*$',
+			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash."),
 			maxLength: 20,
 			default: ''
 		}

@@ -253,6 +253,10 @@ export class BreadcrumbsControl {
 		this.domNode.classList.toggle('hidden', true);
 	}
 
+	revealLast(): void {
+		this._widget.revealLast();
+	}
+
 	update(): boolean {
 		this._breadcrumbsDisposables.clear();
 
@@ -504,14 +508,14 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			id: 'breadcrumbs.toggle',
 			title: {
 				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize('miBreadcrumbs', "Toggle &&Breadcrumbs"),
+				mnemonicTitle: localize({ key: 'miBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"),
 				original: 'Toggle Breadcrumbs',
 			},
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
 				title: localize('cmd.toggle2', "Breadcrumbs"),
-				mnemonicTitle: localize('miBreadcrumbs2', "&&Breadcrumbs")
+				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },

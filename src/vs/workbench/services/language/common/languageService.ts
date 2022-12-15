@@ -180,6 +180,7 @@ export class WorkbenchLanguageService extends LanguageService {
 
 		this.onDidEncounterLanguage((languageId) => {
 			this._extensionService.activateByEvent(`onLanguage:${languageId}`);
+			this._extensionService.activateByEvent(`onLanguage`);
 		});
 	}
 

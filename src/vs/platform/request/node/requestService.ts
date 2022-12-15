@@ -47,7 +47,7 @@ export class RequestService extends Disposable implements IRequestService {
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -69,7 +69,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 		let shellEnv: typeof process.env | undefined = undefined;
 		try {
-			shellEnv = await getResolvedShellEnv(this.logService, this.environmentService.args, process.env);
+			shellEnv = await getResolvedShellEnv(this.configurationService, this.logService, this.environmentService.args, process.env);
 		} catch (error) {
 			if (!this.shellEnvErrorLogged) {
 				this.shellEnvErrorLogged = true;
