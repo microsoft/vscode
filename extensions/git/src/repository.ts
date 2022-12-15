@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import * as picomatch from 'picomatch';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
@@ -392,40 +393,75 @@ function shouldShowProgress(operation: Operation): boolean {
 	}
 }
 
+export interface OperationData<T = unknown> {
+	kind: Operation;
+	state: T;
+}
+
+export interface CheckoutOperationData {
+	ref: string;
+}
+
 export interface Operations {
 	isIdle(): boolean;
+	getData<T>(operationKind: Operation): OperationData<T>[];
 	shouldShowProgress(): boolean;
-	isRunning(operation: Operation): boolean;
+	isRunning(operationKind: Operation): boolean;
 }
 
 class OperationsImpl implements Operations {
 
-	private operations = new Map<Operation, number>();
+	private operationKinds = new Map<Operation, number>();
+	private operationData = new Map<string, OperationData>();
 
 	constructor(private readonly logger: LogOutputChannel) { }
 
-	start(operation: Operation): void {
-		this.logger.trace(`Operation start: ${operation}`);
-		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
+	start(operation: OperationData): string {
+		const operationId = crypto.randomUUID();
+		this.operationData.set(operationId, operation);
+		this.operationKinds.set(operation.kind, (this.operationKinds.get(operation.kind) || 0) + 1);
+
+		this.logger.trace(`Operation start: ${operation.kind} (${operationId})`);
+		return operationId;
 	}
 
-	end(operation: Operation): void {
-		this.logger.trace(`Operation end: ${operation}`);
-		const count = (this.operations.get(operation) || 0) - 1;
+	end(operationId: string): void {
+		const operation = this.operationData.get(operationId);
+		if (!operation) {
+			this.logger.warn(`Operation not found: ${operationId}`);
+			return;
+		}
+
+		this.operationData.delete(operationId);
+		const count = (this.operationKinds.get(operation.kind) || 0) - 1;
 
 		if (count <= 0) {
-			this.operations.delete(operation);
+			this.operationKinds.delete(operation.kind);
 		} else {
-			this.operations.set(operation, count);
+			this.operationKinds.set(operation.kind, count);
 		}
+
+		this.logger.trace(`Operation end: ${operation.kind} (${operationId})`);
 	}
 
-	isRunning(operation: Operation): boolean {
-		return this.operations.has(operation);
+	getData<T>(operationKind: Operation): OperationData<T>[] {
+		const data: OperationData<T>[] = [];
+
+		for (const operation of this.operationData.values()) {
+			if (operation.kind === operationKind) {
+				data.push(operation as OperationData<T>);
+			}
+		}
+
+		return data;
+	}
+
+	isRunning(operationKind: Operation): boolean {
+		return this.operationKinds.has(operationKind);
 	}
 
 	isIdle(): boolean {
-		const operations = this.operations.keys();
+		const operations = this.operationKinds.keys();
 
 		for (const operation of operations) {
 			if (!isReadOnly(operation)) {
@@ -437,7 +473,7 @@ class OperationsImpl implements Operations {
 	}
 
 	shouldShowProgress(): boolean {
-		const operations = this.operations.keys();
+		const operations = this.operationKinds.keys();
 
 		for (const operation of operations) {
 			if (shouldShowProgress(operation)) {
@@ -899,12 +935,6 @@ export class Repository implements Disposable {
 
 	get dotGit(): { path: string; commonPath?: string } {
 		return this.repository.dotGit;
-	}
-
-	// TODO@lszomoru - Move this to operation state
-	private _checkoutRef: string | undefined;
-	get checkoutRef(): string | undefined {
-		return this._checkoutRef;
 	}
 
 	private isRepositoryHuge: false | { limit: number } = false;
@@ -1560,24 +1590,18 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		this._checkoutRef = treeish;
-
-		try {
-			await this.run(Operation.Checkout, async () => {
-				if (opts?.pullBeforeCheckout) {
-					try {
-						await this.fastForwardBranch(treeish);
-					}
-					catch (err) {
-						// noop
-					}
+		await this.run({ kind: Operation.Checkout, state: { ref: treeish } }, async () => {
+			if (opts?.pullBeforeCheckout) {
+				try {
+					await this.fastForwardBranch(treeish);
 				}
+				catch (err) {
+					// noop
+				}
+			}
 
-				await this.repository.checkout(treeish, [], opts);
-			});
-		} finally {
-			this._checkoutRef = undefined;
-		}
+			await this.repository.checkout(treeish, [], opts);
+		});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
@@ -2032,22 +2056,35 @@ export class Repository implements Disposable {
 	}
 
 	private async run<T>(
-		operation: Operation,
+		operation: Operation | OperationData,
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
+
+		if (Object.getOwnPropertyNames(operation).includes('kind')) {
+			return this._run(operation as OperationData, runOperation, getOptimisticResourceGroups);
+		} else {
+			return this._run({ kind: operation as Operation, state: {} }, runOperation, getOptimisticResourceGroups);
+		}
+	}
+
+	private async _run<T>(
+		operation: OperationData,
+		runOperation: () => Promise<T>,
+		getOptimisticResourceGroups: () => GitResourceGroups | undefined): Promise<T> {
+
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
 
 		let error: any = null;
 
-		this._operations.start(operation);
-		this._onRunOperation.fire(operation);
+		const operationId = this._operations.start(operation);
+		this._onRunOperation.fire(operation.kind);
 
 		try {
-			const result = await this.retryRun(operation, runOperation);
+			const result = await this._retryRun(operation.kind, runOperation);
 
-			if (!isReadOnly(operation)) {
+			if (!isReadOnly(operation.kind)) {
 				await this.updateModelState(this.optimisticUpdateEnabled() ? getOptimisticResourceGroups() : undefined);
 			}
 
@@ -2061,12 +2098,12 @@ export class Repository implements Disposable {
 
 			throw err;
 		} finally {
-			this._operations.end(operation);
-			this._onDidRunOperation.fire({ operation, error });
+			this._operations.end(operationId);
+			this._onDidRunOperation.fire({ operation: operation.kind, error });
 		}
 	}
 
-	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+	private async _retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		let attempt = 0;
 
 		while (true) {
