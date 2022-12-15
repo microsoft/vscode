@@ -104,7 +104,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33), new Selection(4, 6, 4, 36)];
 	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 3, 33), new Selection(4, 0, 4, 36)];
 
-	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfile');
+	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
 
 	test('Wrap with block element using multi cursor', () => {
 		return testWrapWithAbbreviation(multiCursors, 'div', wrapBlockElementExpected, htmlContentsForBlockWrapTests);

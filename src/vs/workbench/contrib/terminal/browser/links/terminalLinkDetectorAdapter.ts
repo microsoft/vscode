@@ -59,12 +59,19 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			this._detector.xterm.buffer.active.getLine(startLine)!
 		];
 
-		while (startLine >= 0 && this._detector.xterm.buffer.active.getLine(startLine)?.isWrapped) {
+		// Cap the maximum context on either side of the line being provided, by taking the context
+		// around the line being provided for this ensures the line the pointer is on will have
+		// links provided.
+		const maxLineContext = Math.max(this._detector.maxLinkLength / this._detector.xterm.cols);
+		const minStartLine = Math.max(startLine - maxLineContext, 0);
+		const maxEndLine = Math.min(endLine + maxLineContext, this._detector.xterm.buffer.active.length);
+
+		while (startLine >= minStartLine && this._detector.xterm.buffer.active.getLine(startLine)?.isWrapped) {
 			lines.unshift(this._detector.xterm.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
-		while (endLine < this._detector.xterm.buffer.active.length && this._detector.xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+		while (endLine < maxEndLine && this._detector.xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
 			lines.push(this._detector.xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}

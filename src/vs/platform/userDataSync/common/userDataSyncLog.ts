@@ -40,10 +40,6 @@ export class UserDataSyncLogService extends AbstractLogger implements IUserDataS
 		this.logger.error(message, ...args);
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		this.logger.critical(message, ...args);
-	}
-
 	flush(): void {
 		this.logger.flush();
 	}

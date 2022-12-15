@@ -8,7 +8,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
-import { DisposableTracker } from 'vs/base/test/common/utils';
+import { observableValue, transaction } from 'vs/base/common/observable';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -49,7 +51,7 @@ suite('Event utils dispose', function () {
 			const actualInstances = tracker.getTrackedDisposables();
 			assert.strictEqual(actualInstances.length, expected.length);
 
-			for (let item of actualInstances) {
+			for (const item of actualInstances) {
 				assert.ok(instances.has(item));
 			}
 
@@ -76,7 +78,7 @@ suite('Event utils dispose', function () {
 		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
 
 		let all = 0;
-		let leaked = evens(n => all += n);
+		const leaked = evens(n => all += n);
 		assert.ok(isDisposable(leaked));
 		assertDisposablesCount(3);
 
@@ -92,7 +94,7 @@ suite('Event utils dispose', function () {
 		assertDisposablesCount(1); // debounce only listens when `debounce` is being listened on
 
 		let all = 0;
-		let leaked = debounced(n => all += n);
+		const leaked = debounced(n => all += n);
 		assert.ok(isDisposable(leaked));
 		assertDisposablesCount(3);
 
@@ -111,9 +113,9 @@ suite('Event', function () {
 
 	test('Emitter plain', function () {
 
-		let doc = new Samples.Document3();
+		const doc = new Samples.Document3();
 
-		let subscription = doc.onDidChange(counter.onEvent, counter);
+		const subscription = doc.onDidChange(counter.onEvent, counter);
 
 		doc.setText('far');
 		doc.setText('boo');
@@ -127,9 +129,9 @@ suite('Event', function () {
 
 	test('Emitter, bucket', function () {
 
-		let bucket: IDisposable[] = [];
-		let doc = new Samples.Document3();
-		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
+		const bucket: IDisposable[] = [];
+		const doc = new Samples.Document3();
+		const subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 
 		doc.setText('far');
 		doc.setText('boo');
@@ -149,9 +151,9 @@ suite('Event', function () {
 
 	test('Emitter, store', function () {
 
-		let bucket = new DisposableStore();
-		let doc = new Samples.Document3();
-		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
+		const bucket = new DisposableStore();
+		const doc = new Samples.Document3();
+		const subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 
 		doc.setText('far');
 		doc.setText('boo');
@@ -171,9 +173,9 @@ suite('Event', function () {
 
 		let firstCount = 0;
 		let lastCount = 0;
-		let a = new Emitter({
-			onFirstListenerAdd() { firstCount += 1; },
-			onLastListenerRemove() { lastCount += 1; }
+		const a = new Emitter({
+			onWillAddFirstListener() { firstCount += 1; },
+			onDidRemoveLastListener() { lastCount += 1; }
 		});
 
 		assert.strictEqual(firstCount, 0);
@@ -197,7 +199,7 @@ suite('Event', function () {
 		setUnexpectedErrorHandler(() => null);
 
 		try {
-			let a = new Emitter<undefined>();
+			const a = new Emitter<undefined>();
 			let hit = false;
 			a.event(function () {
 				// eslint-disable-next-line no-throw-literal
@@ -221,9 +223,9 @@ suite('Event', function () {
 		}
 		const context = {};
 
-		let emitter = new Emitter<undefined>();
-		let reg1 = emitter.event(listener, context);
-		let reg2 = emitter.event(listener, context);
+		const emitter = new Emitter<undefined>();
+		const reg1 = emitter.event(listener, context);
+		const reg2 = emitter.event(listener, context);
 
 		emitter.fire(undefined);
 		assert.strictEqual(counter, 2);
@@ -238,9 +240,9 @@ suite('Event', function () {
 	});
 
 	test('Debounce Event', function (done: () => void) {
-		let doc = new Samples.Document3();
+		const doc = new Samples.Document3();
 
-		let onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
+		const onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
 			if (!prev) {
 				prev = [cur];
 			} else if (prev.indexOf(cur) < 0) {
@@ -270,7 +272,7 @@ suite('Event', function () {
 
 	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
-		let debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
+		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
 		let calls = 0;
 		debounced(() => {
@@ -286,7 +288,7 @@ suite('Event', function () {
 
 	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
-		let debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
+		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
 		let calls = 0;
 		debounced(() => {
@@ -303,9 +305,9 @@ suite('Event', function () {
 
 	test('Debounce Event - leading reset', async function () {
 		const emitter = new Emitter<number>();
-		let debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
+		const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
 
-		let calls: number[] = [];
+		const calls: number[] = [];
 		debounced((e) => calls.push(e));
 
 		emitter.fire(1);
@@ -316,26 +318,29 @@ suite('Event', function () {
 	});
 
 	test('DebounceEmitter', async function () {
-		let callCount = 0;
-		let sum = 0;
-		const emitter = new DebounceEmitter<number>({
-			merge: arr => {
-				callCount += 1;
-				return arr.reduce((p, c) => p + c);
-			}
+		return runWithFakedTimers({}, async function () {
+
+			let callCount = 0;
+			let sum = 0;
+			const emitter = new DebounceEmitter<number>({
+				merge: arr => {
+					callCount += 1;
+					return arr.reduce((p, c) => p + c);
+				}
+			});
+
+			emitter.event(e => { sum = e; });
+
+			const p = Event.toPromise(emitter.event);
+
+			emitter.fire(1);
+			emitter.fire(2);
+
+			await p;
+
+			assert.strictEqual(callCount, 1);
+			assert.strictEqual(sum, 3);
 		});
-
-		emitter.event(e => { sum = e; });
-
-		const p = Event.toPromise(emitter.event);
-
-		emitter.fire(1);
-		emitter.fire(2);
-
-		await p;
-
-		assert.strictEqual(callCount, 1);
-		assert.strictEqual(sum, 3);
 	});
 
 	test('Microtask Emitter', (done) => {
@@ -396,7 +401,7 @@ suite('AsyncEmitter', function () {
 			bar: number;
 		}
 
-		let emitter = new AsyncEmitter<E>();
+		const emitter = new AsyncEmitter<E>();
 
 		emitter.event(e => {
 			assert.strictEqual(e.foo, true);
@@ -409,59 +414,64 @@ suite('AsyncEmitter', function () {
 	});
 
 	test('sequential delivery', async function () {
+		return runWithFakedTimers({}, async function () {
 
-		interface E extends IWaitUntil {
-			foo: boolean;
-		}
+			interface E extends IWaitUntil {
+				foo: boolean;
+			}
 
-		let globalState = 0;
-		let emitter = new AsyncEmitter<E>();
+			let globalState = 0;
+			const emitter = new AsyncEmitter<E>();
 
-		emitter.event(e => {
-			e.waitUntil(timeout(10).then(_ => {
-				assert.strictEqual(globalState, 0);
-				globalState += 1;
-			}));
+			emitter.event(e => {
+				e.waitUntil(timeout(10).then(_ => {
+					assert.strictEqual(globalState, 0);
+					globalState += 1;
+				}));
+			});
+
+			emitter.event(e => {
+				e.waitUntil(timeout(1).then(_ => {
+					assert.strictEqual(globalState, 1);
+					globalState += 1;
+				}));
+			});
+
+			await emitter.fireAsync({ foo: true }, CancellationToken.None);
+			assert.strictEqual(globalState, 2);
 		});
-
-		emitter.event(e => {
-			e.waitUntil(timeout(1).then(_ => {
-				assert.strictEqual(globalState, 1);
-				globalState += 1;
-			}));
-		});
-
-		await emitter.fireAsync({ foo: true }, CancellationToken.None);
-		assert.strictEqual(globalState, 2);
 	});
 
 	test('sequential, in-order delivery', async function () {
-		interface E extends IWaitUntil {
-			foo: number;
-		}
-		let events: number[] = [];
-		let done = false;
-		let emitter = new AsyncEmitter<E>();
+		return runWithFakedTimers({}, async function () {
 
-		// e1
-		emitter.event(e => {
-			e.waitUntil(timeout(10).then(async _ => {
-				if (e.foo === 1) {
-					await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
-					assert.deepStrictEqual(events, [1, 2]);
-					done = true;
-				}
-			}));
+			interface E extends IWaitUntil {
+				foo: number;
+			}
+			const events: number[] = [];
+			let done = false;
+			const emitter = new AsyncEmitter<E>();
+
+			// e1
+			emitter.event(e => {
+				e.waitUntil(timeout(10).then(async _ => {
+					if (e.foo === 1) {
+						await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
+						assert.deepStrictEqual(events, [1, 2]);
+						done = true;
+					}
+				}));
+			});
+
+			// e2
+			emitter.event(e => {
+				events.push(e.foo);
+				e.waitUntil(timeout(7));
+			});
+
+			await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
+			assert.ok(done);
 		});
-
-		// e2
-		emitter.event(e => {
-			events.push(e.foo);
-			e.waitUntil(timeout(7));
-		});
-
-		await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
-		assert.ok(done);
 	});
 
 	test('catch errors', async function () {
@@ -473,7 +483,7 @@ suite('AsyncEmitter', function () {
 		}
 
 		let globalState = 0;
-		let emitter = new AsyncEmitter<E>();
+		const emitter = new AsyncEmitter<E>();
 
 		emitter.event(e => {
 			globalState += 1;
@@ -621,6 +631,44 @@ suite('PausableEmitter', function () {
 		emitter.fire(3);
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);
 
+	});
+
+	test('empty pause with merge', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>({ merge: a => a[0] });
+		emitter.event(e => data.push(1));
+
+		emitter.pause();
+		emitter.resume();
+		assert.deepStrictEqual(data, []);
+	});
+
+});
+
+suite('Event utils - ensureNoDisposablesAreLeakedInTestSuite', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fromObservable', function () {
+
+		const obs = observableValue('test', 12);
+		const event = Event.fromObservable(obs);
+
+		const values: number[] = [];
+		const d = event(n => { values.push(n); });
+
+		obs.set(3, undefined);
+		obs.set(13, undefined);
+		obs.set(3, undefined);
+		obs.set(33, undefined);
+		obs.set(1, undefined);
+
+		transaction(tx => {
+			obs.set(334, tx);
+			obs.set(99, tx);
+		});
+
+		assert.deepStrictEqual(values, ([3, 13, 3, 33, 1, 99]));
+		d.dispose();
 	});
 });
 
@@ -963,7 +1011,7 @@ suite('Event utils', () => {
 
 	test('dispose is reentrant', () => {
 		const emitter = new Emitter<number>({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				emitter.dispose();
 			}
 		});
@@ -1033,7 +1081,7 @@ suite('Event utils', () => {
 		const event = eventEmitter.event;
 
 		let i = 0;
-		let log = new Array<any>();
+		const log = new Array<any>();
 		const disposable = Event.runAndSubscribeWithStore(event, (e, disposables) => {
 			const idx = i++;
 			log.push({ label: 'handleEvent', data: e || null, idx });

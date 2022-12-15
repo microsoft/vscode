@@ -722,8 +722,8 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_OEM_CLEAR', empty, empty],
 	];
 
-	let seenKeyCode: boolean[] = [];
-	let seenScanCode: boolean[] = [];
+	const seenKeyCode: boolean[] = [];
+	const seenScanCode: boolean[] = [];
 	for (const mapping of mappings) {
 		const [_keyCodeOrd, immutable, scanCode, scanCodeStr, keyCode, keyCodeStr, eventKeyCode, vkey, usUserSettingsLabel, generalUserSettingsLabel] = mapping;
 		if (!seenScanCode[scanCode]) {

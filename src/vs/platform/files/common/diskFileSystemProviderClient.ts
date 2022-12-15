@@ -13,7 +13,7 @@ import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createFileSystemProviderError, FileAtomicReadOptions, FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, FileChangeType, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 
@@ -83,13 +83,13 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	//#region File Reading/Writing
 
-	async readFile(resource: URI, opts?: FileAtomicReadOptions): Promise<Uint8Array> {
+	async readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
 		const { buffer } = await this.channel.call('readFile', [resource, opts]) as VSBuffer;
 
 		return buffer;
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 
 		// Reading as file stream goes through an event to the remote side
@@ -141,11 +141,11 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return stream;
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		return this.channel.call('open', [resource, opts]);
 	}
 
@@ -177,15 +177,15 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('mkdir', [resource]);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this.channel.call('delete', [resource, opts]);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.channel.call('rename', [resource, target, opts]);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+	copy(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.channel.call('copy', [resource, target, opts]);
 	}
 

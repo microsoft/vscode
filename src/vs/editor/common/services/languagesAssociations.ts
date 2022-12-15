@@ -152,6 +152,10 @@ function getAssociations(resource: URI | null, firstLine?: string): IdAndMime[] 
 				path = metadata.get(DataUri.META_DATA_LABEL);
 				break;
 			}
+			case Schemas.vscodeNotebookCell:
+				// File path not relevant for language detection of cell
+				path = undefined;
+				break;
 			default:
 				path = resource.path;
 		}

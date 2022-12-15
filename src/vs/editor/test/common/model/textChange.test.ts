@@ -30,17 +30,17 @@ suite('TextChangeCompressor', () => {
 
 	function getTextChanges(initialContent: string, edits: IGeneratedEdit[]): TextChange[] {
 		let content = initialContent;
-		let changes: TextChange[] = new Array<TextChange>(edits.length);
+		const changes: TextChange[] = new Array<TextChange>(edits.length);
 		let deltaOffset = 0;
 
 		for (let i = 0; i < edits.length; i++) {
-			let edit = edits[i];
+			const edit = edits[i];
 
-			let position = edit.offset + deltaOffset;
-			let length = edit.length;
-			let text = edit.text;
+			const position = edit.offset + deltaOffset;
+			const length = edit.length;
+			const text = edit.text;
 
-			let oldText = content.substr(position, length);
+			const oldText = content.substr(position, length);
 
 			content = (
 				content.substr(0, position) +
@@ -58,33 +58,33 @@ suite('TextChangeCompressor', () => {
 
 	function assertCompression(initialText: string, edit1: IGeneratedEdit[], edit2: IGeneratedEdit[]): void {
 
-		let tmpText = getResultingContent(initialText, edit1);
-		let chg1 = getTextChanges(initialText, edit1);
+		const tmpText = getResultingContent(initialText, edit1);
+		const chg1 = getTextChanges(initialText, edit1);
 
-		let finalText = getResultingContent(tmpText, edit2);
-		let chg2 = getTextChanges(tmpText, edit2);
+		const finalText = getResultingContent(tmpText, edit2);
+		const chg2 = getTextChanges(tmpText, edit2);
 
-		let compressedTextChanges = compressConsecutiveTextChanges(chg1, chg2);
+		const compressedTextChanges = compressConsecutiveTextChanges(chg1, chg2);
 
 		// Check that the compression was correct
-		let compressedDoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
+		const compressedDoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
 			return {
 				offset: change.oldPosition,
 				length: change.oldLength,
 				text: change.newText
 			};
 		});
-		let actualDoResult = getResultingContent(initialText, compressedDoTextEdits);
+		const actualDoResult = getResultingContent(initialText, compressedDoTextEdits);
 		assert.strictEqual(actualDoResult, finalText);
 
-		let compressedUndoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
+		const compressedUndoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
 			return {
 				offset: change.newPosition,
 				length: change.newLength,
 				text: change.oldText
 			};
 		});
-		let actualUndoResult = getResultingContent(finalText, compressedUndoTextEdits);
+		const actualUndoResult = getResultingContent(finalText, compressedUndoTextEdits);
 		assert.strictEqual(actualUndoResult, initialText);
 	}
 
@@ -206,8 +206,8 @@ suite('TextChangeCompressor', () => {
 	}
 
 	function getRandomBuffer(small: boolean): string {
-		let lineCount = getRandomInt(1, small ? 3 : 10);
-		let lines: string[] = [];
+		const lineCount = getRandomInt(1, small ? 3 : 10);
+		const lines: string[] = [];
 		for (let i = 0; i < lineCount; i++) {
 			lines.push(getRandomString(0, small ? 3 : 10) + getRandomEOL());
 		}
@@ -216,16 +216,16 @@ suite('TextChangeCompressor', () => {
 
 	function getRandomEdits(content: string, min: number = 1, max: number = 5): IGeneratedEdit[] {
 
-		let result: IGeneratedEdit[] = [];
+		const result: IGeneratedEdit[] = [];
 		let cnt = getRandomInt(min, max);
 
 		let maxOffset = content.length;
 
 		while (cnt > 0 && maxOffset > 0) {
 
-			let offset = getRandomInt(0, maxOffset);
-			let length = getRandomInt(0, maxOffset - offset);
-			let text = getRandomBuffer(true);
+			const offset = getRandomInt(0, maxOffset);
+			const length = getRandomInt(0, maxOffset - offset);
+			const text = getRandomBuffer(true);
 
 			result.push({
 				offset: offset,
@@ -251,7 +251,7 @@ suite('TextChangeCompressor', () => {
 		constructor() {
 			this._content = getRandomBuffer(false).replace(/\n/g, '_');
 			this._edits1 = getRandomEdits(this._content, 1, 5).map((e) => { return { offset: e.offset, length: e.length, text: e.text.replace(/\n/g, '_') }; });
-			let tmp = getResultingContent(this._content, this._edits1);
+			const tmp = getResultingContent(this._content, this._edits1);
 			this._edits2 = getRandomEdits(tmp, 1, 5).map((e) => { return { offset: e.offset, length: e.length, text: e.text.replace(/\n/g, '_') }; });
 		}
 
@@ -269,7 +269,7 @@ suite('TextChangeCompressor', () => {
 		while (true) {
 			testNumber++;
 			console.log(`------RUNNING TextChangeCompressor TEST ${testNumber}`);
-			let test = new GeneratedTest();
+			const test = new GeneratedTest();
 			try {
 				test.assert();
 			} catch (err) {

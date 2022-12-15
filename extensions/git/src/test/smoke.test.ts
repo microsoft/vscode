@@ -44,7 +44,7 @@ suite('git smoke test', function () {
 		fs.writeFileSync(file('index.pug'), 'hello', 'utf8');
 		cp.execSync('git init -b main', { cwd });
 		cp.execSync('git config user.name testuser', { cwd });
-		cp.execSync('git config user.email monacotools@microsoft.com', { cwd });
+		cp.execSync('git config user.email monacotools@example.com', { cwd });
 		cp.execSync('git config commit.gpgsign false', { cwd });
 		cp.execSync('git add .', { cwd });
 		cp.execSync('git commit -m "initial commit"', { cwd });

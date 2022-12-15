@@ -15,12 +15,10 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IUserFriendlyKeybinding, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IExtensionKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -33,17 +31,14 @@ import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMappe
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
@@ -52,6 +47,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -191,7 +187,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
@@ -204,38 +200,23 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
 		this.updateSchema();
 
-		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidChangeConfiguration((e) => {
-			const newDispatchConfig = getDispatchConfig(configurationService);
-			if (dispatchConfig === newDispatchConfig) {
-				return;
-			}
-
-			dispatchConfig = newDispatchConfig;
-			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver({ source: KeybindingSource.Default });
-		});
-
-		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
+		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
 		this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
-			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver({ source: KeybindingSource.Default });
+			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
+			this.updateResolver();
 		});
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(environmentService.keybindingsResource, fileService, logService));
+		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, fileService, logService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
-				this.updateResolver({ source: KeybindingSource.User });
+				this.updateResolver();
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
 			logService.debug('User keybindings changed');
-			this.updateResolver({
-				source: KeybindingSource.User,
-				keybindings: this.userKeybindings.keybindings
-			});
+			this.updateResolver();
 		}));
 
 		keybindingsExtPoint.setHandler((extensions) => {
@@ -246,7 +227,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 
 			KeybindingsRegistry.setExtensionKeybindings(keybindings);
-			this.updateResolver({ source: KeybindingSource.Default });
+			this.updateResolver();
 		});
 
 		this.updateSchema();
@@ -291,7 +272,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 			// update resolver which will bring back all unbound keyboard shortcuts
 			this._cachedResolver = null;
-			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
+			this._onDidUpdateKeybindings.fire();
 		}));
 	}
 
@@ -330,7 +311,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		const firstRowIndentation = firstRow.length;
-		let isFirst = true;
+		const isFirst = true;
 		for (const resolvedKeybinding of resolvedKeybindings) {
 			if (isFirst) {
 				output.push(`${firstRow}${this._printResolvedKeybinding(resolvedKeybinding).padStart(padLength, ' ')}`);
@@ -397,9 +378,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this.userKeybindings.keybindings.length;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
+	private updateResolver(): void {
 		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getResolver(): KeybindingResolver {
@@ -463,7 +444,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _assertBrowserConflicts(kb: (SimpleKeybinding | ScanCodeBinding)[], commandId: string): boolean {
+	private _assertBrowserConflicts(kb: (SimpleKeybinding | ScanCodeBinding)[], commandId: string | null): boolean {
 		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
@@ -710,34 +691,56 @@ class UserKeybindings extends Disposable {
 
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
+	private readonly watchDisposables = this._register(new DisposableStore());
+
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
-		private readonly keybindingsResource: URI,
+		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly fileService: IFileService,
 		logService: ILogService,
 	) {
 		super();
 
-		this._register(fileService.watch(dirname(keybindingsResource)));
-		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
-		this._register(this.fileService.watch(this.keybindingsResource));
+		this.watch();
+
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keybindingsResource))(() => {
+
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userDataProfileService.currentProfile.keybindingsResource))(() => {
 			logService.debug('Keybindings file changed');
 			this.reloadConfigurationScheduler.schedule();
 		}));
+
 		this._register(this.fileService.onDidRunOperation((e) => {
-			if (e.operation === FileOperation.WRITE && e.resource.toString() === this.keybindingsResource.toString()) {
+			if (e.operation === FileOperation.WRITE && e.resource.toString() === this.userDataProfileService.currentProfile.keybindingsResource.toString()) {
 				logService.debug('Keybindings file written');
 				this.reloadConfigurationScheduler.schedule();
 			}
 		}));
+
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenCurrentProfieChanged(e))));
+	}
+
+	private async whenCurrentProfieChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+		if (e.preserveData) {
+			if (await this.fileService.exists(e.previous.keybindingsResource)) {
+				await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
+			}
+		}
+		this.watch();
+		this.reloadConfigurationScheduler.schedule();
+	}
+
+	private watch(): void {
+		this.watchDisposables.clear();
+		this.watchDisposables.add(this.fileService.watch(dirname(this.userDataProfileService.currentProfile.keybindingsResource)));
+		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+		this.watchDisposables.add(this.fileService.watch(this.userDataProfileService.currentProfile.keybindingsResource));
 	}
 
 	async initialize(): Promise<void> {
@@ -747,9 +750,9 @@ class UserKeybindings extends Disposable {
 	private async reload(): Promise<boolean> {
 		const existing = this._keybindings;
 		try {
-			const content = await this.fileService.readFile(this.keybindingsResource);
+			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
-			this._keybindings = isArray(value) ? value : [];
+			this._keybindings = Array.isArray(value) ? value : [];
 		} catch (e) {
 			this._keybindings = [];
 		}
@@ -885,24 +888,4 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 	schemaRegistry.notifySchemaChanged(schemaId);
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
-const keyboardConfiguration: IConfigurationNode = {
-	'id': 'keyboard',
-	'order': 15,
-	'type': 'object',
-	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'properties': {
-		'keyboard.dispatch': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'string',
-			enum: ['code', 'keyCode'],
-			default: 'code',
-			markdownDescription: nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
-			included: OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
-		}
-	}
-};
-
-configurationRegistry.registerConfiguration(keyboardConfiguration);
-
-registerSingleton(IKeybindingService, WorkbenchKeybindingService);
+registerSingleton(IKeybindingService, WorkbenchKeybindingService, InstantiationType.Eager);

@@ -21,7 +21,7 @@ example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.
 # Build (Web - read instructions below)
 yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
-# Remote (Electron - Must be run on distro)
+# Remote (Electron)
 yarn smoketest --build <path to latest version> --remote
 ```
 
@@ -57,7 +57,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
 - `--headless` will run playwright in headless mode when `--web` is used.
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs), for example to `pw:browser`.
 
 ### Develop
 

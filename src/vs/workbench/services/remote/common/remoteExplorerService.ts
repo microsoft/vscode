@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -290,7 +290,7 @@ export class PortsAttributes extends Disposable {
 		}
 
 		const attributes: PortAttributes[] = [];
-		for (let attributesKey in settingValue) {
+		for (const attributesKey in settingValue) {
 			if (attributesKey === undefined) {
 				continue;
 			}
@@ -379,7 +379,7 @@ export class PortsAttributes extends Disposable {
 	}
 
 	public async addAttributes(port: number, attributes: Partial<Attributes>, target: ConfigurationTarget) {
-		let settingValue = this.configurationService.inspect(PortsAttributes.SETTING);
+		const settingValue = this.configurationService.inspect(PortsAttributes.SETTING);
 		const remoteValue: any = settingValue.userRemoteValue;
 		let newRemoteValue: any;
 		if (!remoteValue || !isObject(remoteValue)) {
@@ -473,6 +473,7 @@ export class TunnelModel extends Disposable {
 		this._register(this.tunnelService.onTunnelOpened(async (tunnel) => {
 			const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 			if (!mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
+				&& !mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
@@ -532,7 +533,7 @@ export class TunnelModel extends Disposable {
 			return deprecatedValue;
 		}
 
-		return this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL);
+		return this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE);
 	}
 
 	async restoreForwarded() {
@@ -541,7 +542,7 @@ export class TunnelModel extends Disposable {
 			if (tunnelRestoreValue && (tunnelRestoreValue !== this.knownPortsRestoreValue)) {
 				const tunnels = <Tunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
 				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
-				for (let tunnel of tunnels) {
+				for (const tunnel of tunnels) {
 					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
 						await this.forward({
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
@@ -560,7 +561,7 @@ export class TunnelModel extends Disposable {
 			const key = await this.getStorageKey();
 			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
 				if (e.key === key) {
-					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE));
 					await this.restoreForwarded();
 				}
 			}));
@@ -572,7 +573,7 @@ export class TunnelModel extends Disposable {
 			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source === TunnelSource.User));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
-				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
@@ -705,6 +706,7 @@ export class TunnelModel extends Disposable {
 						description: nls.localize('tunnel.staticallyForwarded', "Statically Forwarded")
 					}
 				});
+				this.tunnelService.setEnvironmentTunnel(tunnel.remoteAddress.host, tunnel.remoteAddress.port, localAddress, TunnelPrivacyId.ConstantPrivate, TunnelProtocol.Http);
 			}
 		}
 		this._environmentTunnelsSet = true;
@@ -939,7 +941,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		if (current !== newName) {
 			this._targetType = name;
 			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.WORKSPACE, StorageTarget.USER);
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.PROFILE, StorageTarget.USER);
 			this._onDidChangeTargetType.fire(this._targetType);
 		}
 	}
@@ -1015,4 +1017,4 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 }
 
-registerSingleton(IRemoteExplorerService, RemoteExplorerService, true);
+registerSingleton(IRemoteExplorerService, RemoteExplorerService, InstantiationType.Delayed);

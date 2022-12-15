@@ -5,7 +5,6 @@
 
 .monaco-editor .debug-hover-widget {
 	position: absolute;
-	margin-top: -1px;
 	z-index: 50;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;

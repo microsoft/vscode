@@ -15,14 +15,15 @@ import { Position } from '../utils/typeConverters';
 import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
 
 
-const inlayHintSettingNames = [
+const inlayHintSettingNames = Object.freeze([
 	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
 	InlayHintSettingNames.parameterNamesEnabled,
 	InlayHintSettingNames.variableTypesEnabled,
+	InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName,
 	InlayHintSettingNames.propertyDeclarationTypesEnabled,
 	InlayHintSettingNames.functionLikeReturnTypesEnabled,
 	InlayHintSettingNames.enumMemberValuesEnabled,
-];
+]);
 
 class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
 

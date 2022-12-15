@@ -14,10 +14,11 @@ import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/
 import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 const computedStateAccessor: IComputedStateAndDurationAccessor<IActionableTestTreeElement> = {
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
@@ -105,7 +106,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			// children and should trust whatever the result service gives us.
 			const explicitComputed = item.children.size ? undefined : result.computedState;
 
-			item.retired = result.retired;
+			item.retired = !!result.retired;
 			item.ownState = result.ownComputedState;
 			item.ownDuration = result.ownDuration;
 
@@ -161,6 +162,9 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 					} else {
 						this.changes.updated(existing);
 					}
+					if (patch.item?.sortText || (patch.item?.label && !existing.sortText)) {
+						this.changes.sortKeyUpdated(existing);
+					}
 					break;
 				}
 
@@ -212,7 +216,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	}
 
 	protected createItem(item: InternalTestItem): ByLocationTestItemElement {
-		const parent = item.parent ? this.items.get(item.parent)! : null;
+		const parentId = TestId.parentId(item.item.extId);
+		const parent = parentId ? this.items.get(parentId)! : null;
 		return new ByLocationTestItemElement(item, parent, n => this.changes.addedOrRemoved(n));
 	}
 
@@ -271,7 +276,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
 		if (prevState) {
-			treeElement.retired = prevState.retired;
+			treeElement.retired = !!prevState.retired;
 			treeElement.ownState = prevState.computedState;
 			treeElement.ownDuration = prevState.ownDuration;
 

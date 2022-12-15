@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { diffMaps, diffSets } from 'vs/base/common/collections';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
@@ -13,7 +13,7 @@ import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNo
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -85,7 +85,7 @@ export class MainThreadNotebooksAndEditors {
 	private readonly _proxy: Pick<ExtHostNotebookShape, '$acceptDocumentAndEditorsDelta'>;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _editorListeners = new Map<string, IDisposable>();
+	private readonly _editorListeners = new DisposableMap<string>();
 
 	private _currentState?: NotebookAndEditorState;
 
@@ -121,6 +121,7 @@ export class MainThreadNotebooksAndEditors {
 		this._mainThreadNotebooks.dispose();
 		this._mainThreadEditors.dispose();
 		this._disposables.dispose();
+		this._editorListeners.dispose();
 	}
 
 	private _handleEditorAdd(editor: INotebookEditor): void {
@@ -132,8 +133,7 @@ export class MainThreadNotebooksAndEditors {
 	}
 
 	private _handleEditorRemove(editor: INotebookEditor): void {
-		this._editorListeners.get(editor.getId())?.dispose();
-		this._editorListeners.delete(editor.getId());
+		this._editorListeners.deleteAndDispose(editor.getId());
 		this._updateState();
 	}
 

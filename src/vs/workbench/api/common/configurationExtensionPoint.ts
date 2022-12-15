@@ -46,10 +46,6 @@ const configurationEntrySchema: IJSONSchema = {
 					{
 						type: 'object',
 						properties: {
-							isExecutable: {
-								type: 'boolean',
-								markdownDeprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
-							},
 							scope: {
 								type: 'string',
 								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
@@ -78,6 +74,13 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
+							enumItemLabels: {
+								type: 'array',
+								items: {
+									type: 'string'
+								},
+								markdownDescription: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
+							},
 							markdownDescription: {
 								type: 'string',
 								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
@@ -103,7 +106,11 @@ const configurationEntrySchema: IJSONSchema = {
 							order: {
 								type: 'integer',
 								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
-							}
+							},
+							ignoreSync: {
+								type: 'boolean',
+								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
+							},
 						}
 					}
 				]
@@ -180,7 +187,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode[] {
 		const configurations: IConfigurationNode[] = [];
-		let configuration = objects.deepClone(node);
+		const configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
 			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
@@ -197,14 +204,15 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 	}
 
 	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
-		let properties = configuration.properties;
+		const properties = configuration.properties;
 		if (properties) {
 			if (typeof properties !== 'object') {
 				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 				configuration.properties = {};
 			}
-			for (let key in properties) {
-				const message = validateProperty(key);
+			for (const key in properties) {
+				const propertyConfiguration = properties[key];
+				const message = validateProperty(key, propertyConfiguration);
 				if (message) {
 					delete properties[key];
 					extension.collector.warn(message);
@@ -215,7 +223,6 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;
 				}
-				const propertyConfiguration = properties[key];
 				if (!isObject(propertyConfiguration)) {
 					delete properties[key];
 					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
@@ -241,10 +248,10 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				}
 			}
 		}
-		let subNodes = configuration.allOf;
+		const subNodes = configuration.allOf;
 		if (subNodes) {
 			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
-			for (let node of subNodes) {
+			for (const node of subNodes) {
 				validateProperties(node, extension);
 			}
 		}
@@ -252,7 +259,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	if (added.length) {
 		const addedConfigurations: IConfigurationNode[] = [];
-		for (let extension of added) {
+		for (const extension of added) {
 			const configurations: IConfigurationNode[] = [];
 			const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
 			if (Array.isArray(value)) {

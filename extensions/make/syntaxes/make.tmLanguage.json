@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/91b724d1ad86fa65e4b240a960311a280b92f971",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/ef0c485afc66445a6cf184dc34f7744306304f1f",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -28,8 +28,12 @@
 		}
 	],
 	"repository": {
+		"comma": {
+			"match": ",",
+			"name": "punctuation.separator.delimeter.comma.makefile"
+		},
 		"comment": {
-			"begin": "(^[ ]+)?(?=#)",
+			"begin": "(^[ ]+)?((?<!\\\\)(\\\\\\\\)*)(?=#)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.makefile"
@@ -207,6 +211,9 @@
 							"name": "meta.scope.condition.makefile",
 							"patterns": [
 								{
+									"include": "#comma"
+								},
+								{
 									"include": "#variables"
 								},
 								{
@@ -223,6 +230,9 @@
 							},
 							"end": "^",
 							"patterns": [
+								{
+									"include": "#comma"
+								},
 								{
 									"include": "#variables"
 								},
@@ -491,6 +501,9 @@
 					"name": "meta.scope.function-call.makefile",
 					"patterns": [
 						{
+							"include": "#comma"
+						},
+						{
 							"include": "#variables"
 						},
 						{
@@ -520,6 +533,9 @@
 					"end": "(?=}|((?<!\\\\)\\n))",
 					"name": "meta.scope.function-call.makefile",
 					"patterns": [
+						{
+							"include": "#comma"
+						},
 						{
 							"include": "#variables"
 						},

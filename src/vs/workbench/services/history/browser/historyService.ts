@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { parse, stringify } from 'vs/base/common/marshalling';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -24,7 +23,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
@@ -161,9 +160,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 
 		// Listen to selection changes if the editor pane
-		// is having a selection concept.
+		// is having a selection concept. We use `accumulate`
+		// on the event to reduce the pressure on the editor
+		// to reduce input latency.
+
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(Event.accumulate(activeEditorPane.onDidChangeSelection)(e => this.handleActiveEditorSelectionChangeEvents(activeEditorGroup, activeEditorPane, e)));
 		}
 
 		// Context keys
@@ -199,8 +201,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChangeInNavigationStacks(group, editorPane);
 	}
 
-	private handleActiveEditorSelectionChangeEvent(group: IEditorGroup, editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
-		this.handleActiveEditorSelectionChangeInNavigationStacks(group, editorPane, event);
+	private handleActiveEditorSelectionChangeEvents(group: IEditorGroup, editorPane: IEditorPaneWithSelection, events: IEditorPaneSelectionChangeEvent[]): void {
+		for (const event of events) {
+			this.handleActiveEditorSelectionChangeInNavigationStacks(group, editorPane, event);
+		}
 	}
 
 	private move(event: FileOperationEvent): void {
@@ -987,18 +991,34 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private loadHistoryFromStorage(): Array<IResourceEditorInput> {
-		let entries: ISerializedEditorHistoryEntry[] = [];
+		const entries: IResourceEditorInput[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			try {
-				entries = coalesce(parse(entriesRaw));
+				const entriesParsed: ISerializedEditorHistoryEntry[] = JSON.parse(entriesRaw);
+				for (const entryParsed of entriesParsed) {
+					if (!entryParsed.editor || !entryParsed.editor.resource) {
+						continue; // unexpected data format
+					}
+
+					try {
+						entries.push({
+							...entryParsed.editor,
+							resource: typeof entryParsed.editor.resource === 'string' ?
+								URI.parse(entryParsed.editor.resource) :  	//  from 1.67.x: URI is stored efficiently as URI.toString()
+								URI.from(entryParsed.editor.resource)		// until 1.66.x: URI was stored very verbose as URI.toJSON()
+						});
+					} catch (error) {
+						onUnexpectedError(error); // do not fail entire history when one entry fails
+					}
+				}
 			} catch (error) {
 				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
 			}
 		}
 
-		return coalesce(entries.map(entry => entry.editor));
+		return entries;
 	}
 
 	private saveState(): void {
@@ -1012,10 +1032,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue; // only save resource editor inputs
 			}
 
-			entries.push({ editor });
+			entries.push({
+				editor: {
+					...editor,
+					resource: editor.resource.toString()
+				}
+			});
 		}
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion
@@ -1087,7 +1112,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	//#endregion
 }
 
-registerSingleton(IHistoryService, HistoryService);
+registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);
 
 class EditorSelectionState {
 
@@ -1344,7 +1369,7 @@ export class EditorNavigationStack extends Disposable {
 			return;
 		}
 
-		let entryLabels: string[] = [];
+		const entryLabels: string[] = [];
 		for (const entry of this.stack) {
 			if (typeof entry.selection?.log === 'function') {
 				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: ${entry.selection.log()}`);
@@ -1558,7 +1583,7 @@ ${entryLabels.join('\n')}
 		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
 
 		// Replace at current position
-		let removedEntries: IEditorNavigationStackEntry[] = [];
+		const removedEntries: IEditorNavigationStackEntry[] = [];
 		if (replace) {
 			if (this.current) {
 				removedEntries.push(this.current);
@@ -2014,7 +2039,7 @@ class EditorHelper {
 }
 
 interface ISerializedEditorHistoryEntry {
-	editor: IResourceEditorInput;
+	editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
 }
 
 interface IRecentlyClosedEditor {

@@ -5,9 +5,7 @@
 
 import { hide, show } from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./progressbar';
 
@@ -20,13 +18,12 @@ const CSS_DISCRETE = 'discrete';
 export interface IProgressBarOptions extends IProgressBarStyles {
 }
 
+export type CSSValueString = string;
+
 export interface IProgressBarStyles {
-	progressBarBackground?: Color;
+	progressBarBackground?: CSSValueString;
 }
 
-const defaultOpts = {
-	progressBarBackground: Color.fromHex('#0E70C0')
-};
 
 /**
  * A progress bar with support for infinite or discrete progress.
@@ -43,32 +40,25 @@ export class ProgressBar extends Disposable {
 	 */
 	private static readonly LONG_RUNNING_INFINITE_THRESHOLD = 10000;
 
-	private options: IProgressBarOptions;
 	private workedVal: number;
 	private element!: HTMLElement;
 	private bit!: HTMLElement;
 	private totalWork: number | undefined;
-	private progressBarBackground: Color | undefined;
 	private showDelayedScheduler: RunOnceScheduler;
 	private longRunningScheduler: RunOnceScheduler;
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
 		super();
 
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
-
 		this.workedVal = 0;
-
-		this.progressBarBackground = this.options.progressBarBackground;
 
 		this.showDelayedScheduler = this._register(new RunOnceScheduler(() => show(this.element), 0));
 		this.longRunningScheduler = this._register(new RunOnceScheduler(() => this.infiniteLongRunning(), ProgressBar.LONG_RUNNING_INFINITE_THRESHOLD));
 
-		this.create(container);
+		this.create(container, options);
 	}
 
-	private create(container: HTMLElement): void {
+	private create(container: HTMLElement, options?: IProgressBarOptions): void {
 		this.element = document.createElement('div');
 		this.element.classList.add('monaco-progress-container');
 		this.element.setAttribute('role', 'progressbar');
@@ -77,9 +67,8 @@ export class ProgressBar extends Disposable {
 
 		this.bit = document.createElement('div');
 		this.bit.classList.add('progress-bit');
+		this.bit.style.backgroundColor = options?.progressBarBackground || '#0E70C0';
 		this.element.appendChild(this.bit);
-
-		this.applyStyles();
 	}
 
 	private off(): void {
@@ -222,19 +211,5 @@ export class ProgressBar extends Disposable {
 	hide(): void {
 		hide(this.element);
 		this.showDelayedScheduler.cancel();
-	}
-
-	style(styles: IProgressBarStyles): void {
-		this.progressBarBackground = styles.progressBarBackground;
-
-		this.applyStyles();
-	}
-
-	protected applyStyles(): void {
-		if (this.bit) {
-			const background = this.progressBarBackground ? this.progressBarBackground.toString() : '';
-
-			this.bit.style.backgroundColor = background;
-		}
 	}
 }

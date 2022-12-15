@@ -17,7 +17,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, Limiter } from 'vs/base/common/async';
 import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { hash } from 'vs/base/common/hash';
 import { indexOfPath, randomPath } from 'vs/base/common/extpath';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -29,6 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { lastOrDefault } from 'vs/base/common/arrays';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 interface ISerializedWorkingCopyHistoryModel {
 	readonly version: number;
@@ -40,6 +41,17 @@ interface ISerializedWorkingCopyHistoryModelEntry {
 	readonly id: string;
 	readonly timestamp: number;
 	readonly source?: SaveSource;
+}
+
+
+export interface IWorkingCopyHistoryModelOptions {
+
+	/**
+	 * Whether to flush when the model changes. If not
+	 * configured, `model.store()` has to be called
+	 * explicitly.
+	 */
+	flushOnChange: boolean;
 }
 
 export class WorkingCopyHistoryModel {
@@ -65,7 +77,10 @@ export class WorkingCopyHistoryModel {
 
 	private historyEntriesNameMatcher: RegExp | undefined = undefined;
 
-	private shouldStore: boolean = false;
+	private versionId = 0;
+	private storedVersionId = this.versionId;
+
+	private readonly storeLimiter = new Limiter(1);
 
 	constructor(
 		workingCopyResource: URI,
@@ -74,6 +89,7 @@ export class WorkingCopyHistoryModel {
 		private readonly entryChangedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly entryReplacedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly entryRemovedEmitter: Emitter<IWorkingCopyHistoryEvent>,
+		private readonly options: IWorkingCopyHistoryModelOptions,
 		private readonly fileService: IFileService,
 		private readonly labelService: ILabelService,
 		private readonly logService: ILogService,
@@ -88,7 +104,7 @@ export class WorkingCopyHistoryModel {
 		this.workingCopyResource = workingCopyResource;
 		this.workingCopyName = this.labelService.getUriBasenameLabel(workingCopyResource);
 
-		this.historyEntriesNameMatcher = new RegExp(`[A-Za-z0-9]{4}${extname(workingCopyResource)}`);
+		this.historyEntriesNameMatcher = new RegExp(`[A-Za-z0-9]{4}${escapeRegExpCharacters(extname(workingCopyResource))}`);
 
 		// Update locations
 		this.historyEntriesFolder = this.toHistoryEntriesFolder(this.historyHome, workingCopyResource);
@@ -118,15 +134,24 @@ export class WorkingCopyHistoryModel {
 			}
 		}
 
+		let entry: IWorkingCopyHistoryEntry;
+
 		// Replace lastest entry in history
 		if (entryToReplace) {
-			return this.doReplaceEntry(entryToReplace, timestamp, token);
+			entry = await this.doReplaceEntry(entryToReplace, timestamp, token);
 		}
 
 		// Add entry to history
 		else {
-			return this.doAddEntry(source, timestamp, token);
+			entry = await this.doAddEntry(source, timestamp, token);
 		}
+
+		// Flush now if configured
+		if (this.options.flushOnChange && !token.isCancellationRequested) {
+			await this.store(token);
+		}
+
+		return entry;
 	}
 
 	private async doAddEntry(source: SaveSource, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
@@ -149,8 +174,8 @@ export class WorkingCopyHistoryModel {
 		};
 		this.entries.push(entry);
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryAddedEmitter.fire({ entry });
@@ -167,8 +192,8 @@ export class WorkingCopyHistoryModel {
 		// Update entry
 		entry.timestamp = timestamp;
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryReplacedEmitter.fire({ entry });
@@ -196,11 +221,16 @@ export class WorkingCopyHistoryModel {
 		// Remove from model
 		this.entries.splice(index, 1);
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryRemovedEmitter.fire({ entry });
+
+		// Flush now if configured
+		if (this.options.flushOnChange && !token.isCancellationRequested) {
+			await this.store(token);
+		}
 
 		return true;
 	}
@@ -222,11 +252,16 @@ export class WorkingCopyHistoryModel {
 		// Update entry
 		entry.source = properties.source;
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryChangedEmitter.fire({ entry });
+
+		// Flush now if configured
+		if (this.options.flushOnChange && !token.isCancellationRequested) {
+			await this.store(token);
+		}
 	}
 
 	async getEntries(): Promise<readonly IWorkingCopyHistoryEntry[]> {
@@ -353,11 +388,28 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async store(token: CancellationToken): Promise<void> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-
-		if (!this.shouldStore) {
-			return; // fast return to avoid disk access when nothing changed
+		if (!this.shouldStore()) {
+			return;
 		}
+
+		// Use a `Limiter` to prevent multiple `store` operations
+		// potentially running at the same time
+
+		await this.storeLimiter.queue(async () => {
+			if (token.isCancellationRequested || !this.shouldStore()) {
+				return;
+			}
+
+			return this.doStore(token);
+		});
+	}
+
+	private shouldStore(): boolean {
+		return this.storedVersionId !== this.versionId;
+	}
+
+	private async doStore(token: CancellationToken): Promise<void> {
+		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
 
 		// Make sure to await resolving when persisting
 		await this.resolveEntriesOnce();
@@ -370,6 +422,7 @@ export class WorkingCopyHistoryModel {
 		await this.cleanUpEntries();
 
 		// Without entries, remove the history folder
+		const storedVersion = this.versionId;
 		if (this.entries.length === 0) {
 			try {
 				await this.fileService.del(historyEntriesFolder, { recursive: true });
@@ -383,8 +436,8 @@ export class WorkingCopyHistoryModel {
 			await this.writeEntriesFile();
 		}
 
-		// Mark as being up to date on disk
-		this.shouldStore = false;
+		// Mark as stored version
+		this.storedVersionId = storedVersion;
 	}
 
 	private async cleanUpEntries(): Promise<void> {
@@ -516,7 +569,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
 		@IRemoteAgentService protected readonly remoteAgentService: IRemoteAgentService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILabelService protected readonly labelService: ILabelService,
 		@ILogService protected readonly logService: ILogService,
@@ -722,16 +775,15 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 		let model = this.models.get(resource);
 		if (!model) {
-			model = this.createModel(resource, historyHome);
+			model = new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidReplaceEntry, this._onDidRemoveEntry, this.getModelOptions(), this.fileService, this.labelService, this.logService, this.configurationService);
 			this.models.set(resource, model);
 		}
 
 		return model;
 	}
 
-	protected createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
-		return new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidReplaceEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
-	}
+	protected abstract getModelOptions(): IWorkingCopyHistoryModelOptions;
+
 }
 
 // Register History Tracker

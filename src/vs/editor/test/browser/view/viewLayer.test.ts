@@ -27,7 +27,7 @@ interface ILinesCollectionState {
 }
 
 function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollectionState): void {
-	let actualState: ILinesCollectionState = {
+	const actualState: ILinesCollectionState = {
 		startLineNumber: col.getStartLineNumber(),
 		lines: [],
 		pinged: []
@@ -42,14 +42,14 @@ function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollec
 suite('RenderedLinesCollection onLinesDeleted', () => {
 
 	function testOnModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
+		const actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
 		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
@@ -317,14 +317,14 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 suite('RenderedLinesCollection onLineChanged', () => {
 
 	function testOnModelLineChanged(changedLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualPinged = col.onLinesChanged(changedLineNumber, 1);
+		const actualPinged = col.onLinesChanged(changedLineNumber, 1);
 		assert.deepStrictEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}
@@ -398,14 +398,14 @@ suite('RenderedLinesCollection onLineChanged', () => {
 suite('RenderedLinesCollection onLinesInserted', () => {
 
 	function testOnModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
+		const actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
@@ -674,14 +674,14 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 suite('RenderedLinesCollection onTokensChanged', () => {
 
 	function testOnModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
-		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualPinged = col.onTokensChanged([{ fromLineNumber: changedFromLineNumber, toLineNumber: changedToLineNumber }]);
+		const actualPinged = col.onTokensChanged([{ fromLineNumber: changedFromLineNumber, toLineNumber: changedToLineNumber }]);
 		assert.deepStrictEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}

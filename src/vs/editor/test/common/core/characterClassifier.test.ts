@@ -9,7 +9,7 @@ import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 suite('CharacterClassifier', () => {
 
 	test('works', () => {
-		let classifier = new CharacterClassifier<number>(0);
+		const classifier = new CharacterClassifier<number>(0);
 
 		assert.strictEqual(classifier.get(-1), 0);
 		assert.strictEqual(classifier.get(0), 0);

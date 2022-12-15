@@ -67,6 +67,7 @@
           "meta.embedded.block.javascript": "javascript",
           "meta.embedded.block.json": "json",
           "meta.embedded.block.jsonc": "jsonc",
+          "meta.embedded.block.latex": "latex",
           "meta.embedded.block.less": "less",
           "meta.embedded.block.objc": "objc",
           "meta.embedded.block.scss": "scss",
@@ -91,8 +92,8 @@
     ],
     "configurationDefaults": {
       "[markdown]": {
-          "editor.unicodeHighlight.ambiguousCharacters": false,
-          "editor.unicodeHighlight.invisibleCharacters": false
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false
       }
     }
   },

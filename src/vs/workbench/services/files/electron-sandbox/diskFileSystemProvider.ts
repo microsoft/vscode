@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -71,19 +71,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Reading/Writing
 
-	readFile(resource: URI, opts?: FileAtomicReadOptions): Promise<Uint8Array> {
+	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
 		return this.provider.readFile(resource, opts);
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		return this.provider.readFileStream(resource, opts, token);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this.provider.writeFile(resource, content, opts);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		return this.provider.open(resource, opts);
 	}
 
@@ -107,15 +107,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.mkdir(resource);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this.provider.delete(resource, opts);
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.provider.rename(from, to, opts);
 	}
 
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.provider.copy(from, to, opts);
 	}
 

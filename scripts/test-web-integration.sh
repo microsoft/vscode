@@ -15,23 +15,13 @@ then
 	echo "Using remote server out of sources for integration web tests"
 else
 	echo "Using $VSCODE_REMOTE_SERVER_PATH as server path for web integration tests"
-
-	# Run from a built: need to compile all test extensions
-	# because we run extension tests from their source folders
-	# and the build bundles extensions into .build webpacked
-	yarn gulp	compile-extension:vscode-api-tests \
-				compile-extension:markdown-language-features \
-				compile-extension:typescript-language-features \
-				compile-extension:emmet \
-				compile-extension:git \
-				compile-extension:ipynb \
-				compile-extension-media
 fi
 
 if [ ! -e 'test/integration/browser/out/index.js' ];then
 	yarn --cwd test/integration/browser compile
 	yarn playwright-install
 fi
+
 
 # Tests in the extension host
 
@@ -63,10 +53,15 @@ node test/integration/browser/out/index.js --workspacePath $ROOT/extensions/emme
 echo
 echo "### Git tests"
 echo
-node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test "$@"
+node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test "$@"
 
 echo
 echo "### Ipynb tests"
 echo
-node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.ipynb --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test "$@"
+node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test "$@"
+
+echo
+echo "### Configuration editing tests"
+echo
+node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test "$@"
 

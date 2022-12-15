@@ -1411,6 +1411,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _sendLatencyStats(stats: PredictionStats) {
 		/* __GDPR__
 			"terminalLatencyStats" : {
+				"owner": "Tyriar",
 				"min" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"max" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"median" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },

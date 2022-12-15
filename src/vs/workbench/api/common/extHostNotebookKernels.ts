@@ -5,22 +5,23 @@
 
 import { asArray } from 'vs/base/common/arrays';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Cache } from 'vs/workbench/api/common/cache';
 import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/common/webview';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
+import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -35,7 +36,7 @@ interface IKernelData {
 }
 
 type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
-export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
+type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
 type ControllerInfo = { id: string; extension: string };
 
 
@@ -43,6 +44,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 	private readonly _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
+
+	private _kernelDetectionTask = new Map<number, vscode.NotebookControllerDetectionTask>();
+	private _kernelDetectionTaskHandlePool: number = 0;
+
+	private _kernelSourceActionProviders = new Map<number, vscode.NotebookKernelSourceActionProvider>();
+	private _kernelSourceActionProviderHandlePool: number = 0;
+	private _kernelSourceActionProviderCache = new Cache<IDisposable>('NotebookKernelSourceActionProviderCache');
 
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
@@ -59,7 +67,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 
-		// todo@rebornix @joyceerhl: move to APICommands once stablized.
+		// todo@rebornix @joyceerhl: move to APICommands once stabilized.
 		const selectKernelApiCommand = new ApiCommand(
 			'notebook.selectKernel',
 			'_notebook.selectKernel',
@@ -74,7 +82,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					} else if (v && 'notebookEditor' in v) {
 						const notebookEditorId = this._extHostNotebook.getIdByEditor(v.notebookEditor);
 						if (notebookEditorId === undefined) {
-							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.document.uri.toString()}`);
+							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.notebook.uri.toString()}`);
 						}
 						return { notebookEditorId };
 					}
@@ -108,7 +116,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: createKernelId(extension, id),
+			id: createKernelId(extension.identifier, id),
 			notebookType: viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -218,7 +226,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
-				return that._createNotebookCellExecution(cell, createKernelId(extension, this.id));
+				return that._createNotebookCellExecution(cell, createKernelId(extension.identifier, this.id));
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -233,6 +241,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			// --- priority
 			updateNotebookAffinity(notebook, priority) {
+				if (priority === NotebookControllerAffinity2.Hidden) {
+					// This api only adds an extra enum value, the function is the same, so just gate on the new value being passed
+					// for proposedAPI check.
+					checkProposedApiEnabled(extension, 'notebookControllerAffinityHidden');
+				}
 				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
 			},
 			// --- ipc
@@ -255,6 +268,60 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			associatedNotebooks
 		});
 		return controller;
+	}
+
+	getIdByController(controller: vscode.NotebookController) {
+		for (const [_, candidate] of this._kernelData) {
+			if (candidate.controller === controller) {
+				return createKernelId(candidate.extensionId, controller.id);
+			}
+		}
+		return null;
+	}
+
+	createNotebookControllerDetectionTask(extension: IExtensionDescription, viewType: string): vscode.NotebookControllerDetectionTask {
+		const handle = this._kernelDetectionTaskHandlePool++;
+		const that = this;
+
+		this._logService.trace(`NotebookControllerDetectionTask[${handle}], CREATED by ${extension.identifier.value}`);
+		this._proxy.$addKernelDetectionTask(handle, viewType);
+
+		const detectionTask: vscode.NotebookControllerDetectionTask = {
+			dispose: () => {
+				this._kernelDetectionTask.delete(handle);
+				that._proxy.$removeKernelDetectionTask(handle);
+			}
+		};
+
+		this._kernelDetectionTask.set(handle, detectionTask);
+		return detectionTask;
+	}
+
+	registerKernelSourceActionProvider(extension: IExtensionDescription, viewType: string, provider: vscode.NotebookKernelSourceActionProvider) {
+		const handle = this._kernelSourceActionProviderHandlePool++;
+		const that = this;
+
+		this._kernelSourceActionProviders.set(handle, provider);
+		this._logService.trace(`NotebookKernelSourceActionProvider[${handle}], CREATED by ${extension.identifier.value}`);
+		this._proxy.$addKernelSourceActionProvider(handle, viewType);
+
+		return {
+			dispose: () => {
+				this._kernelSourceActionProviders.delete(handle);
+				that._proxy.$removeKernelSourceActionProvider(handle);
+			}
+		};
+	}
+
+	async $provideKernelSourceActions(handle: number, token: CancellationToken): Promise<INotebookKernelSourceAction[]> {
+		const provider = this._kernelSourceActionProviders.get(handle);
+		if (provider) {
+			const disposables = new DisposableStore();
+			this._kernelSourceActionProviderCache.add([disposables]);
+			const ret = await provider.provideNotebookKernelSourceActions(token);
+			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, disposables));
+		}
+		return [];
 	}
 
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
@@ -339,10 +406,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		const cell = document.getCell(cellHandle);
 		if (cell) {
-			this._onDidChangeCellExecutionState.fire({
-				cell: cell.apiCell,
-				state: state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle
-			});
+			const newState = state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle;
+			if (newState !== undefined) {
+				this._onDidChangeCellExecutionState.fire({
+					cell: cell.apiCell,
+					state: newState
+				});
+			}
 		}
 	}
 
@@ -432,6 +502,17 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
+	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | undefined): number {
+		let cell: ExtHostCell | undefined = this._cell;
+		if (cellOrCellIndex) {
+			cell = this._cell.notebook.getCellFromApiCell(cellOrCellIndex);
+		}
+		if (!cell) {
+			throw new Error('INVALID cell');
+		}
+		return cell.handle;
+	}
+
 	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): NotebookOutputDto[] {
 		return items.map(output => {
 			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.items, true);
@@ -447,10 +528,12 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | undefined, append: boolean): Promise<void> {
+		const handle = this.cellIndexToHandle(cell);
 		const outputDtos = this.validateAndConvertOutputs(asArray(outputs));
 		return this.updateSoon(
 			{
 				editType: CellExecutionUpdateType.Output,
+				cellHandle: handle,
 				append,
 				outputs: outputDtos
 			});
@@ -583,6 +666,6 @@ class TimeoutBasedCollector<T> {
 	}
 }
 
-function createKernelId(extension: IExtensionDescription, id: string): string {
-	return `${extension.identifier.value}/${id}`;
+export function createKernelId(extensionIdentifier: ExtensionIdentifier, id: string): string {
+	return `${extensionIdentifier.value}/${id}`;
 }

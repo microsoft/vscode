@@ -6,4 +6,4 @@
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-registerSharedProcessRemoteService(IDiagnosticsService, 'diagnostics', { supportsDelayedInstantiation: true });
+registerSharedProcessRemoteService(IDiagnosticsService, 'diagnostics');

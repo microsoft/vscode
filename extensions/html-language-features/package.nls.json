@@ -10,7 +10,6 @@
 	"html.format.preserveNewLines.desc": "Controls whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text.",
 	"html.format.maxPreserveNewLines.desc": "Maximum number of line breaks to be preserved in one chunk. Use `null` for unlimited.",
 	"html.format.indentHandlebars.desc": "Format and indent `{{#foo}}` and `{{/foo}}`.",
-	"html.format.endWithNewline.desc": "End with a newline.",
 	"html.format.extraLiners.desc": "List of tags, comma separated, that should have an extra newline before them. `null` defaults to `\"head, body, /html\"`.",
 	"html.format.wrapAttributes.desc": "Wrap attributes.",
 	"html.format.wrapAttributes.auto": "Wrap attributes only when line length is exceeded.",

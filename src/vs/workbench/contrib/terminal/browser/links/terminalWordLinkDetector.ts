@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -25,9 +28,14 @@ interface Word {
 export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 	static id = 'word';
 
+	// Word links typically search the workspace so it makes sense that their maximum link length is
+	// quite small.
+	readonly maxLinkLength = 100;
+
 	constructor(
 		readonly xterm: Terminal,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 	}
 
@@ -64,6 +72,22 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 				},
 				startLine
 			);
+
+			// Support this product's URL protocol
+			if (matchesScheme(word.text, this._productService.urlProtocol)) {
+				const uri = URI.parse(word.text);
+				if (uri) {
+					links.push({
+						text: word.text,
+						uri,
+						bufferRange,
+						type: TerminalBuiltinLinkType.Url
+					});
+				}
+				continue;
+			}
+
+			// Search links
 			links.push({
 				text: word.text,
 				bufferRange,

@@ -64,7 +64,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
 		const activeSignature = info.items[info.selectedItemIndex];
-		if (activeSignature && activeSignature.isVariadic) {
+		if (activeSignature?.isVariadic) {
 			return Math.min(info.argumentIndex, activeSignature.parameters.length - 1);
 		}
 		return info.argumentIndex;

@@ -15,7 +15,7 @@ import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, I
 import * as arrays from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./selectBoxCustom';
@@ -31,7 +31,6 @@ interface ISelectListTemplateData {
 	text: HTMLElement;
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
-	disposables: IDisposable[];
 }
 
 class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
@@ -40,7 +39,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	renderTemplate(container: HTMLElement): ISelectListTemplateData {
 		const data: ISelectListTemplateData = Object.create(null);
-		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
 		data.detail = dom.append(container, $('.option-detail'));
@@ -71,8 +69,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		}
 	}
 
-	disposeTemplate(templateData: ISelectListTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+	disposeTemplate(_templateData: ISelectListTemplateData): void {
+		// noop
 	}
 }
 
@@ -126,6 +124,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
 
@@ -164,8 +166,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
 
 		// Create span flex box item/div we can measure and control
-		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
-		let widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
+		const widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
+		const widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
 		this.widthControlElement = document.createElement('span');
 		this.widthControlElement.className = 'option-text-width-control';
 		dom.append(widthControlInnerDiv, this.widthControlElement);
@@ -286,9 +288,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Mirror options in drop-down
 		// Populate select list for non-native select mode
-		if (this.selectList) {
-			this.selectList.splice(0, this.selectList.length, this.options);
-		}
+		this.selectList?.splice(0, this.selectList.length, this.options);
 	}
 
 	public select(index: number): void {
@@ -434,7 +434,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
+		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
 		option.disabled = !!disabled;
@@ -878,7 +878,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 		};
 
-		const rendered = renderMarkdown({ value: text }, { actionHandler });
+		const rendered = renderMarkdown({ value: text, supportThemeIcons: true }, { actionHandler });
 
 		rendered.element.classList.add('select-box-description-markdown');
 		cleanRenderedMarkdown(rendered.element);

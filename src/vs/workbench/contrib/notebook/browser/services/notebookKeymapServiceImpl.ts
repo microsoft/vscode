@@ -60,7 +60,7 @@ export class NotebookKeymapService extends Disposable implements INotebookKeymap
 		super();
 
 		this.notebookKeymapMemento = new Memento('notebookKeymap', storageService);
-		this.notebookKeymap = this.notebookKeymapMemento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.notebookKeymap = this.notebookKeymapMemento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
 		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
 		this._register(this.instantiationService.invokeFunction(onExtensionChanged)((identifiers => {

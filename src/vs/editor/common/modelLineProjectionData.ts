@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/types';
+import { assertNever } from 'vs/base/common/assert';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Position } from 'vs/editor/common/core/position';
@@ -229,7 +229,7 @@ export class ModelLineProjectionData {
 
 				return result;
 			}
-		} else if (affinity === PositionAffinity.Right) {
+		} else if (affinity === PositionAffinity.Right || affinity === PositionAffinity.RightOfInjectedText) {
 			let result = injectedText.offsetInInputWithInjections + injectedText.length;
 			let index = injectedText.injectedTextIndex;
 			// traverse all injected text that touch each other
@@ -238,7 +238,7 @@ export class ModelLineProjectionData {
 				index++;
 			}
 			return result;
-		} else if (affinity === PositionAffinity.Left) {
+		} else if (affinity === PositionAffinity.Left || affinity === PositionAffinity.LeftOfInjectedText) {
 			// affinity is left
 			let result = injectedText.offsetInInputWithInjections;
 			let index = injectedText.injectedTextIndex;
@@ -329,7 +329,7 @@ export class OutputPosition {
 }
 
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
+	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {

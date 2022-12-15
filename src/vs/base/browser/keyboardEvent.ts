@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
-		let char = String.fromCharCode(e.charCode).toUpperCase();
+		const char = String.fromCharCode(e.charCode).toUpperCase();
 		return KeyCodeUtils.fromString(char);
 	}
 
@@ -58,6 +58,7 @@ export interface IKeyboardEvent {
 	readonly shiftKey: boolean;
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
+	readonly altGraphKey: boolean;
 	readonly keyCode: KeyCode;
 	readonly code: string;
 
@@ -77,7 +78,7 @@ const shiftKeyMod = KeyMod.Shift;
 const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
 export function printKeyboardEvent(e: KeyboardEvent): string {
-	let modifiers: string[] = [];
+	const modifiers: string[] = [];
 	if (e.ctrlKey) {
 		modifiers.push(`ctrl`);
 	}
@@ -94,7 +95,7 @@ export function printKeyboardEvent(e: KeyboardEvent): string {
 }
 
 export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
-	let modifiers: string[] = [];
+	const modifiers: string[] = [];
 	if (e.ctrlKey) {
 		modifiers.push(`ctrl`);
 	}
@@ -121,6 +122,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
+	public readonly altGraphKey: boolean;
 	public readonly keyCode: KeyCode;
 	public readonly code: string;
 
@@ -128,7 +130,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	private _asRuntimeKeybinding: SimpleKeybinding;
 
 	constructor(source: KeyboardEvent) {
-		let e = source;
+		const e = source;
 
 		this.browserEvent = e;
 		this.target = <HTMLElement>e.target;
@@ -137,6 +139,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.shiftKey = e.shiftKey;
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
+		this.altGraphKey = e.getModifierState('AltGraph');
 		this.keyCode = extractKeyCode(e);
 		this.code = e.code;
 

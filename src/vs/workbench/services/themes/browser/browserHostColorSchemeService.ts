@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 
@@ -54,4 +54,4 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 
 }
 
-registerSingleton(IHostColorSchemeService, BrowserHostColorSchemeService, true);
+registerSingleton(IHostColorSchemeService, BrowserHostColorSchemeService, InstantiationType.Delayed);

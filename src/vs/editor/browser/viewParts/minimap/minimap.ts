@@ -6,7 +6,7 @@
 import 'vs/css!./minimap';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { CharCode } from 'vs/base/common/charCode';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { ColorId } from 'vs/editor/common/languages';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
 import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
@@ -27,8 +27,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground, minimapForegroundOpacity } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { minimapSelection, minimapBackground, minimapForegroundOpacity } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
@@ -55,6 +54,8 @@ class MinimapOptions {
 	public readonly scrollBeyondLastLine: boolean;
 
 	public readonly showSlider: 'always' | 'mouseover';
+
+	public readonly autohide: boolean;
 
 	public readonly pixelRatio: number;
 
@@ -120,6 +121,7 @@ class MinimapOptions {
 		this.minimapHeightIsEditorHeight = minimapLayout.minimapHeightIsEditorHeight;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		this.showSlider = minimapOpts.showSlider;
+		this.autohide = minimapOpts.autohide;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
@@ -166,6 +168,7 @@ class MinimapOptions {
 			&& this.minimapHeightIsEditorHeight === other.minimapHeightIsEditorHeight
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
+			&& this.autohide === other.autohide
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
@@ -1017,7 +1020,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		} else {
 			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
 		}
-		const decorations = this._context.viewModel.getDecorationsInViewport(visibleRange);
+		const decorations = this._context.viewModel.getDecorationsInViewport(visibleRange, true);
 
 		if (this._samplingState) {
 			const result: ViewModelDecoration[] = [];
@@ -1210,7 +1213,12 @@ class InnerMinimap extends Disposable {
 		this._slider.toggleClassName('active', true);
 
 		const handlePointerMove = (posy: number, posx: number) => {
-			const pointerOrthogonalDelta = Math.abs(posx - initialPosX);
+			const minimapPosition = dom.getDomNodePagePosition(this._domNode.domNode);
+			const pointerOrthogonalDelta = Math.min(
+				Math.abs(posx - initialPosX),
+				Math.abs(posx - minimapPosition.left),
+				Math.abs(posx - minimapPosition.left - minimapPosition.width)
+			);
 
 			if (platform.isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
 				// The pointer has wondered away from the scrollbar => reset dragging
@@ -1230,7 +1238,6 @@ class InnerMinimap extends Disposable {
 			e.target,
 			e.pointerId,
 			e.buttons,
-			standardPointerMoveMerger,
 			pointerMoveData => handlePointerMove(pointerMoveData.pageY, pointerMoveData.pageX),
 			() => {
 				this._slider.toggleClassName('active', false);
@@ -1256,10 +1263,17 @@ class InnerMinimap extends Disposable {
 	}
 
 	private _getMinimapDomNodeClassName(): string {
+		const class_ = ['minimap'];
 		if (this._model.options.showSlider === 'always') {
-			return 'minimap slider-always';
+			class_.push('slider-always');
+		} else {
+			class_.push('slider-mouseover');
 		}
-		return 'minimap slider-mouseover';
+		if (this._model.options.autohide) {
+			class_.push('autohide');
+		}
+
+		return class_.join(' ');
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -1326,15 +1340,11 @@ class InnerMinimap extends Disposable {
 		return false;
 	}
 	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		}
+		this._lastRenderData?.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
 		return true;
 	}
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		}
+		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		return true;
 	}
 	public onScrollChanged(): boolean {
@@ -1994,21 +2004,3 @@ class ContiguousLineMap<T> {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const sliderBackground = theme.getColor(minimapSliderBackground);
-	if (sliderBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${sliderBackground}; }`);
-	}
-	const sliderHoverBackground = theme.getColor(minimapSliderHoverBackground);
-	if (sliderHoverBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider:hover .minimap-slider-horizontal { background: ${sliderHoverBackground}; }`);
-	}
-	const sliderActiveBackground = theme.getColor(minimapSliderActiveBackground);
-	if (sliderActiveBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider.active .minimap-slider-horizontal { background: ${sliderActiveBackground}; }`);
-	}
-	const shadow = theme.getColor(scrollbarShadow);
-	if (shadow) {
-		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
-	}
-});

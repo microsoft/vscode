@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -20,7 +20,7 @@ export class ToggleDevToolsAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleDevTools',
 			title: { value: localize('toggleDevTools', "Toggle Developer Tools"), original: 'Toggle Developer Tools' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -49,7 +49,7 @@ export class ConfigureRuntimeArgumentsAction extends Action2 {
 		super({
 			id: 'workbench.action.configureRuntimeArguments',
 			title: { value: localize('configureRuntimeArguments', "Configure Runtime Arguments"), original: 'Configure Runtime Arguments' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true
 		});
 	}
@@ -72,7 +72,7 @@ export class ToggleSharedProcessAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleSharedProcess',
 			title: { value: localize('toggleSharedProcess', "Toggle Shared Process"), original: 'Toggle Shared Process' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -88,7 +88,7 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action2 {
 		super({
 			id: 'workbench.action.reloadWindowWithExtensionsDisabled',
 			title: { value: localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled"), original: 'Reload With Extensions Disabled' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

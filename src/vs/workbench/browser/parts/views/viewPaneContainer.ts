@@ -136,7 +136,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.updateStyles();
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 
 		// Overlay drop background
 		this.overlay.style.backgroundColor = this.getColor(this.location === ViewContainerLocation.Panel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND) || '';
@@ -580,7 +580,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		let anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
+		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.menuActions?.getContextMenuActions() ?? []
@@ -741,7 +741,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
-		let anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
+		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions
@@ -820,11 +820,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		// Check if view is active
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
-			type ViewsToggleVisibilityClassification = {
-				viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			};
-			this.telemetryService.publicLog2<{ viewId: String; visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 			this.viewContainerModel.setVisible(viewId, visible);
 		}
 	}
@@ -966,7 +961,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						if (viewsToMove.length > 1) {
 							viewsToMove.slice(1).forEach(view => {
 								let toIndex = this.panes.findIndex(p => p.id === anchorView!.id);
-								let fromIndex = this.panes.findIndex(p => p.id === view.id);
+								const fromIndex = this.panes.findIndex(p => p.id === view.id);
 								if (fromIndex >= 0 && toIndex >= 0) {
 									if (fromIndex > toIndex) {
 										toIndex++;
@@ -1077,8 +1072,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 		if (!this.areExtensionsReady) {
 			if (this.visibleViewsCountFromCache === undefined) {
-				// TODO @sbatten fix hack for #91367
-				return this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
+				return this.paneItems[0].pane.isExpanded();
 			}
 			// Check in cache so that view do not jump. See #29609
 			return this.visibleViewsCountFromCache === 1;

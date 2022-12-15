@@ -262,7 +262,7 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 
 //#region ARIA
 
-export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number | undefined): string {
 	let ariaLabel = input.getAriaLabel();
 	if (group && !group.isPinned(input)) {
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
@@ -275,7 +275,7 @@ export function computeEditorAriaLabel(input: EditorInput, index: number | undef
 	// Apply group information to help identify in
 	// which group we are (only if more than one group
 	// is actually opened)
-	if (group && groupCount > 1) {
+	if (group && typeof groupCount === 'number' && groupCount > 1) {
 		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
 	}
 

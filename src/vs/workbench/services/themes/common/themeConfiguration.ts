@@ -115,7 +115,7 @@ const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
-	markdownDescription: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by `#{0}#` and `#{1}#`", ThemeSettings.PREFERRED_HC_DARK_THEME, ThemeSettings.PREFERRED_HC_LIGHT_THEME),
+	markdownDescription: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by `#{0}#` and `#{1}#`.", ThemeSettings.PREFERRED_HC_DARK_THEME, ThemeSettings.PREFERRED_HC_LIGHT_THEME),
 	scope: ConfigurationScope.APPLICATION
 };
 
@@ -223,6 +223,7 @@ configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration
 
 export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorTheme[]) {
 	// updates enum for the 'workbench.colorTheme` setting
+	themes.sort((a, b) => a.label.localeCompare(b.label));
 	colorThemeSettingEnum.splice(0, colorThemeSettingEnum.length, ...themes.map(t => t.settingsId));
 	colorThemeSettingEnumDescriptions.splice(0, colorThemeSettingEnumDescriptions.length, ...themes.map(t => t.description || ''));
 	colorThemeSettingEnumItemLabels.splice(0, colorThemeSettingEnumItemLabels.length, ...themes.map(t => t.label || ''));
@@ -233,7 +234,7 @@ export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorThem
 
 	const workbenchColors = { $ref: workbenchColorsSchemaId, additionalProperties: false };
 	const tokenColors = { properties: tokenColorSchema.properties, additionalProperties: false };
-	for (let t of themes) {
+	for (const t of themes) {
 		// add theme specific color customization ("[Abyss]":{ ... })
 		const themeId = `[${t.settingsId}]`;
 		themeSpecificWorkbenchColors.properties![themeId] = workbenchColors;
@@ -312,12 +313,12 @@ export class ThemeConfiguration {
 	}
 
 	public isDefaultColorTheme(): boolean {
-		let settings = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
+		const settings = this.configurationService.inspect(ThemeSettings.COLOR_THEME);
 		return settings && settings.default?.value === settings.value;
 	}
 
 	public findAutoConfigurationTarget(key: string) {
-		let settings = this.configurationService.inspect(key);
+		const settings = this.configurationService.inspect(key);
 		if (!types.isUndefined(settings.workspaceFolderValue)) {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		} else if (!types.isUndefined(settings.workspaceValue)) {
@@ -333,7 +334,7 @@ export class ThemeConfiguration {
 			return;
 		}
 
-		let settings = this.configurationService.inspect(key);
+		const settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
 			return this.configurationService.updateValue(key, value);
 		}

@@ -106,6 +106,15 @@
 		"increaseIndentPattern": "\\\\begin{(?!document)([^}]*)}(?!.*\\\\end{\\1})",
 		"decreaseIndentPattern": "^\\s*\\\\end{(?!document)"
 	},
-	"autoCloseBefore": ";:.,=}])>\\` \n\t$",
-	"wordPattern": "([^\\s`'\"~_!?|$#@%^&*\\-=+;:,.<>(){}[\\]\\/]+)"
+	"folding": {
+		"markers": {
+			"start": "^\\s*%?\\s*(region|\\\\begingroup)\\b",
+			"end": "^\\s*%?\\s*(endregion|\\\\endgroup)\\b"
+		}
+	},
+	"autoCloseBefore": ";:.,={}])>\\` \n\t$",
+	"wordPattern": {
+		"pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}){2,}",
+		"flags": "u"
+	}
 }

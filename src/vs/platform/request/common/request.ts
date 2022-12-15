@@ -30,14 +30,18 @@ function hasNoContent(context: IRequestContext): boolean {
 }
 
 export async function asText(context: IRequestContext): Promise<string | null> {
-	if (!isSuccess(context)) {
-		throw new Error('Server returned ' + context.res.statusCode);
-	}
 	if (hasNoContent(context)) {
 		return null;
 	}
 	const buffer = await streamToBuffer(context.stream);
 	return buffer.toString();
+}
+
+export async function asTextOrError(context: IRequestContext): Promise<string | null> {
+	if (!isSuccess(context)) {
+		throw new Error('Server returned ' + context.res.statusCode);
+	}
+	return asText(context);
 }
 
 export async function asJson<T = {}>(context: IRequestContext): Promise<T | null> {
@@ -83,7 +87,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
+				pattern: '^(https?|socks5?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
 				restricted: true
 			},

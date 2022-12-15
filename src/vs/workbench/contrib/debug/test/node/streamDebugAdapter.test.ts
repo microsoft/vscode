@@ -17,7 +17,7 @@ function sendInitializeRequest(debugAdapter: StreamDebugAdapter): Promise<DebugP
 	return new Promise((resolve, reject) => {
 		debugAdapter.sendRequest('initialize', { adapterID: 'test' }, (result) => {
 			resolve(result);
-		});
+		}, 3000);
 	});
 }
 
@@ -49,7 +49,13 @@ suite('Debug - StreamDebugAdapter', () => {
 
 		const pipeName = crypto.randomBytes(10).toString('hex');
 		const pipePath = platform.isWindows ? join('\\\\.\\pipe\\', pipeName) : join(tmpdir(), pipeName);
-		const server = net.createServer(serverConnection).listen(pipePath);
+		const server = await new Promise<net.Server>((resolve, reject) => {
+			const server = net.createServer(serverConnection);
+			server.once('listening', () => resolve(server));
+			server.once('error', reject);
+			server.listen(pipePath);
+		});
+
 		const debugAdapter = new NamedPipeDebugAdapter({
 			type: 'pipeServer',
 			path: pipePath

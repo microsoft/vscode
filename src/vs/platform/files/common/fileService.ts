@@ -11,14 +11,14 @@ import { Emitter } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/base/common/performance';
 import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -942,7 +942,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	async canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true> {
+	async canDelete(resource: URI, options?: Partial<IFileDeleteOptions>): Promise<Error | true> {
 		try {
 			await this.doValidateDelete(resource, options);
 		} catch (error) {
@@ -952,7 +952,7 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
-	private async doValidateDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<IFileSystemProvider> {
+	private async doValidateDelete(resource: URI, options?: Partial<IFileDeleteOptions>): Promise<IFileSystemProvider> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource), resource);
 
 		// Validate trash support
@@ -987,7 +987,7 @@ export class FileService extends Disposable implements IFileService {
 		return provider;
 	}
 
-	async del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void> {
+	async del(resource: URI, options?: Partial<IFileDeleteOptions>): Promise<void> {
 		const provider = await this.doValidateDelete(resource, options);
 
 		const useTrash = !!options?.useTrash;

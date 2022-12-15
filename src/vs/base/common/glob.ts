@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { LRUCache } from 'vs/base/common/map';
 import { basename, extname, posix, sep } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { escapeRegExpCharacters, ltrim } from 'vs/base/common/strings';
 
 export interface IRelativePattern {
 
@@ -357,7 +358,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 		return parsedPattern;
 	}
 
-	return function (path, basename) {
+	const wrappedPattern: ParsedStringPattern = function (path, basename) {
 		if (!isEqualOrParent(path, arg2.base, !isLinux)) {
 			// skip glob matching if `base` is not a parent of `path`
 			return null;
@@ -366,8 +367,21 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 		// Given we have checked `base` being a parent of `path`,
 		// we can now remove the `base` portion of the `path`
 		// and only match on the remaining path components
-		return parsedPattern(path.substr(arg2.base.length + 1), basename);
+		// For that we try to extract the portion of the `path`
+		// that comes after the `base` portion. We have to account
+		// for the fact that `base` might end in a path separator
+		// (https://github.com/microsoft/vscode/issues/162498)
+
+		return parsedPattern(ltrim(path.substr(arg2.base.length), sep), basename);
 	};
+
+	// Make sure to preserve associated metadata
+	wrappedPattern.allBasenames = parsedPattern.allBasenames;
+	wrappedPattern.allPaths = parsedPattern.allPaths;
+	wrappedPattern.basenames = parsedPattern.basenames;
+	wrappedPattern.patterns = parsedPattern.patterns;
+
+	return wrappedPattern;
 }
 
 function trimForExclusions(pattern: string, options: IGlobOptions): string {
@@ -483,7 +497,7 @@ function toRegExp(pattern: string): ParsedStringPattern {
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
  * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
@@ -502,7 +516,7 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
  * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
@@ -576,13 +590,38 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		}
 
 		const resultExpression: ParsedStringPattern = function (path: string, basename?: string) {
-			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
+			let resultPromises: Promise<string | null>[] | undefined = undefined;
 
-				// Check if pattern matches path
+			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 				const result = parsedPatterns[i](path, basename);
-				if (result) {
-					return result;
+				if (typeof result === 'string') {
+					return result; // immediately return as soon as the first expression matches
 				}
+
+				// If the result is a promise, we have to keep it for
+				// later processing and await the result properly.
+				if (isThenable(result)) {
+					if (!resultPromises) {
+						resultPromises = [];
+					}
+
+					resultPromises.push(result);
+				}
+			}
+
+			// With result promises, we have to loop over each and
+			// await the result before we can return any result.
+			if (resultPromises) {
+				return (async () => {
+					for (const resultPromise of resultPromises) {
+						const result = await resultPromise;
+						if (typeof result === 'string') {
+							return result;
+						}
+					}
+
+					return null;
+				})();
 			}
 
 			return null;
@@ -603,6 +642,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 
 	const resultExpression: ParsedStringPattern = function (path: string, base?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) {
 		let name: string | undefined = undefined;
+		let resultPromises: Promise<string | null>[] | undefined = undefined;
 
 		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 
@@ -619,9 +659,34 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			}
 
 			const result = parsedPattern(path, base, name, hasSibling);
-			if (result) {
-				return result;
+			if (typeof result === 'string') {
+				return result; // immediately return as soon as the first expression matches
 			}
+
+			// If the result is a promise, we have to keep it for
+			// later processing and await the result properly.
+			if (isThenable(result)) {
+				if (!resultPromises) {
+					resultPromises = [];
+				}
+
+				resultPromises.push(result);
+			}
+		}
+
+		// With result promises, we have to loop over each and
+		// await the result before we can return any result.
+		if (resultPromises) {
+			return (async () => {
+				for (const resultPromise of resultPromises) {
+					const result = await resultPromise;
+					if (typeof result === 'string') {
+						return result;
+					}
+				}
+
+				return null;
+			})();
 		}
 
 		return null;
@@ -664,7 +729,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 					return null;
 				}
 
-				const clausePattern = when.replace('$(basename)', name!);
+				const clausePattern = when.replace('$(basename)', () => name!);
 				const matched = hasSibling(clausePattern);
 				return isThenable(matched) ?
 					matched.then(match => match ? pattern : null) :
@@ -737,4 +802,18 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 	aggregatedPatterns.push(aggregate);
 
 	return aggregatedPatterns;
+}
+
+export function patternsEquals(patternsA: Array<string | IRelativePattern> | undefined, patternsB: Array<string | IRelativePattern> | undefined): boolean {
+	return equals(patternsA, patternsB, (a, b) => {
+		if (typeof a === 'string' && typeof b === 'string') {
+			return a === b;
+		}
+
+		if (typeof a !== 'string' && typeof b !== 'string') {
+			return a.base === b.base && a.pattern === b.pattern;
+		}
+
+		return false;
+	});
 }

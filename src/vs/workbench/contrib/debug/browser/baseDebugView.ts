@@ -9,20 +9,20 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { Codicon } from 'vs/base/common/codicons';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { once } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
-export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
-export const twistiePixels = 20;
+const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 const booleanRegex = /^(true|false)$/i;
 const stringRegex = /^(['"]).*\1$/;
 const $ = dom.$;
@@ -61,21 +61,23 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 		if (value !== Expression.DEFAULT_VALUE) {
 			container.classList.add('error');
 		}
-	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
-		expressionOrValue.valueChanged = false;
-	}
+	} else {
+		if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
+			// value changed color has priority over other colors.
+			container.className = 'value changed';
+			expressionOrValue.valueChanged = false;
+		}
 
-	if (options.colorize && typeof expressionOrValue !== 'string') {
-		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
-			container.classList.add(expressionOrValue.type);
-		} else if (!isNaN(+value)) {
-			container.classList.add('number');
-		} else if (booleanRegex.test(value)) {
-			container.classList.add('boolean');
-		} else if (stringRegex.test(value)) {
-			container.classList.add('string');
+		if (options.colorize && typeof expressionOrValue !== 'string') {
+			if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+				container.classList.add(expressionOrValue.type);
+			} else if (!isNaN(+value)) {
+				container.classList.add('number');
+			} else if (booleanRegex.test(value)) {
+				container.classList.add('boolean');
+			} else if (stringRegex.test(value)) {
+				container.classList.add('string');
+			}
 		}
 	}
 
@@ -89,7 +91,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	if (options.linkDetector) {
 		container.textContent = '';
 		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
-		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined));
+		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined, true));
 	} else {
 		container.textContent = value;
 	}
@@ -112,7 +114,6 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 
 	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
-	data.lazyButton.title = variable.presentationHint?.lazy ? variable.value : '';
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -148,7 +149,6 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	abstract get templateId(): string;
@@ -156,9 +156,10 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
-		const value = dom.append(expression, $('span.value'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
-		lazyButton.textContent = `(...)`;
+		lazyButton.classList.add(...Codicon.eye.classNamesArray);
+		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
+		const value = dom.append(expression, $('span.value'));
 
 		const label = new HighlightedLabel(name);
 
@@ -204,8 +205,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		valueElement.style.display = 'none';
 		inputBoxContainer.style.display = 'initial';
 
-		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
+		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, { ...options, inputBoxStyles: defaultInputBoxStyles });
 
 		inputBox.value = options.initialValue;
 		inputBox.focus();
@@ -242,8 +242,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 				// Do not expand / collapse selected elements
 				e.preventDefault();
 				e.stopPropagation();
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {

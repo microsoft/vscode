@@ -20,16 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
         run: echo "::set-output name=value::$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)"
       - name: Cache node modules
         id: cacheNodeModules
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
@@ -40,7 +40,7 @@ jobs:
         run: echo "::set-output name=dir::$(yarn cache dir)"
       - name: Cache yarn directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}

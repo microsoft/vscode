@@ -11,6 +11,7 @@ import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensio
 
 interface GetSessionsRequest {
 	scopes: string;
+	providerId: string;
 	result: Promise<vscode.AuthenticationSession | undefined>;
 }
 
@@ -48,13 +49,14 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
 		const sortedScopes = [...scopes].sort().join(' ');
-		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.scopes === sortedScopes);
+		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.providerId === providerId && request.scopes === sortedScopes);
 
 		if (inFlightRequest) {
 			return inFlightRequest.result;
 		} else {
 			const session = this._getSession(requestingExtension, extensionId, providerId, scopes, options);
 			inFlightRequest = {
+				providerId,
 				scopes: sortedScopes,
 				result: session
 			};
@@ -65,7 +67,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			try {
 				await session;
 			} finally {
-				const requestIndex = inFlightRequests.findIndex(request => request.scopes === sortedScopes);
+				const requestIndex = inFlightRequests.findIndex(request => request.providerId === providerId && request.scopes === sortedScopes);
 				if (requestIndex > -1) {
 					inFlightRequests.splice(requestIndex);
 					this._inFlightRequests.set(extensionId, inFlightRequests);

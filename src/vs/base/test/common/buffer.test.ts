@@ -40,7 +40,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - basics (no error)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -50,7 +50,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -70,7 +70,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - basics (error)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -80,7 +80,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -105,7 +105,7 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -115,7 +115,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -134,12 +134,12 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.error(new Error());
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -170,12 +170,12 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -189,7 +189,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - nothing happens after end()', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -233,7 +233,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - pause/resume (simple)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -243,7 +243,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -270,7 +270,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - pause/resume (pause after first write)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -280,7 +280,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -310,7 +310,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - pause/resume (error)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -320,7 +320,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -348,7 +348,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - destroy', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -358,7 +358,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});

@@ -105,7 +105,10 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 			// a label that resembles the difference between the two
 			const originalMediumDescription = this.original.getDescription(Verbosity.MEDIUM);
 			const modifiedMediumDescription = this.modified.getDescription(Verbosity.MEDIUM);
-			if (typeof originalMediumDescription === 'string' && typeof modifiedMediumDescription === 'string') {
+			if (
+				(typeof originalMediumDescription === 'string' && typeof modifiedMediumDescription === 'string') && // we can only `shorten` when both sides are strings...
+				(originalMediumDescription || modifiedMediumDescription) 											// ...however never when both sides are empty strings
+			) {
 				const [shortenedOriginalMediumDescription, shortenedModifiedMediumDescription] = shorten([originalMediumDescription, modifiedMediumDescription]);
 				mediumDescription = this.computeLabel(shortenedOriginalMediumDescription, shortenedModifiedMediumDescription);
 			}
@@ -168,9 +171,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		// inputs that need to be loaded again and thus we always recreate the model and dispose
 		// the previous one - if any.
 		const resolvedModel = await this.createModel();
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
-		}
+		this.cachedModel?.dispose();
 
 		this.cachedModel = resolvedModel;
 

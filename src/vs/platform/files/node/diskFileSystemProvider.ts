@@ -19,7 +19,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -47,6 +47,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileCloneCapability {
+
+	private static TRACE_LOG_RESOURCE_LOCKS = false; // not enabled by default because very spammy
 
 	constructor(
 		logService: ILogService,
@@ -156,14 +158,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private async createResourceLock(resource: URI): Promise<IDisposable> {
 		const filePath = this.toFilePath(resource);
-		this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - request to acquire resource lock (${filePath})`);
+		this.traceLock(`[Disk FileSystemProvider]: createResourceLock() - request to acquire resource lock (${filePath})`);
 
 		// Await pending locks for resource. It is possible for a new lock being
 		// added right after opening, so we have to loop over locks until no lock
 		// remains.
 		let existingLock: Barrier | undefined = undefined;
 		while (existingLock = this.resourceLocks.get(resource)) {
-			this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - waiting for resource lock to be released (${filePath})`);
+			this.traceLock(`[Disk FileSystemProvider]: createResourceLock() - waiting for resource lock to be released (${filePath})`);
 			await existingLock.wait();
 		}
 
@@ -171,28 +173,28 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const newLock = new Barrier();
 		this.resourceLocks.set(resource, newLock);
 
-		this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - new resource lock created (${filePath})`);
+		this.traceLock(`[Disk FileSystemProvider]: createResourceLock() - new resource lock created (${filePath})`);
 
 		return toDisposable(() => {
-			this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - resource lock dispose() (${filePath})`);
+			this.traceLock(`[Disk FileSystemProvider]: createResourceLock() - resource lock dispose() (${filePath})`);
 
 			// Delete lock if it is still ours
 			if (this.resourceLocks.get(resource) === newLock) {
-				this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - resource lock removed from resource-lock map (${filePath})`);
+				this.traceLock(`[Disk FileSystemProvider]: createResourceLock() - resource lock removed from resource-lock map (${filePath})`);
 				this.resourceLocks.delete(resource);
 			}
 
 			// Open lock
-			this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - resource lock barrier open() (${filePath})`);
+			this.traceLock(`[Disk FileSystemProvider]: createResourceLock() - resource lock barrier open() (${filePath})`);
 			newLock.open();
 		});
 	}
 
-	async readFile(resource: URI, options?: FileAtomicReadOptions): Promise<Uint8Array> {
+	async readFile(resource: URI, options?: IFileAtomicReadOptions): Promise<Uint8Array> {
 		let lock: IDisposable | undefined = undefined;
 		try {
 			if (options?.atomic) {
-				this.logService.trace(`[Disk FileSystemProvider]: atomic read operation started (${this.toFilePath(resource)})`);
+				this.traceLock(`[Disk FileSystemProvider]: atomic read operation started (${this.toFilePath(resource)})`);
 
 				// When the read should be atomic, make sure
 				// to await any pending locks for the resource
@@ -210,7 +212,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	private traceLock(msg: string): void {
+		if (DiskFileSystemProvider.TRACE_LOG_RESOURCE_LOCKS) {
+			this.logService.trace(msg);
+		}
+	}
+
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 
 		readFileIntoStream(this, resource, stream, data => data.buffer, {
@@ -221,7 +229,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return stream;
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
@@ -258,9 +266,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private readonly mapHandleToLock = new Map<number, IDisposable>();
 
 	private readonly writeHandles = new Map<number, URI>();
-	private canFlush: boolean = true;
 
-	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
+	private static canFlush: boolean = true;
+
+	static configureFlushOnWrite(enabled: boolean): void {
+		DiskFileSystemProvider.canFlush = enabled;
+	}
+
+	async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		const filePath = this.toFilePath(resource);
 
 		// Writes: guard multiple writes to the same resource
@@ -354,7 +367,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			const previousLock = this.mapHandleToLock.get(fd);
 
 			// Remember that this handle has an associated lock
-			this.logService.trace(`[Disk FileSystemProvider]: open() - storing lock for handle ${fd} (${filePath})`);
+			this.traceLock(`[Disk FileSystemProvider]: open() - storing lock for handle ${fd} (${filePath})`);
 			this.mapHandleToLock.set(fd, lock);
 
 			// There is a slight chance that a resource lock for a
@@ -364,7 +377,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// wise we end up in a deadlock situation
 			// https://github.com/microsoft/vscode/issues/142462
 			if (previousLock) {
-				this.logService.trace(`[Disk FileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
+				this.traceLock(`[Disk FileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
 				previousLock.dispose();
 			}
 		}
@@ -389,13 +402,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			// If a handle is closed that was used for writing, ensure
 			// to flush the contents to disk if possible.
-			if (this.writeHandles.delete(fd) && this.canFlush) {
+			if (this.writeHandles.delete(fd) && DiskFileSystemProvider.canFlush) {
 				try {
 					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
-					this.canFlush = false;
+					DiskFileSystemProvider.configureFlushOnWrite(false);
 					this.logService.error(error);
 				}
 			}
@@ -406,11 +419,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} finally {
 			if (lockForHandle) {
 				if (this.mapHandleToLock.get(fd) === lockForHandle) {
-					this.logService.trace(`[Disk FileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
+					this.traceLock(`[Disk FileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
 					this.mapHandleToLock.delete(fd); // only delete from map if this is still our lock!
 				}
 
-				this.logService.trace(`[Disk FileSystemProvider]: close() - disposing lock for handle ${fd}`);
+				this.traceLock(`[Disk FileSystemProvider]: close() - disposing lock for handle ${fd}`);
 				lockForHandle.dispose();
 			}
 		}
@@ -524,7 +537,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		try {
 			const filePath = this.toFilePath(resource);
 
@@ -538,7 +551,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
@@ -565,7 +578,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 

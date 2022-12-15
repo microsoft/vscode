@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -279,6 +279,27 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hcLight: Color.fromHex('#0F4A85').transparent(0.50)
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
+export const EDITOR_DROP_INTO_PROMPT_FOREGROUND = registerColor('editorGroup.dropIntoPromptForeground', {
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hcDark: editorWidgetForeground,
+	hcLight: editorWidgetForeground
+}, localize('editorDropIntoPromptForeground', "Foreground color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
+export const EDITOR_DROP_INTO_PROMPT_BACKGROUND = registerColor('editorGroup.dropIntoPromptBackground', {
+	dark: editorWidgetBackground,
+	light: editorWidgetBackground,
+	hcDark: editorWidgetBackground,
+	hcLight: editorWidgetBackground
+}, localize('editorDropIntoPromptBackground', "Background color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
+export const EDITOR_DROP_INTO_PROMPT_BORDER = registerColor('editorGroup.dropIntoPromptBorder', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('editorDropIntoPromptBorder', "Border color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
 export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEditor.horizontalBorder', {
 	dark: EDITOR_GROUP_BORDER,
 	light: EDITOR_GROUP_BORDER,
@@ -331,10 +352,10 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 }, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
-	dark: null,
+	dark: inputBorder,
 	light: Color.fromHex('#ddd'),
-	hcDark: null,
-	hcLight: null
+	hcDark: inputBorder,
+	hcLight: inputBorder
 }, localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
@@ -586,15 +607,15 @@ export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeB
 export const ACTIVITY_BAR_DRAG_AND_DROP_BORDER = registerColor('activityBar.dropBorder', {
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
-	hcDark: ACTIVITY_BAR_FOREGROUND,
-	hcLight: ACTIVITY_BAR_FOREGROUND,
+	hcDark: null,
+	hcLight: null,
 }, localize('activityBarDragAndDropBorder', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hcDark: '#000000',
-	hcLight: '#007ACC'
+	hcLight: '#0F4A85'
 }, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
@@ -604,6 +625,26 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_PROFILE_FOREGROUND = registerColor('activityBarItem.profilesForeground', {
+	dark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
+	light: ACTIVITY_BAR_INACTIVE_FOREGROUND,
+	hcDark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
+	hcLight: ACTIVITY_BAR_INACTIVE_FOREGROUND
+}, localize('activityBarItem.profilesForeground', "Foreground color for the profile entry on the activity bar."));
+
+export const ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND = registerColor('activityBarItem.profilesHoverForeground', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hcDark: ACTIVITY_BAR_FOREGROUND,
+	hcLight: ACTIVITY_BAR_FOREGROUND
+}, localize('activityBarItem.profilesHoverForeground', "Foreground color for the profile entry on the activity bar when hovering."));
+
+export const ACTIVITY_BAR_PROFILE_BACKGROUND = registerColor('activityBarItem.profilesBackground', {
+	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
+	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
+	hcDark: null,
+	hcLight: null
+}, localize('activityBarItem.profilesBackground', "Background color for the profile entry on the activity bar."));
 
 // < --- Remote --- >
 
@@ -742,8 +783,8 @@ export const MENUBAR_SELECTION_FOREGROUND = registerColor('menubar.selectionFore
 }, localize('menubarSelectionForeground', "Foreground color of the selected menu item in the menubar."));
 
 export const MENUBAR_SELECTION_BACKGROUND = registerColor('menubar.selectionBackground', {
-	dark: transparent(Color.white, 0.1),
-	light: transparent(Color.black, 0.1),
+	dark: toolbarHoverBackground,
+	light: toolbarHoverBackground,
 	hcDark: null,
 	hcLight: null,
 }, localize('menubarSelectionBackground', "Background color of the selected menu item in the menubar."));
@@ -758,15 +799,15 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 // < --- Notifications --- >
 
 export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationCenter.border', {
-	dark: null,
-	light: null,
+	dark: widgetBorder,
+	light: widgetBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('notificationCenterBorder', "Notifications center border color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationToast.border', {
-	dark: null,
-	light: null,
+	dark: widgetBorder,
+	light: widgetBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('notificationToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));
@@ -839,11 +880,11 @@ export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client when using the custom title bar."));
+}, localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the macOS and Linux desktop client when using the custom title bar."));
 
 export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	dark: null,
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client when using the custom title bar."));
+}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the macOS and Linux desktop client when using the custom title bar."));

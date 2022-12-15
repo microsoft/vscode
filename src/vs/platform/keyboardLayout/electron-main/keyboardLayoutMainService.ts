@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nativeKeymap from 'native-keymap';
+import * as platform from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -48,10 +49,15 @@ export class KeyboardLayoutMainService extends Disposable implements INativeKeyb
 		const nativeKeymapMod = await import('native-keymap');
 
 		this._keyboardLayoutData = readKeyboardLayoutData(nativeKeymapMod);
-		nativeKeymapMod.onDidChangeKeyboardLayout(() => {
-			this._keyboardLayoutData = readKeyboardLayoutData(nativeKeymapMod);
-			this._onDidChangeKeyboardLayout.fire(this._keyboardLayoutData);
-		});
+		if (!platform.isCI) {
+			// See https://github.com/microsoft/vscode/issues/152840
+			// Do not register the keyboard layout change listener in CI because it doesn't work
+			// on the build machines and it just adds noise to the build logs.
+			nativeKeymapMod.onDidChangeKeyboardLayout(() => {
+				this._keyboardLayoutData = readKeyboardLayoutData(nativeKeymapMod);
+				this._onDidChangeKeyboardLayout.fire(this._keyboardLayoutData);
+			});
+		}
 	}
 
 	public async getKeyboardLayoutData(): Promise<IKeyboardLayoutData> {
