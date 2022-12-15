@@ -19,21 +19,21 @@ const setSys: (s: ts.System) => void = (ts as any).setSys;
 
 // End misc internals
 // BEGIN webServer/webServer.ts
+/**
+ * Copied from toResource in typescriptServiceClient.ts
+ * Note that ts-nul-authority might show up for real in-memory files
+ * Also, uh-oh, real in-memory files might also start with ^, so might have to have two encodings
+ * TODO: Test in-memory files in the browser
+ */
+function parseUri(filepath: string) {
+	const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
+	if (!parts) {
+		throw new Error("complex regex failed to match " + filepath)
+	}
+	return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
+}
 function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
 	const fs = apiClient.vscode.workspace.fileSystem
-	/**
-	 * Copied from toResource in typescriptServiceClient.ts
-	 * Note that ts-nul-authority might show up for real in-memory files
-	 * Also, uh-oh, real in-memory files might also start with ^, so might have to have two encodings
-	 * TODO: Test in-memory files in the browser
-	 */
-	function parseUri(filepath: string) {
-		const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
-		if (!parts) {
-			throw new Error("complex regex failed to match " + filepath)
-		}
-		return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
-	}
 	logger.info(`starting serverhost`)
 	return {
 		/**
