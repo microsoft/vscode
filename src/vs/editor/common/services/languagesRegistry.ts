@@ -92,8 +92,8 @@ export class LanguagesRegistry extends Disposable {
 
 		if (useModesRegistry) {
 			this._initializeFromRegistry();
-			this._register(ModesRegistry.onDidChangeLanguages((m) => {
-				this._initializeFromRegistry();
+			this._register(ModesRegistry.onDidChangeLanguages((lang) => {
+				this._registerLanguage(lang);
 			}));
 		}
 	}
@@ -105,7 +105,7 @@ export class LanguagesRegistry extends Disposable {
 
 	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
 		this._dynamicLanguages = def;
-		this._initializeFromRegistry();
+		this._registerLanguages(this._dynamicLanguages);
 	}
 
 	private _initializeFromRegistry(): void {
@@ -115,8 +115,6 @@ export class LanguagesRegistry extends Disposable {
 		this._lowercaseNameMap = {};
 
 		clearPlatformLanguageAssociations();
-		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
-		this._registerLanguages(desc);
 	}
 
 	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
@@ -124,27 +122,9 @@ export class LanguagesRegistry extends Disposable {
 	}
 
 	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
-
 		for (const d of desc) {
 			this._registerLanguage(d);
 		}
-
-		// Rebuild fast path maps
-		this._mimeTypesMap = {};
-		this._nameMap = {};
-		this._lowercaseNameMap = {};
-		Object.keys(this._languages).forEach((langId) => {
-			const language = this._languages[langId];
-			if (language.name) {
-				this._nameMap[language.name] = language.identifier;
-			}
-			language.aliases.forEach((alias) => {
-				this._lowercaseNameMap[alias.toLowerCase()] = language.identifier;
-			});
-			language.mimetypes.forEach((mimetype) => {
-				this._mimeTypesMap[mimetype] = language.identifier;
-			});
-		});
 
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(this.getRegisteredLanguageIds());
 
@@ -153,7 +133,6 @@ export class LanguagesRegistry extends Disposable {
 
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
-
 		let resolvedLanguage: IResolvedLanguage;
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
@@ -173,6 +152,16 @@ export class LanguagesRegistry extends Disposable {
 		}
 
 		this._mergeLanguage(resolvedLanguage, lang);
+		// Rebuild fast path maps
+		if (resolvedLanguage.name) {
+			this._nameMap[resolvedLanguage.name] = resolvedLanguage.identifier;
+		}
+		resolvedLanguage.aliases.forEach((alias) => {
+			this._lowercaseNameMap[alias.toLowerCase()] = resolvedLanguage.identifier;
+		});
+		resolvedLanguage.mimetypes.forEach((mimetype) => {
+			this._mimeTypesMap[mimetype] = resolvedLanguage.identifier;
+		});
 	}
 
 	private _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
