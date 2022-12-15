@@ -668,7 +668,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		switch (resource.scheme) {
 			case fileSchemes.file:
-			case fileSchemes.vscodeWeb:
 				{
 					let result = resource.fsPath;
 					if (!result) {
@@ -681,7 +680,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix
+					return (isWeb() ? '' : this.inMemoryResourcePrefix)
 						+ '/' + resource.scheme
 						+ '/' + (resource.authority || this.emptyAuthority)
 						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
@@ -725,11 +724,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public toResource(filepath: string): vscode.Uri {
 		if (isWeb()) {
 			// On web, the stdlib paths that TS return look like: '/lib.es2015.collection.d.ts'
+			// TODO: Find out what extensionUri is when testing (should be http://localhost:8080/static/sources/extensions/typescript-language-features/)
+			// TODO:  make sure that this code path is getting hit
 			if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
 				return vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'browser', 'typescript', filepath.slice(1));
 			}
-			const resource = vscode.Uri.from({ scheme: 'vscode-test-web', authority: 'mount', path: filepath });
-			return this.bufferSyncSupport.toVsCodeResource(resource);
+			const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)\/(.+)$/);
+			if (parts) {
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
+				return this.bufferSyncSupport.toVsCodeResource(resource);
+			}
 		}
 
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
@@ -745,7 +749,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public getWorkspaceRootForResource(resource: vscode.Uri): string | undefined {
 		const roots = vscode.workspace.workspaceFolders ? Array.from(vscode.workspace.workspaceFolders) : undefined;
 		if (!roots?.length) {
-			if (resource.scheme === fileSchemes.officeScript) { // TODO: Maybe here!
+			if (resource.scheme === fileSchemes.officeScript) {
 				return '/';
 			}
 			return undefined;
@@ -757,7 +761,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case fileSchemes.vscodeNotebookCell:
 			case fileSchemes.memFs:
 			case fileSchemes.vscodeVfs:
-			// TODO: Or here?
 			case fileSchemes.officeScript:
 				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {

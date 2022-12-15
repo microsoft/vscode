@@ -20,11 +20,21 @@ const setSys: (s: ts.System) => void = (ts as any).setSys;
 // End misc internals
 // BEGIN webServer/webServer.ts
 function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
-	const scheme = apiClient.vscode.workspace.workspaceFolders[0].uri.scheme
-	// TODO: Now see which uses of vfsroot need to become serverroot
-	const root = apiClient.vscode.workspace.workspaceFolders[0].uri.path
 	const fs = apiClient.vscode.workspace.fileSystem
-	logger.info(`starting serverhost with scheme ${scheme} and root ${root}`)
+	/**
+	 * Copied from toResource in typescriptServiceClient.ts
+	 * Note that ts-nul-authority might show up for real in-memory files
+	 * Also, uh-oh, real in-memory files might also start with ^, so might have to have two encodings
+	 * TODO: Test in-memory files in the browser
+	 */
+	function parseUri(filepath: string) {
+		const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
+		if (!parts) {
+			throw new Error("complex regex failed to match " + filepath)
+		}
+		return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
+	}
+	logger.info(`starting serverhost`)
 	return {
 		/**
 		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
@@ -82,8 +92,8 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		readFile(path) {
 			try {
 				logger.info('calling readFile on ' + path)
-				const bytes = fs.readFile(URI.from({ scheme, path }))
-				return new TextDecoder().decode(new Uint8Array(bytes).slice()) // TODO: Not sure why `bytes.slice()` isn't as good as `new Uint8Array(bytes).slice()`
+				const bytes = fs.readFile(parseUri(path))
+				return new TextDecoder().decode(new Uint8Array(bytes).slice())
 				// (common/connection.ts says that Uint8Array is only a view on the bytes which could change, which is why the slice exists)
 			}
 			catch (e) {
@@ -95,7 +105,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		getFileSize(path) {
 			try {
 				logger.info('calling getFileSize on ' + path)
-				return fs.stat(URI.from({ scheme, path })).size
+				return fs.stat(parseUri(path)).size
 			}
 			catch (e) {
 				logger.info(`Error fs.getFileSize`)
@@ -106,7 +116,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		writeFile(path, data) {
 			try {
 				logger.info('calling writeFile on ' + path)
-				fs.writeFile(URI.from({ scheme, path }), new TextEncoder().encode(data))
+				fs.writeFile(parseUri(path), new TextEncoder().encode(data))
 			}
 			catch (e) {
 				logger.info(`Error fs.writeFile`)
@@ -120,9 +130,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		fileExists(path: string): boolean {
 			try {
-				logger.info(`calling fileExists on ${path} (as ${URI.from({ scheme, path })})`)
+				logger.info(`calling fileExists on ${path} (as ${parseUri(path)})`)
 				// TODO: FileType.File might be correct! (need to learn about vscode's FileSystem.stat)
-				return fs.stat(URI.from({ scheme, path })).type === FileType.File
+				return fs.stat(parseUri(path)).type === FileType.File
 			}
 			catch (e) {
 				logger.info(`Error fs.fileExists for ${path}`)
@@ -132,9 +142,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		directoryExists(path: string): boolean {
 			try {
-				logger.info(`calling directoryExists on ${path} (as ${URI.from({ scheme, path })})`)
+				logger.info(`calling directoryExists on ${path} (as ${parseUri(path)})`)
 				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
-				return fs.stat(URI.from({ scheme, path })).type === FileType.Directory
+				return fs.stat(parseUri(path)).type === FileType.Directory
 			}
 			catch (e) {
 				logger.info(`Error fs.directoryExists for ${path}`)
@@ -144,9 +154,9 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		createDirectory(path: string): void {
 			try {
-				logger.info(`calling createDirectory on ${path} (as ${URI.from({ scheme, path })})`)
+				logger.info(`calling createDirectory on ${path} (as ${parseUri(path)})`)
 				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
-				fs.createDirectory(URI.from({ scheme, path }))
+				fs.createDirectory(parseUri(path))
 			}
 			catch (e) {
 				logger.info(`Error fs.createDirectory`)
@@ -155,16 +165,15 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		},
 		getExecutingFilePath(): string {
 			logger.info('calling getExecutingFilePath')
-			return root // TODO: Might be correct!
+			return '/' // TODO: Might be correct! Or it might be /scheme/authority. Or /typescript. Or /scheme/authority/typescript. Or dist/browser/typescript
 		},
 		getCurrentDirectory(): string {
-			logger.info('calling getCurrentDirectory')
-			return root // TODO: Might be correct!
+			return '/' // TODO: Might still need to be /scheme/authority
 		},
 		getDirectories(path: string): string[] {
 			try {
 				logger.info('calling getDirectories on ' + path)
-				const entries = fs.readDirectory(URI.from({ scheme, path }))
+				const entries = fs.readDirectory(parseUri(path))
 				return entries.filter(([_, type]) => type === FileType.Directory).map(([f, _]) => f)
 			}
 			catch (e) {
@@ -181,7 +190,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		readDirectory(path: string, extensions?: readonly string[], exclude?: readonly string[]): string[] {
 			try {
 				logger.info('calling readDirectory on ' + path)
-				const entries = fs.readDirectory(URI.from({ scheme, path }))
+				const entries = fs.readDirectory(parseUri(path))
 				return entries
 					.filter(([f, type]) => type === FileType.File && (!extensions || extensions.some(ext => f.endsWith(ext))) && (!exclude || !exclude.includes(f)))
 					.map(([e, _]) => e)
@@ -195,7 +204,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 		getModifiedTime(path: string): Date | undefined {
 			try {
 				logger.info('calling getModifiedTime on ' + path)
-				return new Date(fs.stat(URI.from({ scheme, path })).mtime)
+				return new Date(fs.stat(parseUri(path)).mtime)
 			}
 			catch (e) {
 				logger.info(`Error fs.getModifiedTime`)
@@ -208,7 +217,7 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 			// But I don't have any idea of how to set the modified time to an arbitrary date!
 		},
 		deleteFile(path: string): void {
-			const uri = URI.from({ scheme, path })
+			const uri = parseUri(path)
 			try {
 				logger.info(`calling deleteFile on ${uri}`)
 				fs.delete(uri)
@@ -229,12 +238,13 @@ function createServerHost(logger: ts.server.Logger & ((x: any) => void), apiClie
 			logger.info("EXCITING!" + exitCode)
 			removeEventListener("message", listener) // TODO: Not sure this is right (and there might be other cleanup)
 		},
-		/** webServer comments this out and says "module resolution, symlinks"
-		 * I don't think we support symlinks yet but module resolution should work */
+		/** For module resolution only; symlinks aren't supported yet. */
 		realpath(path: string): string {
-			const parts = [...root.split('/'), ...path.split('/')]
-			const out = []
-			for (const part of parts) {
+			const uri = parseUri(path)
+			const out = [uri.scheme]
+			if (uri.authority)
+				out.push(uri.authority)
+			for (const part of uri.path.split('/')) {
 				switch (part) {
 					case '':
 					case '.':

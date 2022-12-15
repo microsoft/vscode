@@ -40,12 +40,17 @@ Language server host for typescript using vscode's sync-api in the browser
 - [ ] create multiple watchers
    - on-demand instead of watching everything and checking on watch firing
 - [ ] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
+- [ ] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
 - [ ] clear out TODOs
 
 ### Bugs
 
 - [ ] Response `seq` is always 0.
-- [ ] problems pane doesn't clear problems issued on tsconfig.
+- [ ] current method of encoding /scheme/authority means that (node) module resolution looks for /scheme/node_modules and /node_modules
+  - even though they can't possibly exist
+  - probably not a problem though
+- [x] problems pane doesn't clear problems issued on tsconfig.
+  - This is a known problem in normal usage as well.
 - [x] renaming a file throws a No Project error to the console.
 - [x] gotodef in another file throws and the editor has a special UI for it.
   - definitionProviderBase.getSymbolLocations calls toOpenedFilePath which eventually calls the new / code
@@ -58,6 +63,7 @@ Language server host for typescript using vscode's sync-api in the browser
 
 - [ ] put files one level down from virtual root
 - [ ] think about implementing all the other ServerHost methods
+  - also copy details from previous implementation (although it's syntax-only so only covers part)
 - [ ] organise webServer.ts into multiple files
 
 ### Done
