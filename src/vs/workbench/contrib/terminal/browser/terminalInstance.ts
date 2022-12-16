@@ -90,6 +90,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 const enum Constants {
 	/**
@@ -1420,7 +1421,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
-				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
+				this._labelComputer = this._register(this._scopedInstantiationService.createInstance(TerminalLabelComputer, this._configHelper, this));
 				this._labelComputer.onDidChangeLabel(e => {
 					this._title = e.title;
 					this._description = e.description;
@@ -2488,6 +2489,7 @@ export class TerminalLabelComputer extends Disposable {
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
 		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
@@ -2536,7 +2538,15 @@ export class TerminalLabelComputer extends Disposable {
 			const cwdUri = URI.from({ scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file, path: this._instance.cwd });
 			// Multi-root workspaces always show cwdFolder to disambiguate them, otherwise only show
 			// when it differs from the workspace folder in which it was launched from
-			if (multiRootWorkspace || cwdUri.fsPath !== this._instance.workspaceFolder?.uri.fsPath) {
+			let showCwd = false;
+			if (multiRootWorkspace) {
+				showCwd = true;
+			} else if (this._instance.workspaceFolder?.uri) {
+				const caseSensitive = this._fileService.hasCapability(this._instance.workspaceFolder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
+				showCwd = cwdUri.fsPath.localeCompare(this._instance.workspaceFolder.uri.fsPath, undefined, { sensitivity: caseSensitive ? 'case' : 'base' }) !== 0;
+			}
+			if (showCwd) {
+
 				templateProperties.cwdFolder = path.basename(templateProperties.cwd);
 			}
 		}

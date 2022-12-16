@@ -355,31 +355,34 @@
 	font-size: 14px;
 	line-height: 36px;
 	padding-left: 20px;
-	border-bottom: 1px solid rgba(136, 136, 136, 0.45);
-	box-sizing: border-box;
+	border-bottom: 1px solid var(--vscode-panelSection-border);
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container {
 	justify-content: initial;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	margin-right: 16px;
-	font-size: inherit;
-	opacity: 0.7;
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item {
+	height: 100%;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	padding: 0 10px;
+	font-size: 11px;
+	font-weight: normal;
+	color: var(--vscode-panelTitle-inactiveForeground);
+	text-transform: uppercase;
 	background: none !important;
+	border-radius: 0px !important;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
-	opacity: 1;
-	text-decoration: underline;
+	border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+	color: var(--vscode-panelTitle-activeForeground);
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
-	text-decoration: underline;
+	color: var(--vscode-panelTitle-activeForeground);
 }
 
 .extension-editor > .body > .content {

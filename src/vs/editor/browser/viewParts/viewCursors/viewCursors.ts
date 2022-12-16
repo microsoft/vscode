@@ -25,7 +25,7 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
 	private _cursorStyle: TextEditorCursorStyle;
-	private _cursorSmoothCaretAnimation: boolean;
+	private _cursorSmoothCaretAnimation: 'off' | 'explicit' | 'on';
 	private _selectionIsEmpty: boolean;
 	private _isComposingInput: boolean;
 
@@ -117,7 +117,7 @@ export class ViewCursors extends ViewPart {
 	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[], reason: CursorChangeReason): void {
 		const pauseAnimation = (
 			this._secondaryCursors.length !== secondaryPositions.length
-			|| reason !== CursorChangeReason.Explicit
+			|| (this._cursorSmoothCaretAnimation === 'explicit' && reason !== CursorChangeReason.Explicit)
 		);
 		this._primaryCursor.onCursorPositionChanged(position, pauseAnimation);
 		this._updateBlinking();
@@ -318,7 +318,7 @@ export class ViewCursors extends ViewPart {
 		} else {
 			result += ' cursor-solid';
 		}
-		if (this._cursorSmoothCaretAnimation) {
+		if (this._cursorSmoothCaretAnimation === 'on' || this._cursorSmoothCaretAnimation === 'explicit') {
 			result += ' cursor-smooth-caret-animation';
 		}
 		return result;
