@@ -52,7 +52,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		};
 	}
 
-	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender, options?: vscode.TelemetryInitializationOptions) {
+	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender, options?: vscode.TelemetryLoggerOptions) {
 		const telemetryDetails = this.getTelemetryDetails();
 		const logger = new ExtHostTelemetryLogger(
 			appender,
@@ -137,7 +137,7 @@ export class ExtHostTelemetryLogger {
 	public readonly ignoreUnhandledExtHostErrors: boolean;
 	constructor(
 		appender: vscode.TelemetryAppender,
-		options: vscode.TelemetryInitializationOptions | undefined,
+		options: vscode.TelemetryLoggerOptions | undefined,
 		private readonly _extension: IExtensionDescription,
 		private readonly _logger: ILogger,
 		private readonly _inLoggingOnlyMode: boolean,
