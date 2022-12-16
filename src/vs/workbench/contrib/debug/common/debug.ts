@@ -43,6 +43,7 @@ export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debug
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive', { type: 'string', description: nls.localize('debugState', "State that the focused debug session is in. One of the following: 'inactive', 'initializing', 'stopped' or 'running'.") });
 export const CONTEXT_DEBUG_UX_KEY = 'debugUx';
 export const CONTEXT_DEBUG_UX = new RawContextKey<string>(CONTEXT_DEBUG_UX_KEY, 'default', { type: 'string', description: nls.localize('debugUX', "Debug UX state. When there are no debug configurations it is 'simple', otherwise 'default'. Used to decide when to show welcome views in the debug viewlet.") });
+export const CONTEXT_HAS_DEBUGGED = new RawContextKey<boolean>('hasDebugged', false, { type: 'boolean', description: nls.localize('hasDebugged', "True when a debug session has been started at least once, false otherwise.") });
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false, { type: 'boolean', description: nls.localize('inDebugMode', "True when debugging, false otherwise.") });
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false, { type: 'boolean', description: nls.localize('inDebugRepl', "True when focus is in the debug console, false otherwise.") });
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false, { type: 'boolean', description: nls.localize('breakpointWidgetVisibile', "True when breakpoint editor zone widget is visible, false otherwise.") });
@@ -304,6 +305,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly suppressDebugToolbar: boolean;
 	readonly suppressDebugStatusbar: boolean;
 	readonly suppressDebugView: boolean;
+	readonly lifecycleManagedByParent: boolean;
 
 	setSubId(subId: string | undefined): void;
 
@@ -665,6 +667,7 @@ export interface IDebugConfiguration {
 		showSourceCode: boolean;
 	};
 	autoExpandLazyVariables: boolean;
+	enableStatusBarColor: boolean;
 }
 
 export interface IGlobalConfig {

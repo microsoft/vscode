@@ -12,8 +12,10 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { ICellPartialMetadataEdit, ICellReplaceEdit, IDocumentMetadataEdit, IWorkspaceNotebookCellEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellPartialMetadataEdit, ICellReplaceEdit, IDocumentMetadataEdit, ISelectionState, IWorkspaceNotebookCellEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ResourceNotebookCellEdit extends ResourceEdit implements IWorkspaceNotebookCellEdit {
 
@@ -50,6 +52,7 @@ export class BulkCellEdits {
 		private readonly _progress: IProgress<void>,
 		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceNotebookCellEdit[],
+		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
 
@@ -73,7 +76,13 @@ export class BulkCellEdits {
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
 			const computeUndo = !ref.object.isReadonly();
-			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup, computeUndo);
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+			const initialSelectionState: ISelectionState | undefined = editor?.textModel?.uri.toString() === ref.object.notebook.uri.toString() ? {
+				kind: SelectionStateType.Index,
+				focus: editor.getFocus(),
+				selections: editor.getSelections()
+			} : undefined;
+			ref.object.notebook.applyEdits(edits, true, initialSelectionState, () => undefined, this._undoRedoGroup, computeUndo);
 			ref.dispose();
 
 			this._progress.report(undefined);

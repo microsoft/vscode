@@ -247,7 +247,7 @@ class TimerCellStatusBarItem extends Disposable {
 			const startTime = this._cell.internalMetadata.runStartTime;
 			const endTime = this._cell.internalMetadata.runEndTime;
 			if (typeof startTime === 'number' && typeof endTime === 'number') {
-				item = this._getTimeItem(startTime, endTime);
+				item = this._getTimeItem(startTime, endTime, undefined, true);
 			}
 		}
 
@@ -266,12 +266,13 @@ class TimerCellStatusBarItem extends Disposable {
 		}
 	}
 
-	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0): INotebookCellStatusBarItem {
+	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0, isDone = false): INotebookCellStatusBarItem {
 		const duration = endTime - startTime + adjustment;
 		return <INotebookCellStatusBarItem>{
 			text: formatCellDuration(duration),
 			alignment: CellStatusbarAlignment.Left,
-			priority: Number.MAX_SAFE_INTEGER - 1
+			priority: Number.MAX_SAFE_INTEGER - 1,
+			tooltip: isDone ? new Date(endTime).toLocaleString() : undefined
 		};
 	}
 

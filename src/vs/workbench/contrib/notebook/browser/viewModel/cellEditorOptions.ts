@@ -24,7 +24,6 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		},
 		renderLineHighlightOnlyWhenFocus: true,
 		overviewRulerLanes: 0,
-		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
 		folding: true,
 		fixedOverflowWidgets: true,
