@@ -68,6 +68,11 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 			return;
 		}
 
+		if (opts?.detached) {
+			await this.repository.checkout(this.ref.name, opts);
+			return;
+		}
+
 		const branches = await this.repository.findTrackingBranches(this.ref.name);
 
 		if (branches.length > 0) {
