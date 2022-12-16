@@ -171,7 +171,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		// If the command center is visible then the quickinput should go over the title bar and the banner
 		if (this.titleService.isCommandCenterVisible) {
-			quickPickTop = 0;
+			quickPickTop = 6;
 		}
 		return { top, quickPickTop };
 	}

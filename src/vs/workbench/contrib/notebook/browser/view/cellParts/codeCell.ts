@@ -131,9 +131,9 @@ export class CodeCell extends Disposable {
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 
+		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 		this._register(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri))));
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
-		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 	}
 
 	private _pendingLayout: IDisposable | undefined;
@@ -373,7 +373,7 @@ export class CodeCell extends Disposable {
 		const expandIcon = DOM.$('span.expandInputIcon');
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
-			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double-click to expand cell input ({0})", keybinding.getLabel());
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 

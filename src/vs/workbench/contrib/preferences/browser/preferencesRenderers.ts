@@ -24,7 +24,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
@@ -43,6 +43,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -529,6 +530,12 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
 			for (const section of settingsGroup.sections) {
 				for (const setting of section.settings) {
+					if (OVERRIDE_PROPERTY_REGEX.test(setting.key)) {
+						if (setting.overrides) {
+							this.handleOverrides(setting.overrides, configurationRegistry, markerData);
+						}
+						continue;
+					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
 						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
@@ -548,13 +555,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
 								break;
 						}
-					} else if (!OVERRIDE_PROPERTY_REGEX.test(setting.key)) { // Ignore override settings (language specific settings)
-						markerData.push({
-							severity: MarkerSeverity.Hint,
-							tags: [MarkerTag.Unnecessary],
-							...setting.range,
-							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
-						});
+					} else {
+						markerData.push(this.gemerateUnknownConfigurationMarker(setting));
 					}
 				}
 			}
@@ -579,6 +581,24 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			message: nls.localize('unsupportedPolicySetting', "This setting cannot be applied because it is configured in the system policy.")
 		});
 		return true;
+	}
+
+	private handleOverrides(overrides: ISetting[], configurationRegistry: IStringDictionary<IRegisteredConfigurationPropertySchema>, markerData: IMarkerData[]): void {
+		for (const setting of overrides || []) {
+			const configuration = configurationRegistry[setting.key];
+			if (configuration) {
+				if (configuration.scope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+					markerData.push({
+						severity: MarkerSeverity.Hint,
+						tags: [MarkerTag.Unnecessary],
+						...setting.range,
+						message: nls.localize('unsupportLanguageOverrideSetting', "This setting cannot be applied because it is not registered as language override setting.")
+					});
+				}
+			} else {
+				markerData.push(this.gemerateUnknownConfigurationMarker(setting));
+			}
+		}
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
@@ -680,6 +700,15 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Warning,
 			...setting.range,
 			message: nls.localize('untrustedSetting', "This setting can only be applied in a trusted workspace.")
+		};
+	}
+
+	private gemerateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			...setting.range,
+			message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
 		};
 	}
 

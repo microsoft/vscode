@@ -1256,7 +1256,7 @@ declare namespace monaco.editor {
 		 */
 		'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 		/**
-		 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+		 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 		 * Defaults to false.
 		 */
 		stablePeek?: boolean;
@@ -1778,6 +1778,7 @@ declare namespace monaco.editor {
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+		get originalIndentSize(): number | 'tabSize';
 	}
 
 	export interface BracketPairColorizationOptions {
@@ -1787,7 +1788,7 @@ declare namespace monaco.editor {
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
-		indentSize?: number;
+		indentSize?: number | 'tabSize';
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
@@ -3184,9 +3185,9 @@ declare namespace monaco.editor {
 		mouseStyle?: 'text' | 'default' | 'copy';
 		/**
 		 * Enable smooth caret animation.
-		 * Defaults to false.
+		 * Defaults to 'off'.
 		 */
-		cursorSmoothCaretAnimation?: boolean;
+		cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 		/**
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
@@ -3311,6 +3312,10 @@ declare namespace monaco.editor {
 		 * Enable inline color decorators and color picker rendering.
 		 */
 		colorDecorators?: boolean;
+		/**
+		 * Controls the max number of color decorators that can be rendered in an editor at once.
+		 */
+		colorDecoratorsLimit?: number;
 		/**
 		 * Control the behaviour of comments in the editor.
 		 */
@@ -4590,127 +4595,128 @@ declare namespace monaco.editor {
 		codeLensFontFamily = 15,
 		codeLensFontSize = 16,
 		colorDecorators = 17,
-		columnSelection = 18,
-		comments = 19,
-		contextmenu = 20,
-		copyWithSyntaxHighlighting = 21,
-		cursorBlinking = 22,
-		cursorSmoothCaretAnimation = 23,
-		cursorStyle = 24,
-		cursorSurroundingLines = 25,
-		cursorSurroundingLinesStyle = 26,
-		cursorWidth = 27,
-		disableLayerHinting = 28,
-		disableMonospaceOptimizations = 29,
-		domReadOnly = 30,
-		dragAndDrop = 31,
-		dropIntoEditor = 32,
-		emptySelectionClipboard = 33,
-		experimentalWhitespaceRendering = 34,
-		extraEditorClassName = 35,
-		fastScrollSensitivity = 36,
-		find = 37,
-		fixedOverflowWidgets = 38,
-		folding = 39,
-		foldingStrategy = 40,
-		foldingHighlight = 41,
-		foldingImportsByDefault = 42,
-		foldingMaximumRegions = 43,
-		unfoldOnClickAfterEndOfLine = 44,
-		fontFamily = 45,
-		fontInfo = 46,
-		fontLigatures = 47,
-		fontSize = 48,
-		fontWeight = 49,
-		fontVariations = 50,
-		formatOnPaste = 51,
-		formatOnType = 52,
-		glyphMargin = 53,
-		gotoLocation = 54,
-		hideCursorInOverviewRuler = 55,
-		hover = 56,
-		inDiffEditor = 57,
-		inlineSuggest = 58,
-		letterSpacing = 59,
-		lightbulb = 60,
-		lineDecorationsWidth = 61,
-		lineHeight = 62,
-		lineNumbers = 63,
-		lineNumbersMinChars = 64,
-		linkedEditing = 65,
-		links = 66,
-		matchBrackets = 67,
-		minimap = 68,
-		mouseStyle = 69,
-		mouseWheelScrollSensitivity = 70,
-		mouseWheelZoom = 71,
-		multiCursorMergeOverlapping = 72,
-		multiCursorModifier = 73,
-		multiCursorPaste = 74,
-		multiCursorLimit = 75,
-		occurrencesHighlight = 76,
-		overviewRulerBorder = 77,
-		overviewRulerLanes = 78,
-		padding = 79,
-		parameterHints = 80,
-		peekWidgetDefaultFocus = 81,
-		definitionLinkOpensInPeek = 82,
-		quickSuggestions = 83,
-		quickSuggestionsDelay = 84,
-		readOnly = 85,
-		renameOnType = 86,
-		renderControlCharacters = 87,
-		renderFinalNewline = 88,
-		renderLineHighlight = 89,
-		renderLineHighlightOnlyWhenFocus = 90,
-		renderValidationDecorations = 91,
-		renderWhitespace = 92,
-		revealHorizontalRightPadding = 93,
-		roundedSelection = 94,
-		rulers = 95,
-		scrollbar = 96,
-		scrollBeyondLastColumn = 97,
-		scrollBeyondLastLine = 98,
-		scrollPredominantAxis = 99,
-		selectionClipboard = 100,
-		selectionHighlight = 101,
-		selectOnLineNumbers = 102,
-		showFoldingControls = 103,
-		showUnused = 104,
-		snippetSuggestions = 105,
-		smartSelect = 106,
-		smoothScrolling = 107,
-		stickyScroll = 108,
-		stickyTabStops = 109,
-		stopRenderingLineAfter = 110,
-		suggest = 111,
-		suggestFontSize = 112,
-		suggestLineHeight = 113,
-		suggestOnTriggerCharacters = 114,
-		suggestSelection = 115,
-		tabCompletion = 116,
-		tabIndex = 117,
-		unicodeHighlighting = 118,
-		unusualLineTerminators = 119,
-		useShadowDOM = 120,
-		useTabStops = 121,
-		wordBreak = 122,
-		wordSeparators = 123,
-		wordWrap = 124,
-		wordWrapBreakAfterCharacters = 125,
-		wordWrapBreakBeforeCharacters = 126,
-		wordWrapColumn = 127,
-		wordWrapOverride1 = 128,
-		wordWrapOverride2 = 129,
-		wrappingIndent = 130,
-		wrappingStrategy = 131,
-		showDeprecated = 132,
-		inlayHints = 133,
-		editorClassName = 134,
-		pixelRatio = 135,
-		tabFocusMode = 136,
-		layoutInfo = 137,
-		wrappingInfo = 138
+		colorDecoratorsLimit = 18,
+		columnSelection = 19,
+		comments = 20,
+		contextmenu = 21,
+		copyWithSyntaxHighlighting = 22,
+		cursorBlinking = 23,
+		cursorSmoothCaretAnimation = 24,
+		cursorStyle = 25,
+		cursorSurroundingLines = 26,
+		cursorSurroundingLinesStyle = 27,
+		cursorWidth = 28,
+		disableLayerHinting = 29,
+		disableMonospaceOptimizations = 30,
+		domReadOnly = 31,
+		dragAndDrop = 32,
+		dropIntoEditor = 33,
+		emptySelectionClipboard = 34,
+		experimentalWhitespaceRendering = 35,
+		extraEditorClassName = 36,
+		fastScrollSensitivity = 37,
+		find = 38,
+		fixedOverflowWidgets = 39,
+		folding = 40,
+		foldingStrategy = 41,
+		foldingHighlight = 42,
+		foldingImportsByDefault = 43,
+		foldingMaximumRegions = 44,
+		unfoldOnClickAfterEndOfLine = 45,
+		fontFamily = 46,
+		fontInfo = 47,
+		fontLigatures = 48,
+		fontSize = 49,
+		fontWeight = 50,
+		fontVariations = 51,
+		formatOnPaste = 52,
+		formatOnType = 53,
+		glyphMargin = 54,
+		gotoLocation = 55,
+		hideCursorInOverviewRuler = 56,
+		hover = 57,
+		inDiffEditor = 58,
+		inlineSuggest = 59,
+		letterSpacing = 60,
+		lightbulb = 61,
+		lineDecorationsWidth = 62,
+		lineHeight = 63,
+		lineNumbers = 64,
+		lineNumbersMinChars = 65,
+		linkedEditing = 66,
+		links = 67,
+		matchBrackets = 68,
+		minimap = 69,
+		mouseStyle = 70,
+		mouseWheelScrollSensitivity = 71,
+		mouseWheelZoom = 72,
+		multiCursorMergeOverlapping = 73,
+		multiCursorModifier = 74,
+		multiCursorPaste = 75,
+		multiCursorLimit = 76,
+		occurrencesHighlight = 77,
+		overviewRulerBorder = 78,
+		overviewRulerLanes = 79,
+		padding = 80,
+		parameterHints = 81,
+		peekWidgetDefaultFocus = 82,
+		definitionLinkOpensInPeek = 83,
+		quickSuggestions = 84,
+		quickSuggestionsDelay = 85,
+		readOnly = 86,
+		renameOnType = 87,
+		renderControlCharacters = 88,
+		renderFinalNewline = 89,
+		renderLineHighlight = 90,
+		renderLineHighlightOnlyWhenFocus = 91,
+		renderValidationDecorations = 92,
+		renderWhitespace = 93,
+		revealHorizontalRightPadding = 94,
+		roundedSelection = 95,
+		rulers = 96,
+		scrollbar = 97,
+		scrollBeyondLastColumn = 98,
+		scrollBeyondLastLine = 99,
+		scrollPredominantAxis = 100,
+		selectionClipboard = 101,
+		selectionHighlight = 102,
+		selectOnLineNumbers = 103,
+		showFoldingControls = 104,
+		showUnused = 105,
+		snippetSuggestions = 106,
+		smartSelect = 107,
+		smoothScrolling = 108,
+		stickyScroll = 109,
+		stickyTabStops = 110,
+		stopRenderingLineAfter = 111,
+		suggest = 112,
+		suggestFontSize = 113,
+		suggestLineHeight = 114,
+		suggestOnTriggerCharacters = 115,
+		suggestSelection = 116,
+		tabCompletion = 117,
+		tabIndex = 118,
+		unicodeHighlighting = 119,
+		unusualLineTerminators = 120,
+		useShadowDOM = 121,
+		useTabStops = 122,
+		wordBreak = 123,
+		wordSeparators = 124,
+		wordWrap = 125,
+		wordWrapBreakAfterCharacters = 126,
+		wordWrapBreakBeforeCharacters = 127,
+		wordWrapColumn = 128,
+		wordWrapOverride1 = 129,
+		wordWrapOverride2 = 130,
+		wrappingIndent = 131,
+		wrappingStrategy = 132,
+		showDeprecated = 133,
+		inlayHints = 134,
+		editorClassName = 135,
+		pixelRatio = 136,
+		tabFocusMode = 137,
+		layoutInfo = 138,
+		wrappingInfo = 139
 	}
 
 	export const EditorOptions: {
@@ -4733,12 +4739,13 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
+		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
 		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
-		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, boolean>;
+		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, 'on' | 'off' | 'explicit'>;
 		cursorStyle: IEditorOption<EditorOption.cursorStyle, TextEditorCursorStyle>;
 		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
 		cursorSurroundingLinesStyle: IEditorOption<EditorOption.cursorSurroundingLinesStyle, 'default' | 'all'>;

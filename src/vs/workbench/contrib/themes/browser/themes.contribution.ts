@@ -47,6 +47,7 @@ class MarketplaceThemesPicker {
 	private readonly _marketplaceThemes: ThemeItem[] = [];
 
 	private _searchOngoing: boolean = false;
+	private _searchError: string | undefined = undefined;
 	private readonly _onDidChange = new Emitter<void>();
 
 	private _tokenSource: CancellationTokenSource | undefined;
@@ -74,10 +75,6 @@ class MarketplaceThemesPicker {
 
 	public get themes(): ThemeItem[] {
 		return this._marketplaceThemes;
-	}
-
-	public get isSearching(): boolean {
-		return this._searchOngoing;
 	}
 
 	public get onDidChange() {
@@ -140,6 +137,7 @@ class MarketplaceThemesPicker {
 		} catch (e) {
 			if (!isCancellationError(e)) {
 				this.logService.error(`Error while searching for themes:`, e);
+				this._searchError = 'message' in e ? e.message : String(e);
 			}
 		} finally {
 			this._searchOngoing = false;
@@ -209,8 +207,10 @@ class MarketplaceThemesPicker {
 
 			this.onDidChange(() => {
 				let items = this.themes;
-				if (this.isSearching) {
+				if (this._searchOngoing) {
 					items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
+				} else if (items.length === 0 && this._searchError) {
+					items = [{ label: `$(error) ${localize('search.error', 'Error while searching for themes: {0}', this._searchError)}`, id: undefined, alwaysShow: true }];
 				}
 				const activeItemId = quickpick.activeItems[0]?.id;
 				const newActiveItem = activeItemId ? items.find(i => isItem(i) && i.id === activeItemId) : undefined;
