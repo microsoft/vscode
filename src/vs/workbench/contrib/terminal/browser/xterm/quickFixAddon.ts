@@ -32,7 +32,13 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
-const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
+const quickFixSelectors = [
+	DecorationSelector.QuickFix,
+	DecorationSelector.LightBulb,
+	DecorationSelector.Codicon,
+	DecorationSelector.CommandDecoration,
+	DecorationSelector.XtermDecoration
+];
 
 export interface ITerminalQuickFixAddon {
 	showMenu(): void;
