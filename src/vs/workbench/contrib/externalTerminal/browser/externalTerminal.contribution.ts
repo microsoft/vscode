@@ -29,9 +29,8 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';
-const OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID = 'openInExternalTerminal';
 
-function registerOpenTerminalCommand(id: string, explorerKind: string) {
+function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'external') {
 	CommandsRegistry.registerCommand({
 		id: id,
 		handler: async (accessor, resource: URI) => {
@@ -53,13 +52,7 @@ function registerOpenTerminalCommand(id: string, explorerKind: string) {
 				// Always use integrated terminal when using a remote
 				const config = configurationService.getValue<IExternalTerminalConfiguration>();
 
-				let isIntegratedKind = explorerKind === 'integrated';
-				// Key binding compatible with historical command 'OPEN_IN_TERMINAL_COMMAND_ID'
-				if (explorerKind === 'origin') {
-					const config = configurationService.getValue<IExternalTerminalConfiguration>();
-					isIntegratedKind = config.terminal.explorerKind === 'integrated';
-				}
-				const useIntegratedTerminal = remoteAgentService.getConnection() || isIntegratedKind;
+				const useIntegratedTerminal = remoteAgentService.getConnection() || explorerKind === 'integrated';
 				const targets = distinct(stats.filter(data => data.success));
 				if (useIntegratedTerminal) {
 					// TODO: Use uri for cwd in createterminal
@@ -98,13 +91,12 @@ function registerOpenTerminalCommand(id: string, explorerKind: string) {
 	});
 }
 
-registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'origin');
+registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'external');
 registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated');
-registerOpenTerminalCommand(OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID, 'external');
 
 export class ExternalTerminalContribution extends Disposable implements IWorkbenchContribution {
 	private _openInIntegratedTerminalMenuItem: IMenuItem;
-	private _openInExternalTerminalMenuItem: IMenuItem;
+	private _openInTerminalMenuItem: IMenuItem;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -125,11 +117,11 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		};
 
 
-		this._openInExternalTerminalMenuItem = {
+		this._openInTerminalMenuItem = {
 			group: 'navigation',
 			order: 31,
 			command: {
-				id: OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID,
+				id: OPEN_IN_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
 			},
 			when: ContextKeyExpr.and(
@@ -139,7 +131,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		};
 
 
-		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInExternalTerminalMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInTerminalMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
 
 		this._configurationService.onDidChangeConfiguration(e => {
