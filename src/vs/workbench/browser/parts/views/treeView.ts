@@ -67,6 +67,8 @@ import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TreeViewPane extends ViewPane {
 
@@ -646,7 +648,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						return buildAriaLabel;
 					}
 				},
-				getRole(element: ITreeItem): string | undefined {
+				getRole(element: ITreeItem): AriaRole | undefined {
 					return element.accessibilityInformation?.role ?? 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
@@ -907,6 +909,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
+			const oldSelection = tree.getSelection();
 			try {
 				await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
 			} catch (e) {
@@ -914,6 +917,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				// we can get a "Tree element not found" error. This is expected.
 				// Ideally this is fixable, so log instead of ignoring so the error is preserved.
 				this.logService.error(e);
+			}
+			const newSelection = tree.getSelection();
+			if (oldSelection.length !== newSelection.length || oldSelection.some((value, index) => value.handle !== newSelection[index].handle)) {
+				this._onDidChangeSelection.fire(newSelection);
 			}
 			this.refreshing = false;
 			this._onDidCompleteRefresh.fire();
@@ -1457,7 +1464,7 @@ export class CustomTreeView extends AbstractTreeView {
 	protected activate() {
 		if (!this.activated) {
 			type ExtensionViewTelemetry = {
-				extensionId: string;
+				extensionId: TrustedTelemetryValue<string>;
 				id: string;
 			};
 			type ExtensionViewTelemetryMeta = {
@@ -1467,7 +1474,7 @@ export class CustomTreeView extends AbstractTreeView {
 				comment: 'Helps to gain insights on what extension contributed views are most popular';
 			};
 			this.telemetryService.publicLog2<ExtensionViewTelemetry, ExtensionViewTelemetryMeta>('Extension:ViewActivate', {
-				extensionId: this.extensionId,
+				extensionId: new TrustedTelemetryValue(this.extensionId),
 				id: this.id,
 			});
 			this.createTree();

@@ -214,9 +214,9 @@ export interface IEditorOptions {
 	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
 	 * Enable smooth caret animation.
-	 * Defaults to false.
+	 * Defaults to 'off'.
 	 */
-	cursorSmoothCaretAnimation?: boolean;
+	cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -341,6 +341,10 @@ export interface IEditorOptions {
 	 * Enable inline color decorators and color picker rendering.
 	 */
 	colorDecorators?: boolean;
+	/**
+	 * Controls the max number of color decorators that can be rendered in an editor at once.
+	 */
+	colorDecoratorsLimit?: number;
 	/**
 	 * Control the behaviour of comments in the editor.
 	 */
@@ -593,6 +597,11 @@ export interface IEditorOptions {
 	 * Defaults to 'always'.
 	 */
 	matchBrackets?: 'never' | 'near' | 'always';
+	/**
+	 * Enable experimental whitespace rendering.
+	 * Defaults to 'svg'.
+	 */
+	experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to 'selection'.
@@ -4239,6 +4248,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: defaults.shareSuggestSelections,
 					markdownDescription: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`).")
 				},
+				'editor.suggest.selectQuickSuggestions': {
+					type: 'boolean',
+					default: defaults.selectQuickSuggestions,
+					markdownDescription: nls.localize('suggest.selectQuickSuggestions', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters.")
+				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
@@ -4727,6 +4741,7 @@ export const enum EditorOption {
 	codeLensFontFamily,
 	codeLensFontSize,
 	colorDecorators,
+	colorDecoratorsLimit,
 	columnSelection,
 	comments,
 	contextmenu,
@@ -4743,6 +4758,7 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
+	experimentalWhitespaceRendering,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -4989,6 +5005,12 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	colorDecoratorsLimit: register(new EditorIntOption(
+		EditorOption.colorDecoratorsLimit, 'colorDecoratorsLimit', 500, 1, 1000000,
+		{
+			markdownDescription: nls.localize('colorDecoratorsLimit', "Controls the max number of color decorators that can be rendered in an editor at once.")
+		}
+	)),
 	columnSelection: register(new EditorBooleanOption(
 		EditorOption.columnSelection, 'columnSelection', false,
 		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
@@ -5008,9 +5030,18 @@ export const EditorOptions = {
 		_cursorBlinkingStyleFromString,
 		{ description: nls.localize('cursorBlinking', "Control the cursor animation style.") }
 	)),
-	cursorSmoothCaretAnimation: register(new EditorBooleanOption(
-		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false,
-		{ description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.") }
+	cursorSmoothCaretAnimation: register(new EditorStringEnumOption(
+		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation',
+		'off' as 'off' | 'explicit' | 'on',
+		['off', 'explicit', 'on'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('cursorSmoothCaretAnimation.off', "Smooth caret animation is disabled."),
+				nls.localize('cursorSmoothCaretAnimation.explicit', "Smooth caret animation is enabled only when the user moves the cursor with an explicit gesture."),
+				nls.localize('cursorSmoothCaretAnimation.on', "Smooth caret animation is always enabled.")
+			],
+			description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.")
+		}
 	)),
 	cursorStyle: register(new EditorEnumOption(
 		EditorOption.cursorStyle, 'cursorStyle',
@@ -5022,7 +5053,7 @@ export const EditorOptions = {
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
+		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading lines (minimum 0) and trailing lines (minimum 1) surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
 	)),
 	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
 		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
@@ -5057,6 +5088,19 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
+		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
+		'svg' as 'svg' | 'font' | 'off',
+		['svg', 'font', 'off'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('experimentalWhitespaceRendering.svg', "Use a new rendering method with svgs."),
+				nls.localize('experimentalWhitespaceRendering.font', "Use a new rendering method with font characters."),
+				nls.localize('experimentalWhitespaceRendering.off', "Use the stable rendering method."),
+			],
+			description: nls.localize('experimentalWhitespaceRendering', "Controls whether whitespace is rendered with a new, experimental method.")
+		}
+	)),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),

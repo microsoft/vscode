@@ -278,7 +278,7 @@
 
 .review-widget .body .comment-additional-actions .section-separator {
 	border-top: 1px solid var(--vscode-menu-separatorBackground);
-	margin: 14px 0;
+	margin: 10px 0 14px;
 }
 
 .review-widget .body .comment-additional-actions .button-bar {
@@ -375,7 +375,6 @@
 	width: auto;
 	padding: 4px 10px;
 	margin-left: 5px;
-	margin-bottom: 5px;
 }
 
 .review-widget .body .form-actions .monaco-text-button {

@@ -295,6 +295,7 @@ export class FeedbackWidget extends Disposable {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
 				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
 				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px 2px ${colors.widgetShadow}` : '';
+				this.feedbackForm.style.border = colors.widgetBorder ? `1px solid ${colors.widgetBorder}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';

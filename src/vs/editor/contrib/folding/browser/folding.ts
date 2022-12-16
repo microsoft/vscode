@@ -1085,8 +1085,8 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.createFoldingRangeFromSelection',
-			label: nls.localize('createManualFoldRange.label', "Create Manual Folding Range from Selection"),
-			alias: 'Create Manual Folding Range from Selection',
+			label: nls.localize('createManualFoldRange.label', "Create Folding Range from Selection"),
+			alias: 'Create Folding Range from Selection',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

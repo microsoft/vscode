@@ -22,7 +22,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import type { IGrammar, IToken, StackElement } from 'vscode-textmate';
+import type { IGrammar, IToken, StateStack } from 'vscode-textmate';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
@@ -511,8 +511,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement | null {
-		let state: StackElement | null = null;
+	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StateStack | null {
+		let state: StateStack | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
 			const tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
