@@ -52,7 +52,14 @@ function registerOpenTerminalCommand(id: string, explorerKind: string) {
 			return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 				// Always use integrated terminal when using a remote
 				const config = configurationService.getValue<IExternalTerminalConfiguration>();
-				const useIntegratedTerminal = remoteAgentService.getConnection() || explorerKind === 'integrated';
+
+				let isIntegratedKind = explorerKind === 'integrated';
+				// Key binding compatible with historical command 'OPEN_IN_TERMINAL_COMMAND_ID'
+				if (explorerKind === 'origin') {
+					const config = configurationService.getValue<IExternalTerminalConfiguration>();
+					isIntegratedKind = config.terminal.explorerKind === 'integrated';
+				}
+				const useIntegratedTerminal = remoteAgentService.getConnection() || isIntegratedKind;
 				const targets = distinct(stats.filter(data => data.success));
 				if (useIntegratedTerminal) {
 					// TODO: Use uri for cwd in createterminal
@@ -91,7 +98,7 @@ function registerOpenTerminalCommand(id: string, explorerKind: string) {
 	});
 }
 
-registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'integrated');
+registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'origin');
 registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated');
 registerOpenTerminalCommand(OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID, 'external');
 
