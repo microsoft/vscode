@@ -20,13 +20,12 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isWeb, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { dirname, basename } from 'vs/base/common/path';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IDisposable } from 'xterm';
 
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';
 const OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID = 'openInExternalTerminal';
@@ -98,12 +97,6 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 	private _openInIntegratedTerminalMenuItem: IMenuItem;
 	private _openInExternalTerminalMenuItem: IMenuItem;
 
-	private _IntegratedOpenEditors?: IDisposable;
-	private _IntegratedExplorer?: IDisposable;
-
-	private _ExternalOpenEditors?: IDisposable;
-	private _ExternalExplorer?: IDisposable;
-
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
@@ -114,9 +107,12 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 			order: 30,
 			command: {
 				id: OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID,
-				title: nls.localize('scopedConsoleAction', "Open in Terminal")
+				title: nls.localize('scopedConsoleAction.Integrated', "Open in Integrated Terminal")
 			},
-			when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'integrated'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')),
+			)
 		};
 
 
@@ -127,58 +123,23 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 				id: OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
 			},
-			when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.notEqualsTo(Schemas.vscodeRemote)),
+				ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'external'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')),
+			)
 		};
 
+
+		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInExternalTerminalMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
 
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.explorerKind') || e.affectsConfiguration('terminal.external')) {
 				this._refreshOpenInTerminalMenuItemTitle();
-				this._refreshOpenInTerminalMenuItems();
 			}
 		});
 
 		this._refreshOpenInTerminalMenuItemTitle();
-		this._refreshOpenInTerminalMenuItems();
-	}
-
-	private _refreshOpenInTerminalMenuItems(): void {
-		const config = this._configurationService.getValue<IExternalTerminalConfiguration>().terminal;
-		if (config.explorerKind === 'external') {
-			if (this._IntegratedOpenEditors !== undefined) {
-				this._IntegratedOpenEditors.dispose();
-				this._IntegratedOpenEditors = undefined;
-			}
-			if (this._IntegratedExplorer !== undefined) {
-				this._IntegratedExplorer.dispose();
-				this._IntegratedExplorer = undefined;
-			}
-		} else {
-			if (this._IntegratedOpenEditors === undefined) {
-				this._IntegratedOpenEditors = MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, this._openInIntegratedTerminalMenuItem);
-			}
-			if (this._IntegratedExplorer === undefined) {
-				this._IntegratedExplorer = MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
-			}
-		}
-
-		if (config.explorerKind === 'integrated' || this.isWindowsTerminal()) {
-			if (this._ExternalOpenEditors !== undefined) {
-				this._ExternalOpenEditors.dispose();
-				this._ExternalOpenEditors = undefined;
-			}
-			if (this._ExternalExplorer !== undefined) {
-				this._ExternalExplorer.dispose();
-				this._ExternalExplorer = undefined;
-			}
-		} else {
-			if (this._ExternalOpenEditors === undefined) {
-				this._ExternalOpenEditors = MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, this._openInExternalTerminalMenuItem);
-			}
-			if (this._ExternalExplorer === undefined) {
-				this._ExternalExplorer = MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInExternalTerminalMenuItem);
-			}
-		}
 	}
 
 	private isWindowsTerminal(): boolean {
@@ -193,28 +154,12 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _refreshOpenInTerminalMenuItemTitle(): void {
-
-		if (isWeb) {
-			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.integrated', "Open in Integrated Terminal");
-			return;
-		}
-
-		const config = this._configurationService.getValue<IExternalTerminalConfiguration>().terminal;
-		if (config.explorerKind === 'integrated' || config.explorerKind === 'both') {
-			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.integrated', "Open in Integrated Terminal");
-			return;
-		}
 		if (this.isWindowsTerminal()) {
 			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in Windows Terminal");
-			return;
-		}
-
-		if (config.explorerKind === 'external') {
-			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.external', "Open in External Terminal");
-			return;
+		} else {
+			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction', "Open in Integrated Terminal");
 		}
 	}
 }
-
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExternalTerminalContribution, LifecyclePhase.Restored);
