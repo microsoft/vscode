@@ -1457,7 +1457,13 @@ export class Repository implements Disposable {
 				});
 
 				await this.repository.clean(toClean);
-				await this.repository.checkout('', toCheckout);
+				try {
+					await this.repository.checkout('', toCheckout);
+				} catch (err) {
+					if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
+						throw err;
+					}
+				}
 				await this.repository.updateSubmodules(submodulesToUpdate);
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
