@@ -302,7 +302,7 @@
 }
 
 .scm-view .scm-editor-container.synthetic-focus {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: 2px solid var(--vscode-focusBorder);
 }
 
 .scm-view .scm-editor-container.validation-info {
