@@ -174,7 +174,8 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 	}
 
-	private tryCancelRequest(seq: number, command: string, cancelToken: vscode.CancellationToken): boolean {
+	private tryCancelRequest(request: Proto.Request, command: string): boolean {
+		const seq = request.seq;
 		try {
 			if (this._requestQueue.tryDeletePendingRequest(seq)) {
 				this.logTrace(`Canceled request with sequence number ${seq}`);
@@ -182,11 +183,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			}
 
 			if (isWeb()) {
-				// add cancellation request to the next available request
-				let item: RequestItem | undefined;
-				while (!(item = this._requestQueue.peek())) {
-				}
-				cancelToken.onCancellationRequested(Cancellation.addData(item.request));
+				Cancellation.addData(request);
 				return true;
 			}
 			else if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
@@ -232,7 +229,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
-						this.tryCancelRequest(request.seq, command, executeInfo.token!);
+						this.tryCancelRequest(request, command);
 					});
 				}
 			}).catch((err: Error) => {
