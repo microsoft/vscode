@@ -181,6 +181,7 @@
 
 .extension-list-item > .details > .footer > .author > .publisher-name {
 	font-size: 90%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	font-weight: 600;
 }
 

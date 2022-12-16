@@ -70,6 +70,7 @@
 .extension-editor > .header > .details > .title > .name {
 	flex: 0;
 	font-size: 26px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Display", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	line-height: 30px;
 	font-weight: 600;
 	white-space: nowrap;
@@ -251,6 +252,7 @@
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action.label {
 	margin-right: 2px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
@@ -261,6 +263,7 @@
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action.label {
 	border-radius: 2px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 }
 
 /* split install */
@@ -290,6 +293,7 @@
 .extension-editor > .header > .details > .actions-status-container > .status {
 	line-height: 22px;
 	font-size: 90%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	margin-top: 3px;
 }
 
@@ -342,6 +346,7 @@
 .extension-editor > .header > .details > .recommendation .recommendation-text {
 	vertical-align: text-bottom;
 	font-size: 90%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 }
 
 .extension-editor > .body {
@@ -369,6 +374,7 @@
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	padding: 0 10px;
 	font-size: 11px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	font-weight: normal;
 	color: var(--vscode-panelTitle-inactiveForeground);
 	text-transform: uppercase;
@@ -457,6 +463,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
 	font-size: 120%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Display", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	padding-bottom: 15px;
 }
 
@@ -466,6 +473,7 @@
 	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
 	border-radius: 2px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	font-size: 90%;
 	margin: 0px 6px 3px 0px;
 	cursor: pointer;
@@ -488,6 +496,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry {
 	font-size: 90%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	display: flex;
 }
 
@@ -704,6 +713,7 @@
 
 .extension-editor .subcontent .monaco-list-row .extension > .details > .header > .identifier {
 	font-size: 90%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	opacity: 0.6;
 	margin-left: 10px;
 	background: rgba(173, 173, 173, 0.31);
@@ -720,6 +730,7 @@
 
 .extension-editor .subcontent .monaco-list-row .extension > .details > .footer > .author {
 	font-size: 90%;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	font-weight: 600;
 	opacity: 0.6;
 }

@@ -131,6 +131,7 @@
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	border-radius: 0;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI Variable Small", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:not(.icon) .action-label,
