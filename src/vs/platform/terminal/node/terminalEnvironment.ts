@@ -160,6 +160,14 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			return { newArgs, envMixin };
 		}
+		case 'fish': {
+			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
+			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
+			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
+			return { newArgs: undefined, envMixin };
+		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
