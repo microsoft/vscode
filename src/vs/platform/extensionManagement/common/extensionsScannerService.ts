@@ -270,12 +270,16 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 					if (await this.fileService.exists(initMarker)) {
 						return;
 					}
-					if (
-						// current default profile extensions location
-						!(await this.fileService.exists(this.userDataProfilesService.defaultProfile.extensionsResource))
-						// old default profile extensions location
-						&& !(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json')))
-					) {
+					let defaultProfileExtensionsExist = (await this.extensionsProfileScannerService.scanProfileExtensions(this.userDataProfilesService.defaultProfile.extensionsResource)).length > 0;
+					if (!defaultProfileExtensionsExist) {
+						defaultProfileExtensionsExist = await this.fileService.exists(this.userDataProfilesService.defaultProfile.extensionsResource);
+					}
+					const oldDefaultProfileExtensionsLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json');
+					let oldDefaultProfileExtensionsExist = (await this.extensionsProfileScannerService.scanProfileExtensions(oldDefaultProfileExtensionsLocation)).length > 0;
+					if (!oldDefaultProfileExtensionsExist) {
+						oldDefaultProfileExtensionsExist = await this.fileService.exists(oldDefaultProfileExtensionsLocation);
+					}
+					if (!defaultProfileExtensionsExist && !oldDefaultProfileExtensionsExist) {
 						this.logService.info('Started initializing default profile extensions in extensions installation folder.', this.userExtensionsLocation.toString());
 						const userExtensions = await this.scanUserExtensions({ includeInvalid: true });
 						await this.extensionsProfileScannerService.addExtensionsToProfile(userExtensions.map(e => [e, e.metadata]), this.userDataProfilesService.defaultProfile.extensionsResource);

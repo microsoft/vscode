@@ -643,7 +643,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 								detail: vscode.l10n.t(
 									"The workspace is using an old version of TypeScript ({0}).\n\nBefore reporting an issue, please update the workspace to use the latest stable TypeScript release to make sure the bug has not already been fixed.",
 									(previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError ? previousState.error.version.apiVersion?.displayName : undefined) + ''),
-								useCustom: true
 							});
 					} else {
 						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError

@@ -13,7 +13,7 @@ import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompl
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-registerEditorContribution(GhostTextController.ID, GhostTextController, EditorContributionInstantiation.Eager);
+registerEditorContribution(GhostTextController.ID, GhostTextController, EditorContributionInstantiation.Eventually);
 registerEditorAction(TriggerInlineSuggestionAction);
 registerEditorAction(ShowNextInlineSuggestionAction);
 registerEditorAction(ShowPreviousInlineSuggestionAction);

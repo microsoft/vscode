@@ -61,6 +61,8 @@ pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " 
 /// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
 pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
 
+const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
+
 pub fn get_default_user_agent() -> String {
 	format!(
 		"vscode-server-launcher/{}",
@@ -94,4 +96,7 @@ lazy_static! {
 	/// Map of qualities to the server name
 	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, String>> =
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref IS_INTERACTIVE_CLI: bool = atty::is(atty::Stream::Stdin) && std::env::var(NONINTERACTIVE_VAR).is_err();
 }

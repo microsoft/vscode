@@ -90,6 +90,7 @@ export interface ITerminalProfileService {
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
 	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
+	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
 	onDidUnregisterProvider: Event<string>;
 	readonly _serviceBrand: undefined;
 	providers: Map<string, ITerminalQuickFixProvider>;
@@ -290,7 +291,7 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
-	enableFileLinks: boolean;
+	enableFileLinks: 'off' | 'on' | 'notRemote';
 	unicodeVersion: '6' | '11';
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
@@ -497,6 +498,7 @@ export const enum TerminalCommandId {
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
+	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
 	SelectAll = 'workbench.action.terminal.selectAll',
@@ -595,6 +597,7 @@ export const enum TerminalCommandId {
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ClearSelection,
 	TerminalCommandId.Clear,
+	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
 	TerminalCommandId.CopyLastCommand,
@@ -738,7 +741,8 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
 				items: {
 					type: 'object',
-					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
+					additionalProperties: false,
+					required: ['id', 'commandLineMatcher', 'outputMatcher', 'commandExitResult'],
 					defaultSnippets: [{
 						body: {
 							id: '$1',
@@ -749,15 +753,15 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 					}],
 					properties: {
 						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.id', "The ID of the quick fix."),
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.id', "The ID of the quick fix provider."),
 							type: 'string',
 						},
 						commandLineMatcher: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandLineMatcher', "The command line to match."),
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandLineMatcher', "The regular expression to test the command line against."),
 							type: 'string',
 						},
 						outputMatcher: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "The output to match, which provides groups of the form <group_name> to be referenced via ${group:group_name} in commandToRun and linkToOpen."),
+							markdownDescription: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "The regular expression to test the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
 							type: 'object',
 							required: ['lineMatcher', 'anchor', 'offset', 'length'],
 							properties: {
@@ -766,11 +770,11 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 									type: 'string'
 								},
 								anchor: {
-									description: 'Which side of the output to anchor the offset and length against',
+									description: 'Where the search should begin in the buffer',
 									enum: ['top', 'bottom']
 								},
 								offset: {
-									description: 'How far from either the top or the bottom of the butter to start matching against.',
+									description: 'The number of lines vertically from the anchor in the buffer to start matching against',
 									type: 'number'
 								},
 								length: {
@@ -779,9 +783,13 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 								}
 							}
 						},
-						exitStatus: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "True if the exit code is non-zero"),
-							type: 'boolean',
+						commandExitResult: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandExitResult', "The command exit result to match on"),
+							enum: ['success', 'error'],
+							enumDescriptions: [
+								'The command exited with an exit code of zero.',
+								'The command exited with a non-zero exit code.'
+							]
 						}
 					},
 				}

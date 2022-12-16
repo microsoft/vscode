@@ -6,7 +6,7 @@
 				"git": {
 					"name": "dotnet/razor-tooling",
 					"repositoryUrl": "https://github.com/dotnet/razor-tooling",
-					"commitHash": "4d5eeeaeeadf6371354e5fd8ad4c195185806f0c"
+					"commitHash": "8d0ae9664cb27276eab36d83e48e88356468ca67"
 				}
 			},
 			"license": "MIT",

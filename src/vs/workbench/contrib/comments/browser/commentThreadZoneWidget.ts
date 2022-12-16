@@ -169,7 +169,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return undefined;
 	}
 
-	protected override revealLine(lineNumber: number) {
+	protected override revealRange() {
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 

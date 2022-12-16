@@ -579,6 +579,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	override dispose(): void {
+		this._context = undefined;
 		this.viewItems = dispose(this.viewItems);
 		this.getContainer().remove();
 		super.dispose();

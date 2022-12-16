@@ -36,16 +36,7 @@ class CheckoutItem implements QuickPickItem {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
-		if (pullBeforeCheckout) {
-			try {
-				await this.repository.fastForwardBranch(this.ref.name!);
-			}
-			catch (err) {
-				// noop
-			}
-		}
-
-		await this.repository.checkout(this.ref.name, opts);
+		await this.repository.checkout(this.ref.name, { ...opts, pullBeforeCheckout });
 	}
 }
 
@@ -1408,7 +1399,20 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
+		// Remove duplicate resources
+		const resourceUris = new Set<string>();
+		resourceStates = resourceStates.filter(s => {
+			if (s === undefined) {
+				return false;
+			}
+
+			if (resourceUris.has(s.resourceUri.toString())) {
+				return false;
+			}
+
+			resourceUris.add(s.resourceUri.toString());
+			return true;
+		});
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
@@ -1836,7 +1840,8 @@ export class CommandCenter {
 
 	@command('git.commitMessageAccept')
 	async commitMessageAccept(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg && !window.activeTextEditor) { return; }
+		arg ??= window.activeTextEditor!.document.uri;
 
 		// Close the tab
 		this._closeEditorTab(arg);
@@ -1844,11 +1849,12 @@ export class CommandCenter {
 
 	@command('git.commitMessageDiscard')
 	async commitMessageDiscard(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg && !window.activeTextEditor) { return; }
+		arg ??= window.activeTextEditor!.document.uri;
 
 		// Clear the contents of the editor
 		const editors = window.visibleTextEditors
-			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg!.toString());
 
 		if (editors.length !== 1) { return; }
 
@@ -2038,17 +2044,21 @@ export class CommandCenter {
 					throw err;
 				}
 
-				const force = l10n.t('Force Checkout');
 				const stash = l10n.t('Stash & Checkout');
-				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, force, stash);
+				const migrate = l10n.t('Migrate Changes');
+				const force = l10n.t('Force Checkout');
+				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
 
 				if (choice === force) {
 					await this.cleanAll(repository);
 					await item.run(opts);
-				} else if (choice === stash) {
+				} else if (choice === stash || choice === migrate) {
 					await this.stash(repository);
 					await item.run(opts);
-					await this.stashPopLatest(repository);
+
+					if (choice === migrate) {
+						await this.stashPopLatest(repository);
+					}
 				}
 			}
 		}
@@ -3200,7 +3210,7 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.values()).sort().map(r => new UnsafeRepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new UnsafeRepositoryItem(r));
 
 		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
@@ -3219,7 +3229,7 @@ export class CommandCenter {
 
 		if (repositoryItem.label === allRepositoriesLabel) {
 			// All Repositories
-			unsafeRepositories.push(...this.model.unsafeRepositories.values());
+			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
 		} else {
 			// One Repository
 			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
@@ -3227,7 +3237,7 @@ export class CommandCenter {
 
 		for (const unsafeRepository of unsafeRepositories) {
 			// Mark as Safe
-			await this.git.addSafeDirectory(unsafeRepository);
+			await this.git.addSafeDirectory(this.model.unsafeRepositories.get(unsafeRepository)!);
 
 			// Open Repository
 			await this.model.openRepository(unsafeRepository);

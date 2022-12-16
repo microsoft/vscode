@@ -252,7 +252,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 							});
 						} else {
 							model.updateOptions({
-								tabSize: this.insertSpaces ? undefined : pickedVal,
+								tabSize: pickedVal,
 								indentSize: pickedVal,
 								insertSpaces: this.insertSpaces
 							});
