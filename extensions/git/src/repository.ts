@@ -1908,7 +1908,7 @@ export class Repository implements Disposable {
 			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
 
 		return await this.run(OperationKind.Stash, async () => {
-			this.repository.createStash(message, includeUntracked);
+			await this.repository.createStash(message, includeUntracked);
 			this.closeDiffEditors(indexResources, workingGroupResources);
 		});
 	}
