@@ -1516,7 +1516,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
 			}
 		} else {
-			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', this.userDataProfilesMainService.defaultProfile);
 		}
 		return profile;
 	}

@@ -38,7 +38,7 @@ import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWi
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 /** Specified in searchview.css */
-export const SingleLineInputHeight = 24;
+const SingleLineInputHeight = 26;
 
 export interface ISearchWidgetOptions {
 	value?: string;
