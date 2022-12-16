@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare, compareSubstring } from 'vs/base/common/strings';
+import { compare, compareSubstring, firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -112,8 +112,12 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				continue snippet;
 			}
 
+			// don't eat into leading whitespace unless the snippet prefix starts with whitespace
+			const minPos = firstNonWhitespaceIndex(snippet.prefixLow) === 0
+				? Math.max(0, model.getLineFirstNonWhitespaceColumn(position.lineNumber) - 1)
+				: 0;
 
-			column: for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
+			column: for (let pos = Math.max(minPos, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
 				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 					continue column;

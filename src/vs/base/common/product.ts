@@ -160,9 +160,6 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
-
-	// experimental
-	readonly enableSyncingProfiles?: boolean;
 }
 
 export interface ITunnelApplicationConfig {

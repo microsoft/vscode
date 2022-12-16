@@ -126,7 +126,7 @@ export abstract class ReferencesController implements IEditorContribution {
 					break;
 				case 'goto':
 					if (peekMode) {
-						this._gotoReference(element);
+						this._gotoReference(element, true);
 					} else {
 						this.openReference(element, false, true);
 					}
@@ -207,7 +207,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		const editorFocus = this._editor.hasTextFocus();
 		const previewEditorFocus = this._widget.isPreviewEditorFocused();
 		await this._widget.setSelection(target);
-		await this._gotoReference(target);
+		await this._gotoReference(target, false);
 		if (editorFocus) {
 			this._editor.focus();
 		} else if (this._widget && previewEditorFocus) {
@@ -237,7 +237,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): Promise<any> {
+	private _gotoReference(ref: Location, pinned: boolean): Promise<any> {
 		this._widget?.hide();
 
 		this._ignoreModelChangeEvent = true;
@@ -245,7 +245,7 @@ export abstract class ReferencesController implements IEditorContribution {
 
 		return this._editorService.openCodeEditor({
 			resource: ref.uri,
-			options: { selection: range, selectionSource: TextEditorSelectionSource.JUMP }
+			options: { selection: range, selectionSource: TextEditorSelectionSource.JUMP, pinned }
 		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 

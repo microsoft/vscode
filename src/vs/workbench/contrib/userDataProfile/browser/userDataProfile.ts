@@ -33,6 +33,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -375,7 +376,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							}
 						}
 					} catch (error) {
-						notificationService.error(error);
+						notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
 					}
 				}));
 				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
@@ -438,7 +439,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			owner: 'sandy081';
 			comment: 'Report profile information of the current workspace';
 			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A UUID given to a workspace to identify it.' };
-			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the profile of the workspace is default or not.' };
+			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the profile of the workspace is default or not.' };
 		};
 		type WorkspaceProfileInfoEvent = {
 			workspaceId: string | undefined;

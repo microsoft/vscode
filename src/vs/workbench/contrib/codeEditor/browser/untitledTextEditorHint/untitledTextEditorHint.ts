@@ -107,7 +107,13 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 
-			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			const hintMsg = localize({
+				key: 'message',
+				comment: [
+					'Preserve double-square brackets and their order',
+					'language refers to a programming language'
+				]
+			}, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
 			const hintHandler: IContentActionHandler = {
 				disposables: this.toDispose,
 				callback: (index, event) => {
@@ -141,7 +147,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			}
 
 			// the actual command handlers...
-			const languageOnClickOrTap = async (e: MouseEvent) => {
+			const languageOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
@@ -149,7 +155,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 			};
 
-			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+			const chooseEditorOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 
 				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;

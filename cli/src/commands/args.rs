@@ -595,7 +595,7 @@ pub enum TunnelSubcommand {
 	#[clap(subcommand)]
 	User(TunnelUserSubCommands),
 
-	/// Manages the tunnel when installed as a system service,
+	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
 }

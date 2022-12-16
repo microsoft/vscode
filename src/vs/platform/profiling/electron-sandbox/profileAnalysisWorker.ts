@@ -29,7 +29,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 		const samples = bottomUp(model, 5, false)
 			.filter(s => !s.isSpecial);
 
-		if (samples.length === 0 || samples[1].percentage < 10) {
+		if (samples.length === 0 || samples[0].percentage < 10) {
 			// ignore this profile because 90% of the time is spent inside "special" frames
 			// like idle, GC, or program
 			return { kind: ProfilingOutput.Irrelevant, samples: [] };

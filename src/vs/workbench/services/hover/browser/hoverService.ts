@@ -23,6 +23,8 @@ export class HoverService implements IHoverService {
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 
+	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -37,10 +39,18 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
+		if (options.trapFocus && document.activeElement) {
+			this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
+		} else {
+			this._lastFocusedElementBeforeOpen = undefined;
+		}
 
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		hover.onDispose(() => {
+			// Required to handle cases such as closing the hover with the escape key
+			this._lastFocusedElementBeforeOpen?.focus();
+
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
 			if (this._currentHoverOptions === options) {
@@ -64,11 +74,11 @@ export class HoverService implements IHoverService {
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover)));
 			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => this._keyUp(e, hover)));
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_UP, e => this._keyUp(e, hover)));
-		}
-		if (options.hideOnKeyDown) {
-			const focusedElement = document.activeElement;
-			if (focusedElement) {
-				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => this.hideHover()));
+			if (options.hideOnKeyDown) {
+				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => {
+					this.hideHover();
+					this._lastFocusedElementBeforeOpen?.focus();
+				}));
 			}
 		}
 
@@ -110,7 +120,10 @@ export class HoverService implements IHoverService {
 		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
 			return;
 		}
-		this.hideHover();
+		if (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab') {
+			this.hideHover();
+			this._lastFocusedElementBeforeOpen?.focus();
+		}
 	}
 
 	private _keyUp(e: KeyboardEvent, hover: HoverWidget) {
@@ -119,6 +132,7 @@ export class HoverService implements IHoverService {
 			// Hide if alt is released while the mouse os not over hover/target
 			if (!hover.isMouseIn) {
 				this.hideHover();
+				this._lastFocusedElementBeforeOpen?.focus();
 			}
 		}
 	}

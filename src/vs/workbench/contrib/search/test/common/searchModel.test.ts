@@ -13,7 +13,7 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
@@ -137,7 +137,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		const actual = testObject.searchResult.matches();
 
@@ -168,7 +168,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		assert.ok(target.calledThrice);
 		const data = target.args[2];
@@ -185,7 +185,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
 
 		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		return result.then(() => {
 			return timeout(1).then(() => {
@@ -206,7 +206,7 @@ suite('SearchModel', () => {
 			{ results: [], stats: testSearchStats, messages: [] }));
 
 		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		return result.then(() => {
 			return timeout(1).then(() => {
@@ -228,7 +228,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithError(new Error('error')));
 
 		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		return result.then(() => { }, () => {
 			return timeout(1).then(() => {
@@ -249,7 +249,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, 'textSearch', deferredPromise.p);
 
 		const testObject = instantiationService.createInstance(SearchModel);
-		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		deferredPromise.cancel();
 
@@ -271,12 +271,12 @@ suite('SearchModel', () => {
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		assert.ok(!testObject.searchResult.isEmpty());
 
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
 
-		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		assert.ok(testObject.searchResult.isEmpty());
 	});
 
@@ -285,9 +285,9 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 
-		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
-		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		assert.ok(tokenSource.token.isCancellationRequested);
 	});
@@ -300,24 +300,24 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
-		await testObject.search({ contentPattern: { pattern: 're' }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 're' }, type: QueryType.Text, folderQueries });
 		testObject.replaceString = 'hello';
 		let match = testObject.searchResult.matches()[0].matches()[0];
 		assert.strictEqual('hello', match.replaceString);
 
-		await testObject.search({ contentPattern: { pattern: 're', isRegExp: true }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 're', isRegExp: true }, type: QueryType.Text, folderQueries });
 		match = testObject.searchResult.matches()[0].matches()[0];
 		assert.strictEqual('hello', match.replaceString);
 
-		await testObject.search({ contentPattern: { pattern: 're(?:vi)', isRegExp: true }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 're(?:vi)', isRegExp: true }, type: QueryType.Text, folderQueries });
 		match = testObject.searchResult.matches()[0].matches()[0];
 		assert.strictEqual('hello', match.replaceString);
 
-		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: QueryType.Text, folderQueries });
 		match = testObject.searchResult.matches()[0].matches()[0];
 		assert.strictEqual('hello', match.replaceString);
 
-		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1, folderQueries });
+		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: QueryType.Text, folderQueries });
 		testObject.replaceString = 'hello$1';
 		match = testObject.searchResult.matches()[0].matches()[0];
 		assert.strictEqual('helloe', match.replaceString);

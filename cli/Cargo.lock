@@ -229,6 +229,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "atty",
+ "base64",
  "chrono",
  "clap",
  "clap_lex",
@@ -254,6 +255,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tar",
  "tempfile",

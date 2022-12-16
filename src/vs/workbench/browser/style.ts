@@ -40,8 +40,8 @@ registerThemingParticipant((theme, collector) => {
 			outline-width: 1px;
 		}
 
-		.hc-black .synthetic-focus input {,
-		.hc-light .synthetic-focus input
+		.hc-black .synthetic-focus input,
+		.hc-light .synthetic-focus input {
 			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);

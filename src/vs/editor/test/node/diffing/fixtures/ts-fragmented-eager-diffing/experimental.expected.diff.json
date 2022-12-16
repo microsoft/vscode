@@ -17,12 +17,8 @@
 			"modifiedRange": "[31,32)",
 			"innerChanges": [
 				{
-					"originalRange": "[32,59 -> 32,59]",
-					"modifiedRange": "[31,59 -> 31,60]"
-				},
-				{
-					"originalRange": "[32,60 -> 32,60]",
-					"modifiedRange": "[31,61 -> 31,66]"
+					"originalRange": "[32,59 -> 32,60]",
+					"modifiedRange": "[31,59 -> 31,66]"
 				}
 			]
 		},
@@ -55,12 +51,8 @@
 					"modifiedRange": "[81,1 -> 82,1]"
 				},
 				{
-					"originalRange": "[84,60 -> 84,60]",
-					"modifiedRange": "[82,60 -> 82,61]"
-				},
-				{
-					"originalRange": "[84,61 -> 84,61]",
-					"modifiedRange": "[82,62 -> 82,67]"
+					"originalRange": "[84,60 -> 84,61]",
+					"modifiedRange": "[82,60 -> 82,67]"
 				}
 			]
 		},
@@ -73,12 +65,8 @@
 					"modifiedRange": "[93,1 -> 94,1]"
 				},
 				{
-					"originalRange": "[95,60 -> 95,60]",
-					"modifiedRange": "[94,60 -> 94,61]"
-				},
-				{
-					"originalRange": "[95,61 -> 95,61]",
-					"modifiedRange": "[94,62 -> 94,67]"
+					"originalRange": "[95,60 -> 95,61]",
+					"modifiedRange": "[94,60 -> 94,67]"
 				}
 			]
 		},
@@ -91,12 +79,8 @@
 					"modifiedRange": "[104,1 -> 105,1]"
 				},
 				{
-					"originalRange": "[105,60 -> 105,60]",
-					"modifiedRange": "[105,60 -> 105,61]"
-				},
-				{
-					"originalRange": "[105,61 -> 105,61]",
-					"modifiedRange": "[105,62 -> 105,67]"
+					"originalRange": "[105,60 -> 105,61]",
+					"modifiedRange": "[105,60 -> 105,67]"
 				}
 			]
 		}

@@ -711,7 +711,7 @@ interface GitConfigSection {
 class GitConfigParser {
 	private static readonly _lineSeparator = /\r?\n/;
 
-	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*"?([^"]+)"?$/;
 	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
 
 	static parse(raw: string): GitConfigSection[] {

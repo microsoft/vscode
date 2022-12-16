@@ -55,7 +55,8 @@
     "continueEditSession": [
       {
         "command": "github.openOnVscodeDev",
-        "when": "github.hasGitHubRepo"
+        "when": "github.hasGitHubRepo",
+        "qualifiedName": "Continue Working in VS Code for the Web"
       }
     ],
     "menus": {

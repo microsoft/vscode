@@ -275,6 +275,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 			const headerBackground = this.getColor(NOTIFICATIONS_CENTER_HEADER_BACKGROUND);
 			this.notificationsCenterHeader.style.background = headerBackground ? headerBackground.toString() : '';
+
 		}
 	}
 

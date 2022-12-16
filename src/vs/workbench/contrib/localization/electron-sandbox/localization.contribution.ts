@@ -141,9 +141,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						const translations: { [key: string]: string } = {};
 						Object.keys(minimumTranslatedStrings).forEach(key => {
 							if (!translationsFromPack[key] || useEnglish) {
-								translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
+								translations[key] = minimumTranslatedStrings[key].replace('{0}', () => languageName);
 							} else {
-								translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
+								translations[key] = `${translationsFromPack[key].replace('{0}', () => languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', () => languageName)})`;
 							}
 						});
 

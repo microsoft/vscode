@@ -109,10 +109,10 @@ suite('platform - terminalEnvironment', () => {
 					const expectedDir = new RegExp(`.+\/${username}-vscode-zsh`);
 					const customZdotdir = '/custom/zsh/dotdir';
 					const expectedDests = [
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zshrc`),
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zprofile`),
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zshenv`),
-						new RegExp(`.+\/${username}-vscode-zsh\/\.zlogin`)
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zshrc`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zprofile`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zshenv`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zlogin`)
 					];
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,

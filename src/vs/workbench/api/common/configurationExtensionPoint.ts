@@ -46,10 +46,6 @@ const configurationEntrySchema: IJSONSchema = {
 					{
 						type: 'object',
 						properties: {
-							isExecutable: {
-								type: 'boolean',
-								markdownDeprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
-							},
 							scope: {
 								type: 'string',
 								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
@@ -110,7 +106,11 @@ const configurationEntrySchema: IJSONSchema = {
 							order: {
 								type: 'integer',
 								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
-							}
+							},
+							ignoreSync: {
+								type: 'boolean',
+								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
+							},
 						}
 					}
 				]
