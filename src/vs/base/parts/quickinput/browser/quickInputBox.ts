@@ -91,7 +91,15 @@ export class QuickInputBox extends Disposable {
 	}
 
 	set enabled(enabled: boolean) {
-		this.findInput.setEnabled(enabled);
+		// We can't disable the input box because it is still used for
+		// navigating the list. Instead, we disable the list and the OK
+		// so that nothing can be selected.
+		// TODO: should this be what we do for all find inputs? Or maybe some _other_ API
+		// on findInput to change it to readonly?
+		this.findInput.inputBox.inputElement.toggleAttribute('readonly', !enabled);
+		// TODO: styles of the quick pick need to be moved to the CSS instead of being in line
+		// so things like this can be done in CSS
+		// this.findInput.inputBox.inputElement.classList.toggle('disabled', !enabled);
 	}
 
 	set toggles(toggles: Toggle[] | undefined) {
