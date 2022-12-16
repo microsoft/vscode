@@ -29,6 +29,8 @@ import Severity from 'vs/base/common/severity';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import * as nls from 'vs/nls';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -347,3 +349,17 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: refactorPreviewViewIcon,
 }], container);
+
+// Register configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'refactorPreview',
+	title: nls.localize('refactorPreviewConfigurationTitle', "Refactor Preview"),
+	type: 'object',
+	properties: {
+		'refactorPreview.showLineAndColumnNumbers': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showLineAndColumnNumbers' }, "Show Line & Column numbers on Refactor Preview edits."),
+			default: true
+		}
+	}
+});
