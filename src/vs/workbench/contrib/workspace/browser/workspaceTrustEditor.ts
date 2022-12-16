@@ -292,14 +292,14 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			if (segments.length === 0 && path.startsWith(posix.sep)) {
 				return {
 					type: MessageType.WARNING,
-					content: localize('trustAll', "You will trust all repositories on {0}.", getHostLabel(this.labelService, item))
+					content: localize({ key: 'trustAll', comment: ['The {0} will be a host name where repositories are hosted.'] }, "You will trust all repositories on {0}.", getHostLabel(this.labelService, item))
 				};
 			}
 
 			if (segments.length === 1) {
 				return {
 					type: MessageType.WARNING,
-					content: localize('trustOrg', "You will trust all repositories and forks under '{0}' on {1}.", segments[0], getHostLabel(this.labelService, item))
+					content: localize({ key: 'trustOrg', comment: ['The {0} will be an organization or user name.', 'The {1} will be a host name where repositories are hosted.'] }, "You will trust all repositories and forks under '{0}' on {1}.", segments[0], getHostLabel(this.labelService, item))
 				};
 			}
 

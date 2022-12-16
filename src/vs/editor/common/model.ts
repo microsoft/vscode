@@ -424,24 +424,35 @@ export class TextModelResolvedOptions {
 
 	readonly tabSize: number;
 	readonly indentSize: number;
+	private readonly _indentSizeIsTabSize: boolean;
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
 	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+
+	public get originalIndentSize(): number | 'tabSize' {
+		return this._indentSizeIsTabSize ? 'tabSize' : this.indentSize;
+	}
 
 	/**
 	 * @internal
 	 */
 	constructor(src: {
 		tabSize: number;
-		indentSize: number;
+		indentSize: number | 'tabSize';
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
-		this.indentSize = Math.max(1, src.indentSize | 0);
+		if (src.indentSize === 'tabSize') {
+			this.indentSize = this.tabSize;
+			this._indentSizeIsTabSize = true;
+		} else {
+			this.indentSize = Math.max(1, src.indentSize | 0);
+			this._indentSizeIsTabSize = false;
+		}
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
@@ -454,6 +465,7 @@ export class TextModelResolvedOptions {
 	public equals(other: TextModelResolvedOptions): boolean {
 		return (
 			this.tabSize === other.tabSize
+			&& this._indentSizeIsTabSize === other._indentSizeIsTabSize
 			&& this.indentSize === other.indentSize
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
@@ -480,7 +492,7 @@ export class TextModelResolvedOptions {
  */
 export interface ITextModelCreationOptions {
 	tabSize: number;
-	indentSize: number;
+	indentSize: number | 'tabSize';
 	insertSpaces: boolean;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
@@ -497,7 +509,7 @@ export interface BracketPairColorizationOptions {
 
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
-	indentSize?: number;
+	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
 	bracketColorizationOptions?: BracketPairColorizationOptions;

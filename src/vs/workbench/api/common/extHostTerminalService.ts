@@ -679,7 +679,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<vscode.TerminalQuickFix[] | vscode.TerminalQuickFix | undefined> {
+	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<(vscode.TerminalQuickFixOpener | vscode.TerminalQuickFixCommand)[] | vscode.TerminalQuickFixOpener | vscode.TerminalQuickFixCommand | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested) {
 			return;
@@ -688,7 +688,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (!provider) {
 			return;
 		}
-		return provider.provideTerminalQuickFixes(matchResult, token);
+		const quickFixes = await provider.provideTerminalQuickFixes(matchResult, token);
+		if (quickFixes === null) {
+			return undefined;
+		} else {
+			return quickFixes;
+		}
 	}
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {

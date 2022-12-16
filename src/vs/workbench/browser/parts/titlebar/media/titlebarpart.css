@@ -85,6 +85,10 @@
 	/* see #55435 */
 }
 
+.monaco-workbench .part.titlebar>.titlebar-container .action-item {
+	margin-right: 4px;
+}
+
 /* Window Title Menu */
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center {
 	z-index: 2500;
