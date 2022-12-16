@@ -48,13 +48,14 @@ import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensi
 import { isWeb, language } from 'vs/base/common/platform';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
 }
 
 interface InstalledExtensionsEvent {
-	readonly extensionIds: string;
+	readonly extensionIds: TrustedTelemetryValue<string>;
 	readonly count: number;
 }
 type ExtensionsLoadClassification = {
@@ -800,7 +801,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			(extension.enablementState === EnablementState.EnabledWorkspace ||
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));
-		this.telemetryService.publicLog2<InstalledExtensionsEvent, ExtensionsLoadClassification>('installedExtensions', { extensionIds: extensionIds.join(';'), count: extensionIds.length });
+		this.telemetryService.publicLog2<InstalledExtensionsEvent, ExtensionsLoadClassification>('installedExtensions', { extensionIds: new TrustedTelemetryValue(extensionIds.join(';')), count: extensionIds.length });
 	}
 
 	private async onDidChangeRunningExtensions(added: ReadonlyArray<IExtensionDescription>, removed: ReadonlyArray<IExtensionDescription>): Promise<void> {

@@ -491,10 +491,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInput.layout({ width: width - 30, height: replInputHeight });
 	}
 
-	override shouldShowFilterInHeader(): boolean {
-		return true;
-	}
-
 	collapseAll(): void {
 		this.tree.collapseAll();
 	}

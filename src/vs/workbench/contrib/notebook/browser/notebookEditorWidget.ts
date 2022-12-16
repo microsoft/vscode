@@ -2512,7 +2512,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		if (!this.viewModel) {
+		if (!this.viewModel || !this._list.viewModel) {
 			return;
 		}
 
