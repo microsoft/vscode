@@ -89,6 +89,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
+
+		this._waitThenShutdown(true);
 	}
 
 	public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -587,12 +589,12 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		}
 	}
 
-	private _waitThenShutdown(): void {
+	private _waitThenShutdown(initial = false): void {
 		if (!this._environmentService.args['enable-remote-auto-shutdown']) {
 			return;
 		}
 
-		if (this._environmentService.args['remote-auto-shutdown-without-delay']) {
+		if (this._environmentService.args['remote-auto-shutdown-without-delay'] && !initial) {
 			this._shutdown();
 		} else {
 			this.shutdownTimer = setTimeout(() => {
