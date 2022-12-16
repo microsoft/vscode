@@ -131,9 +131,12 @@ interface IGridDimensions {
 	rows: number;
 }
 
-const shellIntegrationSupportedShellTypes = [PosixShellType.Bash, PosixShellType.Zsh, PosixShellType.PowerShell, WindowsShellType.PowerShell];
-
-const scrollbarHeight = 5;
+const shellIntegrationSupportedShellTypes = [
+	PosixShellType.Bash,
+	PosixShellType.Zsh,
+	PosixShellType.PowerShell,
+	WindowsShellType.PowerShell
+];
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -716,7 +719,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
-			height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0) - 2/* bottom padding */ - verticalPadding);
+			height + (this._hasScrollBar && !this._horizontalScrollbar ? -5/* scroll bar height */ : 0) - 2/* bottom padding */ - verticalPadding);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
