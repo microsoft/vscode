@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.75.0",
-  "distro": "fbc246d437431ffae1a5a4c944dc037f74fc22cc",
+  "distro": "3c5c71a67992945ba1fe6235d907efcd65303f6b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -85,14 +85,14 @@
     "vscode-policy-watcher": "^1.1.1",
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "7.0.1",
-    "xterm": "5.1.0-beta.63",
-    "xterm-addon-canvas": "0.3.0-beta.27",
+    "vscode-textmate": "8.0.0",
+    "xterm": "5.1.0-beta.82",
+    "xterm-addon-canvas": "0.3.0-beta.33",
     "xterm-addon-search": "0.11.0-beta.7",
     "xterm-addon-serialize": "0.9.0-beta.3",
     "xterm-addon-unicode11": "0.5.0-beta.5",
-    "xterm-addon-webgl": "0.14.0-beta.40",
-    "xterm-headless": "5.1.0-beta.63",
+    "xterm-addon-webgl": "0.14.0-beta.46",
+    "xterm-headless": "5.1.0-beta.82",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -207,7 +207,7 @@
     "ts-loader": "^9.2.7",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.0.0-dev.20221206",
+    "typescript": "^5.0.0-dev.20221214",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

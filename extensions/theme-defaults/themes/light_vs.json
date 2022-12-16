@@ -2,6 +2,7 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light (Visual Studio)",
 	"colors": {
+		"checkbox.border": "#919191",
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#000000",
 		"editor.inactiveSelectionBackground": "#E5EBF1",
@@ -29,6 +30,7 @@
 		"list.activeSelectionIconForeground": "#FFF",
 		"list.focusAndSelectionOutline": "#90C2F9",
 		"terminal.inactiveSelectionBackground": "#E5EBF1",
+		"widget.border": "#d4d4d4"
 	},
 	"tokenColors": [
 		{

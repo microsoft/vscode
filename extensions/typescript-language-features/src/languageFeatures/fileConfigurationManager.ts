@@ -165,10 +165,6 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		if (this.client.apiVersion.lt(API.v290)) {
-			return {};
-		}
-
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document);

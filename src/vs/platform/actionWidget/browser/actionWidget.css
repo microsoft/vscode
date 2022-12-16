@@ -50,6 +50,10 @@
 	border-width: 0 !important;
 }
 
+.action-widget .monaco-list:focus:before {
+	outline: 0 !important;
+}
+
 .action-widget .monaco-list .monaco-scrollable-element .monaco-list-rows {
 	height: 100% !important;
 }

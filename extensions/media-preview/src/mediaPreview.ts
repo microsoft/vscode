@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Utils } from 'vscode-uri';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { Disposable } from './util/dispose';
 
@@ -30,15 +31,11 @@ export abstract class MediaPreview extends Disposable {
 	) {
 		super();
 
-		const resourceRoot = resource.with({
-			path: resource.path.replace(/\/[^\/]+?\.\w+$/, '/'),
-		});
-
 		webviewEditor.webview.options = {
 			enableScripts: true,
 			enableForms: false,
 			localResourceRoots: [
-				resourceRoot,
+				Utils.dirname(resource),
 				extensionRoot,
 			]
 		};

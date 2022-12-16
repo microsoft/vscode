@@ -6,7 +6,7 @@
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
 import { Branch, Status } from './api/git';
 import { CommitCommandsCenter } from './postCommitCommands';
-import { Repository, Operation } from './repository';
+import { Repository, OperationKind } from './repository';
 import { dispose } from './util';
 
 interface ActionButtonState {
@@ -181,14 +181,14 @@ export class ActionButtonCommand {
 
 	private onDidChangeOperations(): void {
 		const isCommitInProgress =
-			this.repository.operations.isRunning(Operation.Commit) ||
-			this.repository.operations.isRunning(Operation.PostCommitCommand) ||
-			this.repository.operations.isRunning(Operation.RebaseContinue);
+			this.repository.operations.isRunning(OperationKind.Commit) ||
+			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
+			this.repository.operations.isRunning(OperationKind.RebaseContinue);
 
 		const isSyncInProgress =
-			this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+			this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
 
 		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
 	}

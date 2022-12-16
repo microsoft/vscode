@@ -25,7 +25,9 @@ import { TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 interface CommandHandler {
 	callback: Function;
@@ -235,7 +237,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			}
 		}
 
-		const start = Date.now();
+		const stopWatch = StopWatch.create();
 		try {
 			return await callback.apply(thisArg, args);
 		} catch (err) {
@@ -262,17 +264,17 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			};
 		}
 		finally {
-			this._reportTelemetry(command, id, Date.now() - start);
+			this._reportTelemetry(command, id, stopWatch.elapsed());
 		}
 	}
 
 	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
-		if (!command.extension || command.extension.isBuiltin) {
+		if (!command.extension) {
 			return;
 		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
-			id: string;
+			id: TrustedTelemetryValue<string>;
 			duration: number;
 		};
 		type ExtensionActionTelemetryMeta = {
@@ -284,7 +286,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
-			id: id,
+			id: new TrustedTelemetryValue(id),
 			duration: duration,
 		});
 	}

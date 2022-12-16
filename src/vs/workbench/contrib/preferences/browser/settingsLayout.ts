@@ -238,6 +238,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'application/experimental',
 					label: localize('experimental', "Experimental"),
 					settings: ['application.experimental.*']
+				},
+				{
+					id: 'application/other',
+					label: localize('other', "Other"),
+					settings: ['application.*']
 				}
 			]
 		},

@@ -195,7 +195,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, {
+					await this._proxyCustomEditors.$resolveCustomEditor(resource, handle, viewType, {
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
