@@ -27,6 +27,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 
+const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';
 const OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID = 'openInExternalTerminal';
 
@@ -90,6 +91,7 @@ function registerOpenTerminalCommand(id: string, explorerKind: string) {
 	});
 }
 
+registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'integrated');
 registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated');
 registerOpenTerminalCommand(OPEN_IN_EXTERNAL_TERMINAL_COMMAND_ID, 'external');
 
