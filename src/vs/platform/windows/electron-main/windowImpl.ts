@@ -139,7 +139,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return profile;
 		}
 
-		return this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', profile ?? this.userDataProfilesService.defaultProfile);
+		return this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.defaultProfile);
 	}
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }

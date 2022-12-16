@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
-import { Repository, Operation } from './repository';
+import { Repository, OperationKind, CheckoutOperation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import { Branch, RefType, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
@@ -40,8 +40,13 @@ class CheckoutStatusBar {
 	}
 
 	get command(): Command | undefined {
+		const operationData = [
+			...this.repository.operations.getOperations(OperationKind.Checkout) as CheckoutOperation[],
+			...this.repository.operations.getOperations(OperationKind.CheckoutTracking) as CheckoutOperation[]
+		];
+
 		const rebasing = !!this.repository.rebaseCommit;
-		const label = this.repository.checkoutRef ?? `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
+		const label = operationData[0]?.refLabel ?? `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
 		const command = (this.state.isCheckoutRunning || this.state.isCommitRunning || this.state.isSyncRunning) ? '' : 'git.checkout';
 
 		return {
@@ -94,11 +99,12 @@ class CheckoutStatusBar {
 	}
 
 	private onDidChangeOperations(): void {
-		const isCheckoutRunning = this.repository.operations.isRunning(Operation.Checkout);
-		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
-		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+		const isCommitRunning = this.repository.operations.isRunning(OperationKind.Commit);
+		const isCheckoutRunning = this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+		const isSyncRunning = this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
 
 		this.state = { ...this.state, isCheckoutRunning, isCommitRunning, isSyncRunning };
 	}
@@ -161,11 +167,12 @@ class SyncStatusBar {
 	}
 
 	private onDidChangeOperations(): void {
-		const isCheckoutRunning = this.repository.operations.isRunning(Operation.Checkout);
-		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
-		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+		const isCommitRunning = this.repository.operations.isRunning(OperationKind.Commit);
+		const isCheckoutRunning = this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+		const isSyncRunning = this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
 
 		this.state = { ...this.state, isCheckoutRunning, isCommitRunning, isSyncRunning };
 	}

@@ -1399,7 +1399,20 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
+		// Remove duplicate resources
+		const resourceUris = new Set<string>();
+		resourceStates = resourceStates.filter(s => {
+			if (s === undefined) {
+				return false;
+			}
+
+			if (resourceUris.has(s.resourceUri.toString())) {
+				return false;
+			}
+
+			resourceUris.add(s.resourceUri.toString());
+			return true;
+		});
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();

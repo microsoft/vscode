@@ -274,7 +274,7 @@
 
 .panel > .title .monaco-action-bar .action-item.viewpane-filter-container {
 	max-width: 400px;
-	min-width: 300px;
+	min-width: 150px;
 	margin-right: 10px;
 }
 
