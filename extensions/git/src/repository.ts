@@ -1580,7 +1580,7 @@ export class Repository implements Disposable {
 
 		await this.run(operation,
 			async () => {
-				if (opts?.pullBeforeCheckout) {
+				if (opts?.pullBeforeCheckout && !opts?.detached) {
 					try {
 						await this.fastForwardBranch(treeish);
 					}
