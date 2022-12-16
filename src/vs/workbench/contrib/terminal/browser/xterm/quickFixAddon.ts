@@ -17,7 +17,6 @@ import { IDecoration, Terminal } from 'xterm';
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -61,7 +60,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _lastQuickFixId: string | undefined;
 
-	private registeredSelectors: Set<string> = new Set();
+	private _registeredSelectors: Set<string> = new Set();
 
 	constructor(
 		private readonly _aliases: string[][] | undefined,
@@ -71,7 +70,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -130,7 +128,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
-		if (this.registeredSelectors.has(selector.id)) {
+		if (this._registeredSelectors.has(selector.id)) {
 			return;
 		}
 		const matcherKey = selector.commandLineMatcher.toString();
@@ -142,7 +140,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			outputMatcher: selector.outputMatcher,
 			commandExitResult: selector.commandExitResult
 		});
-		this.registeredSelectors.add(selector.id);
+		this._registeredSelectors.add(selector.id);
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
 
