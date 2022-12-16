@@ -31,10 +31,13 @@ Language server host for typescript using vscode's sync-api in the browser
    - I guess during setup in serverProcess.browser.ts.
    - Not sure whether it needs to have the data or just a fs entry.
    - Wait, I don't know how files get added to the FS normally.
-- [ ] cancellation should only retain one cancellation checker
+- [x] cancellation should only retain one cancellation checker
    - the one that matches the current request id
    - but that means tracking (or retrieving from tsserver) the request id (aka seq?)
    - and correctly setting/resetting it on the cancellation token too.
+   - I looked at the tsserver code. I think the web case is close to the single-pipe node case,
+     so I just require that requestId is set in order to call the *current* cancellation checker.
+   - Any incoming message with a cancellation checker will overwrite the current one.
 - [ ] Cancellation code in vscode is suspiciously prototypey.
    - Specifically, it adds the vscode-wasm cancellation to original cancellation code, but should actually switch to the former for web only.
    - looks like `isWeb()` is a way to check for being on the web
@@ -46,6 +49,7 @@ Language server host for typescript using vscode's sync-api in the browser
 - [ ] think about implementing all the other ServerHost methods
   - also copy details from previous implementation (although it's syntax-only so only covers part)
 - [ ] organise webServer.ts into multiple files
+- [ ] add semicolons everywhere; vscode's lint doesn't seem to complain, but the code clearly uses them
 
 ### Bugs
 

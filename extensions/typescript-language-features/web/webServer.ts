@@ -37,6 +37,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 		return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
 	}
 	const fs = apiClient.vscode.workspace.fileSystem
+	// TODO: Remove all this logging when I'm confident it's working
 	logger.info(`starting serverhost`)
 	return {
 		/**
@@ -278,9 +279,7 @@ function createWebSystem(extensionUri: URI, connection: ClientConnection<Request
 }
 
 class WasmCancellationToken implements ts.server.ServerCancellationToken {
-	checkers: Array<() => boolean> = [];
-	// TODO: If this is like Session in tsserver, you can keep just the checker for the most recent request id
-	// However, I don't yet track request id (or know how to get it from tsserver if it's tracked there)
+	shouldCancel: (() => boolean) | undefined
 	currentRequestId: number | undefined = undefined
 	setRequest(requestId: number) {
 		this.currentRequestId = requestId
@@ -290,19 +289,13 @@ class WasmCancellationToken implements ts.server.ServerCancellationToken {
 			this.currentRequestId = undefined
 		}
 		else {
-			throw new Error("Mismatched request ids, thanks Copilot")
+			throw new Error(`Mismatched request id, expected ${this.currentRequestId} but got ${requestId}`)
 		}
 	}
 	isCancellationRequested(): boolean {
-		return this.checkers.some(c => c());
-	}
-	add(cancellation: () => boolean) {
-		if (cancellation) {
-			this.checkers.push(cancellation)
-		}
+		return this.currentRequestId !== undefined && !!this.shouldCancel && this.shouldCancel();
 	}
 }
-const wasmCancellationToken = new WasmCancellationToken()
 
 interface StartSessionOptions {
 	globalPlugins: ts.server.SessionOptions['globalPlugins'];
@@ -316,14 +309,15 @@ interface StartSessionOptions {
 	serverMode: ts.server.SessionOptions['serverMode'];
 }
 class WorkerSession extends ts.server.Session<{}> {
+	wasmCancellationToken: WasmCancellationToken
 	constructor(
 		host: ts.server.ServerHost,
 		options: StartSessionOptions,
 		public port: MessagePort,
 		logger: ts.server.Logger,
-		cancellationToken: ts.server.ServerCancellationToken,
 		hrtime: ts.server.SessionOptions["hrtime"]
 	) {
+		const cancellationToken = new WasmCancellationToken()
 		super({
 			host,
 			cancellationToken,
@@ -334,6 +328,7 @@ class WorkerSession extends ts.server.Session<{}> {
 			logger,
 			canUseEvents: true,
 		});
+		this.wasmCancellationToken = cancellationToken
 		this.logger.info('done constructing WorkerSession')
 	}
 	public override send(msg: ts.server.protocol.Message) {
@@ -362,9 +357,10 @@ class WorkerSession extends ts.server.Session<{}> {
 	listen(port: MessagePort) {
 		this.logger.info('webServer.ts: tsserver starting to listen for messages on "message"...')
 		port.onmessage = (message: any) => {
-			this.logger.info(`host msg: ${JSON.stringify(message.data)}`)
-			// TODO: Not sure whether this should be `message` or `message.data`
-			wasmCancellationToken.add(Cancellation.retrieveCheck(message.data))
+			const shouldCancel = Cancellation.retrieveCheck(message.data)
+			if (shouldCancel) {
+				this.wasmCancellationToken.shouldCancel = shouldCancel;
+			}
 			this.onMessage(message.data)
 		};
 	}
@@ -387,8 +383,8 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), cancellationToken: ts.server.ServerCancellationToken) {
-	session = new WorkerSession(createWebSystem(extensionUri, connection, logger), options, tsserver, logger, cancellationToken, hrtime)
+function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void)) {
+	session = new WorkerSession(createWebSystem(extensionUri, connection, logger), options, tsserver, logger, hrtime)
 	session.listen(tsserver)
 }
 // END tsserver/webServer.ts
@@ -430,8 +426,7 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 		extensionUri,
 		tsserver,
 		connection,
-		serverLogger,
-		wasmCancellationToken);
+		serverLogger);
 }
 function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
 	const arg = findArgument(args, name)

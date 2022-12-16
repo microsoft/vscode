@@ -18,6 +18,7 @@ import Tracer from '../utils/tracer';
 import { OngoingRequestCanceller } from './cancellation';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { isWeb } from '../utils/platform';
 
 export enum ExecutionTarget {
 	Semantic,
@@ -169,22 +170,28 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					throw new Error(`Unknown message type ${message.type} received`);
 			}
 		} finally {
-			// TODO: Also need to make requests cancellable that came in while handling responses, but I don't have a token
 			this.sendNextRequests();
 		}
 	}
 
-	private tryCancelRequest(seq: number, command: string): boolean {
+	private tryCancelRequest(seq: number, command: string, cancelToken: vscode.CancellationToken): boolean {
 		try {
 			if (this._requestQueue.tryDeletePendingRequest(seq)) {
 				this.logTrace(`Canceled request with sequence number ${seq}`);
 				return true;
 			}
 
-			if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
+			if (isWeb()) {
+				// add cancellation request to the next available request
+				let item: RequestItem | undefined;
+				while (!(item = this._requestQueue.peek())) {
+				}
+				cancelToken.onCancellationRequested(Cancellation.addData(item.request));
 				return true;
 			}
-
+			else if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
+				return true;
+			}
 			this.logTrace(`Tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 			return false;
 		} finally {
@@ -223,10 +230,9 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
 				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
-				// TODO: Need to decide whether to old-cancel or new-cancel (although for prototype purposes, doing both might not crash)
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
-						this.tryCancelRequest(request.seq, command);
+						this.tryCancelRequest(request.seq, command, executeInfo.token!);
 					});
 				}
 			}).catch((err: Error) => {
@@ -250,19 +256,16 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 
 		this._requestQueue.enqueue(requestInfo);
-		this.sendNextRequests(executeInfo.expectsResult && executeInfo.token);
+		this.sendNextRequests();
 
 		return [result];
 	}
 
-	private sendNextRequests(cancelToken?: vscode.CancellationToken | false): void {
+	private sendNextRequests(): void {
 		while (this._pendingResponses.size === 0 && this._requestQueue.length > 0) {
 			const item = this._requestQueue.dequeue();
 			if (item) {
 				this.sendRequest(item);
-				if (cancelToken) {
-					cancelToken.onCancellationRequested(Cancellation.addData(item.request));
-				}
 			}
 		}
 	}

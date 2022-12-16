@@ -66,6 +66,10 @@ export class WorkerServerProcess implements TsServerProcess {
 			}
 		};
 		this.watcher.onmessage = (event) => {
+			// TODO: A multi-watcher message would look something like this:
+			// if (msg.data.type === 'dispose-watcher') {
+			//	 watchers.get(msg.data.path).dispose()
+			// }
 			console.error(`unexpected message on watcher channel: ${JSON.stringify(event)}`);
 		};
 		mainChannel.onmessage = (msg: any) => {
@@ -75,10 +79,6 @@ export class WorkerServerProcess implements TsServerProcess {
 				return;
 			}
 			console.error(`unexpected message on main channel: ${JSON.stringify(msg)}`);
-			// TODO: A multi-watcher message would look something like this:
-			// if (msg.data.type === 'dispose-watcher') {
-			//	 watchers.get(msg.data.path).dispose()
-			// }
 		};
 		mainChannel.onerror = (err: ErrorEvent) => {
 			this.output.append(JSON.stringify('error! ' + JSON.stringify(err)) + '\n');
