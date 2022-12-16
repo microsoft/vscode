@@ -392,28 +392,29 @@ function shouldShowProgress(operation: OperationKind): boolean {
 	}
 }
 
-export interface Operation {
+export interface BaseOperation {
 	readonly kind: OperationKind;
 }
 
-export interface CheckoutOperation extends Operation {
+export interface CheckoutOperation extends BaseOperation {
+	readonly kind: OperationKind.Checkout | OperationKind.CheckoutTracking;
 	readonly refLabel: string;
 }
 
 export interface Operations {
 	isIdle(): boolean;
-	getData<T>(operationKind: OperationKind): T[];
+	getOperations(operationKind: OperationKind): BaseOperation[];
 	shouldShowProgress(): boolean;
 	isRunning(operationKind: OperationKind): boolean;
 }
 
 class OperationsImpl implements Operations {
 
-	private operations = new Map<OperationKind, Set<Operation>>();
+	private operations = new Map<OperationKind, Set<BaseOperation>>();
 
 	constructor(private readonly logger: LogOutputChannel) { }
 
-	start(operation: Operation): void {
+	start(operation: BaseOperation): void {
 		if (this.operations.has(operation.kind)) {
 			this.operations.get(operation.kind)!.add(operation);
 		} else {
@@ -423,7 +424,7 @@ class OperationsImpl implements Operations {
 		this.logger.trace(`Operation start: ${operation.kind}`);
 	}
 
-	end(operation: Operation): void {
+	end(operation: BaseOperation): void {
 		const operationSet = this.operations.get(operation.kind);
 		if (operationSet) {
 			operationSet.delete(operation);
@@ -435,15 +436,9 @@ class OperationsImpl implements Operations {
 		this.logger.trace(`Operation end: ${operation.kind}`);
 	}
 
-	getData<T>(operationKind: OperationKind): T[] {
-		const data: T[] = [];
-
+	getOperations(operationKind: OperationKind): BaseOperation[] {
 		const operationSet = this.operations.get(operationKind);
-		if (operationSet) {
-			return Array.from(operationSet) as T[];
-		}
-
-		return data;
+		return operationSet ? Array.from(operationSet) : [];
 	}
 
 	isRunning(operationKind: OperationKind): boolean {
@@ -1600,7 +1595,7 @@ export class Repository implements Disposable {
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
 		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
-		const operation: CheckoutOperation = { kind: OperationKind.Checkout, refLabel };
+		const operation: CheckoutOperation = { kind: OperationKind.CheckoutTracking, refLabel };
 
 		await this.run(operation, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
@@ -2053,14 +2048,14 @@ export class Repository implements Disposable {
 	}
 
 	private async run<T>(
-		operation: OperationKind | Operation,
+		operation: OperationKind | BaseOperation,
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
 		return this._run<T>(typeof operation === 'object' ? operation : { kind: operation }, runOperation, getOptimisticResourceGroups);
 	}
 
 	private async _run<T>(
-		operation: Operation,
+		operation: BaseOperation,
 		runOperation: () => Promise<T>,
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined): Promise<T> {
 

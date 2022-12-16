@@ -40,9 +40,9 @@ class CheckoutStatusBar {
 	}
 
 	get command(): Command | undefined {
-		const operationData: CheckoutOperation[] = [
-			...this.repository.operations.getData<CheckoutOperation>(OperationKind.Checkout),
-			...this.repository.operations.getData<CheckoutOperation>(OperationKind.CheckoutTracking)
+		const operationData = [
+			...this.repository.operations.getOperations(OperationKind.Checkout) as CheckoutOperation[],
+			...this.repository.operations.getOperations(OperationKind.CheckoutTracking) as CheckoutOperation[]
 		];
 
 		const rebasing = !!this.repository.rebaseCommit;
