@@ -301,7 +301,8 @@
 	border-radius: 2px;
 }
 
-.scm-view .scm-editor-container.synthetic-focus {
+.scm-view .scm-editor-container.synthetic-focus,
+.monaco-workbench .part.panel .scm-view .scm-editor-container.synthetic-focus {
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
@@ -393,7 +394,10 @@
 
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
-.scm-view .scm-editor-container .monaco-editor .margin {
+.scm-view .scm-editor-container .monaco-editor .margin,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .margin,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .monaco-editor-background {
 	color: inherit;
 	background-color: unset
 }
