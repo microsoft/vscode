@@ -399,7 +399,7 @@ export interface OperationData<T = unknown> {
 }
 
 export interface CheckoutOperationData {
-	readonly ref: string;
+	readonly refLabel: string;
 }
 
 export interface Operations {
@@ -1590,7 +1590,9 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		await this.run<unknown, CheckoutOperationData>({ kind: Operation.Checkout, state: { ref: treeish } },
+		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
+
+		await this.run<unknown, CheckoutOperationData>({ kind: Operation.Checkout, state: { refLabel } },
 			async () => {
 				if (opts?.pullBeforeCheckout) {
 					try {
@@ -1606,7 +1608,9 @@ export class Repository implements Disposable {
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		await this.run<unknown, CheckoutOperationData>({ kind: Operation.CheckoutTracking, state: { ref: treeish } },
+		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
+
+		await this.run<unknown, CheckoutOperationData>({ kind: Operation.CheckoutTracking, state: { refLabel } },
 			() => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -2061,12 +2065,7 @@ export class Repository implements Disposable {
 		operation: Operation | OperationData<V>,
 		runOperation: () => Promise<K> = () => Promise.resolve<any>(null),
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<K> {
-
-		if (typeof operation === 'object') {
-			return this._run<K, V>(operation, runOperation, getOptimisticResourceGroups);
-		} else {
-			return this._run<K, V>({ kind: operation }, runOperation, getOptimisticResourceGroups);
-		}
+		return this._run<K, V>(typeof operation === 'object' ? operation : { kind: operation }, runOperation, getOptimisticResourceGroups);
 	}
 
 	private async _run<K, V>(
@@ -2584,6 +2583,13 @@ export class Repository implements Disposable {
 		// Force fetch tags
 		await this.repository.fetchTags({ remote, tags, force: true });
 		return true;
+	}
+
+	private checkoutRefLabel(treeish: string, detached?: boolean): string {
+		if (!detached) { return treeish; }
+
+		const ref = this.refs.filter(r => r.name === treeish);
+		return ref[0]?.commit?.substring(0, 8) ?? treeish;
 	}
 
 	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
