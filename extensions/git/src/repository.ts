@@ -394,12 +394,12 @@ function shouldShowProgress(operation: Operation): boolean {
 }
 
 export interface OperationData<T = unknown> {
-	kind: Operation;
-	state: T;
+	readonly kind: Operation;
+	readonly state?: T;
 }
 
 export interface CheckoutOperationData {
-	ref: string;
+	readonly ref: string;
 }
 
 export interface Operations {
@@ -1590,22 +1590,24 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		await this.run({ kind: Operation.Checkout, state: { ref: treeish } }, async () => {
-			if (opts?.pullBeforeCheckout) {
-				try {
-					await this.fastForwardBranch(treeish);
+		await this.run<unknown, CheckoutOperationData>({ kind: Operation.Checkout, state: { ref: treeish } },
+			async () => {
+				if (opts?.pullBeforeCheckout) {
+					try {
+						await this.fastForwardBranch(treeish);
+					}
+					catch (err) {
+						// noop
+					}
 				}
-				catch (err) {
-					// noop
-				}
-			}
 
-			await this.repository.checkout(treeish, [], opts);
-		});
+				await this.repository.checkout(treeish, [], opts);
+			});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		await this.run<unknown, CheckoutOperationData>({ kind: Operation.CheckoutTracking, state: { ref: treeish } },
+			() => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
@@ -2055,22 +2057,22 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async run<T>(
-		operation: Operation | OperationData,
-		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
-		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
+	private async run<K = unknown, V = unknown>(
+		operation: Operation | OperationData<V>,
+		runOperation: () => Promise<K> = () => Promise.resolve<any>(null),
+		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<K> {
 
-		if (Object.getOwnPropertyNames(operation).includes('kind')) {
-			return this._run(operation as OperationData, runOperation, getOptimisticResourceGroups);
+		if (typeof operation === 'object') {
+			return this._run<K, V>(operation, runOperation, getOptimisticResourceGroups);
 		} else {
-			return this._run({ kind: operation as Operation, state: {} }, runOperation, getOptimisticResourceGroups);
+			return this._run<K, V>({ kind: operation }, runOperation, getOptimisticResourceGroups);
 		}
 	}
 
-	private async _run<T>(
-		operation: OperationData,
-		runOperation: () => Promise<T>,
-		getOptimisticResourceGroups: () => GitResourceGroups | undefined): Promise<T> {
+	private async _run<K, V>(
+		operation: OperationData<V>,
+		runOperation: () => Promise<K>,
+		getOptimisticResourceGroups: () => GitResourceGroups | undefined): Promise<K> {
 
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
