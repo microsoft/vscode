@@ -33,17 +33,6 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
-const quickFixTelemetryTitle = 'terminal/quick-fix';
-type QuickFixResultTelemetryEvent = {
-	quickFixId: string;
-	ranQuickFix: boolean;
-};
-type QuickFixClassification = {
-	owner: 'meganrogge';
-	quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
-	ranQuickFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the quick fix was run' };
-	comment: 'Terminal quick fixes';
-};
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
 
 export interface ITerminalQuickFixAddon {
@@ -209,11 +198,17 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	private _disposeQuickFix(id: string, ranQuickFix: boolean): void {
-		this._logService.debug(quickFixTelemetryTitle, {
-			quickFixId: id,
-			ranQuickFix
-		});
-		this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+		type QuickFixResultTelemetryEvent = {
+			quickFixId: string;
+			ranQuickFix: boolean;
+		};
+		type QuickFixClassification = {
+			owner: 'meganrogge';
+			quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
+			ranQuickFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the quick fix was run' };
+			comment: 'Terminal quick fixes';
+		};
+		this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>('terminal/quick-fix', {
 			quickFixId: id,
 			ranQuickFix
 		});
