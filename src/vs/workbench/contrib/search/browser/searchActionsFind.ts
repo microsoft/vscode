@@ -110,7 +110,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
 				original: 'Reveal in Explorer View'
 			},
-			category: category,
+			category,
 			menu: [{
 				id: MenuId.SearchContext,
 				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
@@ -193,7 +193,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 					},
 				]
 			},
-			category: category,
+			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,

@@ -468,8 +468,12 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 }
 
-abstract class AbstractLaunch {
+abstract class AbstractLaunch implements ILaunch {
+	abstract readonly uri: uri;
+	abstract readonly name: string;
+	abstract readonly workspace: IWorkspaceFolder | undefined;
 	protected abstract getConfig(): IGlobalConfig | undefined;
+	abstract openConfigFile(options: { preserveFocus: boolean; type?: string | undefined; suppressInitialConfigs?: boolean | undefined }, token?: CancellationToken | undefined): Promise<{ editor: IEditorPane | null; created: boolean }>;
 
 	constructor(
 		protected configurationManager: ConfigurationManager,

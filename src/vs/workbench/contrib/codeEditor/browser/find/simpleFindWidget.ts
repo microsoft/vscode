@@ -190,6 +190,13 @@ export abstract class SimpleFindWidget extends Widget {
 				this.updateResultCount();
 				this.updateButtons(this._foundMatch);
 			}));
+			this._register(this._findInput.onDidOptionChange(async () => {
+				this._foundMatch = this._onInputChanged();
+				await this.updateResultCount();
+				this.updateButtons(this._foundMatch);
+				this.focusFindBox();
+				this._delayedUpdateHistory();
+			}));
 		}
 	}
 

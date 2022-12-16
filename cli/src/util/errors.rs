@@ -402,6 +402,23 @@ impl std::fmt::Display for MissingHomeDirectory {
 }
 
 #[derive(Debug)]
+pub struct OAuthError {
+	pub error: String,
+	pub error_description: Option<String>,
+}
+
+impl std::fmt::Display for OAuthError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Error getting authorization: {} {}",
+			self.error,
+			self.error_description.as_deref().unwrap_or("")
+		)
+	}
+}
+
+#[derive(Debug)]
 pub struct CommandFailed {
 	pub output: std::process::Output,
 	pub command: String,
@@ -487,7 +504,8 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed
+	CommandFailed,
+	OAuthError
 );
 
 impl From<reqwest::Error> for AnyError {

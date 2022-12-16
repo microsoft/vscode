@@ -11,7 +11,7 @@ const { Mangler } = require('../build/lib/mangleTypeScript');
 /**
  * Map of project paths to mangled file contents
  *
- * @type {Map<string, Map<string, string>>}
+ * @type {Map<string, Map<string, { out: string; sourceMap?: string }>>}
  */
 const mangleMap = new Map();
 
@@ -46,5 +46,5 @@ module.exports = async function (source, sourceMap, meta) {
 	const fileContentsMap = getMangledFileContents(options.configFile);
 
 	const newContents = fileContentsMap.get(this.resourcePath);
-	callback(null, newContents ?? source, sourceMap, meta);
+	callback(null, newContents?.out ?? source, sourceMap, meta);
 };

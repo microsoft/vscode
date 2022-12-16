@@ -1213,7 +1213,12 @@ class InnerMinimap extends Disposable {
 		this._slider.toggleClassName('active', true);
 
 		const handlePointerMove = (posy: number, posx: number) => {
-			const pointerOrthogonalDelta = Math.abs(posx - initialPosX);
+			const minimapPosition = dom.getDomNodePagePosition(this._domNode.domNode);
+			const pointerOrthogonalDelta = Math.min(
+				Math.abs(posx - initialPosX),
+				Math.abs(posx - minimapPosition.left),
+				Math.abs(posx - minimapPosition.left - minimapPosition.width)
+			);
 
 			if (platform.isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
 				// The pointer has wondered away from the scrollbar => reset dragging
