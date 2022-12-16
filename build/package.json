@@ -58,6 +58,7 @@
     "node-fetch": "2",
     "p-limit": "^3.1.0",
     "source-map": "0.6.1",
+    "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
     "tmp": "^0.2.1",
     "vsce": "^1.100.0",

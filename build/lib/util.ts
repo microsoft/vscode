@@ -15,6 +15,7 @@ import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
 import { pathToFileURL } from 'url';
+import * as ternaryStream from 'ternary-stream';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -251,6 +252,15 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 		}));
 
 	return es.duplex(input, output);
+}
+
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+export function $if(test: boolean | ((f: VinylFile) => boolean), onTrue: NodeJS.ReadWriteStream, onFalse: NodeJS.ReadWriteStream = es.through()) {
+	if (typeof test === 'boolean') {
+		return test ? onTrue : onFalse;
+	}
+
+	return ternaryStream(test, onTrue, onFalse);
 }
 
 /** Operator that appends the js files' original path a sourceURL, so debug locations map */
