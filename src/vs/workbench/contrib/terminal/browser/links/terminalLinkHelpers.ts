@@ -38,7 +38,7 @@ export function convertLinkRangeToBuffer(
 	let startOffset = 0;
 	const startWrappedLineCount = Math.ceil(range.startColumn / bufferWidth);
 	for (let y = 0; y < Math.min(startWrappedLineCount); y++) {
-		const lineLength = Math.min(bufferWidth, range.startColumn - y * bufferWidth);
+		const lineLength = Math.min(bufferWidth, (range.startColumn - 1) - y * bufferWidth);
 		let lineOffset = 0;
 		const line = lines[y];
 		// Sanity check for line, apparently this can happen but it's not clear under what
@@ -65,9 +65,8 @@ export function convertLinkRangeToBuffer(
 	let endOffset = 0;
 	const endWrappedLineCount = Math.ceil(range.endColumn / bufferWidth);
 	for (let y = Math.max(0, startWrappedLineCount - 1); y < endWrappedLineCount; y++) {
-		const start = (y === startWrappedLineCount - 1 ? (range.startColumn + startOffset) % bufferWidth : 0);
+		const start = (y === startWrappedLineCount - 1 ? (range.startColumn - 1 + startOffset) % bufferWidth : 0);
 		const lineLength = Math.min(bufferWidth, range.endColumn + startOffset - y * bufferWidth);
-		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
 		let lineOffset = 0;
 		const line = lines[y];
 		// Sanity check for line, apparently this can happen but it's not clear under what
@@ -76,7 +75,7 @@ export function convertLinkRangeToBuffer(
 		if (!line) {
 			break;
 		}
-		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
+		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
 			const cell = line.getCell(x);
 			// This is unexpected but it means the character doesn't exist, so we shouldn't add to
 			// the offset
