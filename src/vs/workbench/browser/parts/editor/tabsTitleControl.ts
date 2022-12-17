@@ -242,7 +242,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
-		// New file when double clicking on tabs container (but not tabs)
+		// New file when double-clicking on tabs container (but not tabs)
 		for (const eventType of [TouchEventType.Tap, EventType.DBLCLICK]) {
 			this._register(addDisposableListener(tabsContainer, eventType, (e: MouseEvent | GestureEvent) => {
 				if (eventType === EventType.DBLCLICK) {

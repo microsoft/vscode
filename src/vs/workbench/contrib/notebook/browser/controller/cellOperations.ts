@@ -373,7 +373,7 @@ export async function joinSelectedCells(bulkEditService: IBulkEditService, notif
 	const firstCell = cells[0];
 	const insertContent = cells.map(cell => cell.getText()).join(firstCell.textBuffer.getEOL());
 	const firstSelection = editor.getSelections()[0];
-	edits.push(...[
+	edits.push(
 		new ResourceNotebookCellEdit(editor.textModel.uri,
 			{
 				editType: CellEditType.Replace,
@@ -389,7 +389,7 @@ export async function joinSelectedCells(bulkEditService: IBulkEditService, notif
 				}]
 			}
 		)
-	]);
+	);
 
 	for (const selection of editor.getSelections().slice(1)) {
 		edits.push(new ResourceNotebookCellEdit(editor.textModel.uri,
@@ -404,7 +404,7 @@ export async function joinSelectedCells(bulkEditService: IBulkEditService, notif
 	if (edits.length) {
 		await bulkEditService.apply(
 			edits,
-			{ quotableLabel: 'Join Notebook Cells' }
+			{ quotableLabel: localize('notebookActions.joinSelectedCells.label', "Join Notebook Cells") }
 		);
 	}
 }

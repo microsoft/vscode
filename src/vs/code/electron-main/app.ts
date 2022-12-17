@@ -1203,7 +1203,7 @@ export class CodeApplication extends Disposable {
 
 	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
 		try {
-			return await getResolvedShellEnv(this.logService, args, env);
+			return await getResolvedShellEnv(this.configurationService, this.logService, args, env);
 		} catch (error) {
 			const errorMessage = toErrorMessage(error);
 			if (notifyOnError) {

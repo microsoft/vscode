@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
-import { Schemes } from '../util/schemes';
+import { Schemes } from '../../util/schemes';
 
 export const imageFileExtensions = new Set<string>([
 	'bmp',
