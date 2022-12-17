@@ -571,6 +571,13 @@
           "default": false,
           "description": "%configuration.markdown.occurrencesHighlight.enabled%",
           "scope": "resource"
+        },
+        "markdown.experimental.copyFiles.destination": {
+          "type": "object",
+          "markdownDescription": "%configuration.markdown.copyFiles.destination%",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

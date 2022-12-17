@@ -17,7 +17,6 @@ import { IDecoration, Terminal } from 'xterm';
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -33,18 +32,13 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
-const quickFixTelemetryTitle = 'terminal/quick-fix';
-type QuickFixResultTelemetryEvent = {
-	quickFixId: string;
-	ranQuickFix: boolean;
-};
-type QuickFixClassification = {
-	owner: 'meganrogge';
-	quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
-	ranQuickFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the quick fix was run' };
-	comment: 'Terminal quick fixes';
-};
-const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
+const quickFixSelectors = [
+	DecorationSelector.QuickFix,
+	DecorationSelector.LightBulb,
+	DecorationSelector.Codicon,
+	DecorationSelector.CommandDecoration,
+	DecorationSelector.XtermDecoration
+];
 
 export interface ITerminalQuickFixAddon {
 	showMenu(): void;
@@ -72,7 +66,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _lastQuickFixId: string | undefined;
 
-	private registeredSelectors: Set<string> = new Set();
+	private _registeredSelectors: Set<string> = new Set();
 
 	constructor(
 		private readonly _aliases: string[][] | undefined,
@@ -82,7 +76,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -141,7 +134,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
-		if (this.registeredSelectors.has(selector.id)) {
+		if (this._registeredSelectors.has(selector.id)) {
 			return;
 		}
 		const matcherKey = selector.commandLineMatcher.toString();
@@ -153,7 +146,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			outputMatcher: selector.outputMatcher,
 			commandExitResult: selector.commandExitResult
 		});
-		this.registeredSelectors.add(selector.id);
+		this._registeredSelectors.add(selector.id);
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
 
@@ -209,11 +202,17 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	private _disposeQuickFix(id: string, ranQuickFix: boolean): void {
-		this._logService.debug(quickFixTelemetryTitle, {
-			quickFixId: id,
-			ranQuickFix
-		});
-		this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+		type QuickFixResultTelemetryEvent = {
+			quickFixId: string;
+			ranQuickFix: boolean;
+		};
+		type QuickFixClassification = {
+			owner: 'meganrogge';
+			quickFixId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
+			ranQuickFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the quick fix was run' };
+			comment: 'Terminal quick fixes';
+		};
+		this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>('terminal/quick-fix', {
 			quickFixId: id,
 			ranQuickFix
 		});
