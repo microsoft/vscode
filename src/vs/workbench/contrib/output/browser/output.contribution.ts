@@ -273,44 +273,60 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerShowLogsAction(): void {
+		const showChannels = async (accessor: ServicesAccessor, onlyLogs: boolean) => {
+			const outputService = accessor.get(IOutputService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const extensionLogs = [], logs = [];
+			for (const channel of outputService.getChannelDescriptors()) {
+				if (!onlyLogs || channel.log) {
+					if (channel.extensionId) {
+						extensionLogs.push(channel);
+					} else {
+						logs.push(channel);
+					}
+				}
+			}
+			const entries: ({ id: string; label: string } | IQuickPickSeparator)[] = [];
+			for (const { id, label } of logs) {
+				entries.push({ id, label });
+			}
+			if (extensionLogs.length && logs.length) {
+				entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
+			}
+			for (const { id, label } of extensionLogs) {
+				entries.push({ id, label });
+			}
+			const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
+			if (entry) {
+				return outputService.showChannel(entry.id);
+			}
+		};
+
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.showLogs',
 					title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
 					category: Categories.Developer,
-					menu: {
-						id: MenuId.CommandPalette,
-					},
+					f1: true
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const outputService = accessor.get(IOutputService);
-				const quickInputService = accessor.get(IQuickInputService);
-				const extensionLogs = [], logs = [];
-				for (const channel of outputService.getChannelDescriptors()) {
-					if (channel.log) {
-						if (channel.extensionId) {
-							extensionLogs.push(channel);
-						} else {
-							logs.push(channel);
-						}
-					}
-				}
-				const entries: ({ id: string; label: string } | IQuickPickSeparator)[] = [];
-				for (const { id, label } of logs) {
-					entries.push({ id, label });
-				}
-				if (extensionLogs.length && logs.length) {
-					entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
-				}
-				for (const { id, label } of extensionLogs) {
-					entries.push({ id, label });
-				}
-				const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
-				if (entry) {
-					return outputService.showChannel(entry.id);
-				}
+				return showChannels(accessor, true);
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.showOutputChannels',
+					title: { value: nls.localize('showOutputChannels', "Show Output Channels..."), original: 'Show Output Channels...' },
+					category: Categories.Developer,
+					f1: true
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				return showChannels(accessor, false);
 			}
 		}));
 	}
