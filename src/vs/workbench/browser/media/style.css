@@ -113,14 +113,13 @@ body.web {
 	font-size: 100%;
 }
 
-.monaco-workbench input::placeholder,
-.monaco-workbench input::-webkit-input-placeholder,
-.monaco-workbench input::-moz-placeholder,
-.monaco-workbench textarea::placeholder,
-.monaco-workbench textarea::-webkit-input-placeholder,
-.monaco-workbench textarea::-moz-placeholder {
-	color: var(--vscode-input-placeholderForeground);
-}
+.monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-webkit-input-placeholder  { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
+
+.monaco-workbench textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-webkit-input-placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
 
 .monaco-workbench select {
 	font-family: inherit;
