@@ -121,7 +121,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			case WorkbenchState.WORKSPACE:
 				return { configPath: workspace.configuration!, id: workspace.id };
 		}
-		return 'empty-window';
+		return { id: workspace.id };
 	}
 
 	private async enterProfile(profile: IUserDataProfile, preserveData: boolean, reloadMessage?: string): Promise<void> {

@@ -17,8 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
-	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
-	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void;
+	getProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile | undefined;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
@@ -54,7 +53,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
-		if (storedProfileAssociations.emptyWindow || storedProfileAssociations.workspaces) {
+		if (storedProfileAssociations.emptyWindows || storedProfileAssociations.workspaces) {
 			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
 		} else {
 			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY);

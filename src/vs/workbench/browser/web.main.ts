@@ -22,7 +22,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
-import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
@@ -297,8 +297,7 @@ export class BrowserMain extends Disposable {
 			}
 		}
 
-		const lastActiveProfile = environmentService.lastActiveProfile ? userDataProfilesService.profiles.find(p => p.id === environmentService.lastActiveProfile) : undefined;
-		const currentProfile = userDataProfilesService.getOrSetProfileForWorkspace(isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace) ? workspace : 'empty-window', lastActiveProfile ?? userDataProfilesService.defaultProfile);
+		const currentProfile = userDataProfilesService.getProfileForWorkspace(workspace) ?? userDataProfilesService.defaultProfile;
 		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
