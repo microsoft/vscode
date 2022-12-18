@@ -62,7 +62,7 @@ suite('SnippetSession', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
-			SnippetSession.adjustWhitespace(model, position, snippet, true);
+			SnippetSession.adjustWhitespace(model, position, true, snippet);
 			assert.strictEqual(snippet.toTextmateString(), expected);
 		}
 

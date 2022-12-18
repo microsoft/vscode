@@ -655,13 +655,15 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
 			// started a new word while IntelliSense shows -> retrigger but reuse all items that we currently have
-			const map = this._completionModel.getItemsByProvider();
-			this.trigger({
-				auto: this._context.auto,
-				retrigger: true,
-				clipboardText: this._completionModel.clipboardText,
-				completionOptions: { providerItemsToReuse: map }
-			});
+			if (LineContext.shouldAutoTrigger(this._editor)) {
+				const map = this._completionModel.getItemsByProvider();
+				this.trigger({
+					auto: this._context.auto,
+					retrigger: true,
+					clipboardText: this._completionModel.clipboardText,
+					completionOptions: { providerItemsToReuse: map }
+				});
+			}
 			return;
 		}
 

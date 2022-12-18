@@ -52,10 +52,11 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		};
 	}
 
-	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender) {
+	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender, options?: vscode.TelemetryInitializationOptions) {
 		const telemetryDetails = this.getTelemetryDetails();
 		const logger = new ExtHostTelemetryLogger(
 			appender,
+			options,
 			extension,
 			this._outputLogger,
 			this._inLoggingOnlyMode,
@@ -118,7 +119,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 
 	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
 		const logger = this._telemetryLoggers.get(extension.value);
-		if (!logger) {
+		if (!logger || logger.ignoreUnhandledExtHostErrors) {
 			return false;
 		}
 		logger.logError(error);
@@ -131,14 +132,21 @@ export class ExtHostTelemetryLogger {
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
 	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
 	private _apiObject: vscode.TelemetryLogger | undefined;
+	private readonly _ignoreBuiltinCommonProperties: boolean;
+	private readonly _additionalCommonProperties: Record<string, any> | undefined;
+	public readonly ignoreUnhandledExtHostErrors: boolean;
 	constructor(
 		appender: vscode.TelemetryAppender,
+		options: vscode.TelemetryInitializationOptions | undefined,
 		private readonly _extension: IExtensionDescription,
 		private readonly _logger: ILogger,
 		private readonly _inLoggingOnlyMode: boolean,
 		private readonly _commonProperties: Record<string, any>,
 		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }
 	) {
+		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
+		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
+		this._additionalCommonProperties = options?.additionalCommonProperties;
 		this._appender = appender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
@@ -153,17 +161,16 @@ export class ExtHostTelemetryLogger {
 	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
 		// Some telemetry modules prefer to break properties and measurmements up
 		// We mix common properties into the properties tab.
-		// TODO @lramos15 should this be up to the implementer and not done here?
 		let updatedData = data.properties ?? data;
 
 		// We don't clean measurements since they are just numbers
 		updatedData = cleanData(updatedData, []);
 
-		if (this._appender.additionalCommonProperties) {
-			updatedData = mixin(updatedData, this._appender.additionalCommonProperties);
+		if (this._additionalCommonProperties) {
+			updatedData = mixin(updatedData, this._additionalCommonProperties);
 		}
 
-		if (!this._appender.ignoreBuiltInCommonProperties) {
+		if (!this._ignoreBuiltinCommonProperties) {
 			updatedData = mixin(updatedData, this._commonProperties);
 		}
 
@@ -205,7 +212,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.logException(eventNameOrException, data);
+			this._appender.logError(eventNameOrException, data);
 		}
 	}
 

@@ -19,7 +19,7 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IStorageMainOptions {
 
@@ -27,7 +27,7 @@ export interface IStorageMainOptions {
 	 * If enabled, storage will not persist to disk
 	 * but into memory.
 	 */
-	useInMemoryStorage?: boolean;
+	readonly useInMemoryStorage?: boolean;
 }
 
 /**
@@ -103,7 +103,7 @@ export interface IStorageMain extends IDisposable {
 }
 
 export interface IStorageChangeEvent {
-	key: string;
+	readonly key: string;
 }
 
 abstract class BaseStorageMain extends Disposable implements IStorageMain {
@@ -359,7 +359,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 	}
 
 	constructor(
-		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
+		private workspace: IAnyWorkspaceIdentifier,
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
 		private readonly environmentService: IEnvironmentService,

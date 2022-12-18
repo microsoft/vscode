@@ -5,8 +5,8 @@
 
 import { HoverProvider, Hover, MarkedString, TextDocument, CancellationToken, Position, workspace } from 'vscode';
 import { textToMarkedString } from './utils/markedTextUtil';
-import phpGlobals = require('./phpGlobals');
-import phpGlobalFunctions = require('./phpGlobalFunctions');
+import * as phpGlobals from './phpGlobals';
+import * as phpGlobalFunctions from './phpGlobalFunctions';
 
 export default class PHPHoverProvider implements HoverProvider {
 

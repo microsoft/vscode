@@ -689,8 +689,10 @@ export abstract class FilterViewPane extends ViewPane {
 			this.updateActions();
 			if (!shouldShowFilterInHeader) {
 				append(this.filterContainer!, this.filterWidget.element);
-				height = height - 44;
 			}
+		}
+		if (!shouldShowFilterInHeader) {
+			height = height - 44;
 		}
 		this.filterWidget.layout(width);
 		this.layoutBodyContent(height, width);
