@@ -13,8 +13,8 @@ import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface IKeybindingItem {
-	keybinding: (SimpleKeybinding | ScanCodeBinding)[];
-	command: string;
+	keybinding: (SimpleKeybinding | ScanCodeBinding)[] | null;
+	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | null | undefined;
 	weight1: number;
@@ -238,11 +238,13 @@ function sorter(a: IKeybindingItem, b: IKeybindingItem): number {
 	if (a.weight1 !== b.weight1) {
 		return a.weight1 - b.weight1;
 	}
-	if (a.command < b.command) {
-		return -1;
-	}
-	if (a.command > b.command) {
-		return 1;
+	if (a.command && b.command) {
+		if (a.command < b.command) {
+			return -1;
+		}
+		if (a.command > b.command) {
+			return 1;
+		}
 	}
 	return a.weight2 - b.weight2;
 }

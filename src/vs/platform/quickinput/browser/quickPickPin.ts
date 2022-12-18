@@ -30,9 +30,13 @@ export async function showWithPinnedItems(storageService: IStorageService, stora
 		}
 	});
 	quickPick.onDidChangeValue(async value => {
-		// Return pinned items if there is no search value
-		quickPick.items = value ? itemsWithoutPinned : itemsWithPinned;
+		if (quickPick.items === itemsWithPinned && value) {
+			quickPick.items = itemsWithoutPinned;
+		} else if (quickPick.items === itemsWithoutPinned && !value) {
+			quickPick.items = itemsWithPinned;
+		}
 	});
+
 	quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
 	quickPick.show();
 }
@@ -77,13 +81,15 @@ function updateButtons(item: QuickPickItem, removePin: boolean): void {
 	if (item.type === 'separator') {
 		return;
 	}
+
 	// remove button classes before adding the new one
-	item.buttons = item.buttons ? item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) : [];
-	item.buttons.unshift({
+	const newButtons = item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) ?? [];
+	newButtons.unshift({
 		iconClass: removePin ? pinButtonClass : pinnedButtonClass,
 		tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
 		alwaysVisible: false
 	});
+	item.buttons = newButtons;
 }
 
 function itemsMatch(itemA: QuickPickItem, itemB: QuickPickItem): boolean {

@@ -27,6 +27,7 @@ export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
+	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined;
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
 
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
@@ -42,6 +43,8 @@ const EXTENSION_KEYS_ID_VERSION_REGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.
 export class ExtensionStorageService extends Disposable implements IExtensionStorageService {
 
 	readonly _serviceBrand: undefined;
+
+	private static LARGE_STATE_WARNING_THRESHOLD = 512 * 1024;
 
 	private static toKey(extension: IExtensionIdWithVersion): string {
 		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;
@@ -142,7 +145,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
 		const extensionId = this.getExtensionId(extension);
-		const jsonValue = this.storageService.get(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
+		const jsonValue = this.getExtensionStateRaw(extension, global);
 		if (jsonValue) {
 			try {
 				return JSON.parse(jsonValue);
@@ -154,6 +157,17 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		}
 
 		return undefined;
+	}
+
+	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined {
+		const extensionId = this.getExtensionId(extension);
+		const rawState = this.storageService.get(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
+
+		if (rawState && rawState?.length > ExtensionStorageService.LARGE_STATE_WARNING_THRESHOLD) {
+			this.logService.warn(`[mainThreadStorage] large extension state detected (extensionId: ${extensionId}, global: ${global}): ${rawState.length / 1024}kb. Consider to use 'storageUri' or 'globalStorageUri' to store this data on disk instead.`);
+		}
+
+		return rawState;
 	}
 
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void {

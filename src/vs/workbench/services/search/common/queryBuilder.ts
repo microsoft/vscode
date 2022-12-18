@@ -26,7 +26,7 @@ import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo,
 /**
  * One folder to search and a glob expression that should be applied.
  */
-export interface IOneSearchPathPattern {
+interface IOneSearchPathPattern {
 	searchPath: uri;
 	pattern?: string;
 }
@@ -47,7 +47,7 @@ export interface ISearchPathsInfo {
 	pattern?: glob.IExpression;
 }
 
-export interface ICommonQueryBuilderOptions {
+interface ICommonQueryBuilderOptions {
 	_reason?: string;
 	excludePattern?: string | string[];
 	includePattern?: string | string[];

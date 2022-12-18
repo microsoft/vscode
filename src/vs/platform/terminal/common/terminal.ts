@@ -11,6 +11,8 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -170,6 +172,7 @@ export interface IPtyHostAttachTarget {
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
+	hasChildProcesses: boolean;
 }
 
 export interface IReconnectionProperties {
@@ -794,11 +797,6 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-}
-
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
@@ -811,7 +809,6 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
-export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;
@@ -820,6 +817,11 @@ export interface IShellIntegration {
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+	quickFixes?: ITerminalCommandSelector[];
 }
 
 export const enum ShellIntegrationStatus {

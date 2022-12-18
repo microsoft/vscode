@@ -37,16 +37,16 @@ export interface IProfileContextProvider {
 
 const generatedProfileName = 'Generated';
 
-/*
-* Resolves terminal shell launch config and terminal
-* profiles for the given operating system,
-* environment, and user configuration
-*/
-
-const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
+const enum StorageKeys {
+	ShouldPromptForProfileMigration = 'terminals.integrated.profile-migration'
+}
 
 let migrationMessageShown = false;
 
+/*
+ * Resolves terminal shell launch config and terminal profiles for the given operating system,
+ * environment, and user configuration.
+ */
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	declare _serviceBrand: undefined;
 
@@ -482,7 +482,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + this._primaryBackendOs) ||
 			!!this._configurationService.inspect(TerminalSettingPrefix.ShellArgs + this._primaryBackendOs).userValue) &&
 			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs);
-		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
+		if (shouldMigrateToProfile && this._storageService.getBoolean(StorageKeys.ShouldPromptForProfileMigration, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
 			this._notificationService.prompt(
 				Severity.Info,
 				localize('terminalProfileMigration', "The terminal is using deprecated shell/shellArgs settings, do you want to migrate it to a profile?"),
@@ -513,7 +513,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 					} as IPromptChoice,
 				],
 				{
-					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
+					neverShowAgain: { id: StorageKeys.ShouldPromptForProfileMigration, scope: NeverShowAgainScope.WORKSPACE }
 				}
 			);
 			migrationMessageShown = true;

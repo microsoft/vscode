@@ -14,6 +14,9 @@
 	padding:0 var(--notebook-find-horizontal-padding);
 	transition: top 200ms linear;
 	visibility: hidden;
+	background-color: var(--vscode-editorWidget-background) !important;
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
 }
 
 .monaco-workbench.reduce-motion .simple-fr-find-part-wrapper {
@@ -154,10 +157,17 @@
 	padding: 2px;
 }
 
+.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked {
+	border-color: var(--vscode-inputOption-activeBorder);
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
 .monaco-workbench .simple-fr-find-part .monaco-inputbox > .ibwrapper > .input,
 .monaco-workbench .simple-fr-replace-part .monaco-inputbox > .ibwrapper > .input {
 	height: 24px;
 }
 .monaco-workbench .simple-fr-find-part-wrapper .monaco-sash {
 	left: 0 !important;
+	background-color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
 }

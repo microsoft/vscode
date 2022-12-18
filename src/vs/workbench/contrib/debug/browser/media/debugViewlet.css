@@ -171,7 +171,6 @@
 	flex: 1;
 	flex-shrink: 0;
 	min-width: fit-content;
-	min-width: -moz-fit-content;
 }
 
 .debug-pane .debug-call-stack .stack-frame.subtle {

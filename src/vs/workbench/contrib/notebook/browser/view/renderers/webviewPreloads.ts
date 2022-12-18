@@ -64,14 +64,19 @@ export interface PreloadOptions {
 	dragAndDropEnabled: boolean;
 }
 
+export interface RenderOptions {
+	readonly lineLimit: number;
+	readonly outputScrolling: boolean;
+}
+
 interface PreloadContext {
 	readonly nonce: string;
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 	readonly rendererData: readonly webviewMessages.RendererMetadata[];
 	readonly staticPreloadsData: readonly webviewMessages.StaticPreloadMetadata[];
 	readonly isWorkspaceTrusted: boolean;
-	readonly lineLimit: number;
 }
 
 declare function __import(path: string): Promise<any>;
@@ -82,7 +87,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	const lineLimit = ctx.lineLimit;
+	const lineLimit = ctx.renderOptions.lineLimit;
+	const outputScrolling = ctx.renderOptions.outputScrolling;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -211,7 +217,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
-		readonly settings: { readonly lineLimit: number };
+		readonly settings: RenderOptions;
 	}
 
 	interface RendererModule {
@@ -247,17 +253,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
 	};
 
-	const runKernelPreload = async (url: string, originalUri: string, forceLoadAsModule: boolean): Promise<void> => {
+	async function runKernelPreload(url: string, originalUri: string, forceLoadAsModule: boolean): Promise<void> {
+		if (forceLoadAsModule) {
+			return activateModuleKernelPreload(url);
+		}
+
 		const text = await loadScriptSource(url, originalUri);
 		const isModule = /\bexport\b.*\bactivate\b/.test(text);
 		try {
-			if (isModule || forceLoadAsModule) {
-				const module: KernelPreloadModule = await __import(url);
-				if (!module.activate) {
-					console.error(`Notebook preload (${url}) looks like a module but does not export an activate function`);
-					return;
-				}
-				return module.activate(createKernelContext());
+			if (isModule) {
+				return activateModuleKernelPreload(url);
 			} else {
 				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
 			}
@@ -265,7 +270,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.error(e);
 			throw e;
 		}
-	};
+	}
+
+	async function activateModuleKernelPreload(url: string) {
+		const module: KernelPreloadModule = await __import(url);
+		if (!module.activate) {
+			console.error(`Notebook preload '${url}' was expected to be a module but it does not export an 'activate' function`);
+			return;
+		}
+		return module.activate(createKernelContext());
+	}
 
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
@@ -723,33 +737,107 @@ async function webviewPreloads(ctx: PreloadContext) {
 		outputNode.appendChild(errList);
 	}
 
+	const outputItemRequests = new class {
+		private _requestPool = 0;
+		private readonly _requests = new Map</*requestId*/number, { resolve: (x: webviewMessages.OutputItemEntry | undefined) => void }>();
+
+		getOutputItem(outputId: string, mime: string) {
+			const requestId = this._requestPool++;
+
+			let resolve: ((x: webviewMessages.OutputItemEntry | undefined) => void) | undefined;
+			const p = new Promise<webviewMessages.OutputItemEntry | undefined>(r => resolve = r);
+			this._requests.set(requestId, { resolve: resolve! });
+
+			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId, outputId, mime });
+			return p;
+		}
+
+		resolveOutputItem(requestId: number, output: webviewMessages.OutputItemEntry | undefined) {
+			const request = this._requests.get(requestId);
+			if (!request) {
+				return;
+			}
+
+			this._requests.delete(requestId);
+			request.resolve(output);
+		}
+	};
+
+	interface ExtendedOutputItem {
+		readonly _allOutputItems: ReadonlyArray<{ readonly mime: string; getItem(): Promise<rendererApi.OutputItem | undefined> }>;
+	}
+
+	let hasWarnedAboutAllOutputItemsProposal = false;
+
 	function createOutputItem(
 		id: string,
 		mime: string,
 		metadata: unknown,
-		valueBytes: Uint8Array
-	): rendererApi.OutputItem {
-		return Object.freeze<rendererApi.OutputItem>({
-			id,
-			mime,
-			metadata,
+		valueBytes: Uint8Array,
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>
+	): rendererApi.OutputItem & ExtendedOutputItem {
 
-			data(): Uint8Array {
-				return valueBytes;
-			},
+		function create(
+			id: string,
+			mime: string,
+			metadata: unknown,
+			valueBytes: Uint8Array,
+		): rendererApi.OutputItem & ExtendedOutputItem {
+			return Object.freeze<rendererApi.OutputItem & ExtendedOutputItem>({
+				id,
+				mime,
+				metadata,
 
-			text(): string {
-				return textDecoder.decode(valueBytes);
-			},
+				data(): Uint8Array {
+					return valueBytes;
+				},
 
-			json() {
-				return JSON.parse(this.text());
-			},
+				text(): string {
+					return textDecoder.decode(valueBytes);
+				},
 
-			blob(): Blob {
-				return new Blob([valueBytes], { type: this.mime });
-			}
-		});
+				json() {
+					return JSON.parse(this.text());
+				},
+
+				blob(): Blob {
+					return new Blob([valueBytes], { type: this.mime });
+				},
+
+				get _allOutputItems() {
+					if (!hasWarnedAboutAllOutputItemsProposal) {
+						hasWarnedAboutAllOutputItemsProposal = true;
+						console.warn(`'_allOutputItems' is proposed API. DO NOT ship an extension that depends on it!`);
+					}
+					return allOutputItemList;
+				},
+			});
+		}
+
+		const allOutputItemCache = new Map</*mime*/string, Promise<(rendererApi.OutputItem & ExtendedOutputItem) | undefined>>();
+		const allOutputItemList = Object.freeze(allOutputItemData.map(outputItem => {
+			const mime = outputItem.mime;
+			return Object.freeze({
+				mime,
+				getItem() {
+					const existingTask = allOutputItemCache.get(mime);
+					if (existingTask) {
+						return existingTask;
+					}
+
+					const task = outputItemRequests.getOutputItem(id, mime).then(item => {
+						return item ? create(id, item.mime, metadata, item.valueBytes) : undefined;
+					});
+					allOutputItemCache.set(mime, task);
+
+					return task;
+				}
+			});
+		}));
+
+		const item = create(id, mime, metadata, valueBytes);
+		allOutputItemCache.set(mime, Promise.resolve(item));
+		return item;
 	}
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
@@ -931,12 +1019,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 						break;
 					}
 
+					// Markdown preview are rendered in a shadow DOM.
 					if (options.includeMarkup && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
 						// markdown preview container
 						const preview = (selection.anchorNode?.firstChild as Element);
 						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						// find the match in the shadow dom by checking the selection inside the shadow dom
 						if (shadowSelection && shadowSelection.anchorNode) {
 							matches.push({
 								type: 'preview',
@@ -949,6 +1039,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						}
 					}
 
+					// Outputs might be rendered inside a shadow DOM.
 					if (options.includeOutput && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
 						// output container
@@ -968,11 +1059,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 						}
 					}
 
-					const anchorNode = selection?.anchorNode?.parentElement;
+					const anchorNode = selection.anchorNode?.parentElement;
 
 					if (anchorNode) {
 						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
+						// Optimization: avoid searching for the output container
 						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
 							matches.push({
 								type: lastEl.type,
@@ -980,10 +1072,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: window.getSelection()!.getRangeAt(0)
+								originalRange: selection.getRangeAt(0)
 							});
 
 						} else {
+							// Traverse up the DOM to find the container
 							for (let node = anchorNode as Element | null; node; node = node.parentElement) {
 								if (!(node instanceof Element)) {
 									break;
@@ -999,7 +1092,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: window.getSelection()!.getRangeAt(0)
+											originalRange: selection.getRangeAt(0)
 										});
 									}
 									break;
@@ -1224,6 +1317,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				_highlighter?.dispose();
 				break;
 			}
+			case 'returnOutputItem': {
+				outputItemRequests.resolveOutputItem(event.data.requestId, event.data.output);
+			}
 		}
 	});
 
@@ -1259,10 +1355,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			try {
+				const renderStart = performance.now();
 				await this._api.renderOutputItem(item, element, signal);
+				this.postDebugMessage('Rendered output item', { id: item.id, duration: `${performance.now() - renderStart}ms` });
+
 			} catch (e) {
 				if (!signal.aborted) {
 					showRenderError(`Error rendering output item using '${this.data.id}'`, element, e instanceof Error ? [e] : []);
+
+					this.postDebugMessage('Rendering output item failed', { id: item.id, error: e + '' });
 				}
 			}
 		}
@@ -1294,6 +1395,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 				settings: {
 					get lineLimit() { return lineLimit; },
+					get outputScrolling() { return outputScrolling; },
 				}
 			};
 
@@ -1312,34 +1414,60 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		/** Inner function cached in the _loadPromise(). */
 		private async _load(): Promise<rendererApi.RendererApi | undefined> {
-			const module: RendererModule = await __import(this.data.entrypoint.path);
-			if (!module) {
-				return;
+			this.postDebugMessage('Start loading renderer');
+
+			try {
+				// Preloads need to be loaded before loading renderers.
+				await kernelPreloads.waitForAllCurrent();
+
+				const importStart = performance.now();
+				const module: RendererModule = await __import(this.data.entrypoint.path);
+				this.postDebugMessage('Imported renderer', { duration: `${performance.now() - importStart}ms` });
+
+				if (!module) {
+					return;
+				}
+
+				this._api = await module.activate(this.createRendererContext());
+				this.postDebugMessage('Activated renderer', { duration: `${performance.now() - importStart}ms` });
+
+				const dependantRenderers = ctx.rendererData
+					.filter(d => d.entrypoint.extends === this.data.id);
+
+				if (dependantRenderers.length) {
+					this.postDebugMessage('Activating dependant renderers', { dependents: dependantRenderers.map(x => x.id).join(', ') });
+				}
+
+				// Load all renderers that extend this renderer
+				await Promise.all(dependantRenderers.map(async d => {
+					const renderer = renderers.getRenderer(d.id);
+					if (!renderer) {
+						throw new Error(`Could not find extending renderer: ${d.id}`);
+					}
+
+					try {
+						return await renderer.load();
+					} catch (e) {
+						// Squash any errors extends errors. They won't prevent the renderer
+						// itself from working, so just log them.
+						console.error(e);
+						this.postDebugMessage('Activating dependant renderer failed', { dependent: d.id, error: e + '' });
+						return undefined;
+					}
+				}));
+
+				return this._api;
+			} catch (e) {
+				this.postDebugMessage('Loading renderer failed');
+				throw e;
 			}
+		}
 
-			this._api = await module.activate(this.createRendererContext());
-
-			// Load all renderers that extend this renderer
-			await Promise.all(
-				ctx.rendererData
-					.filter(d => d.entrypoint.extends === this.data.id)
-					.map(async d => {
-						const renderer = renderers.getRenderer(d.id);
-						if (!renderer) {
-							throw new Error(`Could not find extending renderer: ${d.id}`);
-						}
-
-						try {
-							return await renderer.load();
-						} catch (e) {
-							// Squash any errors extends errors. They won't prevent the renderer
-							// itself from working, so just log them.
-							console.error(e);
-							return undefined;
-						}
-					}));
-
-			return this._api;
+		private postDebugMessage(msg: string, data?: Record<string, string>) {
+			postNotebookMessage<webviewMessages.ILogRendererDebugMessage>('logRendererDebugMessage', {
+				message: `[renderer ${this.data.id}] - ${msg}`,
+				data
+			});
 		}
 	}
 
@@ -1372,7 +1500,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * Returns a promise that waits for all currently-registered preloads to
 		 * activate before resolving.
 		 */
-		private waitForAllCurrent() {
+		public waitForAllCurrent() {
 			return Promise.all([...this.preloads.values()].map(p => p.catch(err => err)));
 		}
 	};
@@ -1513,7 +1641,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 				const error = document.createElement('div');
 				error.className = 'no-renderer-error';
-				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
+				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', () => info.mime);
 				error.innerText = errorText;
 
 				const cellText = document.createElement('div');
@@ -2189,7 +2317,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;
@@ -2357,14 +2485,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}();
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, lineLimit: number, nonce: string) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderOptions: RenderOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
+		renderOptions,
 		rendererData: renderers,
 		staticPreloadsData: preloads,
 		isWorkspaceTrusted,
-		lineLimit,
 		nonce,
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead

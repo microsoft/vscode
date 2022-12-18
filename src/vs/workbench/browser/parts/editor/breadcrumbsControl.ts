@@ -21,7 +21,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchDataTree, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchAsyncDataTree, WorkbenchDataTree, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ColorIdentifier, ColorTransform } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -251,6 +251,10 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.clear();
 		this._ckBreadcrumbsVisible.set(false);
 		this.domNode.classList.toggle('hidden', true);
+	}
+
+	revealLast(): void {
+		this._widget.revealLast();
 	}
 
 	update(): boolean {
@@ -504,18 +508,18 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			id: 'breadcrumbs.toggle',
 			title: {
 				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize('miBreadcrumbs', "Toggle &&Breadcrumbs"),
+				mnemonicTitle: localize({ key: 'miBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"),
 				original: 'Toggle Breadcrumbs',
 			},
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
 				title: localize('cmd.toggle2', "Breadcrumbs"),
-				mnemonicTitle: localize('miBreadcrumbs2', "&&Breadcrumbs")
+				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.MenubarEditorFeaturesMenu, order: 3 },
+				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 2 },
 				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
 				{ id: MenuId.StickyScrollContext }
 			]
@@ -549,15 +553,16 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 		super({
 			id: 'breadcrumbs.focusAndSelect',
 			title: {
-				value: localize('cmd.focus', "Focus Breadcrumbs"),
-				original: 'Focus Breadcrumbs'
+				value: localize('cmd.focusAndSelect', "Focus and Select Breadcrumbs"),
+				original: 'Focus and Select Breadcrumbs'
 			},
 			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-			}
+			},
+			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]): void {
@@ -565,12 +570,26 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focus',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, false)
+registerAction2(class FocusBreadcrumbs extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.focus',
+			title: {
+				value: localize('cmd.focus', "Focus Breadcrumbs"),
+				original: 'Focus Breadcrumbs'
+			},
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
+			},
+			f1: true
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		focusAndSelectHandler(accessor, false);
+	}
 });
 
 // this commands is only enabled when breadcrumbs are
@@ -729,7 +748,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const lists = accessor.get(IListService);
 
 		const tree = lists.lastFocusedList;
-		if (!(tree instanceof WorkbenchDataTree)) {
+		if (!(tree instanceof WorkbenchDataTree) && !(tree instanceof WorkbenchAsyncDataTree)) {
 			return;
 		}
 

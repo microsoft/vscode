@@ -36,7 +36,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -243,6 +243,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverPosition: Position | null = null;
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
+	private gutterIsHovered = false;
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingClickWidget | undefined;
@@ -298,14 +299,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-			const model = this.editor.getModel();
-			if (model) {
-				this.applyHoverConfiguration(model, stackFrame);
-			}
+			this.updateHoverConfiguration();
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this._wordToLineNumbersMap = undefined;
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => {
@@ -332,6 +330,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return this._wordToLineNumbersMap;
 	}
 
+	private updateHoverConfiguration(): void {
+		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		const model = this.editor.getModel();
+		if (model) {
+			this.applyHoverConfiguration(model, stackFrame);
+		}
+	}
+
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
 		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
 			if (this.altListener) {
@@ -349,7 +355,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
 						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 						const range = new Range(this.hoverPosition.lineNumber, this.hoverPosition.column, this.hoverPosition.lineNumber, this.hoverPosition.column);
-						hoverController?.showContentHover(range, HoverStartMode.Immediate, false);
+						hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');
@@ -466,10 +472,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const target = mouseEvent.target;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
+		if (!this.altPressed) {
+			if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
+				this.editor.updateOptions({ hover: { enabled: true } });
+				this.gutterIsHovered = true;
+			} else if (this.gutterIsHovered) {
+				this.gutterIsHovered = false;
+				this.updateHoverConfiguration();
+			}
+		}
+
 		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
+
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			if (target.position && !Position.equals(target.position, this.hoverPosition)) {
 				this.hoverPosition = target.position;

@@ -808,4 +808,33 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[1].id, viewDescriptor3.id);
 	}));
 
+	test('newly added view descriptor is hidden if it was toggled hidden in storage before adding', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true
+		};
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor.id,
+			isHidden: false,
+			order: undefined
+		}]), StorageScope.PROFILE, StorageTarget.USER);
+
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor.id,
+			isHidden: true,
+			order: undefined
+		}]), StorageScope.PROFILE, StorageTarget.USER);
+
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.strictEqual(testObject.isVisible(viewDescriptor.id), false);
+		assert.strictEqual(testObject.activeViewDescriptors[0].id, viewDescriptor.id);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+	}));
+
 });

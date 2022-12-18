@@ -13,6 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 
@@ -25,6 +26,7 @@ export class ExtensionsScannerService extends AbstractExtensionsScannerService i
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -32,7 +34,7 @@ export class ExtensionsScannerService extends AbstractExtensionsScannerService i
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(URI.file(nativeEnvironmentService.userDataPath), MANIFEST_CACHE_FOLDER),
-			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService, instantiationService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService, uriIdentityService, instantiationService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {

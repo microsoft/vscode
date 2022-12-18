@@ -5,10 +5,14 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
+import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
+	private testsByUrl = new ResourceMap<Set<IncrementalTestCollectionItem>>();
+
 	private busyProvidersChangeEmitter = new Emitter<number>();
 	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
 		pendingLvl: number;
@@ -81,6 +85,13 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @inheritdoc
 	 */
+	public getNodeByUrl(uri: URI): Iterable<IncrementalTestCollectionItem> {
+		return this.testsByUrl.get(uri) || Iterable.empty();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public getReviverDiff() {
 		const ops: TestsDiff = [{ op: TestDiffOpType.IncrementPendingExtHosts, amount: this.pendingRootCount }];
 
@@ -136,6 +147,40 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 */
 	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
 		return { ...internal, children: new Set() };
+	}
+
+	private readonly changeCollector: IncrementalChangeCollector<IncrementalTestCollectionItem> = {
+		add: node => {
+			if (!node.item.uri) {
+				return;
+			}
+
+			const s = this.testsByUrl.get(node.item.uri);
+			if (!s) {
+				this.testsByUrl.set(node.item.uri, new Set([node]));
+			} else {
+				s.add(node);
+			}
+		},
+		remove: node => {
+			if (!node.item.uri) {
+				return;
+			}
+
+			const s = this.testsByUrl.get(node.item.uri);
+			if (!s) {
+				return;
+			}
+
+			s.delete(node);
+			if (s.size === 0) {
+				this.testsByUrl.delete(node.item.uri);
+			}
+		},
+	};
+
+	protected override createChangeCollector(): IncrementalChangeCollector<IncrementalTestCollectionItem> {
+		return this.changeCollector;
 	}
 
 	private *getIterator() {

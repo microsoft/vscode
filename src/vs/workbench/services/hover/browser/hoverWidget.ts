@@ -16,7 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
@@ -52,6 +52,8 @@ export class HoverWidget extends Widget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
+	private _enableFocusTraps: boolean = false;
+	private _addedFocusTrap: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
@@ -88,7 +90,9 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (isMarkdownString(options.content) && options.content.isTrusted) }));
+		this._linkHandler = options.linkHandler || (url => {
+			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
+		});
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -106,6 +110,9 @@ export class HoverWidget extends Widget {
 		}
 		if (options.forcePosition) {
 			this._forcePosition = true;
+		}
+		if (options.trapFocus) {
+			this._enableFocusTraps = true;
 		}
 
 		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
@@ -220,10 +227,55 @@ export class HoverWidget extends Widget {
 		}
 	}
 
+	private addFocusTrap() {
+		if (!this._enableFocusTraps || this._addedFocusTrap) {
+			return;
+		}
+		this._addedFocusTrap = true;
+
+		// Add a hover tab loop if the hover has at least one element with a valid tabIndex
+		const firstContainerFocusElement = this._hover.containerDomNode;
+		const lastContainerFocusElement = this.findLastFocusableChild(this._hover.containerDomNode);
+		if (lastContainerFocusElement) {
+			const beforeContainerFocusElement = dom.prepend(this._hoverContainer, $('div'));
+			const afterContainerFocusElement = dom.append(this._hoverContainer, $('div'));
+			beforeContainerFocusElement.tabIndex = 0;
+			afterContainerFocusElement.tabIndex = 0;
+			this._register(dom.addDisposableListener(afterContainerFocusElement, 'focus', (e) => {
+				firstContainerFocusElement.focus();
+				e.preventDefault();
+			}));
+			this._register(dom.addDisposableListener(beforeContainerFocusElement, 'focus', (e) => {
+				lastContainerFocusElement.focus();
+				e.preventDefault();
+			}));
+		}
+	}
+
+	private findLastFocusableChild(root: Node): HTMLElement | undefined {
+		if (root.hasChildNodes()) {
+			for (let i = 0; i < root.childNodes.length; i++) {
+				const node = root.childNodes.item(root.childNodes.length - i - 1);
+				if (node.nodeType === node.ELEMENT_NODE) {
+					const parsedNode = node as HTMLElement;
+					if (typeof parsedNode.tabIndex === 'number' && parsedNode.tabIndex >= 0) {
+						return parsedNode;
+					}
+				}
+				const recursivelyFoundElement = this.findLastFocusableChild(node);
+				if (recursivelyFoundElement) {
+					return recursivelyFoundElement;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
 
 		this.layout();
+		this.addFocusTrap();
 	}
 
 	public layout() {
@@ -258,8 +310,11 @@ export class HoverWidget extends Widget {
 			}
 		};
 
+		// These calls adjust the position depending on spacing.
 		this.adjustHorizontalHoverPosition(targetRect);
 		this.adjustVerticalHoverPosition(targetRect);
+		// This call limits the maximum height of the hover.
+		this.adjustHoverMaxHeight(targetRect);
 
 		// Offset the hover position if there is a pointer so it aligns with the target element
 		this._hoverContainer.style.padding = '';
@@ -410,19 +465,9 @@ export class HoverWidget extends Widget {
 	}
 
 	private adjustVerticalHoverPosition(target: TargetRect): void {
-		// Do not adjust vertical hover position if y cordiante is provided
-		if (this._target.y !== undefined) {
-			return;
-		}
-
-		// When force position is enabled, restrict max height
-		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
-			if (this._hoverPosition === HoverPosition.ABOVE) {
-				this._hover.containerDomNode.style.maxHeight = `${target.top - padding}px`;
-			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				this._hover.containerDomNode.style.maxHeight = `${window.innerHeight - target.bottom - padding}px`;
-			}
+		// Do not adjust vertical hover position if the y coordinate is provided
+		// or the position is forced
+		if (this._target.y !== undefined || this._forcePosition) {
 			return;
 		}
 
@@ -439,6 +484,35 @@ export class HoverWidget extends Widget {
 			// Hover on bottom is going beyond window
 			if (target.bottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
+			}
+		}
+	}
+
+	private adjustHoverMaxHeight(target: TargetRect): void {
+		let maxHeight = window.innerHeight / 2;
+
+		// When force position is enabled, restrict max height
+		if (this._forcePosition) {
+			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
+			if (this._hoverPosition === HoverPosition.ABOVE) {
+				maxHeight = Math.min(maxHeight, target.top - padding);
+			} else if (this._hoverPosition === HoverPosition.BELOW) {
+				maxHeight = Math.min(maxHeight, window.innerHeight - target.bottom - padding);
+			}
+		}
+
+		// Make sure not to accidentally enlarge the hover when setting a maxHeight for it
+		maxHeight = Math.min(maxHeight, this._hover.containerDomNode.clientHeight);
+
+		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		if (this._hover.contentsDomNode.clientHeight > maxHeight) {
+			this._hover.contentsDomNode.style.height = `${maxHeight}px`;
+		}
+		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
+			// Add padding for a vertical scrollbar
+			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
+			if (this._hover.contentsDomNode.style.paddingRight !== extraRightPadding) {
+				this._hover.contentsDomNode.style.paddingRight = extraRightPadding;
 			}
 		}
 	}

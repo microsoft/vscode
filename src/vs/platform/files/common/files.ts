@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -442,6 +442,11 @@ export interface IWatchOptions {
 export const enum FileSystemProviderCapabilities {
 
 	/**
+	 * No capabilities.
+	 */
+	None = 0,
+
+	/**
 	 * Provider supports unbuffered read/write.
 	 */
 	FileReadWrite = 1 << 1,
@@ -592,7 +597,12 @@ export enum FileSystemProviderErrorCode {
 	Unknown = 'Unknown'
 }
 
-export class FileSystemProviderError extends Error {
+export interface IFileSystemProviderError extends Error {
+	readonly name: string;
+	readonly code: FileSystemProviderErrorCode;
+}
+
+export class FileSystemProviderError extends Error implements IFileSystemProviderError {
 
 	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);

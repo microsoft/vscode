@@ -30,15 +30,15 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 		this._injectedTelemetryLevel = injectedTelemetryLevel;
 	}
 
-	override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
+	override publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
 		if (this._injectedTelemetryLevel < TelemetryLevel.USAGE) {
 			return Promise.resolve(undefined);
 		}
-		return super.publicLog(eventName, data, anonymizeFilePaths);
+		return super.publicLog(eventName, data);
 	}
 
-	override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.publicLog(eventName, data as ITelemetryData | undefined, anonymizeFilePaths);
+	override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void> {
+		return this.publicLog(eventName, data as ITelemetryData | undefined);
 	}
 
 	override publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {

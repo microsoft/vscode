@@ -612,14 +612,14 @@ export class BufferedEmitter<T> {
 
 	constructor() {
 		this._emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				this._hasListeners = true;
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
 				// that's why we're using here queueMicrotask and not other types of timeouts
 				queueMicrotask(() => this._deliverMessages());
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this._hasListeners = false;
 			}
 		});

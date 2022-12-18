@@ -27,8 +27,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground, minimapForegroundOpacity } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { minimapSelection, minimapBackground, minimapForegroundOpacity } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
@@ -1214,7 +1213,12 @@ class InnerMinimap extends Disposable {
 		this._slider.toggleClassName('active', true);
 
 		const handlePointerMove = (posy: number, posx: number) => {
-			const pointerOrthogonalDelta = Math.abs(posx - initialPosX);
+			const minimapPosition = dom.getDomNodePagePosition(this._domNode.domNode);
+			const pointerOrthogonalDelta = Math.min(
+				Math.abs(posx - initialPosX),
+				Math.abs(posx - minimapPosition.left),
+				Math.abs(posx - minimapPosition.left - minimapPosition.width)
+			);
 
 			if (platform.isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
 				// The pointer has wondered away from the scrollbar => reset dragging
@@ -2000,21 +2004,3 @@ class ContiguousLineMap<T> {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const sliderBackground = theme.getColor(minimapSliderBackground);
-	if (sliderBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${sliderBackground}; }`);
-	}
-	const sliderHoverBackground = theme.getColor(minimapSliderHoverBackground);
-	if (sliderHoverBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider:hover .minimap-slider-horizontal { background: ${sliderHoverBackground}; }`);
-	}
-	const sliderActiveBackground = theme.getColor(minimapSliderActiveBackground);
-	if (sliderActiveBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider.active .minimap-slider-horizontal { background: ${sliderActiveBackground}; }`);
-	}
-	const shadow = theme.getColor(scrollbarShadow);
-	if (shadow) {
-		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
-	}
-});

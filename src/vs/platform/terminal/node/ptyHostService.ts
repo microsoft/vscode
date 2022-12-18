@@ -123,7 +123,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 
 		try {
-			return await getResolvedShellEnv(this._logService, { _: [] }, process.env);
+			return await getResolvedShellEnv(this._configurationService, this._logService, { _: [] }, process.env);
 		} catch (error) {
 			this._logService.error('ptyHost was unable to resolve shell environment', error);
 
@@ -155,7 +155,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts

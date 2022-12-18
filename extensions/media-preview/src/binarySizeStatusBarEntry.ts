@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { PreviewStatusBarEntry } from './ownedStatusBarEntry';
 
-const localize = nls.loadMessageBundle();
 
 class BinarySize {
 	static readonly KB = 1024;
@@ -17,29 +15,29 @@ class BinarySize {
 
 	static formatSize(size: number): string {
 		if (size < BinarySize.KB) {
-			return localize('sizeB', "{0}B", size);
+			return vscode.l10n.t("{0}B", size);
 		}
 
 		if (size < BinarySize.MB) {
-			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
+			return vscode.l10n.t("{0}KB", (size / BinarySize.KB).toFixed(2));
 		}
 
 		if (size < BinarySize.GB) {
-			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
+			return vscode.l10n.t("{0}MB", (size / BinarySize.MB).toFixed(2));
 		}
 
 		if (size < BinarySize.TB) {
-			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
+			return vscode.l10n.t("{0}GB", (size / BinarySize.GB).toFixed(2));
 		}
 
-		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
+		return vscode.l10n.t("{0}TB", (size / BinarySize.TB).toFixed(2));
 	}
 }
 
 export class BinarySizeStatusBarEntry extends PreviewStatusBarEntry {
 
 	constructor() {
-		super('status.imagePreview.binarySize', localize('sizeStatusBar.name', "Image Binary Size"), vscode.StatusBarAlignment.Right, 100);
+		super('status.imagePreview.binarySize', vscode.l10n.t("Image Binary Size"), vscode.StatusBarAlignment.Right, 100);
 	}
 
 	public show(owner: unknown, size: number | undefined) {

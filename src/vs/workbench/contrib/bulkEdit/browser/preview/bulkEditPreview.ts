@@ -83,7 +83,7 @@ export const enum BulkFileOperationType {
 
 export class BulkFileOperation {
 
-	type: BulkFileOperationType = 0;
+	type = 0;
 	textEdits: BulkTextEdit[] = [];
 	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
 	newUri?: URI;

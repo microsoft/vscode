@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
-import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
+import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';

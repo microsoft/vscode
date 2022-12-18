@@ -70,6 +70,7 @@ const pruneNodesNotInTree = (nodes: Set<TestExplorerTreeElement | null>, tree: O
 export class NodeChangeList<T extends TestItemTreeElement> {
 	private changedParents = new Set<T | null>();
 	private updatedNodes = new Set<TestExplorerTreeElement>();
+	private resortedNodes = new Set<TestExplorerTreeElement | null>();
 	private omittedNodes = new WeakSet<TestExplorerTreeElement>();
 	private isFirstApply = true;
 
@@ -81,6 +82,10 @@ export class NodeChangeList<T extends TestItemTreeElement> {
 		this.changedParents.add(this.getNearestNotOmittedParent(node));
 	}
 
+	public sortKeyUpdated(node: TestExplorerTreeElement) {
+		this.resortedNodes.add(node.parent);
+	}
+
 	public applyTo(
 		tree: ObjectTree<TestExplorerTreeElement, any>,
 		renderNode: NodeRenderFn,
@@ -88,6 +93,7 @@ export class NodeChangeList<T extends TestItemTreeElement> {
 	) {
 		pruneNodesNotInTree(this.changedParents, tree);
 		pruneNodesNotInTree(this.updatedNodes, tree);
+		pruneNodesNotInTree(this.resortedNodes, tree);
 
 		const diffDepth = this.isFirstApply ? Infinity : 0;
 		this.isFirstApply = false;
@@ -112,8 +118,15 @@ export class NodeChangeList<T extends TestItemTreeElement> {
 			}
 		}
 
+		for (const node of this.resortedNodes) {
+			if (node && tree.hasElement(node)) {
+				tree.resort(node, false);
+			}
+		}
+
 		this.changedParents.clear();
 		this.updatedNodes.clear();
+		this.resortedNodes.clear();
 	}
 
 	private getNearestNotOmittedParent(node: TestExplorerTreeElement | null) {

@@ -5,14 +5,14 @@
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
+import { DeferredPromise } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -26,25 +26,29 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/common/webview';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
+import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
-import { DeferredPromise } from 'vs/base/common/async';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -95,9 +99,21 @@ interface BacklayerWebviewOptions {
 	readonly outputFontFamily: string;
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
+	readonly outputScrolling: boolean;
+	readonly outputLineLimit: number;
 }
 
-export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
+const logChannelId = 'notebook.rendering';
+
+export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
+
+	private static _originStore?: WebviewOriginStore;
+
+	private static getOriginStore(storageService: IStorageService): WebviewOriginStore {
+		this._originStore ??= new WebviewOriginStore('notebook.backlayerWebview.origins', storageService);
+		return this._originStore;
+	}
+
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
@@ -116,17 +132,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private firstInit = true;
 	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
+	private readonly _renderLogger: ILogger;
+
 	private readonly nonce = UUID.generateUuid();
 
 	constructor(
 		public notebookEditor: INotebookDelegateForWebview,
-		public readonly id: string,
+		private readonly id: string,
 		public readonly notebookViewType: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
-		@IWebviewService readonly webviewService: IWebviewService,
-		@IOpenerService readonly openerService: IOpenerService,
+		@IWebviewService private readonly webviewService: IWebviewService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -139,8 +157,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILoggerService loggerService: ILoggerService,
+		@ILogService logService: ILogService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super();
+		super(themeService);
+
+		const logsPath = joinPath(environmentService.windowLogsPath, 'notebook.rendering.log');
+		this._renderLogger = this._register(loggerService.createLogger(logsPath, { name: 'notebook.rendering' }));
+		registerLogChannel(logChannelId, nls.localize('renderChannelName', "Notebook rendering"), logsPath, fileService, logService);
+
+		this._logRendererDebugMessage('Creating backlayer webview for notebook');
 
 		this.element = document.createElement('div');
 
@@ -186,6 +214,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this._updateOptions();
 	}
 
+	private _logRendererDebugMessage(msg: string) {
+		this._renderLogger.debug(`${this.documentUri} (${this.id}) - ${msg}`);
+	}
+
 	private _updateStyles() {
 		this._sendMessageToWebview({
 			type: 'notebookStyles',
@@ -215,8 +247,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
 			'notebook-cell-output-font-size': `${this.options.outputFontSize || this.options.fontSize}px`,
 			'notebook-cell-output-line-height': `${this.options.outputLineHeight}px`,
+			'notebook-cell-output-max-height': `${this.options.outputLineHeight * this.options.outputLineLimit}px`,
 			'notebook-cell-output-font-family': this.options.outputFontFamily || this.options.fontFamily,
-			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
+			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double-click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
@@ -227,16 +260,22 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
+		const renderOptions = {
+			lineLimit: this.options.outputLineLimit,
+			outputScrolling: this.options.outputScrolling
+		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
+			renderOptions,
 			renderersData,
 			preloadsData,
 			this.workspaceTrustManagementService.isWorkspaceTrusted(),
-			this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
+		const currentHighlight = this.getColor(editorFindMatch);
+		const findMatchHighlight = this.getColor(editorFindMatchHighlight);
 		return /* html */`
 		<html lang="en">
 			<head>
@@ -254,11 +293,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				">` : ''}
 				<style nonce="${this.nonce}">
 					::highlight(find-highlight) {
-						background-color: var(--vscode-editor-findMatchHighlightBackground);
+						background-color: var(--vscode-editor-findMatchBackground, ${findMatchHighlight});
 					}
 
 					::highlight(current-find-highlight) {
-						background-color: var(--vscode-editor-findMatchBackground);
+						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentHighlight});
 					}
 
 					#container .cell_container {
@@ -469,7 +508,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this._webviewPreloadInitialized = new DeferredPromise();
 
 		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asFileUri('vs/loader.js');
 			const loader = this.asWebviewUri(loaderUri, undefined);
 
 			coreDependencies = `<script src="${loader}"></script><script>
@@ -481,7 +520,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			this._initialize(htmlContent);
 			this._initialized.complete();
 		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
 
 			fetch(loaderUri.toString(true)).then(async response => {
 				if (response.status !== 200) {
@@ -543,7 +582,7 @@ var requirejs = (function() {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js', require)),
+			dirname(FileAccess.asFileUri('vs/loader.js')),
 		];
 	}
 
@@ -557,20 +596,6 @@ var requirejs = (function() {
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
-
-		this._register(this.webview.onDidClickLink(link => {
-			if (this._disposed) {
-				return;
-			}
-
-			if (!link) {
-				return;
-			}
-
-			if (matchesSomeScheme(link, Schemas.vscodeNotebookCell, Schemas.http, Schemas.https, Schemas.mailto)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: false });
-			}
-		}));
 
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
@@ -686,35 +711,36 @@ var requirejs = (function() {
 					break;
 				}
 				case 'clicked-link': {
-					let linkToOpen: URI | string | undefined;
-
 					if (matchesScheme(data.href, Schemas.command)) {
-						// We allow a very limited set of commands
 						const uri = URI.parse(data.href);
-						switch (uri.path) {
-							case 'workbench.action.openLargeOutput': {
-								const outputId = uri.query;
-								const group = this.editorGroupService.activeGroup;
-								if (group) {
-									if (group.activeEditor) {
-										group.pinEditor(group.activeEditor);
-									}
-								}
 
-								this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
-								return;
+						if (uri.path === 'workbench.action.openLargeOutput') {
+							const outputId = uri.query;
+							const group = this.editorGroupService.activeGroup;
+							if (group) {
+								if (group.activeEditor) {
+									group.pinEditor(group.activeEditor);
+								}
 							}
-							case 'github-issues.authNow':
-							case 'workbench.extensions.search':
-							case 'workbench.action.openSettings': {
-								this.openerService.open(data.href, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
-								return;
-							}
+
+							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							return;
 						}
 
+						// We allow a very limited set of commands
+						this.openerService.open(data.href, {
+							fromUserGesture: true,
+							fromWorkspace: true,
+							allowCommands: [
+								'github-issues.authNow',
+								'workbench.extensions.search',
+								'workbench.action.openSettings',
+							],
+						});
 						return;
 					}
 
+					let linkToOpen: URI | string | undefined;
 					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
 						linkToOpen = data.href;
 					} else if (!/^[\w\-]+:/.test(data.href)) {
@@ -746,7 +772,7 @@ var requirejs = (function() {
 					}
 
 					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: false, fromWorkspace: true });
+						this.openerService.open(linkToOpen, { fromUserGesture: true, fromWorkspace: true });
 					}
 					break;
 				}
@@ -845,10 +871,25 @@ var requirejs = (function() {
 					this._handleHighlightCodeBlock(data.codeBlocks);
 					break;
 				}
-
-				case 'outputResized':
+				case 'outputResized': {
 					this.notebookEditor.didResizeOutput(data.cellId);
 					break;
+				}
+				case 'getOutputItem': {
+					const resolvedResult = this.resolveOutputId(data.outputId);
+					const output = resolvedResult?.output.model.outputs.find(output => output.mime === data.mime);
+
+					this._sendMessageToWebview({
+						type: 'returnOutputItem',
+						requestId: data.requestId,
+						output: output ? { mime: output.mime, valueBytes: output.data.buffer } : undefined,
+					});
+					break;
+				}
+				case 'logRendererDebugMessage': {
+					this._logRendererDebugMessage(`${data.message}${data.data ? ' ' + JSON.stringify(data.data, null, 4) : ''}`);
+					break;
+				}
 			}
 		}));
 	}
@@ -911,7 +952,7 @@ var requirejs = (function() {
 	private _createInset(webviewService: IWebviewService, content: string) {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
-			id: this.id,
+			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,
 				enableFindWidget: false,
@@ -1251,9 +1292,12 @@ var requirejs = (function() {
 				content: {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
-					mimeType: first.mime,
-					valueBytes: first.data.buffer,
 					metadata: output.metadata,
+					output: {
+						mime: first.mime,
+						valueBytes: first.data.buffer,
+					},
+					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
 			};
 		} else {
@@ -1288,13 +1332,16 @@ var requirejs = (function() {
 		let updatedContent: ICreationContent | undefined = undefined;
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
-			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!.data;
+			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
 			updatedContent = {
 				type: RenderOutputType.Extension,
 				outputId: outputCache.outputId,
-				mimeType: content.mimeType,
-				valueBytes: firstBuffer.buffer,
 				metadata: output.metadata,
+				output: {
+					mime: content.mimeType,
+					valueBytes: firstBuffer.data.buffer,
+				},
+				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};
 		}
 

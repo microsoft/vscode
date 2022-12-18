@@ -9,6 +9,9 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { StartupProfiler } from './startupProfiler';
 import { StartupTimings } from './startupTimings';
 import { RendererProfiling } from 'vs/workbench/contrib/performance/electron-sandbox/rendererAutoProfiler';
+import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
+import { localize } from 'vs/nls';
+import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
@@ -29,3 +32,15 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 	StartupTimings,
 	LifecyclePhase.Eventually
 );
+
+Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
+	...applicationConfigurationNodeBase,
+	'properties': {
+		'application.experimental.rendererProfiling': {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			markdownDescription: localize('experimental.rendererProfiling', "When enabled slow renderers are automatically profiled")
+		}
+	}
+});

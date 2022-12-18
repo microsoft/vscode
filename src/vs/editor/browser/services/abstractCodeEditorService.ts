@@ -293,7 +293,7 @@ export class ModelTransientSettingWatcher {
 	}
 }
 
-export class RefCountedStyleSheet {
+class RefCountedStyleSheet {
 
 	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;
@@ -366,7 +366,7 @@ interface IModelDecorationOptionsProvider extends IDisposable {
 	resolveDecorationCSSRules(): CSSRuleList;
 }
 
-export class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
+class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
@@ -421,7 +421,7 @@ interface ProviderArguments {
 }
 
 
-export class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;

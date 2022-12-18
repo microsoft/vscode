@@ -9,13 +9,14 @@ import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 
 export interface ITranslations {
-	[key: string]: string | { message: string; comment: string[] };
+	[key: string]: string | { message: string; comment: string[] } | undefined;
 }
 
 export function localizeManifest(extensionManifest: IExtensionManifest, translations: ITranslations, fallbackTranslations?: ITranslations): IExtensionManifest {
 	try {
 		replaceNLStrings(extensionManifest, translations, fallbackTranslations);
 	} catch (error) {
+		console.error(error?.message ?? error);
 		/*Ignore Error*/
 	}
 	return extensionManifest;
@@ -39,27 +40,32 @@ function replaceNLStrings(extensionManifest: IExtensionManifest, messages: ITran
 				if (translated === undefined && originalMessages) {
 					translated = originalMessages[messageKey];
 				}
-				const message: string | undefined = typeof translated === 'string' ? translated : translated.message;
-				if (message !== undefined) {
-					// This branch returns ILocalizedString's instead of Strings so that the Command Palette can contain both the localized and the original value.
-					const original = originalMessages?.[messageKey];
-					const originalMessage: string | undefined = typeof original === 'string' ? original : original?.message;
-					if (
-						// if we are translating the title or category of a command
-						command && (key === 'title' || key === 'category') &&
-						// and the original value is not the same as the translated value
-						originalMessage && originalMessage !== message
-					) {
-						const localizedString: ILocalizedString = {
-							value: message,
-							original: originalMessage
-						};
-						obj[key] = localizedString;
-					} else {
-						obj[key] = message;
+				const message: string | undefined = typeof translated === 'string' ? translated : translated?.message;
+
+				// This branch returns ILocalizedString's instead of Strings so that the Command Palette can contain both the localized and the original value.
+				const original = originalMessages?.[messageKey];
+				const originalMessage: string | undefined = typeof original === 'string' ? original : original?.message;
+
+				if (!message) {
+					if (!originalMessage) {
+						console.warn(`[${extensionManifest.name}]: ${localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey)}`);
 					}
+					return;
+				}
+
+				if (
+					// if we are translating the title or category of a command
+					command && (key === 'title' || key === 'category') &&
+					// and the original value is not the same as the translated value
+					originalMessage && originalMessage !== message
+				) {
+					const localizedString: ILocalizedString = {
+						value: message,
+						original: originalMessage
+					};
+					obj[key] = localizedString;
 				} else {
-					console.warn(`[${extensionManifest.name}]: ${localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey)}`);
+					obj[key] = message;
 				}
 			}
 		} else if (isObject(value)) {

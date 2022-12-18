@@ -6,15 +6,15 @@
 use std::collections::HashMap;
 
 use cli::commands::args::{
-	Cli, Commands, DesktopCodeOptions, ExtensionArgs, ExtensionSubcommand, InstallExtensionArgs,
-	ListExtensionArgs, UninstallExtensionArgs,
+	CliCore, Commands, DesktopCodeOptions, ExtensionArgs, ExtensionSubcommand,
+	InstallExtensionArgs, ListExtensionArgs, UninstallExtensionArgs,
 };
 
 /// Tries to parse the argv using the legacy CLI interface, looking for its
 /// flags and generating a CLI with subcommands if those don't exist.
 pub fn try_parse_legacy(
 	iter: impl IntoIterator<Item = impl Into<std::ffi::OsString>>,
-) -> Option<Cli> {
+) -> Option<CliCore> {
 	let raw = clap_lex::RawArgs::new(iter);
 	let mut cursor = raw.cursor();
 	raw.next(&mut cursor); // Skip the bin
@@ -65,7 +65,7 @@ pub fn try_parse_legacy(
 	// --status                 -> status
 
 	if args.contains_key("list-extensions") {
-		Some(Cli {
+		Some(CliCore {
 			subcommand: Some(Commands::Extension(ExtensionArgs {
 				subcommand: ExtensionSubcommand::List(ListExtensionArgs {
 					category: get_first_arg_value("category"),
@@ -76,7 +76,7 @@ pub fn try_parse_legacy(
 			..Default::default()
 		})
 	} else if let Some(exts) = args.remove("install-extension") {
-		Some(Cli {
+		Some(CliCore {
 			subcommand: Some(Commands::Extension(ExtensionArgs {
 				subcommand: ExtensionSubcommand::Install(InstallExtensionArgs {
 					id_or_path: exts,
@@ -88,7 +88,7 @@ pub fn try_parse_legacy(
 			..Default::default()
 		})
 	} else if let Some(exts) = args.remove("uninstall-extension") {
-		Some(Cli {
+		Some(CliCore {
 			subcommand: Some(Commands::Extension(ExtensionArgs {
 				subcommand: ExtensionSubcommand::Uninstall(UninstallExtensionArgs { id: exts }),
 				desktop_code_options,
@@ -96,7 +96,7 @@ pub fn try_parse_legacy(
 			..Default::default()
 		})
 	} else if args.contains_key("status") {
-		Some(Cli {
+		Some(CliCore {
 			subcommand: Some(Commands::Status),
 			..Default::default()
 		})

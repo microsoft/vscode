@@ -84,19 +84,19 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// Elements
 	domNode: HTMLElement;
-	protected actionsList: HTMLElement;
+	protected readonly actionsList: HTMLElement;
 
-	private _onDidBlur = this._register(new Emitter<void>());
+	private readonly _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
+	private readonly _onDidCancel = this._register(new Emitter<void>({ onWillAddFirstListener: () => this.cancelHasListener = true }));
 	readonly onDidCancel = this._onDidCancel.event;
 	private cancelHasListener = false;
 
-	private _onDidRun = this._register(new Emitter<IRunEvent>());
+	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
 
-	private _onWillRun = this._register(new Emitter<IRunEvent>());
+	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
 	readonly onWillRun = this._onWillRun.event;
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
@@ -419,6 +419,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	clear(): void {
+		if (this.isEmpty()) {
+			return;
+		}
+
 		this.viewItems = dispose(this.viewItems);
 		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);
@@ -575,6 +579,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	override dispose(): void {
+		this._context = undefined;
 		this.viewItems = dispose(this.viewItems);
 		this.getContainer().remove();
 		super.dispose();

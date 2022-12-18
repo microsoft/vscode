@@ -31,8 +31,8 @@ import { getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 
 export interface IWorkspaceEnteredEvent {
-	window: ICodeWindow;
-	workspace: IWorkspaceIdentifier;
+	readonly window: ICodeWindow;
+	readonly workspace: IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesManagementMainService {

@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/window/common/window';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -1381,7 +1382,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService, logService: ILogService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1389,11 +1390,13 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 	return await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
 		if (!resource) {
+			logService.info('Cannot resolve the path because it is not valid.', path);
 			return undefined;
 		}
 
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
+			logService.info('Cannot resolve the path because it cannot be handled', path);
 			return undefined;
 		}
 
@@ -1403,16 +1406,19 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			try {
 				type = (await fileService.stat(resource)).isDirectory ? FileType.Directory : FileType.Unknown;
 				exists = true;
-			} catch {
+			} catch (error) {
+				logService.error(error);
 				exists = false;
 			}
 		}
 
 		if (!exists && path.openOnlyIfExists) {
+			logService.info('Cannot resolve the path because it does not exist', path);
 			return undefined;
 		}
 
 		if (type === FileType.Directory) {
+			logService.info('Cannot resolve the path because it is a directory', path);
 			return undefined;
 		}
 
