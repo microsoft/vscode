@@ -148,13 +148,26 @@ class EditBreakpointAction extends EditorAction {
 
 		const position = editor.getPosition();
 		const debugModel = debugService.getModel();
-		if (position && editor.hasModel() && debugModel.getBreakpoints({ lineNumber: position.lineNumber }).length > 0) {
-			if (debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, column: position.column }).length > 0) {
-				editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, position.column);
-			} else {
-				editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, undefined);
-			}
+		if (!(editor.hasModel() && position)) {
+			return;
 		}
+
+		const lineBreakpoints = debugModel.getBreakpoints({ lineNumber: position.lineNumber });
+		if (lineBreakpoints.length === 0) {
+			return;
+		}
+
+		const breakpointDistances = lineBreakpoints.map(b => {
+			if (!b.column) {
+				return position.column;
+			}
+
+			return Math.abs(b.column - position.column);
+		});
+		const closestBreakpointIndex = breakpointDistances.indexOf(Math.min(...breakpointDistances));
+		const closestBreakpoint = lineBreakpoints[closestBreakpointIndex];
+
+		editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(closestBreakpoint.lineNumber, closestBreakpoint.column);
 	}
 }
 
