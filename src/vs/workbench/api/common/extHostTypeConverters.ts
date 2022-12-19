@@ -1376,10 +1376,13 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): languages.FoldingRange {
-		const range: languages.FoldingRange = { start: r.start + 1, end: r.end + 1, collapsedText: r.collapsedText };
-		if (r.kind) {
-			range.kind = FoldingRangeKind.from(r.kind);
-		}
+		const range: languages.FoldingRange = {
+			start: r.start + 1,
+			end: r.end + 1,
+			startColumn: r.startColumn !== undefined ? r.startColumn + 1 : undefined,
+			collapsedText: r.collapsedText,
+			kind: r.kind ? FoldingRangeKind.from(r.kind) : undefined,
+		};
 		return range;
 	}
 }

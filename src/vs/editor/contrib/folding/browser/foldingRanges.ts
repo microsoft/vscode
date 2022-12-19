@@ -23,6 +23,7 @@ export const foldSourceAbbr = {
 export interface FoldRange {
 	startLineNumber: number;
 	endLineNumber: number;
+	startColumn: number | undefined;
 	type: string | undefined;
 	collapsedText: string | undefined;
 	isCollapsed: boolean;
@@ -31,6 +32,7 @@ export interface FoldRange {
 
 export const MAX_FOLDING_REGIONS = 0xFFFF;
 export const MAX_LINE_NUMBER = 0xFFFFFF;
+export const MAX_COLUMN_NUMBER = 0xFFFFFF;
 
 const MASK_INDENT = 0xFF000000;
 
@@ -60,8 +62,9 @@ class BitField {
 }
 
 export class FoldingRegions {
-	private readonly _startIndexes: Uint32Array;
-	private readonly _endIndexes: Uint32Array;
+	private readonly _startLineIndexes: Uint32Array;
+	private readonly _endLineIndexes: Uint32Array;
+	private readonly _startColumnIndexes: Array<number | undefined> | undefined;
 	private readonly _collapseStates: BitField;
 	private readonly _userDefinedStates: BitField;
 	private readonly _recoveredStates: BitField;
@@ -70,15 +73,16 @@ export class FoldingRegions {
 	private readonly _types: Array<string | undefined> | undefined;
 	private readonly _collapsedTexts: Array<string | undefined> | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>, collapsedTexts?: Array<string | undefined>) {
-		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
+	constructor(startLineIndexes: Uint32Array, endLineIndexes: Uint32Array, startColumnIndexes?: Array<number | undefined>, types?: Array<string | undefined>, collapsedTexts?: Array<string | undefined>) {
+		if (startLineIndexes.length !== endLineIndexes.length || startLineIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
-		this._startIndexes = startIndexes;
-		this._endIndexes = endIndexes;
-		this._collapseStates = new BitField(startIndexes.length);
-		this._userDefinedStates = new BitField(startIndexes.length);
-		this._recoveredStates = new BitField(startIndexes.length);
+		this._startLineIndexes = startLineIndexes;
+		this._endLineIndexes = endLineIndexes;
+		this._startColumnIndexes = startColumnIndexes;
+		this._collapseStates = new BitField(startLineIndexes.length);
+		this._userDefinedStates = new BitField(startLineIndexes.length);
+		this._recoveredStates = new BitField(startLineIndexes.length);
 		this._types = types;
 		this._collapsedTexts = collapsedTexts;
 		this._parentsComputed = false;
@@ -92,9 +96,9 @@ export class FoldingRegions {
 				const index = parentIndexes[parentIndexes.length - 1];
 				return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
 			};
-			for (let i = 0, len = this._startIndexes.length; i < len; i++) {
-				const startLineNumber = this._startIndexes[i];
-				const endLineNumber = this._endIndexes[i];
+			for (let i = 0, len = this._startLineIndexes.length; i < len; i++) {
+				const startLineNumber = this._startLineIndexes[i];
+				const endLineNumber = this._endLineIndexes[i];
 				if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
 					throw new Error('startLineNumber or endLineNumber must not exceed ' + MAX_LINE_NUMBER);
 				}
@@ -103,22 +107,26 @@ export class FoldingRegions {
 				}
 				const parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
 				parentIndexes.push(i);
-				this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
-				this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
+				this._startLineIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
+				this._endLineIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
 			}
 		}
 	}
 
 	public get length(): number {
-		return this._startIndexes.length;
+		return this._startLineIndexes.length;
 	}
 
 	public getStartLineNumber(index: number): number {
-		return this._startIndexes[index] & MAX_LINE_NUMBER;
+		return this._startLineIndexes[index] & MAX_LINE_NUMBER;
 	}
 
 	public getEndLineNumber(index: number): number {
-		return this._endIndexes[index] & MAX_LINE_NUMBER;
+		return this._endLineIndexes[index] & MAX_LINE_NUMBER;
+	}
+
+	public getStartColumn(index: number): number | undefined {
+		return this._startColumnIndexes ? this._startColumnIndexes[index] : undefined;
 	}
 
 	public getType(index: number): string | undefined {
@@ -198,7 +206,7 @@ export class FoldingRegions {
 
 	public getParentIndex(index: number) {
 		this.ensureParentIndices();
-		const parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
+		const parent = ((this._startLineIndexes[index] & MASK_INDENT) >>> 24) + ((this._endLineIndexes[index] & MASK_INDENT) >>> 16);
 		if (parent === MAX_FOLDING_REGIONS) {
 			return -1;
 		}
@@ -210,7 +218,7 @@ export class FoldingRegions {
 	}
 
 	private findIndex(line: number) {
-		let low = 0, high = this._startIndexes.length;
+		let low = 0, high = this._startLineIndexes.length;
 		if (high === 0) {
 			return -1; // no children
 		}
@@ -254,8 +262,9 @@ export class FoldingRegions {
 
 	public toFoldRange(index: number): FoldRange {
 		return <FoldRange>{
-			startLineNumber: this._startIndexes[index] & MAX_LINE_NUMBER,
-			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
+			startLineNumber: this._startLineIndexes[index] & MAX_LINE_NUMBER,
+			endLineNumber: this._endLineIndexes[index] & MAX_LINE_NUMBER,
+			startColumn: this._startColumnIndexes ? this._startColumnIndexes[index] : undefined,
 			type: this._types ? this._types[index] : undefined,
 			collapsedText: this._collapsedTexts ? this._collapsedTexts[index] : undefined,
 			isCollapsed: this.isCollapsed(index),
@@ -265,32 +274,29 @@ export class FoldingRegions {
 
 	public static fromFoldRanges(ranges: FoldRange[]): FoldingRegions {
 		const rangesLength = ranges.length;
-		const startIndexes = new Uint32Array(rangesLength);
-		const endIndexes = new Uint32Array(rangesLength);
+		const startLineIndexes = new Uint32Array(rangesLength);
+		const endLineIndexes = new Uint32Array(rangesLength);
+		let startColumnIndexes: Array<number | undefined> | undefined = [];
 		let types: Array<string | undefined> | undefined = [];
-		let gotTypes = false;
 		let collapsedTexts: Array<string | undefined> | undefined = [];
-		let gotCollapsedTexts = false;
 		for (let i = 0; i < rangesLength; i++) {
 			const range = ranges[i];
-			startIndexes[i] = range.startLineNumber;
-			endIndexes[i] = range.endLineNumber;
+			startLineIndexes[i] = range.startLineNumber;
+			endLineIndexes[i] = range.endLineNumber;
+			startColumnIndexes.push(range.startColumn);
 			types.push(range.type);
-			if (range.type) {
-				gotTypes = true;
-			}
 			collapsedTexts.push(range.collapsedText);
-			if (range.collapsedText) {
-				gotCollapsedTexts = true;
-			}
 		}
-		if (!gotTypes) {
+		if (startColumnIndexes.every(c => c === undefined)) {
+			startColumnIndexes = undefined;
+		}
+		if (types.every(t => t === undefined)) {
 			types = undefined;
 		}
-		if (!gotCollapsedTexts) {
+		if (collapsedTexts.every(t => t === undefined)) {
 			collapsedTexts = undefined;
 		}
-		const regions = new FoldingRegions(startIndexes, endIndexes, types, collapsedTexts);
+		const regions = new FoldingRegions(startLineIndexes, endLineIndexes, startColumnIndexes, types, collapsedTexts);
 		for (let i = 0; i < rangesLength; i++) {
 			if (ranges[i].isCollapsed) {
 				regions.setCollapsed(i, true);
@@ -341,7 +347,7 @@ export class FoldingRegions {
 			let useRange: FoldRange | undefined = undefined;
 			if (nextB && (!nextA || nextA.startLineNumber >= nextB.startLineNumber)) {
 				if (nextA && nextA.startLineNumber === nextB.startLineNumber) {
-					if (nextB.source === FoldSource.userDefined) {
+					if (nextB.source === FoldSource.userDefined || (nextA.startColumn ?? MAX_COLUMN_NUMBER) >= (nextB.startColumn ?? MAX_COLUMN_NUMBER)) {
 						// a user defined range (possibly unfolded)
 						useRange = nextB;
 					} else {
@@ -410,6 +416,10 @@ export class FoldingRegion {
 
 	public get startLineNumber() {
 		return this.ranges.getStartLineNumber(this.index);
+	}
+
+	public get startColumn() {
+		return this.ranges.getStartColumn(this.index);
 	}
 
 	public get endLineNumber() {

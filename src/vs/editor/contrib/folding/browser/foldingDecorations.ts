@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, IModelDecorationsChangeAccessor, InjectedTextOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDecorationsChangeAccessor, InjectedTextCursorStops, InjectedTextOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { localize } from 'vs/nls';
@@ -24,52 +24,53 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	//To always keep decoration in injectedTextTree between toggles, otherwise would crash
 	private static EMPTY_INJECTED_TEXT: InjectedTextOptions = { content: '' };
 
-	private static readonly COLLAPSED_VISUAL_DECORATION = {
+	private static readonly COLLAPSED_VISUAL_DECORATION: IModelDecorationOptions = {
 		description: 'folding-collapsed-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
+		hideContent: true
 	};
 
-	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = {
+	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION: IModelDecorationOptions = {
 		description: 'folding-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		className: 'folded-background',
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
+		hideContent: true
 	};
 
-	private static readonly MANUALLY_COLLAPSED_VISUAL_DECORATION = {
+	private static readonly MANUALLY_COLLAPSED_VISUAL_DECORATION: IModelDecorationOptions = {
 		description: 'folding-manually-collapsed-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
+		hideContent: true
 	};
 
-	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = {
+	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION: IModelDecorationOptions = {
 		description: 'folding-manually-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
+		hideContent: true
 	};
 
-	private static readonly NO_CONTROLS_COLLAPSED_RANGE_DECORATION = {
+	private static readonly NO_CONTROLS_COLLAPSED_RANGE_DECORATION: IModelDecorationOptions = {
 		description: 'folding-no-controls-range-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
-		isWholeLine: true
+		isWholeLine: true,
+		hideContent: true
 	};
 
-	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION = {
+	private static readonly NO_CONTROLS_COLLAPSED_HIGHLIGHTED_RANGE_DECORATION: IModelDecorationOptions = {
 		description: 'folding-no-controls-range-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
-		isWholeLine: true
+		isWholeLine: true,
+		hideContent: true
 	};
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -153,7 +154,8 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		const before: InjectedTextOptions = {
 			content: this.fixSpace(collapsedText),
 			inlineClassName: 'collapsed-text',
-			inlineClassNameAffectsLetterSpacing: true
+			inlineClassNameAffectsLetterSpacing: true,
+			cursorStops: InjectedTextCursorStops.None
 		};
 		return ModelDecorationOptions.register({ ...decorationOption, before });
 	}

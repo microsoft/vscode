@@ -5169,10 +5169,16 @@ declare module 'vscode' {
 	export class FoldingRange {
 
 		/**
-		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * The zero-based start line of the range to fold.
+		 * The folded area starts at the start column if set, otherwise, after the line's last character.
 		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		start: number;
+
+		/**
+		 * The zero-based character offset from where the folded range starts. If not defined, defaults to the length of the start line.
+		 */
+		startColumn?: number;
 
 		/**
 		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.

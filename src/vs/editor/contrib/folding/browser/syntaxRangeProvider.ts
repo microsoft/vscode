@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/languages';
 import { FoldingLimitReporter, RangeProvider } from './folding';
-import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
+import { FoldingRegions, MAX_COLUMN_NUMBER, MAX_LINE_NUMBER } from './foldingRanges';
 
 export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
@@ -71,7 +71,7 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 				const nLines = model.getLineCount();
 				for (const r of ranges) {
 					if (r.start > 0 && r.end > r.start && r.end <= nLines) {
-						rangeData.push({ start: r.start, end: r.end, rank: i, kind: r.kind, collapsedText: r.collapsedText });
+						rangeData.push({ start: r.start, end: r.end, startColumn: r.startColumn, rank: i, kind: r.kind, collapsedText: r.collapsedText });
 					}
 				}
 			}
@@ -83,8 +83,9 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 }
 
 class RangesCollector {
-	private readonly _startIndexes: number[];
-	private readonly _endIndexes: number[];
+	private readonly _startLineIndexes: number[];
+	private readonly _endLineIndexes: number[];
+	private readonly _startColumnIndexes: Array<number | undefined>;
 	private readonly _nestingLevels: number[];
 	private readonly _nestingLevelCounts: number[];
 	private readonly _types: Array<string | undefined>;
@@ -93,8 +94,9 @@ class RangesCollector {
 	private readonly _foldingRangesLimit: FoldingLimitReporter;
 
 	constructor(foldingRangesLimit: FoldingLimitReporter) {
-		this._startIndexes = [];
-		this._endIndexes = [];
+		this._startLineIndexes = [];
+		this._endLineIndexes = [];
+		this._startColumnIndexes = [];
 		this._nestingLevels = [];
 		this._nestingLevelCounts = [];
 		this._types = [];
@@ -103,13 +105,14 @@ class RangesCollector {
 		this._foldingRangesLimit = foldingRangesLimit;
 	}
 
-	public add(startLineNumber: number, endLineNumber: number, type: string | undefined, collapsedText: string | undefined, nestingLevel: number) {
+	public add(startLineNumber: number, endLineNumber: number, startColumn: number | undefined, type: string | undefined, collapsedText: string | undefined, nestingLevel: number) {
 		if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
 			return;
 		}
 		const index = this._length;
-		this._startIndexes[index] = startLineNumber;
-		this._endIndexes[index] = endLineNumber;
+		this._startLineIndexes[index] = startLineNumber;
+		this._endLineIndexes[index] = endLineNumber;
+		this._startColumnIndexes[index] = startColumn;
 		this._nestingLevels[index] = nestingLevel;
 		this._types[index] = type;
 		this._collapsedTexts[index] = collapsedText;
@@ -124,13 +127,15 @@ class RangesCollector {
 		if (this._length <= limit) {
 			this._foldingRangesLimit.report({ limited: false, computed: this._length });
 
-			const startIndexes = new Uint32Array(this._length);
-			const endIndexes = new Uint32Array(this._length);
+			const startLineIndexes = new Uint32Array(this._length);
+			const endLineIndexes = new Uint32Array(this._length);
+			const startColumnIndexes: Array<number | undefined> = [];
 			for (let i = 0; i < this._length; i++) {
-				startIndexes[i] = this._startIndexes[i];
-				endIndexes[i] = this._endIndexes[i];
+				startLineIndexes[i] = this._startLineIndexes[i];
+				endLineIndexes[i] = this._endLineIndexes[i];
+				startColumnIndexes[i] = this._startColumnIndexes[i];
 			}
-			return new FoldingRegions(startIndexes, endIndexes, this._types, this._collapsedTexts);
+			return new FoldingRegions(startLineIndexes, endLineIndexes, startColumnIndexes, this._types, this._collapsedTexts);
 		} else {
 			this._foldingRangesLimit.report({ limited: limit, computed: this._length });
 
@@ -147,21 +152,23 @@ class RangesCollector {
 				}
 			}
 
-			const startIndexes = new Uint32Array(limit);
-			const endIndexes = new Uint32Array(limit);
+			const startLineIndexes = new Uint32Array(limit);
+			const endLineIndexes = new Uint32Array(limit);
+			const startColumnIndexes: Array<number | undefined> = [];
 			const types: Array<string | undefined> = [];
 			const collapsedTexts: Array<string | undefined> = [];
 			for (let i = 0, k = 0; i < this._length; i++) {
 				const level = this._nestingLevels[i];
 				if (level < maxLevel || (level === maxLevel && entries++ < limit)) {
-					startIndexes[k] = this._startIndexes[i];
-					endIndexes[k] = this._endIndexes[i];
+					startLineIndexes[k] = this._startLineIndexes[i];
+					endLineIndexes[k] = this._endLineIndexes[i];
+					startColumnIndexes[k] = this._startColumnIndexes[i];
 					types[k] = this._types[i];
 					collapsedTexts[k] = this._collapsedTexts[i];
 					k++;
 				}
 			}
-			return new FoldingRegions(startIndexes, endIndexes, types, collapsedTexts);
+			return new FoldingRegions(startLineIndexes, endLineIndexes, startColumnIndexes, types, collapsedTexts);
 		}
 
 	}
@@ -170,11 +177,15 @@ class RangesCollector {
 
 export function sanitizeRanges(rangeData: IFoldingRangeData[], foldingRangesLimit: FoldingLimitReporter): FoldingRegions {
 	const sorted = rangeData.sort((d1, d2) => {
-		let diff = d1.start - d2.start;
-		if (diff === 0) {
-			diff = d1.rank - d2.rank;
+		const lineDiff = d1.start - d2.start;
+		if (d1.start !== d2.start) {
+			return lineDiff;
 		}
-		return diff;
+		const columnDiff = (d1.startColumn ?? MAX_COLUMN_NUMBER) - (d2.startColumn ?? MAX_COLUMN_NUMBER);
+		if (columnDiff !== 0) {
+			return columnDiff;
+		}
+		return d1.rank - d2.rank;
 	});
 	const collector = new RangesCollector(foldingRangesLimit);
 
@@ -183,13 +194,13 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], foldingRangesLimi
 	for (const entry of sorted) {
 		if (!top) {
 			top = entry;
-			collector.add(entry.start, entry.end, entry.kind && entry.kind.value, entry.collapsedText, previous.length);
+			collector.add(entry.start, entry.end, entry.startColumn, entry.kind && entry.kind.value, entry.collapsedText, previous.length);
 		} else {
 			if (entry.start > top.start) {
 				if (entry.end <= top.end) {
 					previous.push(top);
 					top = entry;
-					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, entry.collapsedText, previous.length);
+					collector.add(entry.start, entry.end, entry.startColumn, entry.kind && entry.kind.value, entry.collapsedText, previous.length);
 				} else {
 					if (entry.start > top.end) {
 						do {
@@ -200,7 +211,7 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], foldingRangesLimi
 						}
 						top = entry;
 					}
-					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, entry.collapsedText, previous.length);
+					collector.add(entry.start, entry.end, entry.startColumn, entry.kind && entry.kind.value, entry.collapsedText, previous.length);
 				}
 			}
 		}

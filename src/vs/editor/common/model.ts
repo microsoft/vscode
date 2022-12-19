@@ -188,6 +188,15 @@ export interface IModelDecorationOptions {
 	 * @internal
 	*/
 	hideInStringTokens?: boolean | null;
+
+	/**
+	 * If set, this decoration inline content will not be rendered.
+	 * Only applies to start line if range is multiline.
+	 * This decorations's injected text will still render normally.
+	 * !!Currently only supports hiding to the end of the line.!!
+	 * @internal
+	*/
+	hideContent?: boolean | null;
 }
 
 /**
@@ -973,6 +982,12 @@ export interface ITextModel {
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 */
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that contain an inline fold.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getInlineFoldsDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
 	 * @internal

@@ -58,18 +58,19 @@ export class HiddenRangeModel {
 
 			const startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
 			const endLineNumber = ranges.getEndLineNumber(i);
+			const startColumn = ranges.getStartColumn(i);
 			if (lastCollapsedStart <= startLineNumber && endLineNumber <= lastCollapsedEnd) {
 				// ignore ranges contained in collapsed regions
 				continue;
 			}
 
-			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].startLineNumber === startLineNumber && this._hiddenRanges[k].endLineNumber === endLineNumber) {
+			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].startLineNumber === startLineNumber && this._hiddenRanges[k].endLineNumber === endLineNumber && this._hiddenRanges[k].startColumn === startColumn) {
 				// reuse the old ranges
 				newHiddenAreas.push(this._hiddenRanges[k]);
 				k++;
 			} else {
 				updateHiddenAreas = true;
-				newHiddenAreas.push(new Range(startLineNumber, 1, endLineNumber, 1));
+				newHiddenAreas.push(new Range(startLineNumber, startColumn ?? 1, endLineNumber, 1));
 			}
 			lastCollapsedStart = startLineNumber;
 			lastCollapsedEnd = endLineNumber;

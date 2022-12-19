@@ -1111,6 +1111,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 					collapseRanges.push(<FoldRange>{
 						startLineNumber: selection.startLineNumber,
 						endLineNumber: endLineNumber,
+						startColumn: selection.startColumn,
 						type: undefined,
 						collapsedText: undefined,
 						isCollapsed: true,

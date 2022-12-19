@@ -63,6 +63,7 @@ export function createModelLineProjection(lineBreakData: ModelLineProjectionData
  * This projection is used to
  * * wrap model lines
  * * inject text
+ * * hide inline content
  */
 class ModelLineProjection implements IModelLineProjection {
 	private readonly _projectionData: ModelLineProjectionData;
@@ -96,8 +97,8 @@ class ModelLineProjection implements IModelLineProjection {
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
 		this._assertVisible();
 
-		const startOffsetInInputWithInjections = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffsetInInputWithInjections = this._projectionData.breakOffsets[outputLineIndex];
+		const startOffsetInInputInjectedFolded = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
+		const endOffsetInInputInjectedFolded = this._projectionData.breakOffsets[outputLineIndex];
 
 		let r: string;
 		if (this._projectionData.injectionOffsets !== null) {
@@ -114,13 +115,13 @@ class ModelLineProjection implements IModelLineProjection {
 				model.getLineContent(modelLineNumber),
 				injectedTexts
 			);
-			r = lineWithInjections.substring(startOffsetInInputWithInjections, endOffsetInInputWithInjections);
+			r = lineWithInjections.substring(startOffsetInInputInjectedFolded, endOffsetInInputInjectedFolded);
 		} else {
 			r = model.getValueInRange({
 				startLineNumber: modelLineNumber,
-				startColumn: startOffsetInInputWithInjections + 1,
+				startColumn: startOffsetInInputInjectedFolded + 1,
 				endLineNumber: modelLineNumber,
-				endColumn: endOffsetInInputWithInjections + 1
+				endColumn: endOffsetInInputInjectedFolded + 1
 			});
 		}
 

@@ -2092,6 +2092,11 @@ declare namespace monaco.editor {
 		 */
 		getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 		/**
+		 * Gets all the decorations that contain an inline fold.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getInlineFoldsDecorations(ownerId?: number): IModelDecoration[];
+		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
 		normalizeIndentation(str: string): string;
@@ -7249,9 +7254,13 @@ declare namespace monaco.languages {
 
 	export interface FoldingRange {
 		/**
-		 * The one-based start line of the range to fold. The folded area starts after the line's last character.
+		 * The one-based start line of the range to fold.
 		 */
 		start: number;
+		/**
+		 * The one-based start column of the range to fold. If not defined, folded area starts at the end of start line.
+		 */
+		startColumn?: number;
 		/**
 		 * The one-based end line of the range to fold. The folded area ends with the line's last character.
 		 */

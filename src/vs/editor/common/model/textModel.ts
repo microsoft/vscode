@@ -38,7 +38,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InlineFoldRange, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -1443,10 +1443,20 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const firstEditLineNumber = currentEditStartLineNumber;
 				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
 
+				const currentEditStartOffset = this.getOffsetAt(new Position(firstEditLineNumber, 1));
+				const currentEditEndOffset = this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber)));
+
 				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval(
 					this,
-					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
-					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
+					currentEditStartOffset,
+					currentEditEndOffset,
+					0
+				);
+
+				const decorationsWithInlineFoldsInEditedRange = this._decorationsTree.getInlineFoldsInInterval(
+					this,
+					currentEditStartOffset,
+					currentEditEndOffset,
 					0
 				);
 
@@ -1454,18 +1464,27 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 
+				const inlineFoldsInEditedRange = InlineFoldRange.fromDecorations(decorationsWithInlineFoldsInEditedRange);
+				const inlineFoldsInEditedRangeQueue = new ArrayQueue(inlineFoldsInEditedRange);
+
+
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
 					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
-					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
+					const injectedTextInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
+
+
+					inlineFoldsInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
+					const inlineFoldsInCurrentLine = inlineFoldsInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
 
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
 							this.getLineContent(currentEditLineNumber),
-							decorationsInCurrentLine
+							injectedTextInCurrentLine,
+							inlineFoldsInCurrentLine
 						));
 				}
 
@@ -1477,11 +1496,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 				if (editingLinesCnt < insertingLinesCnt) {
 					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
+					const inlineFoldsInEditedRangeQueue = new ArrayQueue(inlineFoldsInEditedRange);
 					// Must insert some lines
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
 					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
 					const injectedTexts: (LineInjectedText[] | null)[] = [];
+					const inlineFolds: (InlineFoldRange[] | null)[] = [];
 					const newLines: string[] = [];
 					for (let i = 0; i < cnt; i++) {
 						const lineNumber = fromLineNumber + i;
@@ -1489,6 +1510,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
 						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
+
+						inlineFoldsInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
+						inlineFolds[i] = inlineFoldsInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
 					}
 
 					rawContentChanges.push(
@@ -1496,7 +1520,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							spliceLineNumber + 1,
 							startLineNumber + insertingLinesCnt,
 							newLines,
-							injectedTexts
+							injectedTexts,
+							inlineFolds
 						)
 					);
 				}
@@ -1553,7 +1578,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		const affectedLines = Array.from(affectedInjectedTextLines);
-		const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+		const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber), this._getInlineFoldsInLine(lineNumber)));
 
 		this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
 	}
@@ -1736,6 +1761,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
+	}
+
+	public getInlineFoldsDecorations(ownerId: number = 0): model.IModelDecoration[] {
+		return this.getInjectedTextDecorations(ownerId).filter(d => d.options.hideContent);
+	}
+
+	private _getInlineFoldsInLine(lineNumber: number): InlineFoldRange[] {
+		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
+		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
+
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0).filter(d => d.options.hideContent);
+		return InlineFoldRange.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
@@ -2034,6 +2071,15 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
+	public getInlineFoldsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
+		return this.getInjectedTextInInterval(host, start, end, filterOwnerId).filter((i) => i.options.hideContent);
+	}
+
+	public getAllInlineFolds(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
+		return this.getAllInjectedText(host, filterOwnerId).filter((i) => i.options.hideContent);
+	}
+
+
 	public getAll(host: IDecorationsTreesHost, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._search(filterOwnerId, filterOutValidation, overviewRulerOnly, versionId);
@@ -2259,6 +2305,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly before: ModelDecorationInjectedTextOptions | null;
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
+	readonly hideContent?: boolean | null | undefined;
 
 
 	private constructor(options: model.IModelDecorationOptions) {
@@ -2287,6 +2334,9 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
+		this.hideContent = options.hideContent ?? false;
+		console.log({ hideContent: options.hideContent });
+
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
