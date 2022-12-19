@@ -280,7 +280,7 @@
 }
 
 .monaco-workbench.web .part.titlebar .window-controls-container {
-	width: calc(100% - env(titlebar-area-width, 100%));
+	width: calc(100vw - env(titlebar-area-width, 100vw));
 	height: env(titlebar-area-height, 35px);
 }
 
