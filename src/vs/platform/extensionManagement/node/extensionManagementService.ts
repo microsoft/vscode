@@ -87,7 +87,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
-		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
+		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader, this.getTargetPlatform()));
 
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
 		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(e => this.onDidChangeExtensionsFromAnotherSource(e)));
@@ -613,7 +613,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.beforeRemovingExtension(await this.toLocalExtension(latest));
 			}
 		}));
-		const toRemove = extensions.filter(e => uninstalled[ExtensionKey.create(e).toString()]);
+		const toRemove = extensions.filter(e => e.metadata /* Installed by VS Code */ && uninstalled[ExtensionKey.create(e).toString()]);
 		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 

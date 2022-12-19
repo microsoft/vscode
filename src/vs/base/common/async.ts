@@ -1068,7 +1068,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has
@@ -1543,7 +1545,7 @@ export interface AsyncIterableEmitter<T> {
 /**
  * An executor for the `AsyncIterableObject` that has access to an emitter.
  */
-export interface AyncIterableExecutor<T> {
+export interface AsyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
@@ -1590,7 +1592,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	private _error: Error | null;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor(executor: AyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>) {
 		this._state = AsyncIterableSourceState.Initial;
 		this._results = [];
 		this._error = null;
@@ -1744,7 +1746,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
 	constructor(
 		private readonly _source: CancellationTokenSource,
-		executor: AyncIterableExecutor<T>
+		executor: AsyncIterableExecutor<T>
 	) {
 		super(executor);
 	}

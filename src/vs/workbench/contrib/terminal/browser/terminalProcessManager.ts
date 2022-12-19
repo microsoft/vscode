@@ -39,15 +39,18 @@ import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-/** The amount of time to consider terminal errors to be related to the launch */
-const LAUNCHING_DURATION = 500;
+const enum ProcessConstants {
+	/**
+	 * The amount of time to consider terminal errors to be related to the launch.
+	 */
+	ErrorLaunchThresholdDuration = 500,
+	/**
+	 * The minimum amount of time between latency requests.
+	 */
+	LatencyMeasuringInterval = 1000,
+}
 
-/**
- * The minimum amount of time between latency requests.
- */
-const LATENCY_MEASURING_INTERVAL = 1000;
-
-enum ProcessType {
+const enum ProcessType {
 	Process,
 	PsuedoTerminal
 }
@@ -373,12 +376,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._onRestoreCommands.fire(e);
 			}));
 		}
-
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
 				this._setProcessState(ProcessState.Running);
 			}
-		}, LAUNCHING_DURATION);
+		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
 		const result = await newProcess.start();
 		if (result) {
@@ -418,7 +420,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		} else {
 			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		}
-
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
@@ -599,7 +600,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!this._process) {
 			return Promise.resolve(0);
 		}
-		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
+		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + ProcessConstants.LatencyMeasuringInterval < Date.now()) {
 			const latencyRequest = this._process.getLatency();
 			this._latency = await latencyRequest;
 			this._latencyLastMeasured = Date.now();

@@ -51,6 +51,7 @@ import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
 import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
+import 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';

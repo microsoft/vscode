@@ -103,7 +103,13 @@ export class ViewLineOptions {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
-		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
+		if (experimentalWhitespaceRendering === 'off') {
+			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		} else {
+			// whitespace is rendered in a different layer
+			this.renderWhitespace = 'none';
+		}
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
@@ -213,9 +219,10 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					if (isHighContrast(options.themeType) || this._options.renderWhitespace !== 'selection') {
+					if (isHighContrast(options.themeType)) {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
-					} else {
+					}
+					if (this._options.renderWhitespace === 'selection') {
 						if (!selectionsOnLine) {
 							selectionsOnLine = [];
 						}
@@ -267,21 +274,11 @@ export class ViewLine implements IVisibleLine {
 
 		let renderedViewLine: IRenderedViewLine | null = null;
 		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
-			if (lineData.content.length < 300 && renderLineInput.lineTokens.getCount() < 100) {
-				// Browser rounding errors have been observed in Chrome and IE, so using the fast
-				// view line only for short lines. Please test before removing the length check...
-				// ---
-				// Another rounding error has been observed on Linux in VSCode, where <span> width
-				// rounding errors add up to an observable large number...
-				// ---
-				// Also see another example of rounding errors on Windows in
-				// https://github.com/microsoft/vscode/issues/33178
-				renderedViewLine = new FastRenderedViewLine(
-					this._renderedViewLine ? this._renderedViewLine.domNode : null,
-					renderLineInput,
-					output.characterMapping
-				);
-			}
+			renderedViewLine = new FastRenderedViewLine(
+				this._renderedViewLine ? this._renderedViewLine.domNode : null,
+				renderLineInput,
+				output.characterMapping
+			);
 		}
 
 		if (!renderedViewLine) {
@@ -393,6 +390,17 @@ interface IRenderedViewLine {
 	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
 }
 
+const enum Constants {
+	/**
+	 * It seems that rounding errors occur with long lines, so the purely multiplication based
+	 * method is only viable for short lines. For longer lines, we look up the real position of
+	 * every 300th character and use multiplication based on that.
+	 *
+	 * See https://github.com/microsoft/vscode/issues/33178
+	 */
+	MaxMonospaceDistance = 300
+}
+
 /**
  * A rendered line which is guaranteed to contain only regular ASCII and is rendered with a monospace font.
  */
@@ -403,33 +411,53 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	private readonly _characterMapping: CharacterMapping;
 	private readonly _charWidth: number;
+	private readonly _keyColumnPixelOffsetCache: Float32Array | null;
+	private _cachedWidth: number = -1;
 
 	constructor(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
+		const keyColumnCount = Math.floor(renderLineInput.lineContent.length / Constants.MaxMonospaceDistance);
+		if (keyColumnCount > 0) {
+			this._keyColumnPixelOffsetCache = new Float32Array(keyColumnCount);
+			for (let i = 0; i < keyColumnCount; i++) {
+				this._keyColumnPixelOffsetCache[i] = -1;
+			}
+		} else {
+			this._keyColumnPixelOffsetCache = null;
+		}
 
 		this._characterMapping = characterMapping;
 		this._charWidth = renderLineInput.spaceWidth;
 	}
 
 	public getWidth(): number {
-		return Math.round(this._getCharPosition(this._characterMapping.length));
+		if (!this.domNode || this.input.lineContent.length < Constants.MaxMonospaceDistance) {
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(this._characterMapping.length);
+			return Math.round(this._charWidth * horizontalOffset);
+		}
+		if (this._cachedWidth === -1) {
+			this._cachedWidth = this._getReadingTarget(this.domNode).offsetWidth;
+		}
+		return this._cachedWidth;
 	}
 
 	public getWidthIsFast(): boolean {
-		return true;
+		return (this.input.lineContent.length < Constants.MaxMonospaceDistance);
 	}
 
 	public monospaceAssumptionsAreValid(): boolean {
 		if (!this.domNode) {
 			return monospaceAssumptionsAreValid;
 		}
-		const expectedWidth = this.getWidth();
-		const actualWidth = (<HTMLSpanElement>this.domNode.domNode.firstChild).offsetWidth;
-		if (Math.abs(expectedWidth - actualWidth) >= 2) {
-			// more than 2px off
-			console.warn(`monospace assumptions have been violated, therefore disabling monospace optimizations!`);
-			monospaceAssumptionsAreValid = false;
+		if (this.input.lineContent.length < Constants.MaxMonospaceDistance) {
+			const expectedWidth = this.getWidth();
+			const actualWidth = (<HTMLSpanElement>this.domNode.domNode.firstChild).offsetWidth;
+			if (Math.abs(expectedWidth - actualWidth) >= 2) {
+				// more than 2px off
+				console.warn(`monospace assumptions have been violated, therefore disabling monospace optimizations!`);
+				monospaceAssumptionsAreValid = false;
+			}
 		}
 		return monospaceAssumptionsAreValid;
 	}
@@ -439,14 +467,53 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null {
-		const startPosition = this._getCharPosition(startColumn);
-		const endPosition = this._getCharPosition(endColumn);
+		const startPosition = this._getColumnPixelOffset(lineNumber, startColumn, context);
+		const endPosition = this._getColumnPixelOffset(lineNumber, endColumn, context);
 		return [new FloatHorizontalRange(startPosition, endPosition - startPosition)];
 	}
 
-	private _getCharPosition(column: number): number {
+	private _getColumnPixelOffset(lineNumber: number, column: number, context: DomReadingContext): number {
+		if (column <= Constants.MaxMonospaceDistance) {
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+			return this._charWidth * horizontalOffset;
+		}
+
+		const keyColumnOrdinal = Math.floor((column - 1) / Constants.MaxMonospaceDistance) - 1;
+		const keyColumn = (keyColumnOrdinal + 1) * Constants.MaxMonospaceDistance + 1;
+		let keyColumnPixelOffset = -1;
+		if (this._keyColumnPixelOffsetCache) {
+			keyColumnPixelOffset = this._keyColumnPixelOffsetCache[keyColumnOrdinal];
+			if (keyColumnPixelOffset === -1) {
+				keyColumnPixelOffset = this._actualReadPixelOffset(lineNumber, keyColumn, context);
+				this._keyColumnPixelOffsetCache[keyColumnOrdinal] = keyColumnPixelOffset;
+			}
+		}
+
+		if (keyColumnPixelOffset === -1) {
+			// Could not read actual key column pixel offset
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+			return this._charWidth * horizontalOffset;
+		}
+
+		const keyColumnHorizontalOffset = this._characterMapping.getHorizontalOffset(keyColumn);
 		const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
-		return this._charWidth * horizontalOffset;
+		return keyColumnPixelOffset + this._charWidth * (horizontalOffset - keyColumnHorizontalOffset);
+	}
+
+	private _getReadingTarget(myDomNode: FastDomNode<HTMLElement>): HTMLElement {
+		return <HTMLSpanElement>myDomNode.domNode.firstChild;
+	}
+
+	private _actualReadPixelOffset(lineNumber: number, column: number, context: DomReadingContext): number {
+		if (!this.domNode) {
+			return -1;
+		}
+		const domPosition = this._characterMapping.getDomPosition(column);
+		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(this.domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
+		if (!r || r.length === 0) {
+			return -1;
+		}
+		return r[0].left;
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {

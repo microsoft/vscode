@@ -17,7 +17,7 @@ import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, 
 import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
@@ -62,7 +62,7 @@ export interface IStorageMainService {
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       This is currently not supported.
 	 */
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
+	workspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain;
 
 	/**
 	 * Checks if the provided path is currently in use for a storage database.
@@ -232,7 +232,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private readonly mapWorkspaceToStorage = new Map<string /* workspace ID */, IStorageMain>();
 
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
+	workspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain {
 		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
 		if (!workspaceStorage) {
 			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);
@@ -250,7 +250,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return workspaceStorage;
 	}
 
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
+	private createWorkspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain {
 		if (this.shutdownReason === ShutdownReason.KILL) {
 
 			// Workaround for native crashes that we see when

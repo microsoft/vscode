@@ -26,7 +26,7 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 				value: nls.localize('copyMatchLabel', "Copy"),
 				original: 'Copy'
 			},
-			category: category.value,
+			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.FileMatchOrMatchFocusKey,
@@ -57,7 +57,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 				value: nls.localize('copyPathLabel', "Copy Path"),
 				original: 'Copy Path'
 			},
-			category: category.value,
+			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
@@ -91,7 +91,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 				value: nls.localize('copyAllLabel', "Copy All"),
 				original: 'Copy All'
 			},
-			category: category.value,
+			category,
 			menu: [{
 				id: MenuId.SearchContext,
 				when: Constants.HasSearchResults,

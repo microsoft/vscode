@@ -44,20 +44,26 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
+import { hostname, release } from 'os';
+import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 
 export interface IWindowCreationOptions {
-	state: IWindowState;
-	extensionDevelopmentPath?: string[];
-	isExtensionTestHost?: boolean;
+	readonly state: IWindowState;
+	readonly extensionDevelopmentPath?: string[];
+	readonly isExtensionTestHost?: boolean;
 }
 
 interface ITouchBarSegment extends SegmentedControlSegment {
-	id: string;
+	readonly id: string;
 }
 
 interface ILoadOptions {
-	isReload?: boolean;
-	disableExtensions?: boolean;
+	readonly isReload?: boolean;
+	readonly disableExtensions?: boolean;
 }
 
 const enum ReadyState {
@@ -123,7 +129,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
+	get profile(): IUserDataProfile | undefined {
+		if (!this.config) {
+			return undefined;
+		}
+
+		const profile = this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id);
+		if (this.isExtensionDevelopmentHost && profile) {
+			return profile;
+		}
+
+		return this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.defaultProfile);
+	}
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -285,7 +302,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (useWindowControlsOverlay(this.configurationService, this.productService)) {
+				if (useWindowControlsOverlay(this.configurationService)) {
 
 					// This logic will not perfectly guess the right colors
 					// to use on initialization, but prefer to keep things
@@ -316,7 +333,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService, this.productService)) || isMacintosh)) {
+			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
 				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -727,19 +744,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					//          we cannot detect AppLocker use currently, but make a
 					//          guess based on the reason and exit code.
 					if (isWindows && details?.reason === 'launch-failed' && details.exitCode === 18 && await this.nativeHostMainService.isAdmin(undefined)) {
-						await this.dialogMainService.showMessageBox({
-							title: this.productService.nameLong,
-							type: 'error',
-							buttons: [
-								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
-							],
-							message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
-							detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
-							noLink: true,
-							defaultId: 0
-						}, this._win);
-
-						await this.destroyWindow(false, false);
+						await this.handleWindowsAdminCrash(details);
 					}
 
 					// Any other crash: offer to restart
@@ -773,6 +778,61 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 				break;
 		}
+	}
+
+	private async handleWindowsAdminCrash(details: { reason: string; exitCode: number }) {
+
+		// Prepare telemetry event (TODO@bpasero remove me eventually)
+		const appenders: ITelemetryAppender[] = [];
+		const isInternal = isInternalTelemetry(this.productService, this.configurationService);
+		if (supportsTelemetry(this.productService, this.environmentMainService)) {
+			if (this.productService.aiConfig && this.productService.aiConfig.ariaKey) {
+				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
+			}
+
+			const { installSourcePath } = this.environmentMainService;
+			const machineId = await resolveMachineId(this.stateMainService);
+
+			const config: ITelemetryServiceConfig = {
+				appenders,
+				sendErrorTelemetry: false,
+				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
+				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
+			};
+
+			const telemetryService = new TelemetryService(config, this.configurationService, this.productService);
+
+			type WindowAdminErrorClassification = {
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+				owner: 'bpasero';
+				comment: 'Provides insight into reasons the vscode window had an error when running as admin.';
+			};
+			type WindowAdminErrorEvent = {
+				reason: string | undefined;
+				code: number | undefined;
+			};
+			await telemetryService.publicLog2<WindowAdminErrorEvent, WindowAdminErrorClassification>('windowadminerror', { reason: details.reason, code: details.exitCode });
+		}
+
+		// Inform user
+		await this.dialogMainService.showMessageBox({
+			title: this.productService.nameLong,
+			type: 'error',
+			buttons: [
+				mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+			],
+			message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
+			detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
+			noLink: true,
+			defaultId: 0
+		}, this._win);
+
+		// Ensure to await flush telemetry
+		await Promise.all(appenders.map(appender => appender.flush()));
+
+		// Exit
+		await this.destroyWindow(false, false);
 	}
 
 	private async destroyWindow(reopen: boolean, skipRestoreEditors: boolean): Promise<void> {
@@ -1007,6 +1067,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
+		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.continueOn = this.environmentMainService.continueOn;

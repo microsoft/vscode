@@ -62,6 +62,12 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	getNodeById(id: string): IncrementalTestCollectionItem | undefined;
 
 	/**
+	 * Gets all tests that have the given URL. Tests returned from this
+	 * method are *not* in any particular order.
+	 */
+	getNodeByUrl(uri: URI): Iterable<IncrementalTestCollectionItem>;
+
+	/**
 	 * Requests that children be revealed for the given test. "Levels" may
 	 * be infinite.
 	 */

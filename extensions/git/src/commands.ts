@@ -36,16 +36,7 @@ class CheckoutItem implements QuickPickItem {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
-		if (pullBeforeCheckout) {
-			try {
-				await this.repository.fastForwardBranch(this.ref.name!);
-			}
-			catch (err) {
-				// noop
-			}
-		}
-
-		await this.repository.checkout(this.ref.name, opts);
+		await this.repository.checkout(this.ref.name, { ...opts, pullBeforeCheckout });
 	}
 }
 
@@ -192,6 +183,14 @@ class FetchAllRemotesItem implements QuickPickItem {
 	async run(): Promise<void> {
 		await this.repository.fetch({ all: true });
 	}
+}
+
+class UnsafeRepositoryItem implements QuickPickItem {
+	get label(): string {
+		return `$(repo) ${this.path}`;
+	}
+
+	constructor(public readonly path: string) { }
 }
 
 interface ScmCommandOptions {
@@ -1123,7 +1122,7 @@ export class CommandCenter {
 
 		await this._stageChanges(textEditor, [changes[index]]);
 
-		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
@@ -1280,7 +1279,7 @@ export class CommandCenter {
 
 		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
 
-		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
@@ -1400,7 +1399,20 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
+		// Remove duplicate resources
+		const resourceUris = new Set<string>();
+		resourceStates = resourceStates.filter(s => {
+			if (s === undefined) {
+				return false;
+			}
+
+			if (resourceUris.has(s.resourceUri.toString())) {
+				return false;
+			}
+
+			resourceUris.add(s.resourceUri.toString());
+			return true;
+		});
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
@@ -1828,7 +1840,8 @@ export class CommandCenter {
 
 	@command('git.commitMessageAccept')
 	async commitMessageAccept(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg && !window.activeTextEditor) { return; }
+		arg ??= window.activeTextEditor!.document.uri;
 
 		// Close the tab
 		this._closeEditorTab(arg);
@@ -1836,11 +1849,12 @@ export class CommandCenter {
 
 	@command('git.commitMessageDiscard')
 	async commitMessageDiscard(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg && !window.activeTextEditor) { return; }
+		arg ??= window.activeTextEditor!.document.uri;
 
 		// Clear the contents of the editor
 		const editors = window.visibleTextEditors
-			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg!.toString());
 
 		if (editors.length !== 1) { return; }
 
@@ -2030,17 +2044,21 @@ export class CommandCenter {
 					throw err;
 				}
 
-				const force = l10n.t('Force Checkout');
 				const stash = l10n.t('Stash & Checkout');
-				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, force, stash);
+				const migrate = l10n.t('Migrate Changes');
+				const force = l10n.t('Force Checkout');
+				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
 
 				if (choice === force) {
 					await this.cleanAll(repository);
 					await item.run(opts);
-				} else if (choice === stash) {
+				} else if (choice === stash || choice === migrate) {
 					await this.stash(repository);
 					await item.run(opts);
-					await this.stashPopLatest(repository);
+
+					if (choice === migrate) {
+						await this.stashPopLatest(repository);
+					}
 				}
 			}
 		}
@@ -2679,16 +2697,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = remotes.map(r => r.name);
+		const picks: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
 		const placeHolder = l10n.t('Pick a remote to remove');
 
-		const remoteName = await window.showQuickPick(picks, { placeHolder });
+		const remote = await window.showQuickPick(picks, { placeHolder });
 
-		if (!remoteName) {
+		if (!remote) {
 			return;
 		}
 
-		await repository.removeRemote(remoteName);
+		await repository.removeRemote(remote.remoteName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
@@ -2889,14 +2907,21 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 
-		if (noUnstagedChanges && noStagedChanges) {
-			window.showInformationMessage(l10n.t('There are no changes to stash.'));
-			return;
+		if (staged) {
+			if (noStagedChanges) {
+				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
+				return;
+			}
+		} else {
+			if (noUnstagedChanges && noStagedChanges) {
+				window.showInformationMessage(l10n.t('There are no changes to stash.'));
+				return;
+			}
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
@@ -2943,12 +2968,26 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.createStash(message, includeUntracked);
+		try {
+			await repository.createStash(message, includeUntracked, staged);
+		} catch (err) {
+			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
+				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.stash', { repository: true })
 	stash(repository: Repository): Promise<void> {
 		return this._stash(repository);
+	}
+
+	@command('git.stashStaged', { repository: true })
+	stashStaged(repository: Repository): Promise<void> {
+		return this._stash(repository, false, true);
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
@@ -3182,6 +3221,51 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.manageUnsafeRepositories')
+	async manageUnsafeRepositories(): Promise<void> {
+		const unsafeRepositories: string[] = [];
+
+		const quickpick = window.createQuickPick();
+		quickpick.title = l10n.t('Manage Unsafe Repositories');
+		quickpick.placeholder = l10n.t('Pick a repository to mark as safe and open');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new UnsafeRepositoryItem(r));
+
+		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		quickpick.show();
+		const repositoryItem = await new Promise<UnsafeRepositoryItem | QuickPickItem | undefined>(
+			resolve => {
+				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
+				quickpick.onDidHide(() => resolve(undefined));
+			});
+		quickpick.hide();
+
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem.label === allRepositoriesLabel) {
+			// All Repositories
+			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
+		} else {
+			// One Repository
+			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
+		}
+
+		for (const unsafeRepository of unsafeRepositories) {
+			// Mark as Safe
+			await this.git.addSafeDirectory(this.model.unsafeRepositories.get(unsafeRepository)!);
+
+			// Open Repository
+			await this.model.openRepository(unsafeRepository);
+			this.model.unsafeRepositories.delete(unsafeRepository);
+		}
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -3266,10 +3350,12 @@ export class CommandCenter {
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
 						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
 						message = l10n.t('There were merge conflicts while applying the stash.');
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						type = 'warning';
 						options.modal = false;
 						break;

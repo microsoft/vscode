@@ -46,6 +46,7 @@
 	height: 100%;
 	vertical-align: top;
 	max-width: 40vw;
+	font-variant-numeric: tabular-nums;
 }
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
 	position: relative;

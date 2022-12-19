@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { distinct, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
@@ -160,20 +160,21 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				try {
 					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(installExtensionTask.identifier, manifest, !!installExtensionTaskOptions.installOnlyNewlyAddedFromExtensionPack, !!installExtensionTaskOptions.installPreReleaseVersion, installExtensionTaskOptions.profileLocation);
 					const installed = await this.getInstalled(undefined, installExtensionTaskOptions.profileLocation);
-					for (const { gallery, manifest } of allDepsAndPackExtensionsToInstall) {
+					for (const { gallery, manifest } of distinct(allDepsAndPackExtensionsToInstall, ({ gallery }) => gallery.identifier.id)) {
 						installExtensionHasDependents = installExtensionHasDependents || !!manifest.extensionDependencies?.some(id => areSameExtensions({ id }, installExtensionTask.identifier));
 						const key = getInstallExtensionTaskKey(gallery);
 						const existingInstallingExtension = this.installingExtensions.get(key);
 						if (existingInstallingExtension) {
 							if (this.canWaitForTask(installExtensionTask, existingInstallingExtension.task)) {
-								this.logService.info('Waiting for already requested installing extension', gallery.identifier.id, installExtensionTask.identifier.id);
-								existingInstallingExtension.waitingTasks.push(installExtensionTask);
 								const identifier = existingInstallingExtension.task.identifier;
+								this.logService.info('Waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
+								existingInstallingExtension.waitingTasks.push(installExtensionTask);
 								// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
 								alreadyRequestedInstallations.push(
 									Event.toPromise(
 										Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
 									).then(results => {
+										this.logService.info('Finished waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
 										const result = results.find(result => areSameExtensions(result.identifier, identifier));
 										if (!result?.local) {
 											// Extension failed to install
@@ -296,15 +297,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: installExtensionTaskOptions.context, profileLocation: installExtensionTaskOptions.profileLocation })));
 			throw error;
 		} finally {
-			for (const [key, { task, waitingTasks }] of this.installingExtensions.entries()) {
-				const index = waitingTasks.indexOf(installExtensionTask);
-				if (index !== -1) {
-					/* Current task was waiting for this task */
-					waitingTasks.splice(index, 1);
-				}
-				if (waitingTasks.length === 0 // No tasks are waiting for this task
-					&& (task === installExtensionTask || index !== -1)) {
-					this.installingExtensions.delete(key);
+			// Finally, remove all the tasks from the cache
+			for (const { task } of allInstallExtensionTasks) {
+				if (task.source && !URI.isUri(task.source)) {
+					this.installingExtensions.delete(getInstallExtensionTaskKey(task.source));
 				}
 			}
 		}
@@ -353,10 +349,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 
 		const installed = await this.getInstalled(undefined, profile);
-		const knownIdentifiers = [extensionIdentifier];
+		const knownIdentifiers: IExtensionIdentifier[] = [];
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
+			knownIdentifiers.push(extensionIdentifier);
 			const dependecies: string[] = manifest.extensionDependencies || [];
 			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
@@ -373,12 +370,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 			if (dependenciesAndPackExtensions.length) {
 				// filter out known extensions
-				const identifiers = [...knownIdentifiers, ...allDependenciesAndPacks.map(r => r.gallery.identifier)];
-				const ids = dependenciesAndPackExtensions.filter(id => identifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
+				const ids = dependenciesAndPackExtensions.filter(id => knownIdentifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
 				if (ids.length) {
 					const galleryExtensions = await this.galleryService.getExtensions(ids.map(id => ({ id, preRelease: installPreRelease })), CancellationToken.None);
 					for (const galleryExtension of galleryExtensions) {
-						if (identifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
+						if (knownIdentifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
 						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));

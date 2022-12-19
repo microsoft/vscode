@@ -5,17 +5,23 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, IModelDecorationsChangeAccessor, InjectedTextCursorStops, InjectedTextOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDecorationsChangeAccessor, InjectedTextCursorStops, InjectedTextOptions, MinimapPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { localize } from 'vs/nls';
+import { editorSelectionBackground, iconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+const foldBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
+registerColor('editorGutter.foldingControlForeground', { dark: iconForeground, light: iconForeground, hcDark: iconForeground, hcLight: iconForeground }, localize('editorGutter.foldingControlForeground', 'Color of the folding control in the editor gutter.'));
 
 export const foldingExpandedIcon = registerIcon('folding-expanded', Codicon.chevronDown, localize('foldingExpandedIcon', 'Icon for expanded ranges in the editor glyph margin.'));
 export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.chevronRight, localize('foldingCollapsedIcon', 'Icon for collapsed ranges in the editor glyph margin.'));
 export const foldingManualCollapsedIcon = registerIcon('folding-manual-collapsed', foldingCollapsedIcon, localize('foldingManualCollapedIcon', 'Icon for manually collapsed ranges in the editor glyph margin.'));
 export const foldingManualExpandedIcon = registerIcon('folding-manual-expanded', foldingExpandedIcon, localize('foldingManualExpandedIcon', 'Icon for manually expanded ranges in the editor glyph margin.'));
+
+const foldedBackgroundMinimap = { color: themeColorFromId(foldBackground), position: MinimapPosition.Inline };
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
@@ -29,13 +35,14 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-		hideContent: true
+		hideContent: true,
 	};
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION: IModelDecorationOptions = {
 		description: 'folding-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
 		hideContent: true
@@ -53,6 +60,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		description: 'folding-manually-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon),
 		hideContent: true
@@ -69,6 +77,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		description: 'folding-no-controls-range-decoration',
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		className: 'folded-background',
+		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		hideContent: true
 	};

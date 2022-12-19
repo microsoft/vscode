@@ -31,21 +31,25 @@ const enum Constants {
 	MaxResolvedLinkLength = 1024,
 }
 
-const pathPrefix = '(\\.\\.?|\\~)';
-const pathSeparatorClause = '\\/';
-// '":; are allowed in paths but they are often separators so ignore them
-// Also disallow \\ to prevent a catastropic backtracking case #24795
-const excludedPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]';
+const enum RegexPathConstants {
+	PathPrefix = '(\\.\\.?|\\~)',
+	PathSeparatorClause = '\\/',
+	// '":; are allowed in paths but they are often separators so ignore them
+	// Also disallow \\ to prevent a catastropic backtracking case #24795
+	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]',
+	WinOtherPathPrefix = '\\.\\.?|\\~',
+	WinPathSeparatorClause = '(\\\\|\\/)',
+	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
+}
+
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
+export const unixLocalLinkClause = '((' + RegexPathConstants.PathPrefix + '|(' + RegexPathConstants.ExcludedPathCharactersClause + ')+)?(' + RegexPathConstants.PathSeparatorClause + '(' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
-const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
-const winPathSeparatorClause = '(\\\\|\\/)';
-const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
+export const winLocalLinkClause = '((' + `(${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)?(' + RegexPathConstants.WinPathSeparatorClause + '(' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
+// TODO: This should eventually move to the more structured terminalLinkParsing
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 export const lineAndColumnClause = [
@@ -57,13 +61,6 @@ export const lineAndColumnClause = [
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
-
-// Changing any regex may effect this value, hence changes this as well if required.
-export const winLineAndColumnMatchIndex = 12;
-export const unixLineAndColumnMatchIndex = 11;
-
-// Each line and column clause have 6 groups (ie no. of expressions in round brackets)
-export const lineAndColumnClauseGroupCount = 6;
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
@@ -147,17 +144,18 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
-			if (osPathModule(this._os).isAbsolute(link)) {
+			if (osPathModule(this._os).isAbsolute(link) || link.startsWith('~')) {
 				linkCandidates.push(link);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osPathModule(this._os).sep);
+					const osModule = osPathModule(this._os);
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osModule);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does
 					// not exist. Doing otherwise could cause unexpected results where handling via the
 					// word link detector is preferable.
 					if (absolutePath) {
-						linkCandidates.push(absolutePath);
+						linkCandidates.push(...absolutePath);
 					}
 				} else {
 					// Fallback to resolving against the initial cwd, removing any relative directory prefixes

@@ -20,7 +20,7 @@ suite('Viewlets', () => {
 			throw new Error('Method not implemented.');
 		}
 
-		createViewPaneContainer() { return null!; }
+		protected override createViewPaneContainer() { return null!; }
 	}
 
 	test('ViewletDescriptor API', function () {

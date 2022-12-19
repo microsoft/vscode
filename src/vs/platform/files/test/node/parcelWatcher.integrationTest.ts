@@ -12,7 +12,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
@@ -47,12 +47,8 @@ import { ltrim } from 'vs/base/common/strings';
 			}
 		}
 
-		override toExcludePaths(path: string, excludes: string[] | undefined): string[] | undefined {
+		testToExcludePaths(path: string, excludes: string[] | undefined): string[] | undefined {
 			return super.toExcludePaths(path, excludes);
-		}
-
-		override  restartWatching(watcher: IParcelWatcherInstance, delay = 10): void {
-			return super.restartWatching(watcher, delay);
 		}
 	}
 
@@ -573,16 +569,16 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// undefined / empty
 
-		assert.strictEqual(watcher.toExcludePaths(testDir, undefined), undefined);
-		assert.strictEqual(watcher.toExcludePaths(testDir, []), undefined);
+		assert.strictEqual(watcher.testToExcludePaths(testDir, undefined), undefined);
+		assert.strictEqual(watcher.testToExcludePaths(testDir, []), undefined);
 
 		// absolute paths
 
-		let excludes = watcher.toExcludePaths(testDir, [testDir]);
+		let excludes = watcher.testToExcludePaths(testDir, [testDir]);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = watcher.toExcludePaths(testDir, [`${testDir}${sep}`, join(testDir, 'foo', 'bar'), `${join(testDir, 'other', 'deep')}${sep}`]);
+		excludes = watcher.testToExcludePaths(testDir, [`${testDir}${sep}`, join(testDir, 'foo', 'bar'), `${join(testDir, 'other', 'deep')}${sep}`]);
 		assert.strictEqual(excludes?.length, 3);
 		assert.strictEqual(excludes[0], testDir);
 		assert.strictEqual(excludes[1], join(testDir, 'foo', 'bar'));
@@ -590,22 +586,22 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// wrong casing is normalized for root
 		if (!isLinux) {
-			excludes = watcher.toExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
+			excludes = watcher.testToExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
 			assert.strictEqual(excludes?.length, 1);
 			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 		}
 
 		// exclude ignored if not parent of watched dir
-		excludes = watcher.toExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
+		excludes = watcher.testToExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
 		assert.strictEqual(excludes, undefined);
 
 		// relative paths
 
-		excludes = watcher.toExcludePaths(testDir, ['.']);
+		excludes = watcher.testToExcludePaths(testDir, ['.']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = watcher.toExcludePaths(testDir, ['foo', `bar${sep}`, join('foo', 'bar'), `${join('other', 'deep')}${sep}`]);
+		excludes = watcher.testToExcludePaths(testDir, ['foo', `bar${sep}`, join('foo', 'bar'), `${join('other', 'deep')}${sep}`]);
 		assert.strictEqual(excludes?.length, 4);
 		assert.strictEqual(excludes[0], join(testDir, 'foo'));
 		assert.strictEqual(excludes[1], join(testDir, 'bar'));
@@ -614,51 +610,51 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// simple globs (relative)
 
-		excludes = watcher.toExcludePaths(testDir, ['**']);
+		excludes = watcher.testToExcludePaths(testDir, ['**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = watcher.toExcludePaths(testDir, ['**/**']);
+		excludes = watcher.testToExcludePaths(testDir, ['**/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = watcher.toExcludePaths(testDir, ['**\\**']);
+		excludes = watcher.testToExcludePaths(testDir, ['**\\**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
-		excludes = watcher.toExcludePaths(testDir, ['**/node_modules/**']);
+		excludes = watcher.testToExcludePaths(testDir, ['**/node_modules/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
-		excludes = watcher.toExcludePaths(testDir, ['**/.git/objects/**']);
+		excludes = watcher.testToExcludePaths(testDir, ['**/.git/objects/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
 
-		excludes = watcher.toExcludePaths(testDir, ['**/node_modules']);
+		excludes = watcher.testToExcludePaths(testDir, ['**/node_modules']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
-		excludes = watcher.toExcludePaths(testDir, ['**/.git/objects']);
+		excludes = watcher.testToExcludePaths(testDir, ['**/.git/objects']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
 
-		excludes = watcher.toExcludePaths(testDir, ['node_modules/**']);
+		excludes = watcher.testToExcludePaths(testDir, ['node_modules/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
-		excludes = watcher.toExcludePaths(testDir, ['.git/objects/**']);
+		excludes = watcher.testToExcludePaths(testDir, ['.git/objects/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
 
 		// simple globs (absolute)
 
-		excludes = watcher.toExcludePaths(testDir, [join(testDir, 'node_modules', '**')]);
+		excludes = watcher.testToExcludePaths(testDir, [join(testDir, 'node_modules', '**')]);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 
 		// Linux: more restrictive glob treatment
 		if (isLinux) {
-			excludes = watcher.toExcludePaths(testDir, ['**/node_modules/*/**']);
+			excludes = watcher.testToExcludePaths(testDir, ['**/node_modules/*/**']);
 			assert.strictEqual(excludes?.length, 1);
 			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
 		}
@@ -666,17 +662,17 @@ import { ltrim } from 'vs/base/common/strings';
 		// unsupported globs
 
 		else {
-			excludes = watcher.toExcludePaths(testDir, ['**/node_modules/*/**']);
+			excludes = watcher.testToExcludePaths(testDir, ['**/node_modules/*/**']);
 			assert.strictEqual(excludes, undefined);
 		}
 
-		excludes = watcher.toExcludePaths(testDir, ['**/*.js']);
+		excludes = watcher.testToExcludePaths(testDir, ['**/*.js']);
 		assert.strictEqual(excludes, undefined);
 
-		excludes = watcher.toExcludePaths(testDir, ['*.js']);
+		excludes = watcher.testToExcludePaths(testDir, ['*.js']);
 		assert.strictEqual(excludes, undefined);
 
-		excludes = watcher.toExcludePaths(testDir, ['*']);
+		excludes = watcher.testToExcludePaths(testDir, ['*']);
 		assert.strictEqual(excludes, undefined);
 	});
 });

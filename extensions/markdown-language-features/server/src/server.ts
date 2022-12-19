@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Connection, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
+import { CancellationToken, CompletionRegistrationOptions, CompletionRequest, Connection, Disposable, DocumentHighlightRegistrationOptions, DocumentHighlightRequest, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
 import { URI } from 'vscode-uri';
 import { getLsConfiguration, LsConfiguration } from './config';
-import { ConfigurationManager } from './configuration';
+import { ConfigurationManager, Settings } from './configuration';
 import { registerValidateSupport } from './languageFeatures/diagnostics';
 import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
@@ -77,7 +77,7 @@ export async function startServer(connection: Connection, serverConfig: {
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerDocumentHightlightSupport(connection, documents, mdLs, configurationManager);
+		registerDocumentHighlightSupport(connection, documents, mdLs, configurationManager);
 		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
 
 		return {
@@ -89,10 +89,8 @@ export async function startServer(connection: Connection, serverConfig: {
 					workspaceDiagnostics: false,
 				},
 				codeActionProvider: { resolveProvider: true },
-				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
-				documentHighlightProvider: true,
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
 				referencesProvider: true,
@@ -257,6 +255,27 @@ export async function startServer(connection: Connection, serverConfig: {
 	connection.listen();
 }
 
+function registerDynamicClientFeature(
+	config: ConfigurationManager,
+	isEnabled: (settings: Settings | undefined) => boolean,
+	register: () => Promise<Disposable>,
+) {
+	let registration: Promise<IDisposable> | undefined;
+	function update() {
+		const settings = config.getSettings();
+		if (isEnabled(settings)) {
+			if (!registration) {
+				registration = register();
+			}
+		} else {
+			registration?.then(x => x.dispose());
+			registration = undefined;
+		}
+	}
+
+	update();
+	return config.onDidChangeConfiguration(() => update());
+}
 
 function registerCompletionsSupport(
 	connection: Connection,
@@ -264,43 +283,29 @@ function registerCompletionsSupport(
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 ): IDisposable {
-	// let registration: Promise<IDisposable> | undefined;
-	function update() {
-		// TODO: client still makes the request in this case. Figure our how to properly unregister.
-		return;
-		// const settings = config.getSettings();
-		// if (settings?.markdown.suggest.paths.enabled) {
-		// 	if (!registration) {
-		// 		registration = connection.client.register(CompletionRequest.type);
-		// 	}
-		// } else {
-		// 	registration?.then(x => x.dispose());
-		// 	registration = undefined;
-		// }
-	}
-
 	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
-		try {
-			const settings = config.getSettings();
-			if (!settings?.markdown.suggest.paths.enabled) {
-				return [];
-			}
+		const settings = config.getSettings();
+		if (!settings?.markdown.suggest.paths.enabled) {
+			return [];
+		}
 
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await ls.getCompletionItems(document, params.position, params.context!, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			return ls.getCompletionItems(document, params.position, params.context!, token);
 		}
 		return [];
 	});
 
-	update();
-	return config.onDidChangeConfiguration(() => update());
+	return registerDynamicClientFeature(config, (settings) => !!settings?.markdown.suggest.paths.enabled, () => {
+		const registrationOptions: CompletionRegistrationOptions = {
+			documentSelector: null,
+			triggerCharacters: ['.', '/', '#'],
+		};
+		return connection.client.register(CompletionRequest.type, registrationOptions);
+	});
 }
 
-function registerDocumentHightlightSupport(
+function registerDocumentHighlightSupport(
 	connection: Connection,
 	documents: TextDocuments<md.ITextDocument>,
 	mdLs: md.IMdLanguageService,
@@ -318,5 +323,12 @@ function registerDocumentHightlightSupport(
 		}
 
 		return mdLs!.getDocumentHighlights(document, params.position, token);
+	});
+
+	return registerDynamicClientFeature(configurationManager, (settings) => !!settings?.markdown.occurrencesHighlight.enabled, () => {
+		const registrationOptions: DocumentHighlightRegistrationOptions = {
+			documentSelector: null,
+		};
+		return connection.client.register(DocumentHighlightRequest.type, registrationOptions);
 	});
 }

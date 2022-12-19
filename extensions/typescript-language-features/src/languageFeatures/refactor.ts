@@ -10,7 +10,7 @@ import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as fileSchemes from '../utils/fileSchemes';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -249,7 +249,6 @@ class SelectCodeAction extends vscode.CodeAction {
 type TsCodeAction = InlinedCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
-	public static readonly minVersion = API.v240;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -505,7 +504,6 @@ export function register(
 	telemetryReporter: TelemetryReporter,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptRefactorProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeActionsProvider(selector.semantic,

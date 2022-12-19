@@ -138,7 +138,6 @@ export class BrowserMain extends Disposable {
 			const timerService = accessor.get(ITimerService);
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
-			const telemetryService = accessor.get(ITelemetryService);
 			const progressService = accessor.get(IProgressService);
 			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -152,7 +151,6 @@ export class BrowserMain extends Disposable {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
-					telemetryLevel: telemetryService.telemetryLevel,
 					async getUriScheme(): Promise<string> {
 						return productService.urlProtocol;
 					},

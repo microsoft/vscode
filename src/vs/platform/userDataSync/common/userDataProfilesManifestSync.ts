@@ -179,6 +179,11 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing profiles.`);
 		}
 
+		const remoteProfiles = resourcePreviews[0][0].remoteProfiles || [];
+		if (remoteProfiles.length + (remote?.added.length ?? 0) - (remote?.removed.length ?? 0) > 20) {
+			throw new UserDataSyncError('Too many profiles to sync. Please remove some profiles and try again.', UserDataSyncErrorCode.LocalTooManyProfiles);
+		}
+
 		if (localChange !== Change.None) {
 			await this.backupLocal(stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
 			const promises: Promise<any>[] = [];
@@ -212,11 +217,17 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 		}
 
 		if (remoteChange !== Change.None) {
-			const remoteProfiles = resourcePreviews[0][0].remoteProfiles || [];
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote profiles...`);
-			for (const profile of remote?.added || []) {
-				const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
-				remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName });
+			const addedCollections: string[] = [];
+			const canAddRemoteProfiles = remoteProfiles.length + (remote?.added.length ?? 0) <= 20;
+			if (canAddRemoteProfiles) {
+				for (const profile of remote?.added || []) {
+					const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
+					addedCollections.push(collection);
+					remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName });
+				}
+			} else {
+				this.logService.info(`${this.syncResourceLogLabel}: Could not create remote profiles as there are too many profiles.`);
 			}
 			for (const profile of remote?.removed || []) {
 				remoteProfiles.splice(remoteProfiles.findIndex(({ id }) => profile.id === id), 1);
@@ -227,8 +238,19 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { id: profile.id, name: profile.name, collection: profileToBeUpdated.collection, shortName: profile.shortName });
 				}
 			}
-			remoteUserData = await this.updateRemoteUserData(this.stringifyRemoteProfiles(remoteProfiles), force ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote profiles.${remote?.added.length ? ` Added: ${JSON.stringify(remote.added.map(e => e.name))}.` : ''}${remote?.updated.length ? ` Updated: ${JSON.stringify(remote.updated.map(e => e.name))}.` : ''}${remote?.removed.length ? ` Removed: ${JSON.stringify(remote.removed.map(e => e.name))}.` : ''}`);
+
+			try {
+				remoteUserData = await this.updateRemoteProfiles(remoteProfiles, force ? null : remoteUserData.ref);
+				this.logService.info(`${this.syncResourceLogLabel}: Updated remote profiles.${canAddRemoteProfiles && remote?.added.length ? ` Added: ${JSON.stringify(remote.added.map(e => e.name))}.` : ''}${remote?.updated.length ? ` Updated: ${JSON.stringify(remote.updated.map(e => e.name))}.` : ''}${remote?.removed.length ? ` Removed: ${JSON.stringify(remote.removed.map(e => e.name))}.` : ''}`);
+			} catch (error) {
+				if (addedCollections.length) {
+					this.logService.info(`${this.syncResourceLogLabel}: Failed to update remote profiles. Cleaning up added collections...`);
+					for (const collection of addedCollections) {
+						await this.userDataSyncStoreService.deleteCollection(collection, this.syncHeaders);
+					}
+				}
+				throw error;
+			}
 
 			for (const profile of remote?.removed || []) {
 				await this.userDataSyncStoreService.deleteCollection(profile.collection, this.syncHeaders);
@@ -241,6 +263,10 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.updateLastSyncUserData(remoteUserData);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized profiles.`);
 		}
+	}
+
+	async updateRemoteProfiles(profiles: ISyncUserDataProfile[], ref: string | null): Promise<IRemoteUserData> {
+		return this.updateRemoteUserData(this.stringifyRemoteProfiles(profiles), ref);
 	}
 
 	async hasLocalData(): Promise<boolean> {

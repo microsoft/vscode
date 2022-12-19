@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
+import { CancellationError } from 'vs/base/common/errors';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
-import { Mimes } from 'vs/base/common/mime';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { CancellationError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import * as types from 'vs/workbench/api/common/extHostTypes';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -430,6 +431,23 @@ suite('ExtHostTypes', function () {
 		assertType(second._type === types.FileEditType.Text);
 		assert.strictEqual(first.edit.newText, 'Hello');
 		assert.strictEqual(second.edit.newText, 'Foo');
+	});
+
+	test('WorkspaceEdit - NotebookEdits', () => {
+		const edit = new types.WorkspaceEdit();
+		const notebookEdit = types.NotebookEdit.insertCells(0, [new types.NotebookCellData(types.NotebookCellKind.Code, '// hello', 'javascript')]) as types.NotebookEdit;
+		const notebookUri = URI.parse('/foo/notebook.ipynb');
+		edit.set(notebookUri, [notebookEdit]);
+
+		const cellUri = CellUri.generate(notebookUri, 123);
+		try {
+			edit.set(cellUri, [notebookEdit]);
+		} catch (err) {
+			assert.ok(err.message.includes('set must be called with a notebook document URI'), err.toString());
+			return;
+		}
+
+		throw new Error('Expected set to throw with cell URI');
 	});
 
 	test('DocumentLink', () => {

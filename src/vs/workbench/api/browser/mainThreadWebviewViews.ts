@@ -11,6 +11,7 @@ import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/bro
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IViewBadge } from 'vs/workbench/common/views';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 
@@ -24,6 +25,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	constructor(
 		context: IExtHostContext,
 		private readonly mainThreadWebviews: MainThreadWebviews,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();
@@ -91,6 +93,21 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 				webviewView.onDispose(() => {
 					this._proxy.$disposeWebviewView(handle);
 					this._webviewViews.deleteAndDispose(handle);
+				});
+
+				type CreateWebviewViewTelemetry = {
+					extensionId: string;
+					id: string;
+				};
+				type Classification = {
+					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension' };
+					id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the view' };
+					owner: 'digitarald';
+					comment: 'Helps to gain insights on what extension contributed views are most popular';
+				};
+				this._telemetryService.publicLog2<CreateWebviewViewTelemetry, Classification>('webviews:createWebviewView', {
+					extensionId: extension.id.value,
+					id: viewType,
 				});
 
 				try {
