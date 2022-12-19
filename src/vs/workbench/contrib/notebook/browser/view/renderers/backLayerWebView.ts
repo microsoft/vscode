@@ -922,7 +922,7 @@ var requirejs = (function() {
 		if (lineMatch) {
 			const parsedLineNumber = parseInt(lineMatch[1], 10);
 			if (!isNaN(parsedLineNumber)) {
-				lineNumber = parsedLineNumber;
+				lineNumber = parsedLineNumber + 1;
 				column = 1;
 				uri = uri.with({ fragment: `L${lineNumber}` });
 			}
