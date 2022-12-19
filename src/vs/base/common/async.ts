@@ -1068,7 +1068,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has

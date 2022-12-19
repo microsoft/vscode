@@ -2961,7 +2961,16 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.createStash(message, includeUntracked);
+		try {
+			await repository.createStash(message, includeUntracked);
+		} catch (err) {
+			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
+				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.stash', { repository: true })

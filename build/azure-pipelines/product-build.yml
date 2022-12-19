@@ -539,7 +539,7 @@ stages:
                 steps:
                   - template: linux/snap-build-linux.yml
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
       - stage: Alpine
         dependsOn:
           - Compile
@@ -547,14 +547,14 @@ stages:
             - CompileCLI
         pool: vscode-1es-linux
         jobs:
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - job: LinuxAlpine
                 variables:
                   VSCODE_ARCH: x64
                 steps:
                   - template: linux/product-build-alpine.yml
 
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - job: LinuxAlpineArm64
                 timeoutInMinutes: 120
                 variables:
