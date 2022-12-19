@@ -2907,14 +2907,21 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 
-		if (noUnstagedChanges && noStagedChanges) {
-			window.showInformationMessage(l10n.t('There are no changes to stash.'));
-			return;
+		if (staged) {
+			if (noStagedChanges) {
+				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
+				return;
+			}
+		} else {
+			if (noUnstagedChanges && noStagedChanges) {
+				window.showInformationMessage(l10n.t('There are no changes to stash.'));
+				return;
+			}
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
@@ -2962,7 +2969,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.createStash(message, includeUntracked);
+			await repository.createStash(message, includeUntracked, staged);
 		} catch (err) {
 			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
 				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
@@ -2976,6 +2983,11 @@ export class CommandCenter {
 	@command('git.stash', { repository: true })
 	stash(repository: Repository): Promise<void> {
 		return this._stash(repository);
+	}
+
+	@command('git.stashStaged', { repository: true })
+	stashStaged(repository: Repository): Promise<void> {
+		return this._stash(repository, false, true);
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })

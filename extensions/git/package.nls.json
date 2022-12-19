@@ -88,6 +88,7 @@
 	"command.rebaseAbort": "Abort Rebase",
 	"command.stashIncludeUntracked": "Stash (Include Untracked)",
 	"command.stash": "Stash",
+	"command.stashStaged": "Stash (Staged)",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
 	"command.stashApply": "Apply Stash...",
