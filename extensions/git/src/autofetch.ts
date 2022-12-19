@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n } from 'vscode';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n, env } from 'vscode';
 import { Repository, OperationKind } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import { GitErrorCodes } from './api/git';
@@ -51,7 +51,7 @@ export class AutoFetcher {
 		const yes: MessageItem = { title: l10n.t('Yes') };
 		const no: MessageItem = { isCloseAffordance: true, title: l10n.t('No') };
 		const askLater: MessageItem = { title: l10n.t('Ask Me Later') };
-		const result = await window.showInformationMessage(l10n.t('Would you like Code to [periodically run "git fetch"]({0})?', 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+		const result = await window.showInformationMessage(l10n.t('Would you like {0} to [periodically run "git fetch"]({1})?', env.appName, 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
 
 		if (result === askLater) {
 			return;
