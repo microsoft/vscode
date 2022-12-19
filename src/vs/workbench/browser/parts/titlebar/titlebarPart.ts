@@ -226,6 +226,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleDisposables.add(commandCenter);
 			this.titleDisposables.add(commandCenter.onDidChangeVisibility(this.adjustTitleMarginToCenter, this));
 		}
+		// Layout Control button heights align with Window Controls buttons for Windows
+		if (isWindows && !isWeb && this.titleBarStyle !== 'native' && this.layoutControls) {
+			this.layoutControls.style.lineHeight = `${this.minimumHeight}px`;
+		}
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -264,9 +268,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Title
 		this.title = append(this.rootContainer, $('div.window-title'));
-		this.updateTitle();
 
-
+		// Layout Controls
 		if (this.titleBarStyle !== 'native') {
 			this.layoutControls = append(this.rootContainer, $('div.layout-controls-container'));
 			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
@@ -280,6 +283,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 		}
 
+		this.updateTitle();
+
+		// Windows Controls
 		this.windowControls = append(this.element, $('div.window-controls-container'));
 
 		// Context menu on title
