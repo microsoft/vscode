@@ -128,6 +128,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				stringIndex += 2;
 			}
 
+			// Don't try resolve any links of excessive length
+			if (link.length > Constants.MaxResolvedLinkLength) {
+				continue;
+			}
+
 			// Convert the link text's string index into a wrapped buffer range
 			const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
 				startColumn: stringIndex + 1,
@@ -135,12 +140,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				endColumn: stringIndex + link.length + 1,
 				endLineNumber: 1
 			}, startLine);
-
-
-			// Don't try resolve any links of excessive length
-			if (link.length > Constants.MaxResolvedLinkLength) {
-				continue;
-			}
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
