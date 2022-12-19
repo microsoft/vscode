@@ -123,8 +123,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			suite(`Link: ${baseLink}`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
-					test(`Format: ${linkFormat.urlFormat}`, async () => {
-						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					test(`should detect in "${formattedLink}"`, async () => {
 						await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
@@ -153,8 +153,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			suite(`Link "${baseLink}"`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
-					test(`Format: ${linkFormat.urlFormat}`, async () => {
-						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					test(`should detect in "${formattedLink}"`, async () => {
 						await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
