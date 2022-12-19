@@ -66,6 +66,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 	setup(async () => {
 		watcher = new TestParcelWatcher();
+		watcher.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {
