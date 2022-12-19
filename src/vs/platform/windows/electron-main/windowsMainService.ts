@@ -1522,9 +1522,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (options.forceProfile) {
 			return this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? await this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
 		}
+
 		if (options.forceTempProfile) {
 			return await this.userDataProfilesMainService.createTransientProfile();
 		}
+
 		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? this.userDataProfilesMainService.defaultProfile;
 	}
 
