@@ -238,7 +238,6 @@
 
 .monaco-workbench.mac .part.titlebar>.window-controls-container {
 	width: 70px;
-	height: env(titlebar-area-height, 28px);
 }
 
 .monaco-workbench.web .part.titlebar>.window-controls-container {
