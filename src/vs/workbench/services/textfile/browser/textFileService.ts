@@ -34,7 +34,7 @@ import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperati
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from 'vs/workbench/services/textfile/common/encoding';
-import { consumeStream, ReadableStream } from 'vs/base/common/stream';
+import { consumeStream, listenStream, newWriteableStream, ReadableStream, transform, WriteableStream } from 'vs/base/common/stream';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -45,10 +45,17 @@ import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { isNative, isWeb } from 'vs/base/common/platform';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
  */
+
+
+// if large file , allow to once get  text files with size <= 2MB or 10MB
+export const MAX_STREAM_SEGMENT_SIZE = !isNative && isWeb ? 2 * 1024 * 1024 : 10 * 1024 * 1024; //2 MB or 10MB;
+
+export const MIN_LARGE_FILE_SIZE = 100 * 1024 * 1024; //100 MB;
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
 	declare readonly _serviceBrand: undefined;
@@ -206,6 +213,78 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		};
 	}
 
+	// add this function to get the file Stream of one stream to One Target Stream
+	private async readFileToStream(theTargetStream: WriteableStream<VSBuffer>, resource: URI, options?: IReadTextFileOptions, token?: CancellationToken | undefined): Promise<void> {
+
+		//if  readFilePromise return false , the while loop will be ended
+		const readFilePromise = async (theWriteableStream: WriteableStream<VSBuffer>, streamSize: number, position: number) => {
+			const bufferStream = await this.fileService.readFileStream(resource, {
+				...options,
+				length: streamSize,
+				position,
+			}, token);
+
+			return new Promise<boolean>((resolve, reject) => {
+				let hasDataFlag = false;
+				let readStreamLenth = 0;
+				listenStream(bufferStream.value, {
+					onData: async (chunk: VSBuffer) => {
+						readStreamLenth = chunk.buffer.length + readStreamLenth;
+						if (!hasDataFlag && chunk && chunk?.buffer?.length > 0) {
+							hasDataFlag = true;
+						}
+						await theWriteableStream.write(chunk);
+					},
+					onError: error => {
+						theWriteableStream.error(error);
+						reject(error);
+					},
+					onEnd: () => {
+						bufferStream.value.destroy();
+						if (readStreamLenth < streamSize) {
+							theWriteableStream.end();
+							resolve(false);
+							return;
+						}
+						if (hasDataFlag && readStreamLenth === streamSize) {
+							resolve(true);
+						} else {
+							theWriteableStream.end();
+							resolve(false);
+						}
+					},
+				});
+			});
+		};
+
+		let index = 0;
+		let flag = true;
+		while (flag) {
+			// Read MAX_STREAM_SEGMENT_SIZE (100MB) for the first time,
+			// if the reading is not complete, then read MAX_STREAM_SEGMENT_SIZE(2MB or 10MB) each time.
+			flag = await readFilePromise(
+				theTargetStream,
+				index === 0 ? MIN_LARGE_FILE_SIZE : MAX_STREAM_SEGMENT_SIZE,
+				index === 0 ? 0 : (index - 1) * MAX_STREAM_SEGMENT_SIZE + MIN_LARGE_FILE_SIZE);
+			index = index + 1;
+		}
+
+	}
+
+	private async readFileStreamAsync(resource: URI, options?: IReadTextFileOptions, token?: CancellationToken): Promise<IFileStreamContent> {
+		const target = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data), {
+			highWaterMark: 10,
+		});
+		const resultDes = transform(target, { data: data => data, }, data => VSBuffer.concat(data));
+		this.readFileToStream(target, resource, options, token);
+		const stat = await this.fileService.stat(resource);
+		return {
+			...stat,
+			value: resultDes,
+		};
+	}
+
+
 	private async doRead(resource: URI, options?: IReadTextFileOptions & { preferUnbuffered?: boolean }): Promise<[IFileStreamContent, IDecodeStreamResult]> {
 		const cts = new CancellationTokenSource();
 
@@ -218,7 +297,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				value: bufferToStream(content.value)
 			};
 		} else {
-			bufferStream = await this.fileService.readFileStream(resource, options, cts.token);
+			bufferStream = await this.readFileStreamAsync(resource, options, cts.token);
 		}
 
 		// read through encoding library
