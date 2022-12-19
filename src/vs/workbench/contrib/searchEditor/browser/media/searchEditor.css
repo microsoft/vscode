@@ -61,13 +61,11 @@
 /* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-editor .search-widget .monaco-inputbox>.ibwrapper>textarea.input {
 	overflow: initial;
-	height: 24px;
-	/* set initial height before measure */
+	height: 24px; /* set initial height before measure */
 }
 
 .search-editor .monaco-inputbox>.ibwrapper>textarea.input {
-	scrollbar-width: none;
-	/* Firefox: hide scrollbar */
+	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
 .search-editor .monaco-inputbox>.ibwrapper>textarea.input::-webkit-scrollbar {
@@ -134,8 +132,7 @@
 	cursor: pointer;
 	width: 25px;
 	height: 16px;
-	z-index: 2;
-	/* Force it above the search results message, which has a negative top margin */
+	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 
 .search-editor .includes-excludes .file-types {

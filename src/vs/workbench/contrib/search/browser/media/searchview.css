@@ -50,32 +50,30 @@
 	margin-left: 18px;
 }
 
-.search-view .search-widget .monaco-inputbox>.ibwrapper {
+.search-view .search-widget .monaco-inputbox > .ibwrapper {
 	height: 100%;
 }
 
-.search-view .search-widget .monaco-inputbox>.ibwrapper>.mirror,
-.search-view .search-widget .monaco-inputbox>.ibwrapper>textarea.input {
+.search-view .search-widget .monaco-inputbox > .ibwrapper > .mirror,
+.search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	padding: 3px 0px 3px 6px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/
-.search-view .search-widget .monaco-inputbox>.ibwrapper>textarea.input {
+.search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	overflow: initial;
-	height: 24px;
-	/* set initial height before measure */
+	height: 24px; /* set initial height before measure */
 }
 
 .search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {
 	opacity: 0;
 }
 
-.search-view .monaco-inputbox>.ibwrapper>textarea.input {
-	scrollbar-width: none;
-	/* Firefox: hide scrollbar */
+.search-view .monaco-inputbox > .ibwrapper > textarea.input {
+	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
-.search-view .monaco-inputbox>.ibwrapper>textarea.input::-webkit-scrollbar {
+.search-view .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
 	display: none;
 }
 
@@ -98,7 +96,7 @@
 	width: auto !important;
 }
 
-.search-view .search-widget .replace-input>.controls {
+.search-view .search-widget .replace-input > .controls {
 	position: absolute;
 	top: 3px;
 	right: 2px;
@@ -126,15 +124,14 @@
 	width: 25px;
 	height: 16px;
 	color: inherit;
-	z-index: 2;
-	/* Force it above the search results message, which has a negative top margin */
+	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 
 .search-view .query-details .file-types {
 	display: none;
 }
 
-.search-view .query-details .file-types>.monaco-inputbox {
+.search-view .query-details .file-types > .monaco-inputbox {
 	width: 100%;
 	height: 25px;
 }
@@ -217,7 +214,7 @@
 	overflow: hidden;
 }
 
-.search-view .linematch>.match {
+.search-view .linematch > .match {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: pre;
@@ -287,12 +284,12 @@
 	margin-right: 12px;
 }
 
-.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row:hover .filematch .monaco-count-badge,
-.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row:hover .foldermatch .monaco-count-badge,
-.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row:hover .linematch .monaco-count-badge,
-.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row.focused .filematch .monaco-count-badge,
-.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
-.pane-body:not(.wide) .search-view>.results>.monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
+.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row:hover .filematch .monaco-count-badge,
+.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row:hover .foldermatch .monaco-count-badge,
+.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row:hover .linematch .monaco-count-badge,
+.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row.focused .filematch .monaco-count-badge,
+.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
+.pane-body:not(.wide) .search-view > .results > .monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
 	display: none;
 }
 
