@@ -98,8 +98,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				show(this.resizer);
 			}
 		}
-
-		this.adjustTitleMarginToCenter();
 	}
 
 	private onMenubarFocusChanged(focused: boolean): void {
