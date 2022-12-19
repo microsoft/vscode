@@ -13,6 +13,8 @@ import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper, resolveLinkForTest } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
 import { Terminal } from 'xterm';
+import { timeout } from 'vs/base/common/async';
+import { strictEqual } from 'assert';
 
 const unixLinks = [
 	'/foo',
@@ -90,7 +92,11 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		text: string,
 		expected: (Pick<ITerminalSimpleLink, 'text'> & { range: [number, number][] })[]
 	) {
-		await assertLinkHelper(text, expected, detector, type);
+		const race = await Promise.race([
+			assertLinkHelper(text, expected, detector, type).then(() => 'success'),
+			timeout(2).then(() => 'timeout')
+		]);
+		strictEqual(race, 'success', `Awaiting link assertion for "${text}" timed out`);
 	}
 
 	setup(() => {
