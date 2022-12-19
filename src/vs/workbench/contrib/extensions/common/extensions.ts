@@ -85,9 +85,7 @@ export interface IExtension {
 	readonly deprecationInfo?: IDeprecationInfo;
 }
 
-export const SERVICE_ID = 'extensionsWorkbenchService';
-
-export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
+export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;

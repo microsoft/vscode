@@ -996,4 +996,75 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			});
 		});
 	});
+
+	test('Completion list closes unexpectedly when typing a digit after a word separator #169390', function () {
+
+		const requestCounts = [0, 0];
+
+		disposables.add(registry.register({ scheme: 'test' }, {
+
+			provideCompletionItems(doc, pos) {
+				requestCounts[0] += 1;
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'foo-20',
+						insertText: 'foo-20',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}, {
+						kind: CompletionItemKind.Text,
+						label: 'foo-hello',
+						insertText: 'foo-hello',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+		disposables.add(registry.register({ scheme: 'test' }, {
+			triggerCharacters: ['2'],
+			provideCompletionItems(doc, pos, ctx) {
+				requestCounts[1] += 1;
+				if (ctx.triggerKind !== CompletionTriggerKind.TriggerCharacter) {
+					return;
+				}
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'foo-210',
+						insertText: 'foo-210',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async function (model, editor) {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('foo');
+				editor.setSelection(new Selection(1, 4, 1, 4));
+				model.trigger({ auto: false });
+
+			}, event => {
+				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'foo-20');
+				assert.strictEqual(event.completionModel.items[1].textLabel, 'foo-hello');
+			});
+
+			editor.trigger('keyboard', Handler.Type, { text: '-' });
+
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: '2' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'foo-20');
+				assert.strictEqual(event.completionModel.items[1].textLabel, 'foo-210');
+				assert.deepStrictEqual(requestCounts, [1, 2]);
+			});
+		});
+	});
 });

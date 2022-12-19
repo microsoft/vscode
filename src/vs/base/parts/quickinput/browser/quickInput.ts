@@ -1730,9 +1730,6 @@ export class QuickInputController extends Disposable {
 			this.getUI().inputBox.enabled = enabled;
 			this.getUI().ok.enabled = enabled;
 			this.getUI().list.enabled = enabled;
-			if (!enabled) {
-				this.getUI().container.focus();
-			}
 		}
 	}
 

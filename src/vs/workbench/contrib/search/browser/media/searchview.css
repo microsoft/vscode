@@ -53,7 +53,7 @@
 /* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	overflow: initial;
-	height: 24px; /* set initial height before measure */
+	height: 26px; /* set initial height before measure */
 }
 
 .search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {

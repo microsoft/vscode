@@ -269,11 +269,6 @@ export class FindInput extends Widget {
 	}
 
 	public setAdditionalToggles(toggles: Toggle[] | undefined): void {
-		// Short circuit if there are no toggles to update
-		if (!this.additionalToggles.length && !toggles?.length) {
-			return;
-		}
-
 		for (const currentToggle of this.additionalToggles) {
 			currentToggle.domNode.remove();
 		}

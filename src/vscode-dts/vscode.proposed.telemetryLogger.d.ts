@@ -14,8 +14,26 @@ declare module 'vscode' {
 		constructor(value: T);
 	}
 
+	export interface TelemetryInitializationOptions {
+		/**
+		 * Whether or not you want to avoid having the built-in common properties such as os, extension name, etc injected into the data object.
+		 * Defaults to false if not defined.
+		 */
+		readonly ignoreBuiltInCommonProperties?: boolean;
+
+		/**
+		 * Any additional common properties which should be injected into the data object.
+		 */
+		readonly additionalCommonProperties?: Record<string, any>;
+
+		/**
+		 * Whether or not unhandled errors on the extension host caused by your extension should be logged to your appender.
+		 * Defaults to false if not defined.
+		 */
+		readonly ignoreUnhandledErrors?: boolean;
+	}
+
 	export interface TelemetryLogger {
-		//TODO feels weird having this on all loggers
 		readonly onDidChangeEnableStates: Event<TelemetryLogger>;
 		readonly isUsageEnabled: boolean;
 		readonly isErrorsEnabled: boolean;
@@ -40,25 +58,15 @@ declare module 'vscode' {
 		 * Calls `TelemetryAppender.logException`. Does cleaning, telemetry checks, and data mix-in.
 		 * Automatically supports echoing to extension telemetry output channel.
 		 * Will also automatically log any exceptions thrown within the extension host process.
-		 * @param exception The error object which contains the stack trace cleaned of PII
+		 * @param error The error object which contains the stack trace cleaned of PII
 		 * @param data Additional data to log alongside the stack trace
 		 */
-		logError(exception: Error, data?: Record<string, any | TrustedTelemetryValue>): void;
+		logError(error: Error, data?: Record<string, any | TrustedTelemetryValue>): void;
 
 		dispose(): void;
 	}
 
 	export interface TelemetryAppender {
-		/**
-		 * Whether or not you want to avoid having the built-in common properties such as os, extension name, etc injected into the data object.
-		 */
-		readonly ignoreBuiltInCommonProperties: boolean;
-
-		/**
-		 * Any additional common properties which should be injected into the data object.
-		 */
-		readonly additionalCommonProperties?: Record<string, any>;
-
 		/**
 		 * User-defined function which logs an event, used within the TelemetryLogger
 		 * @param eventName The name of the event which you are logging
@@ -68,10 +76,10 @@ declare module 'vscode' {
 
 		/**
 		 * User-defined function which logs an error, used within the TelemetryLogger
-		 * @param exception The exception being logged
+		 * @param error The error being logged
 		 * @param data Any additional data to be collected with the exception
 		 */
-		logException(exception: Error, data?: Record<string, any>): void;
+		logError(error: Error, data?: Record<string, any>): void;
 
 		/**
 		 * Optional flush function which will give your appender one last chance to send any remaining events as the TelemetryLogger is being disposed
@@ -85,6 +93,6 @@ declare module 'vscode' {
 		 * @param appender The core piece which we call when it is time to log telemetry. It is highly recommended that you don't call the methods within the appender directly as the logger provides extra guards and cleaning.
 		 * @returns An instantiated telemetry logger which you can use for recording telemetry
 		 */
-		export function createTelemetryLogger(appender: TelemetryAppender): TelemetryLogger;
+		export function createTelemetryLogger(appender: TelemetryAppender, options?: TelemetryInitializationOptions): TelemetryLogger;
 	}
 }

@@ -53,12 +53,12 @@ parameters:
     displayName: "🎯 Linux armhf"
     type: boolean
     default: true
-  - name: VSCODE_BUILD_LINUX_ALPINE
-    displayName: "🎯 Alpine Linux x64"
+  - name: VSCODE_BUILD_ALPINE
+    displayName: "🎯 Alpine x64"
     type: boolean
     default: true
-  - name: VSCODE_BUILD_LINUX_ALPINE_ARM64
-    displayName: "🎯 Alpine Linux arm64"
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    displayName: "🎯 Alpine arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS
@@ -112,7 +112,9 @@ variables:
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
-    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_ALPINE
+    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_MACOS
     value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_WEB
@@ -181,7 +183,7 @@ stages:
     - stage: CompileCLI
       dependsOn: []
       jobs:
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
+        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
           - job: LinuxX64
             pool: vscode-1es-linux
             steps:
@@ -189,7 +191,7 @@ stages:
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
-                  VSCODE_BUILD_LINUX_ALPINE: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE }}
+                  VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
           - job: LinuxGnuARM
@@ -201,7 +203,7 @@ stages:
                   VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
                   VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
           - job: LinuxAlpineARM64
             pool: vscode-1es-linux-20.04-arm64
             steps:
@@ -216,7 +218,7 @@ stages:
               - template: ./linux/cli-build-linux.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_BUILD_LINUX_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64 }}
+                  VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
 
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
           - job: MacOSX64
@@ -537,14 +539,22 @@ stages:
                 steps:
                   - template: linux/snap-build-linux.yml
 
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+      - stage: Alpine
+        dependsOn:
+          - Compile
+          - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
+            - CompileCLI
+        pool: vscode-1es-linux
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - job: LinuxAlpine
                 variables:
                   VSCODE_ARCH: x64
                 steps:
                   - template: linux/product-build-alpine.yml
 
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - job: LinuxAlpineArm64
                 timeoutInMinutes: 120
                 variables:

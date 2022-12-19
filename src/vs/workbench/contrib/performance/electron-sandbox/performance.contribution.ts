@@ -11,6 +11,7 @@ import { StartupTimings } from './startupTimings';
 import { RendererProfiling } from 'vs/workbench/contrib/performance/electron-sandbox/rendererAutoProfiler';
 import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
+import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
@@ -33,9 +34,7 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 );
 
 Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
-	id: 'application',
-	order: 100,
-	type: 'object',
+	...applicationConfigurationNodeBase,
 	'properties': {
 		'application.experimental.rendererProfiling': {
 			type: 'boolean',

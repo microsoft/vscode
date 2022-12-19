@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Operation, Repository, RepositoryState } from './repository';
+import { OperationKind, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -529,21 +529,34 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		});
 		checkForSubmodules();
 
-		const updateCommitInProgressContext = () => {
+		const updateOperationInProgressContext = () => {
 			let commitInProgress = false;
+			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(Operation.Commit)) {
+				if (repository.operations.isRunning(OperationKind.Commit)) {
 					commitInProgress = true;
-					break;
+				}
+
+				// When one of the following operations is running, we want to
+				// disable most commands in order to avoid multiple commands
+				// running at the same time.
+				if (repository.operations.isRunning(OperationKind.Checkout) ||
+					repository.operations.isRunning(OperationKind.CheckoutTracking) ||
+					repository.operations.isRunning(OperationKind.Commit) ||
+					repository.operations.isRunning(OperationKind.Pull) ||
+					repository.operations.isRunning(OperationKind.Push) ||
+					repository.operations.isRunning(OperationKind.Sync)) {
+					operationInProgress = true;
 				}
 			}
 
 			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
 		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
-		const operationListener = operationEvent(() => updateCommitInProgressContext());
-		updateCommitInProgressContext();
+		const operationListener = operationEvent(() => updateOperationInProgressContext());
+		updateOperationInProgressContext();
 
 		const dispose = () => {
 			disappearListener.dispose();
