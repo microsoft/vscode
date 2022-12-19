@@ -30,6 +30,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 // --- VIEW MODEL
 
@@ -305,7 +306,7 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 		return localize('bulkEdit', "Bulk Edit");
 	}
 
-	getRole(_element: BulkEditElement): string {
+	getRole(_element: BulkEditElement): AriaRole {
 		return 'checkbox';
 	}
 

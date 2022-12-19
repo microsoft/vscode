@@ -16,6 +16,8 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, IOutputDto, ISelectionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangeContains, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { localize } from 'vs/nls';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export async function changeCellToKind(kind: CellKind, context: INotebookActionContext, language?: string, mime?: string): Promise<void> {
 	const { notebookEditor } = context;
@@ -338,6 +340,72 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 
 		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
 		editor.revealCellRangeInView(focusRange);
+	}
+}
+
+export async function joinSelectedCells(bulkEditService: IBulkEditService, notificationService: INotificationService, context: INotebookCellActionContext): Promise<void> {
+	const editor = context.notebookEditor;
+	if (editor.isReadOnly) {
+		return;
+	}
+
+	const edits: ResourceEdit[] = [];
+	const cells: ICellViewModel[] = [];
+	for (const selection of editor.getSelections()) {
+		cells.push(...editor.getCellsInRange(selection));
+	}
+
+	if (cells.length <= 1) {
+		return;
+	}
+
+	// check if all cells are of the same kind
+	const cellKind = cells[0].cellKind;
+	const isSameKind = cells.every(cell => cell.cellKind === cellKind);
+	if (!isSameKind) {
+		// cannot join cells of different kinds
+		// show warning and quit
+		const message = localize('notebookActions.joinSelectedCells', "Cannot join cells of different kinds");
+		return notificationService.warn(message);
+	}
+
+	// merge all cells content into first cell
+	const firstCell = cells[0];
+	const insertContent = cells.map(cell => cell.getText()).join(firstCell.textBuffer.getEOL());
+	const firstSelection = editor.getSelections()[0];
+	edits.push(
+		new ResourceNotebookCellEdit(editor.textModel.uri,
+			{
+				editType: CellEditType.Replace,
+				index: firstSelection.start,
+				count: firstSelection.end - firstSelection.start,
+				cells: [{
+					cellKind: firstCell.cellKind,
+					source: insertContent,
+					language: firstCell.language,
+					mime: firstCell.mime,
+					outputs: firstCell.model.outputs,
+					metadata: firstCell.metadata,
+				}]
+			}
+		)
+	);
+
+	for (const selection of editor.getSelections().slice(1)) {
+		edits.push(new ResourceNotebookCellEdit(editor.textModel.uri,
+			{
+				editType: CellEditType.Replace,
+				index: selection.start,
+				count: selection.end - selection.start,
+				cells: []
+			}));
+	}
+
+	if (edits.length) {
+		await bulkEditService.apply(
+			edits,
+			{ quotableLabel: localize('notebookActions.joinSelectedCells.label', "Join Notebook Cells") }
+		);
 	}
 }
 

@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -865,7 +866,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 			: element.saneAriaLabel;
 	}
 
-	getWidgetRole() {
+	getWidgetRole(): AriaRole {
 		return 'listbox';
 	}
 

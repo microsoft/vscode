@@ -20,6 +20,7 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;
@@ -105,7 +106,7 @@ export class NotificationsList extends Disposable {
 					getWidgetAriaLabel(): string {
 						return options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
 					},
-					getRole(): string {
+					getRole(): AriaRole {
 						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 					}
 				}

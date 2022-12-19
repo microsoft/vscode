@@ -85,22 +85,42 @@ function printCallFrame(frame: CdpCallFrame, fullPaths: boolean): string {
 			result += ':';
 			result += frame.lineNumber + 1;
 		}
+		if (frame.columnNumber >= 0) {
+			result += ',';
+			result += frame.columnNumber + 1;
+		}
 	}
 	return result;
 }
 
-function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false) {
-
-	const root = BottomUpNode.root();
+function getHeaviestLocationIds(model: IProfileModel, topN: number) {
+	const stackSelfTime: { [locationId: number]: number } = {};
 	for (const node of model.nodes) {
-		processNode(root, node, model);
-		root.addNode(node);
+		stackSelfTime[node.locationId] = (stackSelfTime[node.locationId] || 0) + node.selfTime;
+	}
+
+	const locationIds = Object.entries(stackSelfTime)
+		.sort(([, a], [, b]) => b - a)
+		.slice(0, topN)
+		.map(([locationId]) => Number(locationId));
+
+	return new Set(locationIds);
+}
+
+function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false) {
+	const root = BottomUpNode.root();
+	const locationIds = getHeaviestLocationIds(model, topN);
+
+	for (const node of model.nodes) {
+		if (locationIds.has(node.locationId)) {
+			processNode(root, node, model);
+			root.addNode(node);
+		}
 	}
 
 	const result = Object.values(root.children)
 		.sort((a, b) => b.selfTime - a.selfTime)
 		.slice(0, topN);
-
 
 	const samples: BottomUpSample[] = [];
 

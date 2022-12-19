@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Operation, Repository, RepositoryState } from './repository';
+import { OperationKind, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -33,21 +33,26 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
-class UnsafeRepositorySet extends Set<string> {
+/**
+ * Key   - normalized path used in user interface
+ * Value - path extracted from the output of the `git status` command
+ *         used when calling `git config --global --add safe.directory`
+ */
+class UnsafeRepositoryMap extends Map<string, string> {
 	constructor() {
 		super();
 		this.updateContextKey();
 	}
 
-	override add(value: string): this {
-		const result = super.add(value);
+	override set(key: string, value: string): this {
+		const result = super.set(key, value);
 		this.updateContextKey();
 
 		return result;
 	}
 
-	override delete(value: string): boolean {
-		const result = super.delete(value);
+	override delete(key: string): boolean {
+		const result = super.delete(key);
 		this.updateContextKey();
 
 		return result;
@@ -135,8 +140,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
-	private _unsafeRepositories = new UnsafeRepositorySet();
-	get unsafeRepositories(): Set<string> {
+	private _unsafeRepositories = new UnsafeRepositoryMap();
+	get unsafeRepositories(): Map<string, string> {
 		return this._unsafeRepositories;
 	}
 
@@ -430,8 +435,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// Handle unsafe repository
-			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'$/m.exec(ex.stderr);
-			if (match && match.length === 2) {
+			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(ex.stderr);
+			if (match && match.length === 3) {
 				const unsafeRepositoryPath = path.normalize(match[1]);
 				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
 
@@ -440,7 +445,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 					this.showUnsafeRepositoryNotification();
 				}
 
-				this._unsafeRepositories.add(unsafeRepositoryPath);
+				this._unsafeRepositories.set(unsafeRepositoryPath, match[2]);
 
 				return;
 			}
@@ -524,21 +529,34 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		});
 		checkForSubmodules();
 
-		const updateCommitInProgressContext = () => {
+		const updateOperationInProgressContext = () => {
 			let commitInProgress = false;
+			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(Operation.Commit)) {
+				if (repository.operations.isRunning(OperationKind.Commit)) {
 					commitInProgress = true;
-					break;
+				}
+
+				// When one of the following operations is running, we want to
+				// disable most commands in order to avoid multiple commands
+				// running at the same time.
+				if (repository.operations.isRunning(OperationKind.Checkout) ||
+					repository.operations.isRunning(OperationKind.CheckoutTracking) ||
+					repository.operations.isRunning(OperationKind.Commit) ||
+					repository.operations.isRunning(OperationKind.Pull) ||
+					repository.operations.isRunning(OperationKind.Push) ||
+					repository.operations.isRunning(OperationKind.Sync)) {
+					operationInProgress = true;
 				}
 			}
 
 			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
 		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
-		const operationListener = operationEvent(() => updateCommitInProgressContext());
-		updateCommitInProgressContext();
+		const operationListener = operationEvent(() => updateOperationInProgressContext());
+		updateOperationInProgressContext();
 
 		const dispose = () => {
 			disappearListener.dispose();

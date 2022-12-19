@@ -4,7 +4,7 @@
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the Markdown preview. Setting it to 'true' creates a <br> for newlines inside paragraphs.",
 	"markdown.preview.linkify": "Convert URL-like text to links in the Markdown preview.",
 	"markdown.preview.typographer": "Enable some language-neutral replacement and quotes beautification in the Markdown preview.",
-	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double click in the Markdown preview to switch to the editor.",
+	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double-click in the Markdown preview to switch to the editor.",
 	"markdown.preview.fontFamily.desc": "Controls the font family used in the Markdown preview.",
 	"markdown.preview.fontSize.desc": "Controls the font size in pixels used in the Markdown preview.",
 	"markdown.preview.lineHeight.desc": "Controls the line height used in the Markdown preview. This number is relative to the font size.",

@@ -318,9 +318,13 @@ class Widget {
 	}
 
 	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
+		// Leave some clearance to the left/right
+		const LEFT_PADDING = 15;
+		const RIGHT_PADDING = 15;
+
 		// Initially, the limits are defined as the dom node limits
-		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
-		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
+		const MIN_LIMIT = Math.max(LEFT_PADDING, domNodePosition.left - width);
+		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width - RIGHT_PADDING);
 
 		let absoluteLeft = domNodePosition.left + left - window.scrollX;
 

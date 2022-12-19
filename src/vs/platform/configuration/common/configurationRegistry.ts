@@ -274,7 +274,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			properties: {}
 		};
 		this.configurationContributors = [this.defaultLanguageConfigurationOverridesNode];
-		this.resourceLanguageSettingsSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowTrailingCommas: true, allowComments: true };
+		this.resourceLanguageSettingsSchema = {
+			properties: {},
+			patternProperties: {},
+			additionalProperties: true,
+			allowTrailingCommas: true,
+			allowComments: true
+		};
 		this.configurationProperties = {};
 		this.policyConfigurations = new Map<PolicyName, string>();
 		this.excludedConfigurationProperties = {};
