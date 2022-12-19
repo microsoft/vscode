@@ -184,4 +184,4 @@ export class QuickInputEditorWidget implements IOverlayWidget {
 	}
 }
 
-registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution, EditorContributionInstantiation.Eager);
+registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution, EditorContributionInstantiation.Lazy);
