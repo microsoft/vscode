@@ -243,7 +243,18 @@ export class SuggestController implements IEditorContribution {
 			if (index === -1) {
 				index = 0;
 			}
-			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto, e.auto && !this.editor.getOption(EditorOption.suggest).selectQuickSuggestions);
+
+			let noFocus = false;
+			if (e.auto) {
+				// don't "focus" item when configure to do so or when in snippet mode (and configured to do so)
+				const options = this.editor.getOption(EditorOption.suggest);
+				if (!options.selectQuickSuggestions) {
+					noFocus = true;
+				} else if (options.snippetsPreventQuickSuggestions && SnippetController2.get(this.editor)?.isInSnippet()) {
+					noFocus = true;
+				}
+			}
+			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto, noFocus);
 		}));
 		this._toDispose.add(this.model.onDidCancel(e => {
 			if (!e.retrigger) {
