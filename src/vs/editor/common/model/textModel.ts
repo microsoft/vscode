@@ -2327,7 +2327,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
 		this.hideContent = options.hideContent ?? false;
-		console.log({ hideContent: options.hideContent });
 
 	}
 }
