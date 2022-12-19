@@ -705,6 +705,7 @@ export class SuggestModel implements IDisposable {
 					// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
 					// suggestions to be cancelled, which causes `this._context` to be undefined
 					this.cancel();
+					return;
 				}
 
 				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
