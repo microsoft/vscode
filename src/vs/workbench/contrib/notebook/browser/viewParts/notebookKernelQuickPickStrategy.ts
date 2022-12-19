@@ -48,8 +48,13 @@ function isSourcePick(item: QuickPickInput<IQuickPickItem>): item is SourcePick 
 }
 type InstallExtensionPick = IQuickPickItem & { extensionIds: string[] };
 function isInstallExtensionPick(item: QuickPickInput<IQuickPickItem>): item is InstallExtensionPick {
-	return item.id === 'installSuggested' && 'extensionId' in item;
+	return item.id === 'installSuggested' && 'extensionIds' in item;
 }
+type SearchMarketplacePick = IQuickPickItem & { id: 'install' };
+function isSearchMarketplacePick(item: QuickPickInput<IQuickPickItem>): item is SearchMarketplacePick {
+	return item.id === 'install';
+}
+
 type KernelSourceQuickPickItem = IQuickPickItem & { command: Command };
 function isKernelSourceQuickPickItem(item: IQuickPickItem): item is KernelSourceQuickPickItem {
 	return 'command' in item;
@@ -58,7 +63,7 @@ function isKernelSourceQuickPickItem(item: IQuickPickItem): item is KernelSource
 function supportAutoRun(item: QuickPickInput<IQuickPickItem>): item is IQuickPickItem {
 	return 'autoRun' in item && !!item.autoRun;
 }
-type KernelQuickPickItem = (IQuickPickItem & { autoRun?: boolean }) | InstallExtensionPick | KernelPick | GroupedKernelsPick | SourcePick | KernelSourceQuickPickItem;
+type KernelQuickPickItem = (IQuickPickItem & { autoRun?: boolean }) | SearchMarketplacePick | InstallExtensionPick | KernelPick | GroupedKernelsPick | SourcePick | KernelSourceQuickPickItem;
 const KERNEL_PICKER_UPDATE_DEBOUNCE = 200;
 
 export type KernelQuickPickContext =
@@ -239,7 +244,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		}
 
 		// actions
-		if (pick.id === 'install') {
+		if (isSearchMarketplacePick(pick)) {
 			await this._showKernelExtension(
 				this._paneCompositePartService,
 				this._extensionWorkbenchService,
@@ -269,7 +274,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 	}
 
-	private async _showKernelExtension(
+	protected async _showKernelExtension(
 		paneCompositePartService: IPaneCompositePartService,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		extensionService: IExtensionService,
@@ -330,11 +335,11 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		}
 	}
 
-	private async _getKernelRecommendationsQuickPickItems(
+	protected async _getKernelRecommendationsQuickPickItems(
 		notebookTextModel: NotebookTextModel,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
-	): Promise<QuickPickInput<KernelQuickPickItem>[] | undefined> {
-		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
+	): Promise<QuickPickInput<SearchMarketplacePick | InstallExtensionPick>[] | undefined> {
+		const quickPickItems: QuickPickInput<SearchMarketplacePick | InstallExtensionPick>[] = [];
 
 		const language = this.getSuggestedLanguage(notebookTextModel);
 		const suggestedExtension: INotebookExtensionRecommendation | undefined = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;
@@ -353,13 +358,13 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				description: suggestedExtension.displayName ?? suggestedExtension.extensionIds.join(', '),
 				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install suggested extensions'),
 				extensionIds: suggestedExtension.extensionIds
-			});
+			} as InstallExtensionPick);
 		}
 		// there is no kernel, show the install from marketplace
 		quickPickItems.push({
 			id: 'install',
 			label: localize('searchForKernels', "Browse marketplace for kernel extensions"),
-		});
+		} as SearchMarketplacePick);
 
 		return quickPickItems;
 	}
@@ -706,6 +711,25 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 						// selected explicilty, it should trigger the execution?
 						quickPick.selectedItems[0].action.runAction();
 						resolve(true);
+					} else if (isSearchMarketplacePick(quickPick.selectedItems[0])) {
+						await this._showKernelExtension(
+							this._paneCompositePartService,
+							this._extensionWorkbenchService,
+							this._extensionService,
+							editor.textModel.viewType,
+							[]
+						);
+						resolve(true);
+					} else if (isInstallExtensionPick(quickPick.selectedItems[0])) {
+						await this._showKernelExtension(
+							this._paneCompositePartService,
+							this._extensionWorkbenchService,
+							this._extensionService,
+							editor.textModel.viewType,
+							quickPick.selectedItems[0].extensionIds,
+							this._productService.quality !== 'stable'
+						);
+						resolve(true);
 					}
 				}
 			}));
@@ -743,10 +767,16 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	private async _calculdateKernelSources(editor: IActiveNotebookEditor) {
 		const notebook: NotebookTextModel = editor.textModel;
 
+		const sourceActionCommands = this._notebookKernelService.getSourceActions(notebook, editor.scopedContextKeyService);
 		const actions = await this._notebookKernelService.getKernelSourceActions2(notebook);
-		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 		const matchResult = this._getMatchingResult(notebook);
+
+		if (sourceActionCommands.length === 0 && matchResult.all.length === 0 && actions.length === 0) {
+			return await this._getKernelRecommendationsQuickPickItems(notebook, this._extensionWorkbenchService) ?? [];
+		}
+
 		const others = matchResult.all.filter(item => item.extension.value !== JUPYTER_EXTENSION_ID);
+		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
 
 		// group controllers by extension
 		for (const group of groupBy(others, (a, b) => a.extension.value === b.extension.value ? 0 : 1)) {
@@ -779,7 +809,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			};
 		}));
 
-		const sourceActionCommands = this._notebookKernelService.getSourceActions(notebook, editor.scopedContextKeyService);
 		for (const sourceAction of sourceActionCommands) {
 			const res: SourcePick = {
 				action: sourceAction,
