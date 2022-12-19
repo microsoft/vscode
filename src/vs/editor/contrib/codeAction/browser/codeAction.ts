@@ -266,7 +266,7 @@ export async function applyCodeAction(
 		return;
 	}
 
-	if (item.action.edit) {
+	if (item.action.edit?.edits.length) {
 		const result = await bulkEditService.apply(item.action.edit, {
 			editor: options?.editor,
 			label: item.action.title,

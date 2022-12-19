@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
@@ -31,7 +31,7 @@ import { asJson, asText, IRequestService } from 'vs/platform/request/common/requ
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
 
@@ -99,18 +99,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerActions(): void {
 		this.registerManageProfilesSubMenu();
-
-		this.registerProfilesActions();
-		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
-
 		this.registerCurrentProfilesActions();
 		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.registerCurrentProfilesActions()));
 	}
 
 	private registerManageProfilesSubMenu(): void {
-		const that = this;
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
-			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
+			title: PROFILES_TTILE,
 			submenu: ManageProfilesSubMenu,
 			group: '5_settings',
 			when: PROFILES_ENABLEMENT_CONTEXT,
@@ -124,29 +119,36 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			order: 1
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, <ISubmenuItem>{
-			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
+			title: PROFILES_TTILE,
 			submenu: ManageProfilesSubMenu,
 			group: '1_settings',
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
-	private readonly profilesDisposable = this._register(new MutableDisposable<DisposableStore>());
-	private registerProfilesActions(): void {
-		this.profilesDisposable.value = new DisposableStore();
-		for (const profile of this.userDataProfilesService.profiles) {
-			this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
-		}
+	private readonly currentprofileActionsDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private registerCurrentProfilesActions(): void {
+		this.currentprofileActionsDisposable.value = new DisposableStore();
+		this.currentprofileActionsDisposable.value.add(this.registerSwitchProfileForCurrentWindowAction());
+		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
+		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
 
-	private registerProfileEntryAction(profile: IUserDataProfile): IDisposable {
+	private registerSwitchProfileForCurrentWindowAction(): IDisposable {
 		const that = this;
-		return registerAction2(class ProfileEntryAction extends Action2 {
+		return registerAction2(class SwitchProfileForCurrentWindowAction extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
-					title: profile.name,
-					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
+					id: 'workbench.profiles.actions.switchProfile',
+					title: {
+						value: localize('switch profile for current', "Switch Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Switch Profile (${that.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? localize('window', "Window") : localize('current workspace', "Workspace")})...`
+					},
+					category: PROFILES_CATEGORY,
+					f1: true,
+					precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,
@@ -157,20 +159,20 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 			async run(accessor: ServicesAccessor) {
-				if (that.userDataProfileService.currentProfile.id !== profile.id) {
-					return that.userDataProfileManagementService.switchProfile(profile);
+				const quickInputService = accessor.get(IQuickInputService);
+				const currentProfile = that.userDataProfileService.currentProfile;
+				const result = await quickInputService.pick(that.userDataProfilesService.profiles.map(profile => ({
+					id: profile.id,
+					label: currentProfile.id === profile.id ? `$(check) ${profile.name}` : profile.name,
+					profile
+				})), {
+					placeHolder: localize('switch profile', "Switch Profile")
+				});
+				if (result?.profile) {
+					that.userDataProfileManagementService.switchProfile(result?.profile);
 				}
 			}
 		});
-	}
-
-	private readonly currentprofileActionsDisposable = this._register(new MutableDisposable<DisposableStore>());
-	private registerCurrentProfilesActions(): void {
-		this.currentprofileActionsDisposable.value = new DisposableStore();
-		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
-		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
-		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
-		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
 
 	private registerUpdateCurrentProfileShortNameAction(): IDisposable {
@@ -182,8 +184,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
 					title: {
-						value: localize('change short name profile', "Change Short Name ({0})...", themeIcon?.id ?? shortName),
-						original: `Change Short Name (${themeIcon?.id ?? shortName})...`
+						value: localize('change short name profile', "Change Profile Short Name ({0})...", themeIcon?.id ?? shortName),
+						original: `Change Profile Short Name (${themeIcon?.id ?? shortName})...`
 					},
 					menu: [
 						{
@@ -238,8 +240,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.renameCurrentProfile`,
 					title: {
-						value: localize('rename profile', "Rename ({0})...", that.userDataProfileService.currentProfile.name),
-						original: `Rename (${that.userDataProfileService.currentProfile.name})...`
+						value: localize('rename profile', "Rename Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Rename Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					menu: [
 						{
@@ -266,8 +268,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('export profile', "Export ({0})...", that.userDataProfileService.currentProfile.name),
-						original: `Export (${that.userDataProfileService.currentProfile.name})...`
+						value: localize('export profile', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					category: PROFILES_CATEGORY,
 					precondition: IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
@@ -310,8 +312,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('import profile', "Import..."),
-						original: 'Import...'
+						value: localize('import profile', "Import Profile..."),
+						original: 'Import Profile...'
 					},
 					category: PROFILES_CATEGORY,
 					f1: true,
