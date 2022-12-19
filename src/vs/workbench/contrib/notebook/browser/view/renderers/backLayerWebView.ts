@@ -920,9 +920,12 @@ var requirejs = (function() {
 		//#region error renderer migration, remove once done
 		const lineMatch = LineQueryRegex.exec(uri.query);
 		if (lineMatch) {
-			lineNumber = parseInt(lineMatch[1], 10);
-			column = 1;
-			uri = uri.with({ fragment: `L${lineNumber}` });
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				lineNumber = parsedLineNumber;
+				column = 1;
+				uri = uri.with({ fragment: `L${lineNumber}` });
+			}
 		}
 
 		uri = uri.with({
