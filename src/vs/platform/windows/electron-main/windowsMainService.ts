@@ -54,6 +54,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { isThenable } from 'vs/base/common/async';
 
 //#region Helper Interfaces
 
@@ -1503,7 +1504,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		if (this.userDataProfilesMainService.isEnabled()) {
 			const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
-			const profile = await this.resolveProfileForBrowserWindow(options, workspace);
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace);
+			const profile = isThenable(profilePromise) ? await profilePromise : profilePromise;
 			configuration.profiles.profile = profile;
 
 			if (!configuration.extensionDevelopmentPath) {
@@ -1518,13 +1520,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.load(configuration);
 	}
 
-	private async resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions, workspace: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions, workspace: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> | IUserDataProfile {
 		if (options.forceProfile) {
-			return this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? await this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
+			return this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
 		}
 
 		if (options.forceTempProfile) {
-			return await this.userDataProfilesMainService.createTransientProfile();
+			return this.userDataProfilesMainService.createTransientProfile();
 		}
 
 		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? this.userDataProfilesMainService.defaultProfile;

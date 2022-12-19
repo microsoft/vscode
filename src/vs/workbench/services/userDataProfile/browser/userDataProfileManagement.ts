@@ -8,8 +8,8 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -113,7 +113,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'switchProfile' });
 	}
 
-	private getWorkspaceIdentifier(): WorkspaceIdentifier {
+	private getWorkspaceIdentifier(): IAnyWorkspaceIdentifier {
 		const workspace = this.workspaceContextService.getWorkspace();
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:

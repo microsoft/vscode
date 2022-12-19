@@ -13,7 +13,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -69,8 +69,6 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 
 export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfiles.enabled';
 
-export type WorkspaceIdentifier = ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
-
 export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
@@ -106,13 +104,13 @@ export interface IUserDataProfilesService {
 	readonly onDidResetWorkspaces: Event<void>;
 
 	isEnabled(): boolean;
-	createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
-	createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
-	createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
+	createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
+	createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
 	updateProfile(profile: IUserDataProfile, options?: IUserDataProfileUpdateOptions,): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 
-	setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profile: IUserDataProfile): Promise<void>;
+	setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profile: IUserDataProfile): Promise<void>;
 	resetWorkspaces(): Promise<void>;
 
 	cleanUp(): Promise<void>;
@@ -271,7 +269,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return this._profilesObject;
 	}
 
-	async createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const namePrefix = `Temp`;
 		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s(\\d+)`);
 		let nameIndex = 0;
@@ -284,11 +282,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return this.createProfile(hash(generateUuid()).toString(16), name, { transient: true }, workspaceIdentifier);
 	}
 
-	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		return this.createProfile(hash(generateUuid()).toString(16), name, options, workspaceIdentifier);
 	}
 
-	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
 			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -405,7 +403,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		}
 	}
 
-	async setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
+	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
 			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -418,7 +416,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this.updateWorkspaceAssociation(workspaceIdentifier, profile);
 	}
 
-	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void {
+	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void {
 		if (!this.enabled) {
 			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -455,12 +453,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		await Promise.allSettled(unAssociatedTransientProfiles.map(p => this.removeProfile(p)));
 	}
 
-	getProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile | undefined {
+	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined {
 		const workspace = this.getWorkspace(workspaceIdentifier);
 		return URI.isUri(workspace) ? this.transientProfilesObject.workspaces.get(workspace) ?? this.profilesObject.workspaces.get(workspace) : this.transientProfilesObject.emptyWindows.get(workspace) ?? this.profilesObject.emptyWindows.get(workspace);
 	}
 
-	protected getWorkspace(workspaceIdentifier: WorkspaceIdentifier): URI | string {
+	protected getWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): URI | string {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
 			return workspaceIdentifier.uri;
 		}
@@ -513,7 +511,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 	}
 
-	private updateWorkspaceAssociation(workspaceIdentifier: WorkspaceIdentifier, newProfile?: IUserDataProfile, transient?: boolean): void {
+	private updateWorkspaceAssociation(workspaceIdentifier: IAnyWorkspaceIdentifier, newProfile?: IUserDataProfile, transient?: boolean): void {
 		// Force transient if the new profile to associate is transient
 		transient = newProfile?.isTransient ? true : transient;
 
