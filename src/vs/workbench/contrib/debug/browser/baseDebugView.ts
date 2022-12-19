@@ -204,6 +204,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		nameElement.style.display = 'none';
 		valueElement.style.display = 'none';
 		inputBoxContainer.style.display = 'initial';
+		dom.clearNode(inputBoxContainer);
 
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, { ...options, inputBoxStyles: defaultInputBoxStyles });
 

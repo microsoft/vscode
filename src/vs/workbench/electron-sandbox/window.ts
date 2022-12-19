@@ -68,6 +68,7 @@ import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class NativeWindow extends Disposable {
 
@@ -120,7 +121,8 @@ export class NativeWindow extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IBannerService private readonly bannerService: IBannerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super();
 
@@ -201,6 +203,10 @@ export class NativeWindow extends Disposable {
 				[{
 					label: localize('restart', "Restart"),
 					run: () => this.nativeHostService.relaunch()
+				},
+				{
+					label: localize('configure', "Configure"),
+					run: () => this.preferencesService.openUserSettings({ query: 'application.shellEnvironmentResolutionTimeout' })
 				},
 				{
 					label: localize('learnMore', "Learn More"),
