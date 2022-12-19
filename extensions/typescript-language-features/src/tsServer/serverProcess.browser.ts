@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/// <reference lib='dom' />
+/// <reference lib='webworker' />
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
@@ -55,7 +55,7 @@ export class WorkerServerProcess implements TsServerProcess {
 		const syncChannel = new MessageChannel();
 		this.tsserver = tsserverChannel.port2;
 		this.watcher = watcherChannel.port2;
-		this.syncFs = syncChannel.port1;
+		this.syncFs = syncChannel.port2;
 		this.tsserver.onmessage = (event) => {
 			if (event.data.type === 'log') {
 				console.error(`unexpected log message on tsserver channel: ${JSON.stringify(event)}`);
@@ -88,8 +88,8 @@ export class WorkerServerProcess implements TsServerProcess {
 			}
 		};
 		// TODO: For prototyping, create one watcher ahead of time and send messages using the worker.
-		// For the real thing, it makes more sense to create a third MessageChannel and listen on it; the host
-		// can then send messages to tell the extension to create a new filesystemwatcher for each file/directory
+		// For the real thing, the host
+		// sends messages to tell the extension to create a new filesystemwatcher for each file/directory
 		const fsWatcher = vscode.workspace.createFileSystemWatcher('**/*');
 		fsWatcher.onDidChange(e => this.watcher.postMessage({ type: 'watch', event: 'change', path: e.path }));
 		fsWatcher.onDidCreate(e => this.watcher.postMessage({ type: 'watch', event: 'create', path: e.path }));
@@ -97,9 +97,9 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
 		mainChannel.postMessage(
 			{ args, extensionUri: { scheme: extensionUri.scheme, authority: extensionUri.authority, path: extensionUri.path } },
-			[syncChannel.port2, tsserverChannel.port1, watcherChannel.port1]
+			[syncChannel.port1, tsserverChannel.port1, watcherChannel.port1]
 		);
-		const connection = new ServiceConnection<Requests>(syncChannel.port1);
+		const connection = new ServiceConnection<Requests>(syncChannel.port2);
 		new ApiService('vscode-wasm-typescript', connection);
 		connection.signalReady();
 		this.output.append('done constructing WorkerServerProcess\n');

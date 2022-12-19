@@ -60,10 +60,6 @@ export class RequestQueue {
 		return this.queue.shift();
 	}
 
-	public peek(): RequestItem | undefined {
-		return this.queue[0];
-	}
-
 	public tryDeletePendingRequest(seq: number): boolean {
 		for (let i = 0; i < this.queue.length; i++) {
 			if (this.queue[i].request.seq === seq) {

@@ -44,10 +44,12 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
 		 */
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
+			// TODO: Send a message to add a watcher for path (which probably needs to be translated)
 			logger.info(`calling watchFile on ${path} (${watchFiles.has(path) ? 'OLD' : 'new'})`)
 			watchFiles.set(path, { path, callback, pollingInterval, options })
 			return {
 				close() {
+					// TODO: Send a message to remove the watcher for path
 					watchFiles.delete(path)
 				}
 			}
@@ -215,10 +217,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 				logger(e)
 				return undefined
 			}
-		},
-		setModifiedTime(path: string): void {
-			logger.info('calling setModifiedTime on ' + path)
-			// But I don't have any idea of how to set the modified time to an arbitrary date!
 		},
 		deleteFile(path: string): void {
 			const uri = toResource(path)
@@ -447,10 +445,12 @@ function updateWatch(event: "create" | "change" | "delete", path: string, logger
 		: event === 'change' ? ts.FileWatcherEventKind.Changed
 			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
 				: ts.FileWatcherEventKind.Changed;
+	// TODO: Almost certainly need to translate path
 	if (watchFiles.has(path)) {
 		logger.info("file watcher found for " + path)
 		watchFiles.get(path)!.callback(path, kind) // TODO: Might need to have first arg be watchFiles.get(path).path
 	}
+	// TODO: Should assert afterward now -- only expected watch messages should be coming in
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
 		logger.info(`directory watcher on ${watch} found for ${path}`)
 		watchDirectories.get(watch)!.callback(path)

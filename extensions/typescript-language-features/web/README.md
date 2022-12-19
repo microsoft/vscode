@@ -38,7 +38,7 @@ Language server host for typescript using vscode's sync-api in the browser
    - I looked at the tsserver code. I think the web case is close to the single-pipe node case,
      so I just require that requestId is set in order to call the *current* cancellation checker.
    - Any incoming message with a cancellation checker will overwrite the current one.
-- [ ] Cancellation code in vscode is suspiciously prototypey.
+- [x] Cancellation code in vscode is suspiciously prototypey.
    - Specifically, it adds the vscode-wasm cancellation to original cancellation code, but should actually switch to the former for web only.
    - looks like `isWeb()` is a way to check for being on the web
 - [ ] create multiple watchers
@@ -56,7 +56,7 @@ Language server host for typescript using vscode's sync-api in the browser
 - [ ] Response `seq` is always 0.
 - [ ] current method of encoding /scheme/authority means that (node) module resolution looks for /scheme/node_modules and /node_modules
   - even though they can't possibly exist
-  - probably not a problem thoughG
+  - probably not a problem though
 - [x] problems pane doesn't clear problems issued on tsconfig.
   - This is a known problem in normal usage as well.
 - [x] renaming a file throws a No Project error to the console.
