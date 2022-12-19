@@ -306,6 +306,7 @@ registerAction2(class GoToDefinitionAction extends DefinitionAction {
 				order: 1.1
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 2,
 			}]
@@ -429,6 +430,7 @@ registerAction2(class GoToDeclarationAction extends DeclarationAction {
 				order: 1.3
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 3,
 			}],
@@ -523,6 +525,7 @@ registerAction2(class GoToTypeDefinitionAction extends TypeDefinitionAction {
 				order: 1.4
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 3,
 			}]
@@ -614,6 +617,7 @@ registerAction2(class GoToImplementationAction extends ImplementationAction {
 				order: 1.45
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 4,
 			}]
@@ -706,6 +710,7 @@ registerAction2(class GoToReferencesAction extends ReferencesAction {
 				order: 1.45
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 5,
 			}]
