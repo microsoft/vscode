@@ -82,14 +82,19 @@ export function convertLinkRangeToBuffer(
 			if (!cell) {
 				break;
 			}
-			// Offset for 0 cells following wide characters
 			const width = cell.getWidth();
+			const chars = cell.getChars();
+			// Offset for null cells following wide characters
 			if (width === 2) {
 				lineOffset++;
 			}
 			// Offset for early wrapping when the last cell in row is a wide character
-			if (x === bufferWidth - 1 && cell.getChars() === '') {
+			if (x === bufferWidth - 1 && chars === '') {
 				lineOffset++;
+			}
+			// Offset multi-code characters like emoji
+			if (chars.length > 1) {
+				lineOffset -= chars.length - 1;
 			}
 		}
 		endOffset += lineOffset;
