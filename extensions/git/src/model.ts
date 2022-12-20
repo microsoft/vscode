@@ -200,7 +200,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private async doInitialScan(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
-		const externalRepositoriesConfig = config.get<'always' | 'never' | 'prompt'>('externalRepositories', 'prompt');
 
 		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
@@ -214,7 +213,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
-		if (this._externalRepositories.size !== 0 && externalRepositoriesConfig === 'prompt') {
+		if (this._externalRepositories.size !== 0) {
 			// External repositories notification
 			this.showExternalRepositoryNotification();
 		} else if (this._unsafeRepositories.size !== 0) {
@@ -410,7 +409,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
 		const enabled = config.get<boolean>('enabled') === true;
 
-
 		if (!enabled) {
 			this.logger.trace('Git is not enabled');
 			return;
@@ -451,12 +449,15 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			if (isRepositoryOutsideWorkspace && externalRepositoriesConfig !== 'always' && this.externalRepositories.get(repositoryRoot) !== true) {
 				this.logger.trace(`External repository: ${repositoryRoot}`);
 
-				// Show a notification if the external repository is opened after the initial repository scan
-				if (this.state === 'initialized' && externalRepositoriesConfig === 'prompt' && !this._externalRepositories.has(repositoryRoot)) {
-					this.showExternalRepositoryNotification();
+				if (externalRepositoriesConfig === 'prompt') {
+					// Show a notification if the external repository is opened after the initial scan
+					if (this.state === 'initialized' && !this._externalRepositories.has(repositoryRoot)) {
+						this.showExternalRepositoryNotification();
+					}
+
+					this._externalRepositories.set(repositoryRoot, false);
 				}
 
-				this._externalRepositories.set(repositoryRoot, false);
 				return;
 			}
 
@@ -799,13 +800,16 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			l10n.t('We have found git repositories that are outside the current folder/workspace. Would you like to open the repositories?');
 
 		const open = l10n.t('Open');
-		const alwaysOpen = l10n.t('Always Open');
+		const configure = l10n.t('Configure');
 		const learnMore = l10n.t('Learn More');
 
-		const choice = await window.showErrorMessage(message, open, alwaysOpen, learnMore);
-		if (choice === open || choice === alwaysOpen) {
+		const choice = await window.showErrorMessage(message, open, configure, learnMore);
+		if (choice === open) {
 			// Open External Repositories
-			commands.executeCommand('git.openExternalRepositories', choice === alwaysOpen);
+			commands.executeCommand('git.openExternalRepositories');
+		} else if (choice === configure) {
+			// Configure
+			commands.executeCommand('workbench.action.openSettings', 'git.externalRepositories');
 		} else if (choice === learnMore) {
 			// Learn More
 			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-external-repository'));

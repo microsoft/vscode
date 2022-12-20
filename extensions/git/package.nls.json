@@ -101,6 +101,7 @@
 	"command.timelineSelectForCompare": "Select for Compare",
 	"command.timelineCompareWithSelected": "Compare with Selected",
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
+	"command.openExternalRepositories": "Open External Repositories",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
@@ -335,17 +336,19 @@
 		"message": "Scanning workspace for git repositories..."
 	},
 	"view.workbench.scm.externalRepository": {
-		"message": "The detected git repository is outside the current folder/workspace.\n[Open](command:git.openExternalRepositories)\n[Always Open](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"message": "The detected git repository is outside the current folder/workspace. Use [this setting](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D) to change how external repositories are handled.\n[Open Repository](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
 		"comment": [
 			"{Locked='](command:git.openExternalRepositories'}",
+			"{Locked='](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
 	"view.workbench.scm.externalRepositories": {
-		"message": "The detected git repositories are outside the current folder/workspace.\n[Open](command:git.openExternalRepositories)\n[Always Open](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"message": "The detected git repositories are outside the current folder/workspace. Use [this setting](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D) to change how external repositories are handled.\n[Open Repositories](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
 		"comment": [
 			"{Locked='](command:git.openExternalRepositories'}",
+			"{Locked='](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]

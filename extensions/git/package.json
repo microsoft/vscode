@@ -698,6 +698,11 @@
         "command": "git.manageUnsafeRepositories",
         "title": "%command.manageUnsafeRepositories%",
         "category": "Git"
+      },
+      {
+        "command": "git.openExternalRepositories",
+        "title": "%command.openExternalRepositories%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1133,6 +1138,10 @@
         {
           "command": "git.manageUnsafeRepositories",
           "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
+        },
+        {
+          "command": "git.openExternalRepositories",
+          "when": "config.git.enabled && !git.missing && git.externalRepositoryCount != 0"
         }
       ],
       "scm/title": [

@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, ConfigurationTarget } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -3222,36 +3222,30 @@ export class CommandCenter {
 	}
 
 	@command('git.openExternalRepositories')
-	async openExternalRepositories(always: boolean): Promise<void> {
+	async openExternalRepositories(): Promise<void> {
 		const externalRepositories: string[] = [];
 
-		if (always) {
-			// Update setting
-			const config = workspace.getConfiguration('git');
-			config.update('externalRepositories', 'always', ConfigurationTarget.Global);
+		const title = l10n.t('Open External Repositories');
+		const placeHolder = l10n.t('Pick an external repository to open');
 
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.externalRepositories.keys()).sort().map(r => new RepositoryItem(r));
+
+		const items = this.model.externalRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem === allRepositoriesQuickPickItem) {
+			// All Repositories
 			externalRepositories.push(...this.model.externalRepositories.keys());
 		} else {
-			const title = l10n.t('Open External Repositories');
-			const allRepositoriesLabel = l10n.t('All Repositories');
-			const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-			const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.externalRepositories.keys()).sort().map(r => new RepositoryItem(r));
-
-			const items = this.model.externalRepositories.size === 1 ? [...repositoriesQuickPickItems] :
-				[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
-
-			const repositoryItem = await window.showQuickPick(items, { title });
-			if (!repositoryItem) {
-				return;
-			}
-
-			if (repositoryItem === allRepositoriesQuickPickItem) {
-				// All Repositories
-				externalRepositories.push(...this.model.externalRepositories.keys());
-			} else {
-				// One Repository
-				externalRepositories.push((repositoryItem as RepositoryItem).path);
-			}
+			// One Repository
+			externalRepositories.push((repositoryItem as RepositoryItem).path);
 		}
 
 		for (const externalRepository of externalRepositories) {
