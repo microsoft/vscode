@@ -37,7 +37,7 @@ import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/edito
 import { CodeActionKind, CodeActionSet, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IFileService } from 'vs/platform/files/common/files';
