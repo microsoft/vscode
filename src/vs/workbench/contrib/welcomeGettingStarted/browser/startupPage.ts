@@ -24,6 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -46,7 +47,8 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.run().then(undefined, onUnexpectedError);
 	}
@@ -87,7 +89,7 @@ export class StartupPageContribution implements IWorkbenchContribution {
 				// 'readme' should not be set in workspace settings to prevent tracking,
 				// but it can be set as a default (as in codespaces or from configurationDefaults) or a user setting
 				if (isStartupEditorReadme && (!isStartupEditorUserReadme || !isStartupEditorDefaultReadme)) {
-					console.error(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditorSetting.userValue}, default=${startupEditorSetting.defaultValue})`);
+					this.logService.warn(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditorSetting.userValue}, default=${startupEditorSetting.defaultValue})`);
 				}
 
 				const openWithReadme = isStartupEditorReadme && (isStartupEditorUserReadme || isStartupEditorDefaultReadme);
