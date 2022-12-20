@@ -92,13 +92,13 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 	const workspaceFolder = getWorkspaceFolder(documentUri);
 
 	const vars = new Map<string, string>([
-		['documentDirName', documentDirName.fsPath], //  Parent directory path
+		['documentDirName', documentDirName.path], //  Parent directory path
 		['documentFileName', documentBaseName], // Full filename: file.md
 		['documentBaseName', documentBaseName.slice(0, documentBaseName.length - documentExtName.length)], // Just the name: file
 		['documentExtName', documentExtName.replace('.', '')], // Just the file ext: md
 
 		// Workspace
-		['documentWorkspaceFolder', (workspaceFolder ?? documentDirName).fsPath],
+		['documentWorkspaceFolder', (workspaceFolder ?? documentDirName).path],
 
 		// File
 		['fileName', fileName],// Full file name
