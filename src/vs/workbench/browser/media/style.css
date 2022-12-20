@@ -62,10 +62,6 @@ body.web {
 	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 }
 
-.monaco-workbench ::selection {
-	background-color: var(--vscode-selection-background);
-}
-
 .monaco-workbench.border:not(.fullscreen) {
 	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
