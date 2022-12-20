@@ -47,3 +47,17 @@
 	transform: none;
 	transition:	none;
 }
+
+/* Icons */
+
+.monaco-workbench > .notifications-toasts .codicon.codicon-error {
+	color: var(--vscode-notificationsErrorIcon-foreground);
+}
+
+.monaco-workbench > .notifications-toasts .codicon.codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.monaco-workbench > .notifications-toasts .codicon.codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}

@@ -90,6 +90,7 @@ registerSimpleEditorSettingMigration('parameterHints', [[true, { enabled: true }
 registerSimpleEditorSettingMigration('autoIndent', [[false, 'advanced'], [true, 'full']]);
 registerSimpleEditorSettingMigration('matchBrackets', [[true, 'always'], [false, 'never']]);
 registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false, 'off']]);
+registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {

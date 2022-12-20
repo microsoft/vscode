@@ -214,7 +214,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				});
 			}
 
-			return new vscode.CompletionList(newItems, true);
+			return new vscode.CompletionList(newItems);
 		});
 	}
 }
