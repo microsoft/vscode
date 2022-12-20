@@ -285,7 +285,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 		}
 
-		this.windowControls = append(this.rightContent, $('div.window-controls-container'));
+		this.windowControls = append(isMacintosh ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+		if (isWeb && isMacintosh) {
+			append(this.rightContent, $('div.window-controls-container'));
+		}
 
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {

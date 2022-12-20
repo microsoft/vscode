@@ -130,8 +130,9 @@
 	padding: 0 8px;
 }
 
-/* MAC supports click event despite `drag` and therefore we don't need to clear it */
-.monaco-workbench:not(.mac) .part.titlebar>.titlebar-container>.titlebar-center>.window-title>.command-center {
+/* MacOS Desktop supports click event despite `drag` and therefore we don't need to clear it */
+.monaco-workbench:not(.mac) .part.titlebar>.titlebar-container>.titlebar-center>.window-title>.command-center,
+.monaco-workbench.mac.web .part.titlebar>.titlebar-container>.titlebar-center>.window-title>.command-center {
 	-webkit-app-region: no-drag;
 }
 
@@ -196,6 +197,7 @@
 	z-index: 2500;
 	min-width: 36px;
 	flex-wrap: nowrap;
+	order: 2;
 }
 
 .monaco-workbench.web .part.titlebar>.titlebar-container>.titlebar-left>.menubar {
@@ -228,6 +230,7 @@
 	position: relative;
 	z-index: 2500;
 	flex-shrink: 0;
+	order: 1;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-left>.window-appicon:not(.codicon) {
@@ -276,7 +279,23 @@
 }
 
 .monaco-workbench.mac .part.titlebar .window-controls-container {
+	zoom: unset !important;
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container {
 	width: 70px;
+}
+
+.monaco-workbench.web.mac .part.titlebar .titlebar-left .window-controls-container {
+	width: env(titlebar-area-x, 0px);
+	height: env(titlebar-area-height, 35px);
+	order: 0;
+}
+
+.monaco-workbench.web.mac .part.titlebar .titlebar-right .window-controls-container {
+	width: calc(100vw - (env(titlebar-area-x, 0px) + env(titlebar-area-width, 100vw)));
+	height: env(titlebar-area-height, 35px);
+	order: 1;
 }
 
 .monaco-workbench.web .part.titlebar .window-controls-container {
