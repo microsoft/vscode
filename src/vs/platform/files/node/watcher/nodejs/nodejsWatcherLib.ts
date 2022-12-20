@@ -26,7 +26,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	// A delay for collecting file changes from node.js
 	// before collecting them for coalescing and emitting
-	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
+	// Same delay as used for the recursive watcher.
+	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// These numbers are a bit more aggressive compared to the
