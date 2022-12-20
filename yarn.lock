@@ -1252,15 +1252,15 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/l10n-dev@0.0.18":
-  version "0.0.18"
-  resolved "https://registry.yarnpkg.com/@vscode/l10n-dev/-/l10n-dev-0.0.18.tgz#80a8cf6ef13c7fe1796be7b0007d71993bd1832f"
-  integrity sha512-pEKLMnlg7hlxFrZLqcyJe08olmj6KVs2Rof7MVB5rN0D6NOKPBRtkQ176TuMUmW863EDV5WQUgNzOGa2nHBSSQ==
+"@vscode/l10n-dev@0.0.21":
+  version "0.0.21"
+  resolved "https://registry.yarnpkg.com/@vscode/l10n-dev/-/l10n-dev-0.0.21.tgz#c25a29c7d1484b1dacf4ba98fbd16c1b32a0087e"
+  integrity sha512-KR3OvvLs8AGCWM3LHAAKUfltltANdGjX4fn2jfY13Eb5z4c6smR81p7a9yTo6Kr///zSZuBHQ/hXMmMRtuPTBw==
   dependencies:
     deepmerge-json "^1.5.0"
     glob "^8.0.3"
     pseudo-localization "^2.4.0"
-    typescript "^4.7.4"
+    web-tree-sitter "^0.20.7"
     xml2js "^0.4.23"
     yargs "^17.5.1"
 
@@ -11337,6 +11337,11 @@ watchpack@^2.2.0:
   dependencies:
     glob-to-regexp "^0.4.1"
     graceful-fs "^4.1.2"
+
+web-tree-sitter@^0.20.7:
+  version "0.20.7"
+  resolved "https://registry.yarnpkg.com/web-tree-sitter/-/web-tree-sitter-0.20.7.tgz#b0ddb78e8244221a3100f432c7e162516cd9cd09"
+  integrity sha512-flC9JJmTII9uAeeYpWF8hxDJ7bfY+leldQryetll8Nv4WgI+MXc6h7TiyAZASWl9uC9TvmfdgOjZn1DAQecb3A==
 
 webidl-conversions@^3.0.0:
   version "3.0.1"
