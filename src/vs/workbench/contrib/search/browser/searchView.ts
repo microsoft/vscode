@@ -265,6 +265,7 @@ export class SearchView extends ViewPane {
 			return;
 		}
 		this.isTreeLayoutViewVisible = visible;
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.refreshTree();
 	}
 
