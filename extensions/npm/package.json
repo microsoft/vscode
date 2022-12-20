@@ -346,13 +346,12 @@
         {
           "id": "ms-vscode.npm-command",
           "commandLineMatcher": "npm",
-          "exitStatus": false,
+          "commandExitResult": "error",
           "outputMatcher": {
             "anchor": "bottom",
             "length": 8,
             "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
-            "offset": 2,
-            "multipleMatches": true
+            "offset": 2
           }
         }
       ]

@@ -17,7 +17,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -46,13 +46,13 @@ function es5ClassCompat(target: Function): any {
 }
 
 export enum TerminalOutputAnchor {
-	top = 'top',
-	bottom = 'bottom'
+	Top = 0,
+	Bottom = 1
 }
 
 export enum TerminalQuickFixType {
-	command = 'command',
-	opener = 'opener'
+	Command = 0,
+	Opener = 1
 }
 
 @es5ClassCompat
@@ -862,6 +862,10 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 					edit = editOrTuple;
 				}
 				if (NotebookEdit.isNotebookCellEdit(edit)) {
+					if (uri.scheme === CellUri.scheme) {
+						throw new Error('set must be called with a notebook document URI, not a cell URI.');
+					}
+
 					if (edit.newCellMetadata) {
 						this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata, metadata);
 					} else if (edit.newNotebookMetadata) {
@@ -1923,6 +1927,20 @@ export class TerminalLink implements vscode.TerminalLink {
 		if (tooltip !== undefined && typeof tooltip !== 'string') {
 			throw illegalArgument('tooltip');
 		}
+	}
+}
+
+export class TerminalQuickFixOpener {
+	uri: vscode.Uri;
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+export class TerminalQuickFixCommand {
+	terminalCommand: string;
+	constructor(terminalCommand: string) {
+		this.terminalCommand = terminalCommand;
 	}
 }
 

@@ -18,6 +18,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -53,12 +54,11 @@ export interface ITerminalInstanceService {
 	/**
 	 * Create a new terminal instance.
 	 * @param launchConfig The shell launch config.
-	 * @param target The target of the terminal, when this is undefined the default target will be
-	 * used.
+	 * @param target The target of the terminal.
 	 * @param resource The URI for the terminal. Note that this is the unique identifier for the
 	 * terminal, not the cwd.
 	 */
-	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(launchConfig: IShellLaunchConfig, target: TerminalLocation, resource?: URI): ITerminalInstance;
 
 	/**
 	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
@@ -85,7 +85,7 @@ export interface IQuickPickTerminalObject {
 }
 
 export interface IMarkTracker {
-	scrollToPreviousMark(): void;
+	scrollToPreviousMark(scrollPosition?: ScrollPosition, retainSelection?: boolean, skipEmptyCommands?: boolean): void;
 	scrollToNextMark(): void;
 	selectToPreviousMark(): void;
 	selectToNextMark(): void;
@@ -216,6 +216,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
 	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 	toggleEscapeSequenceLogging(): Promise<void>;
+
+	getEditingTerminal(): ITerminalInstance | undefined;
+	setEditingTerminal(instance: ITerminalInstance | undefined): void;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
@@ -475,11 +478,6 @@ export interface ITerminalInstance {
 	 * that supports reconnection.
 	 */
 	readonly persistentProcessId: number | undefined;
-
-	/**
-	 * The id of a persistent process during the shutdown process
-	 */
-	shutdownPersistentProcessId: number | undefined;
 
 	/**
 	 * Whether the process should be persisted across reloads.

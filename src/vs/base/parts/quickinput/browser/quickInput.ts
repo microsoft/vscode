@@ -68,7 +68,7 @@ export interface IQuickInputWidgetStyles {
 	quickInputBackground?: Color;
 	quickInputForeground?: Color;
 	quickInputTitleBackground?: Color;
-	contrastBorder?: Color;
+	widgetBorder?: Color;
 	widgetShadow?: Color;
 }
 
@@ -147,12 +147,14 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _busy = false;
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
+	private buttonsUpdated = false;
+	private _toggles: IQuickInputToggle[] = [];
+	private togglesUpdated = false;
 	protected noValidationMessage = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
 	private _severity: Severity = Severity.Ignore;
 	private _lastSeverity: Severity | undefined;
-	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
@@ -252,6 +254,16 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
+	get toggles() {
+		return this._toggles;
+	}
+
+	set toggles(toggles: IQuickInputToggle[]) {
+		this._toggles = toggles ?? [];
+		this.togglesUpdated = true;
+		this.update();
+	}
+
 	get validationMessage() {
 		return this._validationMessage;
 	}
@@ -295,6 +307,11 @@ class QuickInput extends Disposable implements IQuickInput {
 			// if there are buttons, the ui.show() clears them out of the UI so we should
 			// rerender them.
 			this.buttonsUpdated = true;
+		}
+		if (this.toggles.length) {
+			// if there are toggles, the ui.show() clears them out of the UI so we should
+			// rerender them.
+			this.togglesUpdated = true;
 		}
 
 		this.update();
@@ -365,6 +382,14 @@ class QuickInput extends Disposable implements IQuickInput {
 				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
+		}
+		if (this.togglesUpdated) {
+			this.togglesUpdated = false;
+			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
+			// a layering issue as quick input's interface is in common but Toggle is in browser and
+			// it requires a HTMLElement on its interface
+			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) as Toggle[] ?? [];
+			this.ui.inputBox.toggles = concreteToggles;
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
@@ -743,14 +768,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	set toggles(toggles: IQuickInputToggle[] | undefined) {
-		// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
-		// a layering issue as quick input's interface is in common but Toggle is in browser and
-		// it requires a HTMLElement on its interface
-		const concreteToggles = toggles?.filter(opts => opts instanceof Toggle) as Toggle[];
-		this.ui.inputBox.toggles = concreteToggles;
-	}
-
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
@@ -975,15 +992,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		// store the scrollTop before it is reset
 		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
-		const hideInput = !!this._hideInput && this._items.length > 0;
-		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
+		const hasDescription = !!this.description;
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
-			description: !!this.description,
+			description: hasDescription,
 			checkAll: this.canSelectMany && !this._hideCheckAll,
 			checkBox: this.canSelectMany,
-			inputBox: !hideInput,
-			progressBar: !hideInput,
+			inputBox: !this._hideInput,
+			progressBar: !this._hideInput || hasDescription,
 			visibleCount: true,
 			count: this.canSelectMany,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
@@ -1311,6 +1327,9 @@ export class QuickInputController extends Disposable {
 
 		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
+		const progressBar = new ProgressBar(container, this.styles.progressBar);
+		progressBar.getContainer().classList.add('quick-input-progress');
+
 		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
@@ -1335,9 +1354,6 @@ export class QuickInputController extends Disposable {
 				this.getUI().inputBox.setAttribute('aria-activedescendant', this.getUI().list.getActiveDescendant() || '');
 			}
 		}));
-
-		const progressBar = new ProgressBar(container, this.styles.progressBar);
-		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
@@ -1654,6 +1670,7 @@ export class QuickInputController extends Disposable {
 		ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
 		ui.inputBox.ariaLabel = '';
+		ui.inputBox.toggles = undefined;
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
@@ -1678,6 +1695,7 @@ export class QuickInputController extends Disposable {
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.display(!!visibilities.list);
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
+		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
 	}
 
@@ -1712,9 +1730,6 @@ export class QuickInputController extends Disposable {
 			this.getUI().inputBox.enabled = enabled;
 			this.getUI().ok.enabled = enabled;
 			this.getUI().list.enabled = enabled;
-			if (!enabled) {
-				this.getUI().container.focus();
-			}
 		}
 	}
 
@@ -1816,13 +1831,13 @@ export class QuickInputController extends Disposable {
 				quickInputTitleBackground,
 				quickInputBackground,
 				quickInputForeground,
-				contrastBorder,
+				widgetBorder,
 				widgetShadow,
 			} = this.styles.widget;
 			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ? quickInputTitleBackground.toString() : '';
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
-			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
+			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.count.style(this.styles.countBadge);
 			this.ui.list.style(this.styles.list);

@@ -89,7 +89,8 @@ export const enum VSCodeOscPt {
 }
 
 export const enum VSCodeOscProperty {
-	Task = 'Task'
+	Task = 'Task',
+	Cwd = 'Cwd'
 }
 
 /**

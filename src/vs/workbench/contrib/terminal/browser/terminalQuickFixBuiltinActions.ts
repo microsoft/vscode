@@ -5,20 +5,22 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalQuickFixType } from 'vs/workbench/contrib/terminal/browser/widgets/terminalQuickFixMenuItems';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
-const AnyCommandLineRegex = /.+/;
 export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))((\n\s*(?<fixedCommand>[^\s]+))+)/m;
 export const FreePortOutputRegex = /address already in use (0\.0\.0\.0|127\.0\.0\.1|localhost|::):(?<portNumber>\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>[^\s]+)/;
 // The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
+
+export const enum QuickFixSource {
+	Builtin = 'builtin'
+}
 
 export function gitSimilar(): IInternalOptions {
 	return {
@@ -46,7 +48,7 @@ export function gitSimilar(): IInternalOptions {
 						type: TerminalQuickFixType.Command,
 						terminalCommand: matchResult.commandLine.replace(/git\s+[^\s]+/, () => `git ${fixedCommand}`),
 						addNewLine: true,
-						source: 'builtin'
+						source: QuickFixSource.Builtin
 					});
 				}
 			}
@@ -77,7 +79,7 @@ export function gitTwoDashes(): IInternalOptions {
 				id: 'Git Two Dashes',
 				terminalCommand: matchResult.commandLine.replace(` -${problemArg}`, () => ` --${problemArg}`),
 				addNewLine: true,
-				source: 'builtin'
+				source: QuickFixSource.Builtin
 			};
 		}
 	};
@@ -86,7 +88,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 	return {
 		id: 'Free Port',
 		type: 'internal',
-		commandLineMatcher: AnyCommandLineRegex,
+		commandLineMatcher: /.+/,
 		outputMatcher: {
 			lineMatcher: FreePortOutputRegex,
 			anchor: 'bottom',
@@ -101,11 +103,13 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 			}
 			const label = localize("terminal.freePort", "Free port {0}", port);
 			return {
-				class: TerminalQuickFixType.Port,
+				type: TerminalQuickFixType.Port,
+				class: undefined,
 				tooltip: label,
 				id: 'Free Port',
 				label,
 				enabled: true,
+				source: QuickFixSource.Builtin,
 				run: async () => {
 					await terminalInstance?.freePortKillProcess?.(port, matchResult.commandLine);
 				}
@@ -147,11 +151,11 @@ export function gitPushSetUpstream(): IInternalOptions {
 			}
 			if (fixedCommand) {
 				actions.push({
-					type: 'command',
+					type: TerminalQuickFixType.Command,
 					id: 'Git Push Set Upstream',
 					terminalCommand: fixedCommand,
 					addNewLine: true,
-					source: 'builtin'
+					source: QuickFixSource.Builtin
 				});
 				return actions;
 			}
@@ -179,14 +183,12 @@ export function gitCreatePr(): IInternalOptions {
 			}
 			const label = localize("terminal.createPR", "Create PR {0}", link);
 			return {
-				class: undefined,
-				tooltip: label,
 				id: 'Git Create Pr',
 				label,
 				enabled: true,
-				type: 'opener',
+				type: TerminalQuickFixType.Opener,
 				uri: URI.parse(link),
-				run: () => { }
+				source: QuickFixSource.Builtin
 			};
 		}
 	};
