@@ -55,7 +55,7 @@
 .monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
 .monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 	outline-color: var(--vscode-menubar-selectionBorder);
-	outline-offset: -1px var(--vscode-menubar-selectionBorder);
+	outline-offset: -1px;
 }
 
 
