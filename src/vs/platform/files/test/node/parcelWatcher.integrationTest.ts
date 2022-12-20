@@ -245,26 +245,20 @@ import { ltrim } from 'vs/base/common/strings';
 		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
 		await changeFuture;
 
-		// Skip following asserts on macOS where the fs-events service
-		// does not really give a full guarantee about the correlation
-		// of an event to a change.
-		if (!isMacintosh) {
+		// Read file does not emit event
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
+		await Promises.readFile(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
 
-			// Read file does not emit event
-			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-			await Promises.readFile(anotherNewFilePath);
-			await Promise.race([timeout(100), changeFuture]);
+		// Stat file does not emit event
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
 
-			// Stat file does not emit event
-			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-			await Promises.stat(anotherNewFilePath);
-			await Promise.race([timeout(100), changeFuture]);
-
-			// Stat folder does not emit event
-			changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-			await Promises.stat(copiedFolderpath);
-			await Promise.race([timeout(100), changeFuture]);
-		}
+		// Stat folder does not emit event
+		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(copiedFolderpath);
+		await Promise.race([timeout(100), changeFuture]);
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
