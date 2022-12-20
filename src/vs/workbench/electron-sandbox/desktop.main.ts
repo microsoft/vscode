@@ -317,12 +317,7 @@ export class DesktopMain extends Disposable {
 		}
 
 		// Otherwise, workspace is empty, so we derive an identifier
-		const emptyWorkspaceIdentifier = toWorkspaceIdentifier(this.configuration.backupPath, environmentService.isExtensionDevelopment);
-		if (!emptyWorkspaceIdentifier) {
-			throw new Error('Unable to resolve an empty workspace identifier from the environment');
-		}
-
-		return emptyWorkspaceIdentifier;
+		return toWorkspaceIdentifier(this.configuration.backupPath, environmentService.isExtensionDevelopment);
 	}
 
 	private async createWorkspaceService(

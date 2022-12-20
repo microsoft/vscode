@@ -7,13 +7,12 @@ import { localize } from 'vs/nls';
 import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IUserDataProfileManagementService, PROFILES_CATEGORY, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { compare } from 'vs/base/common/strings';
 import { Codicon } from 'vs/base/common/codicons';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction, Separator } from 'vs/base/common/actions';
@@ -107,8 +106,8 @@ registerAction2(class CreateProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.createProfile',
 			title: {
-				value: localize('create profile', "Create..."),
-				original: 'Create...'
+				value: localize('create profile', "Create Profile..."),
+				original: 'Create Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
@@ -246,8 +245,8 @@ registerAction2(class DeleteProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.deleteProfile',
 			title: {
-				value: localize('delete profile', "Delete..."),
-				original: 'Delete...'
+				value: localize('delete profile', "Delete Profile..."),
+				original: 'Delete Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
@@ -331,40 +330,6 @@ registerAction2(class ManageProfilesAction extends Action2 {
 			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY.value });
 			if (pick?.id) {
 				await commandService.executeCommand(pick.id);
-			}
-		}
-	}
-});
-
-registerAction2(class SwitchProfileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.switchProfile',
-			title: {
-				value: localize('switch profile', "Switch..."),
-				original: 'Switch...'
-			},
-			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfileService = accessor.get(IUserDataProfileService);
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
-
-		const profiles = userDataProfilesService.profiles.slice(0).sort((a, b) => compare(a.name, b.name));
-		if (profiles.length) {
-			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
-				label: `${profile.name}${profile.id === userDataProfileService.currentProfile.id ? ` $(${Codicon.check.id})` : ''}`,
-				profile
-			}));
-			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Profile") });
-			if (pick) {
-				await userDataProfileManagementService.switchProfile(pick.profile);
 			}
 		}
 	}

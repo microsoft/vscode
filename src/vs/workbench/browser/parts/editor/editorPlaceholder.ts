@@ -12,7 +12,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -25,8 +25,6 @@ import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/brows
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Codicon } from 'vs/base/common/codicons';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -277,34 +275,3 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		return { icon: '$(error)', label, actions: actions ?? [] };
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Editor Placeholder Error Icon
-	const editorErrorIconForegroundColor = theme.getColor(editorErrorForeground);
-	if (editorErrorIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.error.cssSelector} {
-			color: ${editorErrorIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Warning Icon
-	const editorWarningIconForegroundColor = theme.getColor(editorWarningForeground);
-	if (editorWarningIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.warning.cssSelector} {
-			color: ${editorWarningIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Info/Trust Icon
-	const editorInfoIconForegroundColor = theme.getColor(editorInfoForeground);
-	if (editorInfoIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.info.cssSelector},
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.workspaceUntrusted.cssSelector} {
-			color: ${editorInfoIconForegroundColor};
-		}`);
-	}
-});

@@ -41,7 +41,7 @@ import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions
 import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';

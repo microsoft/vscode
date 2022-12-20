@@ -21,6 +21,19 @@
 	font-size: 48px;
 }
 
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon.codicon-error {
+	color: var(--vscode-editorError-foreground);
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon.codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon.codicon-info,
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon.codicon-workspace-untrusted {
+	color: var(--vscode-editorInfo-foreground);
+}
+
 .monaco-editor-pane-placeholder.max-height-200px .editor-placeholder-icon-container {
 	/* Hide the icon when height is limited */
 	display: none;
