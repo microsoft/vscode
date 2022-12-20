@@ -48,9 +48,6 @@
 	border-bottom: 1px solid var(--vscode-notifications-border);
 }
 
-.monaco-workbench .notifications-center .notifications-list-container,
-.monaco-workbench .notifications-center .notifications-list-container .monaco-scrollable-element,
-.monaco-workbench .notifications-center .notifications-list-container .notification-list-item {
 .monaco-workbench > .notifications-center .notifications-list-container,
 .monaco-workbench > .notifications-center .notifications-list-container .monaco-scrollable-element,
 .monaco-workbench > .notifications-center .notifications-list-container .notification-list-item {
