@@ -350,19 +350,38 @@ export class PtyService extends Disposable implements IPtyService {
 		return { ...process.env };
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		if (!isWindows) {
-			return original;
-		}
-		if (getWindowsBuildNumber() < 17063) {
-			return original.replace(/\\/g, '/');
-		}
-		return new Promise<string>(c => {
-			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
-				c(escapeNonWindowsPath(stdout.trim()));
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix' | unknown): Promise<string> {
+		if (direction === 'win-to-unix') {
+			if (!isWindows) {
+				return original;
+			}
+			if (getWindowsBuildNumber() < 17063) {
+				return original.replace(/\\/g, '/');
+			}
+			return new Promise<string>(c => {
+				const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+					c(escapeNonWindowsPath(stdout.trim()));
+				});
+				proc.stdin!.end();
 			});
-			proc.stdin!.end();
-		});
+		}
+		if (direction === 'unix-to-win') {
+			// The backend is Windows, for example a local Windows workspace with a wsl session in
+			// the terminal.
+			if (isWindows) {
+				if (getWindowsBuildNumber() < 17063) {
+					return original;
+				}
+				return new Promise<string>(c => {
+					const proc = execFile('bash.exe', ['-c', `wslpath -w ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+						c(stdout.trim());
+					});
+					proc.stdin!.end();
+				});
+			}
+		}
+		// Fallback just in case
+		return original;
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
