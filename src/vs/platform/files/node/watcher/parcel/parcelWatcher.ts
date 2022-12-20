@@ -88,10 +88,20 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	protected readonly watchers = new Map<string, IParcelWatcherInstance>();
 
-	// A delay for collecting file changes from node.js
-	// before collecting them for coalescing and emitting
-	// (same delay as we are using for recursive watchers)
-	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
+	// A delay for collecting file changes from Parcel
+	// before collecting them for coalescing and emitting.
+	// Parcel internally uses 50ms as delay, so we use 75ms,
+	// to schedule sufficiently after Parcel. Since we run
+	// potentially many Parcel watchers at the same time, we
+	// want to aggregate events over all instances to reduce
+	// possible duplicates.
+	//
+	// Note: since Parcel 2.0.7, the very first event is
+	// emitted without delay if no events occured over a
+	// duration of 500ms. But we always want to aggregate
+	// events to apply our coleasing logic.
+	//
+	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
@@ -105,7 +115,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	));
 
 	// Aggregate file changes over FILE_CHANGES_HANDLER_DELAY
-	// to coalesce events and reduce spam.
+	// to coalesce events and reduce duplicate events.
 	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY));
 
 	private verboseLogging = false;
@@ -404,10 +414,10 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Normalize events: handle NFC normalization and symlinks
 		// It is important to do this before checking for includes
 		// and excludes to check on the original path.
-		const { events: normalizedEvents } = this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
+		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
 		// Check for excludes
-		const includedEvents = this.handleExcludeIncludes(normalizedEvents, excludes, includes);
+		const includedEvents = this.handleExcludeIncludes(parcelEvents, excludes, includes);
 
 		// Add to aggregator for later processing
 		for (const includedEvent of includedEvents) {
@@ -515,7 +525,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return { realPath, realPathDiffers, realPathLength };
 	}
 
-	private normalizeEvents(events: parcelWatcher.Event[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): { events: parcelWatcher.Event[] } {
+	private normalizeEvents(events: parcelWatcher.Event[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): void {
 		for (const event of events) {
 
 			// Mac uses NFD unicode form on disk, but we want NFC
@@ -536,12 +546,10 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				event.path = request.path + event.path.substr(realPathLength);
 			}
 		}
-
-		return { events };
 	}
 
 	private filterEvents(events: IDiskFileChange[]): { events: IDiskFileChange[]; deletedRoots?: Set<IParcelWatcherInstance> } {
-		let filteredEvents: IDiskFileChange[] | undefined = undefined;
+		const filteredEvents: IDiskFileChange[] = [];
 		let deletedRoots: Set<IParcelWatcherInstance> | undefined = undefined;
 
 		for (const event of events) {
@@ -559,15 +567,11 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 				deletedRoots.add(this.watchers.get(event.path)!);
 			} else {
-				if (!filteredEvents) {
-					filteredEvents = [];
-				}
-
 				filteredEvents.push(event);
 			}
 		}
 
-		return { events: filteredEvents ?? events, deletedRoots };
+		return { events: filteredEvents, deletedRoots };
 	}
 
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {
