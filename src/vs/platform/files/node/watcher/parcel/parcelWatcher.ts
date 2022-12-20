@@ -91,10 +91,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	// A delay for collecting file changes from Parcel
 	// before collecting them for coalescing and emitting.
 	// Parcel internally uses 50ms as delay, so we use 75ms,
-	// to schedule sufficiently after Parcel. Since we run
-	// potentially many Parcel watchers at the same time, we
-	// want to aggregate events over all instances to reduce
-	// possible duplicates.
+	// to schedule sufficiently after Parcel.
 	//
 	// Note: since Parcel 2.0.7, the very first event is
 	// emitted without delay if no events occured over a
