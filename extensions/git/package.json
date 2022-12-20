@@ -2836,6 +2836,16 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.externalRepository%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.externalRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.externalRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.externalRepositoryCount > 1"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.unsafeRepository%",
         "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount == 1"
       },

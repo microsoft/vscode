@@ -334,6 +334,22 @@
 	"view.workbench.scm.scanWorkspaceForRepositories": {
 		"message": "Scanning workspace for git repositories..."
 	},
+	"view.workbench.scm.externalRepository": {
+		"message": "The detected git repository is outside the current folder/workspace.\n[Open](command:git.openExternalRepositories)\n[Always Open](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"comment": [
+			"{Locked='](command:git.openExternalRepositories'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.externalRepositories": {
+		"message": "The detected git repositories are outside the current folder/workspace.\n[Open](command:git.openExternalRepositories)\n[Always Open](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"comment": [
+			"{Locked='](command:git.openExternalRepositories'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"view.workbench.scm.unsafeRepository": {
 		"message": "The detected git repository is potentially unsafe as the folder is owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
 		"comment": [
