@@ -449,14 +449,23 @@ class Extensions extends Disposable {
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
 		this._register(server.extensionManagementService.onDidChangeProfile(e => this.onDidChangeProfile(e.added, e.removed)));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
+		this._register(Event.any(this.onChange, this.onReset)(() => this._local = undefined));
 	}
 
+	private _local: IExtension[] | undefined;
 	get local(): IExtension[] {
-		const installing = this.installing
-			.filter(e => !this.installed.some(installed => areSameExtensions(installed.identifier, e.identifier)))
-			.map(e => e);
-
-		return [...this.installed, ...installing];
+		if (!this._local) {
+			this._local = [];
+			for (const extension of this.installed) {
+				this._local.push(extension);
+			}
+			for (const extension of this.installing) {
+				if (!this.installed.some(installed => areSameExtensions(installed.identifier, extension.identifier))) {
+					this._local.push(extension);
+				}
+			}
+		}
+		return this._local;
 	}
 
 	async queryInstalled(): Promise<IExtension[]> {
@@ -684,6 +693,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;
 	private readonly webExtensions: Extensions | null = null;
+	private readonly extensionsServers: Extensions[] = [];
+
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 
@@ -731,17 +742,25 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this.extensionsServers.push(this.localExtensions);
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this.extensionsServers.push(this.remoteExtensions);
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
 			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this.extensionsServers.push(this.webExtensions);
 		}
+
+		this._register(this.onChange(() => {
+			this._installed = undefined;
+			this._local = undefined;
+		}));
 
 		this.updatesCheckDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.UpdatesCheckInterval);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
@@ -820,37 +839,37 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		changedExtensions.forEach(e => this._onChange.fire(e));
 	}
 
+	private _local: IExtension[] | undefined;
 	get local(): IExtension[] {
-		const byId = groupByExtension(this.installed, r => r.identifier);
-		return byId.reduce((result, extensions) => { result.push(this.getPrimaryExtension(extensions)); return result; }, []);
+		if (!this._local) {
+			if (this.extensionsServers.length === 1) {
+				this._local = this.installed;
+			} else {
+				this._local = [];
+				const byId = groupByExtension(this.installed, r => r.identifier);
+				for (const extensions of byId) {
+					this._local.push(this.getPrimaryExtension(extensions));
+				}
+			}
+		}
+		return this._local;
 	}
 
+	private _installed: IExtension[] | undefined;
 	get installed(): IExtension[] {
-		const result = [];
-		if (this.localExtensions) {
-			result.push(...this.localExtensions.local);
+		if (!this._installed) {
+			this._installed = [];
+			for (const extensions of this.extensionsServers) {
+				for (const extension of extensions.local) {
+					this._installed.push(extension);
+				}
+			}
 		}
-		if (this.remoteExtensions) {
-			result.push(...this.remoteExtensions.local);
-		}
-		if (this.webExtensions) {
-			result.push(...this.webExtensions.local);
-		}
-		return result;
+		return this._installed;
 	}
 
 	get outdated(): IExtension[] {
-		const allLocal = [];
-		if (this.localExtensions) {
-			allLocal.push(...this.localExtensions.local);
-		}
-		if (this.remoteExtensions) {
-			allLocal.push(...this.remoteExtensions.local);
-		}
-		if (this.webExtensions) {
-			allLocal.push(...this.webExtensions.local);
-		}
-		return allLocal.filter(e => e.outdated && e.local && e.state === ExtensionState.Installed);
+		return this.installed.filter(e => e.outdated && e.local && e.state === ExtensionState.Installed);
 	}
 
 	async queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]> {
