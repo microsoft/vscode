@@ -200,6 +200,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private async doInitialScan(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		const externalRepositoriesConfig = config.get<'always' | 'never' | 'prompt'>('externalRepositories', 'prompt');
 
 		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
@@ -213,7 +214,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
-		if (this._externalRepositories.size !== 0) {
+		if (this._externalRepositories.size !== 0 && externalRepositoriesConfig === 'prompt') {
 			// External repositories notification
 			this.showExternalRepositoryNotification();
 		} else if (this._unsafeRepositories.size !== 0) {
@@ -409,6 +410,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
 		const enabled = config.get<boolean>('enabled') === true;
 
+
 		if (!enabled) {
 			this.logger.trace('Git is not enabled');
 			return;
@@ -444,12 +446,13 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			// Handle git repositories that are outside the workspace
 			const isRepositoryOutsideWorkspace = (workspace.workspaceFolders ?? [])
 				.find(f => pathEquals(f.uri.fsPath, repositoryRoot) || isDescendant(f.uri.fsPath, repositoryRoot)) === undefined;
+			const externalRepositoriesConfig = config.get<'always' | 'never' | 'prompt'>('externalRepositories', 'prompt');
 
-			if (isRepositoryOutsideWorkspace && this.externalRepositories.get(repositoryRoot) !== true) {
+			if (isRepositoryOutsideWorkspace && externalRepositoriesConfig !== 'always' && this.externalRepositories.get(repositoryRoot) !== true) {
 				this.logger.trace(`External repository: ${repositoryRoot}`);
 
 				// Show a notification if the external repository is opened after the initial repository scan
-				if (this.state === 'initialized' && !this._externalRepositories.has(repositoryRoot)) {
+				if (this.state === 'initialized' && externalRepositoriesConfig === 'prompt' && !this._externalRepositories.has(repositoryRoot)) {
 					this.showExternalRepositoryNotification();
 				}
 

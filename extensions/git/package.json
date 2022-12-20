@@ -2640,6 +2640,22 @@
           "tags": [
             "experimental"
           ]
+        },
+        "git.externalRepositories": {
+          "type": "string",
+          "enum": [
+            "always",
+            "never",
+            "prompt"
+          ],
+          "enumDescriptions": [
+            "%config.externalRepositories.always%",
+            "%config.externalRepositories.never%",
+            "%config.externalRepositories.prompt%"
+          ],
+          "default": "prompt",
+          "markdownDescription": "%config.externalRepositories%",
+          "scope": "resource"
         }
       }
     },
