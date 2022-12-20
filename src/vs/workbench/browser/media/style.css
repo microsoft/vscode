@@ -57,7 +57,6 @@ body.web {
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
-	color: var(--vscode-foreground);
 }
 
 .monaco-workbench.border:not(.fullscreen) {
@@ -139,11 +138,6 @@ body.web {
 
 .monaco-workbench .codicon[class*='codicon-'] {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
-}
-
-/* Icon defaults */
-.codicon {
-	color: var(--vscode-icon-foreground);
 }
 
 .monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
@@ -245,63 +239,3 @@ body.web {
 .monaco-workbench a.monaco-link:hover {
 	text-decoration: underline; /* render underline on hover for accessibility requirements */
 }
-
-/* Selection */
-.monaco-workbench ::selection {
-	background-color: var(--vscode-selection-background);
-}
-
-/* Input placeholder */
-.monaco-workbench input::placeholder,
-.monaco-workbench input::-webkit-input-placeholder,
-.monaco-workbench input::-moz-placeholder,
-.monaco-workbench textarea::placeholder,
-.monaco-workbench textarea::-webkit-input-placeholder,
-.monaco-workbench textarea::-moz-placeholder {
-	color: var(--vscode-input-placeholderForeground);
-}
-
-/* List highlight */
-.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
-	color: var(--vscode-list-highlightForeground);
-}
-
-/* List highlight w/ focus */
-.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
-	color: var(--vscode-list-focusHighlightForeground);
-}
-
-/* Focus outline */
-.monaco-workbench [tabindex="0"]:focus,
-.monaco-workbench [tabindex="-1"]:focus,
-.monaco-workbench .synthetic-focus,
-.monaco-workbench select:focus,
-.monaco-workbench .monaco-list:not(.element-focused):focus:before,
-.monaco-workbench input[type="button"]:focus,
-.monaco-workbench input[type="text"]:focus,
-.monaco-workbench button:focus,
-.monaco-workbench textarea:focus,
-.monaco-workbench input[type="search"]:focus,
-.monaco-workbench input[type="checkbox"]:focus {
-	outline-color: var(--vscode-focusBorder);
-}
-
-/* Action bars */
-.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover,
-.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
-.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
-	background-color: var(--vscode-toolbar-activeBackground);
-}
-
-.monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: -1px;
-}
-
-
-
-
