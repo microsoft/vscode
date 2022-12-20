@@ -26,7 +26,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	// A delay for collecting file changes from node.js
 	// before collecting them for coalescing and emitting
-	// (same delay as we are using for recursive watchers)
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
 
 	// Reduce likelyhood of spam from file events via throttling.
@@ -388,7 +387,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Coalesce events: merge events of same kind
 		const coalescedFileChanges = coalesceEvents(fileChanges);
-
 		if (coalescedFileChanges.length > 0) {
 
 			// Logging
