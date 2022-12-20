@@ -58,9 +58,9 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IRequestAddInstanceToGroupEvent, ITerminalQuickFixOptions, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { freePort, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
@@ -72,7 +72,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalQuickFix, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalQuickFixAddon, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -89,6 +89,8 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
+import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 const enum Constants {
 	/**
@@ -129,9 +131,12 @@ interface IGridDimensions {
 	rows: number;
 }
 
-const shellIntegrationSupportedShellTypes = [PosixShellType.Bash, PosixShellType.Zsh, PosixShellType.PowerShell, WindowsShellType.PowerShell];
-
-const scrollbarHeight = 5;
+const shellIntegrationSupportedShellTypes = [
+	PosixShellType.Bash,
+	PosixShellType.Zsh,
+	PosixShellType.PowerShell,
+	WindowsShellType.PowerShell
+];
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -142,7 +147,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly _processManager: ITerminalProcessManager;
 	private readonly _resource: URI;
-	private _shutdownPersistentProcessId: number | undefined;
 	// Enables disposal of the xterm onKey
 	// event when the CwdDetection capability
 	// is added
@@ -160,6 +164,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
+	private _aliases: string[][] | undefined;
 	private _shellType: TerminalShellType;
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
@@ -208,6 +213,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
+	private _lineDataEventAddon: LineDataEventAddon | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -216,7 +222,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Enables opening the contextual actions, if any, that are available
 	 * and registering of command finished listeners
 	 */
-	get quickFix(): ITerminalQuickFix | undefined { return this._quickFixAddon; }
+	get quickFix(): ITerminalQuickFixAddon | undefined { return this._quickFixAddon; }
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 
@@ -335,7 +341,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onData = this._onData.event;
 	private readonly _onBinary = this._register(new Emitter<string>());
 	readonly onBinary = this._onBinary.event;
-	private readonly _onLineData = this._register(new Emitter<string>());
+	private readonly _onLineData = this._register(new Emitter<string>({
+		onDidAddFirstListener: () => this._onLineDataSetup()
+	}));
 	readonly onLineData = this._onLineData.event;
 	private readonly _onRequestExtHostProcess = this._register(new Emitter<ITerminalInstance>());
 	readonly onRequestExtHostProcess = this._onRequestExtHostProcess.event;
@@ -364,8 +372,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -436,7 +444,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this._wrapperElement));
-		this._scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
 
@@ -457,6 +465,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._register(findWidget.focusTracker.onDidBlur(() => this._container?.classList.toggle('find-focused', false)));
 			if (this._container) {
 				this._container.appendChild(findWidget.getDomNode());
+			}
+			if (this._lastLayoutDimensions) {
+				findWidget.layout(this._lastLayoutDimensions.width);
 			}
 			return findWidget;
 		});
@@ -707,15 +718,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
-			height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0) - 2/* bottom padding */ - verticalPadding);
+			height + (this._hasScrollBar && !this._horizontalScrollbar ? -5/* scroll bar height */ : 0) - 2/* bottom padding */ - verticalPadding);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	set shutdownPersistentProcessId(shutdownPersistentProcessId: number | undefined) {
-		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
-	}
-	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
-	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
+	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
+	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.
@@ -728,12 +736,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
-		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this.capabilities);
+		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
-		this.registerQuickFixProvider(gitTwoDashes(), freePort(this));
+		this.registerQuickFixProvider(gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr());
 		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
-		const lineDataEventAddon = new LineDataEventAddon();
-		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
 		this.xterm.onDidRequestRunCommand(e => {
 			if (e.copyAsHtml) {
@@ -744,13 +750,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
-		if (this._shellLaunchConfig.initialText) {
-			this._writeInitialText(this.xterm, () => {
-				lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
-			});
-		} else {
-			lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
-		}
+		const initialTextWrittenPromise = this._shellLaunchConfig.initialText ? new Promise<void>(r => this._writeInitialText(xterm, r)) : undefined;
+		const lineDataEventAddon = new LineDataEventAddon(initialTextWrittenPromise);
+		lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
+		this._lineDataEventAddon = lineDataEventAddon;
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
 		setTimeout(() => {
@@ -818,6 +821,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		return xterm;
+	}
+
+	private async _onLineDataSetup(): Promise<void> {
+		const xterm = this.xterm || await this._xtermReadyPromise;
+		xterm.raw.loadAddon(this._lineDataEventAddon!);
 	}
 
 	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
@@ -1412,7 +1420,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
-				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
+				this._labelComputer = this._register(this._scopedInstantiationService.createInstance(TerminalLabelComputer, this._configHelper, this));
 				this._labelComputer.onDidChangeLabel(e => {
 					this._title = e.title;
 					this._description = e.description;
@@ -1841,7 +1849,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	updateAccessibilitySupport(): void {
 		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
-		if (isEnabled) {
+		if (isEnabled && this.xterm?.raw) {
 			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey, this._navigationModeActiveContextKey);
 			this.xterm!.raw.loadAddon(this._navigationModeAddon);
 		} else {
@@ -2480,6 +2488,7 @@ export class TerminalLabelComputer extends Disposable {
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
 		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
@@ -2528,7 +2537,15 @@ export class TerminalLabelComputer extends Disposable {
 			const cwdUri = URI.from({ scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file, path: this._instance.cwd });
 			// Multi-root workspaces always show cwdFolder to disambiguate them, otherwise only show
 			// when it differs from the workspace folder in which it was launched from
-			if (multiRootWorkspace || cwdUri.fsPath !== this._instance.workspaceFolder?.uri.fsPath) {
+			let showCwd = false;
+			if (multiRootWorkspace) {
+				showCwd = true;
+			} else if (this._instance.workspaceFolder?.uri) {
+				const caseSensitive = this._fileService.hasCapability(this._instance.workspaceFolder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
+				showCwd = cwdUri.fsPath.localeCompare(this._instance.workspaceFolder.uri.fsPath, undefined, { sensitivity: caseSensitive ? 'case' : 'base' }) !== 0;
+			}
+			if (showCwd) {
+
 				templateProperties.cwdFolder = path.basename(templateProperties.cwd);
 			}
 		}

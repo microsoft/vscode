@@ -8,7 +8,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IProfileResource, IProfileResourceTreeItem } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
@@ -83,10 +83,11 @@ export class SettingsResource implements IProfileResource {
 
 export class SettingsResourceTreeItem implements IProfileResourceTreeItem {
 
+	readonly type = ProfileResourceType.Settings;
 	readonly handle = this.profile.settingsResource.toString();
 	readonly label = { label: localize('settings', "Settings") };
 	readonly collapsibleState = TreeItemCollapsibleState.None;
-	checkbox: ITreeItemCheckboxState | undefined = { isChecked: true };
+	checkbox: ITreeItemCheckboxState = { isChecked: true };
 	readonly command = {
 		id: API_OPEN_EDITOR_COMMAND_ID,
 		title: '',

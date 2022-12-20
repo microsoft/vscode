@@ -443,7 +443,8 @@ export class PtyService extends Disposable implements IPtyService {
 			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
-			type: persistentProcess.shellLaunchConfig.type
+			type: persistentProcess.shellLaunchConfig.type,
+			hasChildProcesses: persistentProcess.hasChildProcesses
 		};
 	}
 
@@ -465,7 +466,7 @@ const enum InteractionState {
 	Session = 'Session'
 }
 
-export class PersistentTerminalProcess extends Disposable {
+class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _autoReplies: Map<string, TerminalAutoResponder> = new Map();
@@ -513,6 +514,7 @@ export class PersistentTerminalProcess extends Disposable {
 	get icon(): TerminalIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
 	get fixedDimensions(): IFixedTerminalDimensions | undefined { return this._fixedDimensions; }
+	get hasChildProcesses(): boolean { return this._terminalProcess.hasChildProcesses; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
 		if (titleSource === TitleEventSource.Api) {
@@ -951,7 +953,7 @@ function printTime(ms: number): string {
 	return `${_h}${_m}${_s}${_ms}`;
 }
 
-export interface ITerminalSerializer {
+interface ITerminalSerializer {
 	handleData(data: string): void;
 	freeRawReviveBuffer(): void;
 	handleResize(cols: number, rows: number): void;

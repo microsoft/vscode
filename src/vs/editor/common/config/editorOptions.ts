@@ -97,9 +97,9 @@ export interface IEditorOptions {
 	cursorSurroundingLinesStyle?: 'default' | 'all';
 	/**
 	 * Render last line number when the file ends with a newline.
-	 * Defaults to true.
+	 * Defaults to 'on' for Windows and macOS and 'dimmed' for Linux.
 	*/
-	renderFinalNewline?: boolean;
+	renderFinalNewline?: 'on' | 'off' | 'dimmed';
 	/**
 	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * Defaults to 'prompt'.
@@ -214,9 +214,9 @@ export interface IEditorOptions {
 	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
 	 * Enable smooth caret animation.
-	 * Defaults to false.
+	 * Defaults to 'off'.
 	 */
-	cursorSmoothCaretAnimation?: boolean;
+	cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -231,6 +231,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	fontLigatures?: boolean | string;
+	/**
+	 * Enable font variations.
+	 * Defaults to false.
+	 */
+	fontVariations?: boolean | string;
 	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -312,6 +317,12 @@ export interface IEditorOptions {
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
+	 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+	 * When wordBreak = 'normal', Use the default line break rule.
+	 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+	 */
+	wordBreak?: 'normal' | 'keepAll';
+	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
 	 * Use -1 to never stop rendering
@@ -330,6 +341,10 @@ export interface IEditorOptions {
 	 * Enable inline color decorators and color picker rendering.
 	 */
 	colorDecorators?: boolean;
+	/**
+	 * Controls the max number of color decorators that can be rendered in an editor at once.
+	 */
+	colorDecoratorsLimit?: number;
 	/**
 	 * Control the behaviour of comments in the editor.
 	 */
@@ -374,6 +389,10 @@ export interface IEditorOptions {
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
+	/**
+	 * Controls the max number of text cursors that can be in an active editor at once.
+	 */
+	multiCursorLimit?: number;
 	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
@@ -579,6 +598,11 @@ export interface IEditorOptions {
 	 */
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
+	 * Enable experimental whitespace rendering.
+	 * Defaults to 'svg'.
+	 */
+	experimentalWhitespaceRendering?: 'svg' | 'font' | 'off';
+	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to 'selection'.
 	 */
@@ -605,7 +629,7 @@ export interface IEditorOptions {
 	/**
 	 * The font family
 	 */
-	fontFamily?: string | string[];
+	fontFamily?: string;
 	/**
 	 * The font weight
 	 */
@@ -1178,13 +1202,13 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
-					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached"),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader"),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached"),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -1455,7 +1479,7 @@ export interface IEditorFindOptions {
 	 */
 	globalFindClipboard?: boolean;
 	/**
-	 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
 }
@@ -1601,39 +1625,61 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 
 //#endregion
 
-//#region fontFamily
+//#region fontVariations
+
 /**
  * @internal
  */
-export class EditorFontFamily extends BaseEditorOption<EditorOption.fontFamily, string | string[], string> {
+export class EditorFontVariations extends BaseEditorOption<EditorOption.fontVariations, boolean | string, string> {
+	// Text is laid out using default settings.
+	public static OFF = 'normal';
+
+	// Translate `fontWeight` config to the `font-variation-settings` CSS property.
+	public static TRANSLATE = 'translate';
+
 	constructor() {
 		super(
-			EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
+			EditorOption.fontVariations, 'fontVariations', EditorFontVariations.OFF,
 			{
 				anyOf: [
 					{
-						type: 'string',
+						type: 'boolean',
+						description: nls.localize('fontVariations', "Enables/Disables the translation from font-weight to font-variation-settings. Change this to a string for fine-grained control of the 'font-variation-settings' CSS property."),
 					},
 					{
-						type: 'array',
-						items: {
-							type: 'string',
-						},
+						type: 'string',
+						description: nls.localize('fontVariationSettings', "Explicit 'font-variation-settings' CSS property. A boolean can be passed instead if one only needs to translate font-weight to font-variation-settings.")
 					}
 				],
-				description: nls.localize('fontFamily', "Controls the font family."),
-				default: EDITOR_FONT_DEFAULTS.fontFamily
+				description: nls.localize('fontVariationsGeneral', "Configures font variations. Can be either a boolean to enable/disable the translation from font-weight to font-variation-settings or a string for the value of the CSS 'font-variation-settings' property."),
+				default: false
 			}
 		);
 	}
+
 	public validate(input: any): string {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
 		if (typeof input === 'string') {
+			if (input === 'false') {
+				return EditorFontVariations.OFF;
+			}
+			if (input === 'true') {
+				return EditorFontVariations.TRANSLATE;
+			}
 			return input;
 		}
-		if (Array.isArray(input) && input.length > 0) {
-			return input.map((f: string) => { return JSON.stringify(f); }).join(',');
+		if (Boolean(input)) {
+			return EditorFontVariations.TRANSLATE;
 		}
-		return this.defaultValue;
+		return EditorFontVariations.OFF;
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
+		// The value is computed from the fontWeight if it is true.
+		// So take the result from env.fontInfo
+		return env.fontInfo.fontVariationSettings;
 	}
 }
 
@@ -2133,6 +2179,8 @@ export interface IMinimapLayoutInput {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly pixelRatio: number;
 	readonly scrollBeyondLastLine: boolean;
+	readonly paddingTop: number;
+	readonly paddingBottom: number;
 	readonly minimap: Readonly<Required<IEditorMinimapOptions>>;
 	readonly verticalScrollbarWidth: number;
 	readonly viewLineCount: number;
@@ -2167,15 +2215,21 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	public static computeContainedMinimapLineCount(input: {
 		viewLineCount: number;
 		scrollBeyondLastLine: boolean;
+		paddingTop: number;
+		paddingBottom: number;
 		height: number;
 		lineHeight: number;
 		pixelRatio: number;
-	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
+	}): { typicalViewportLineCount: number; extraLinesBeforeFirstLine: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
 		const typicalViewportLineCount = input.height / input.lineHeight;
-		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
-		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
+		const extraLinesBeforeFirstLine = Math.floor(input.paddingTop / input.lineHeight);
+		let extraLinesBeyondLastLine = Math.floor(input.paddingBottom / input.lineHeight);
+		if (input.scrollBeyondLastLine) {
+			extraLinesBeyondLastLine = Math.max(extraLinesBeyondLastLine, typicalViewportLineCount - 1);
+		}
+		const desiredRatio = (extraLinesBeforeFirstLine + input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
 		const minimapLineCount = Math.floor(input.viewLineCount / desiredRatio);
-		return { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
+		return { typicalViewportLineCount, extraLinesBeforeFirstLine, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
 	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
@@ -2209,6 +2263,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			&& input.typicalHalfwidthCharacterWidth === stableMinimapLayoutInput.typicalHalfwidthCharacterWidth
 			&& input.pixelRatio === stableMinimapLayoutInput.pixelRatio
 			&& input.scrollBeyondLastLine === stableMinimapLayoutInput.scrollBeyondLastLine
+			&& input.paddingTop === stableMinimapLayoutInput.paddingTop
+			&& input.paddingBottom === stableMinimapLayoutInput.paddingBottom
 			&& input.minimap.enabled === stableMinimapLayoutInput.minimap.enabled
 			&& input.minimap.side === stableMinimapLayoutInput.minimap.side
 			&& input.minimap.size === stableMinimapLayoutInput.minimap.size
@@ -2245,9 +2301,11 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let minimapWidthMultiplier: number = 1;
 
 		if (minimapSize === 'fill' || minimapSize === 'fit') {
-			const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+			const { typicalViewportLineCount, extraLinesBeforeFirstLine, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 				viewLineCount: viewLineCount,
 				scrollBeyondLastLine: scrollBeyondLastLine,
+				paddingTop: input.paddingTop,
+				paddingBottom: input.paddingBottom,
 				height: outerHeight,
 				lineHeight: lineHeight,
 				pixelRatio: pixelRatio
@@ -2267,7 +2325,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				let maxMinimapScale = minimapScale + 1;
 
 				if (minimapSize === 'fit') {
-					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					const effectiveMinimapHeight = Math.ceil((extraLinesBeforeFirstLine + viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 					if (isViewportWrapping && couldUseMemory && remainingWidth <= memory.stableFitRemainingWidth) {
 						// There is a loop when using `fit` and viewport wrapping:
 						// - view line count impacts minimap layout
@@ -2298,7 +2356,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 						minimapWidthMultiplier = Math.min(2, minimapScale / configuredMinimapScale);
 					}
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
-					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, extraLinesBeforeFirstLine + viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
 					if (isViewportWrapping) {
 						// remember for next time
 						memory.stableMinimapLayoutInput = input;
@@ -2371,6 +2429,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
 		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars);
 		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
+		const padding = options.get(EditorOption.padding);
 		const minimap = options.get(EditorOption.minimap);
 
 		const scrollbar = options.get(EditorOption.scrollbar);
@@ -2379,17 +2438,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const scrollbarArrowSize = scrollbar.arrowSize;
 		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize;
 
-		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
 		const showFoldingDecoration = options.get(EditorOption.showFoldingControls) !== 'never';
 
-		let lineDecorationsWidth: number;
-		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
-			const multiple = parseFloat(rawLineDecorationsWidth.substr(0, rawLineDecorationsWidth.length - 2));
-			lineDecorationsWidth = EditorIntOption.clampedInt(multiple * typicalHalfwidthCharacterWidth, 0, 0, 1000);
-		} else {
-			lineDecorationsWidth = EditorIntOption.clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
-		}
+		let lineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		if (folding && showFoldingDecoration) {
 			lineDecorationsWidth += 16;
 		}
@@ -2433,6 +2485,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacterWidth,
 			pixelRatio: pixelRatio,
 			scrollBeyondLastLine: scrollBeyondLastLine,
+			paddingTop: padding.top,
+			paddingBottom: padding.bottom,
 			minimap: minimap,
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			viewLineCount: viewLineCount,
@@ -2728,6 +2782,35 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding)
 		};
+	}
+}
+
+//#endregion
+
+//#region lineDecorationsWidth
+
+class EditorLineDecorationsWidth extends BaseEditorOption<EditorOption.lineDecorationsWidth, number | string, number> {
+
+	constructor() {
+		super(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10);
+	}
+
+	public validate(input: any): number {
+		if (typeof input === 'string' && /^\d+(\.\d+)?ch$/.test(input)) {
+			const multiple = parseFloat(input.substring(0, input.length - 2));
+			return -multiple; // negative numbers signal a multiple
+		} else {
+			return EditorIntOption.clampedInt(input, this.defaultValue, 0, 1000);
+		}
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		if (value < 0) {
+			// negative numbers signal a multiple
+			return EditorIntOption.clampedInt(-value * env.fontInfo.typicalHalfwidthCharacterWidth, this.defaultValue, 0, 1000);
+		} else {
+			return value;
+		}
 	}
 }
 
@@ -4180,6 +4263,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: defaults.shareSuggestSelections,
 					markdownDescription: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`).")
 				},
+				'editor.suggest.selectQuickSuggestions': {
+					type: 'boolean',
+					default: defaults.selectQuickSuggestions,
+					markdownDescription: nls.localize('suggest.selectQuickSuggestions', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters.")
+				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
@@ -4668,6 +4756,7 @@ export const enum EditorOption {
 	codeLensFontFamily,
 	codeLensFontSize,
 	colorDecorators,
+	colorDecoratorsLimit,
 	columnSelection,
 	comments,
 	contextmenu,
@@ -4684,6 +4773,7 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
+	experimentalWhitespaceRendering,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -4699,6 +4789,7 @@ export const enum EditorOption {
 	fontLigatures,
 	fontSize,
 	fontWeight,
+	fontVariations,
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
@@ -4723,6 +4814,7 @@ export const enum EditorOption {
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
 	multiCursorPaste,
+	multiCursorLimit,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -4769,6 +4861,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	wordBreak,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -4927,6 +5020,12 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	colorDecoratorsLimit: register(new EditorIntOption(
+		EditorOption.colorDecoratorsLimit, 'colorDecoratorsLimit', 500, 1, 1000000,
+		{
+			markdownDescription: nls.localize('colorDecoratorsLimit', "Controls the max number of color decorators that can be rendered in an editor at once.")
+		}
+	)),
 	columnSelection: register(new EditorBooleanOption(
 		EditorOption.columnSelection, 'columnSelection', false,
 		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
@@ -4946,9 +5045,18 @@ export const EditorOptions = {
 		_cursorBlinkingStyleFromString,
 		{ description: nls.localize('cursorBlinking', "Control the cursor animation style.") }
 	)),
-	cursorSmoothCaretAnimation: register(new EditorBooleanOption(
-		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false,
-		{ description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.") }
+	cursorSmoothCaretAnimation: register(new EditorStringEnumOption(
+		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation',
+		'off' as 'off' | 'explicit' | 'on',
+		['off', 'explicit', 'on'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('cursorSmoothCaretAnimation.off', "Smooth caret animation is disabled."),
+				nls.localize('cursorSmoothCaretAnimation.explicit', "Smooth caret animation is enabled only when the user moves the cursor with an explicit gesture."),
+				nls.localize('cursorSmoothCaretAnimation.on', "Smooth caret animation is always enabled.")
+			],
+			description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.")
+		}
 	)),
 	cursorStyle: register(new EditorEnumOption(
 		EditorOption.cursorStyle, 'cursorStyle',
@@ -4960,7 +5068,7 @@ export const EditorOptions = {
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
+		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading lines (minimum 0) and trailing lines (minimum 1) surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
 	)),
 	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
 		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
@@ -4995,6 +5103,19 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
+		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
+		'svg' as 'svg' | 'font' | 'off',
+		['svg', 'font', 'off'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('experimentalWhitespaceRendering.svg', "Use a new rendering method with svgs."),
+				nls.localize('experimentalWhitespaceRendering.font', "Use a new rendering method with font characters."),
+				nls.localize('experimentalWhitespaceRendering.off', "Use the stable rendering method."),
+			],
+			description: nls.localize('experimentalWhitespaceRendering', "Controls whether whitespace is rendered with a new, experimental method.")
+		}
+	)),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
@@ -5040,11 +5161,15 @@ export const EditorOptions = {
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
 		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
 	)),
-	fontFamily: register(new EditorFontFamily()),
+	fontFamily: register(new EditorStringOption(
+		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
+		{ description: nls.localize('fontFamily', "Controls the font family.") }
+	)),
 	fontInfo: register(new EditorFontInfo()),
 	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
 	fontWeight: register(new EditorFontWeight()),
+	fontVariations: register(new EditorFontVariations()),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,
 		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
@@ -5072,7 +5197,7 @@ export const EditorOptions = {
 		{ description: nls.localize('letterSpacing', "Controls the letter spacing in pixels.") }
 	)),
 	lightbulb: register(new EditorLightbulb()),
-	lineDecorationsWidth: register(new SimpleEditorOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10 as number | string)),
+	lineDecorationsWidth: register(new EditorLineDecorationsWidth()),
 	lineHeight: register(new EditorLineHeight()),
 	lineNumbers: register(new EditorRenderLineNumbersOption()),
 	lineNumbersMinChars: register(new EditorIntOption(
@@ -5143,6 +5268,12 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
 		}
 	)),
+	multiCursorLimit: register(new EditorIntOption(
+		EditorOption.multiCursorLimit, 'multiCursorLimit', 10000, 1, 100000,
+		{
+			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
+		}
+	)),
 	occurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
 		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
@@ -5190,8 +5321,10 @@ export const EditorOptions = {
 		EditorOption.renderControlCharacters, 'renderControlCharacters', true,
 		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters."), restricted: true }
 	)),
-	renderFinalNewline: register(new EditorBooleanOption(
-		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
+	renderFinalNewline: register(new EditorStringEnumOption(
+		EditorOption.renderFinalNewline, 'renderFinalNewline',
+		(platform.isLinux ? 'dimmed' : 'on') as 'off' | 'on' | 'dimmed',
+		['off', 'on', 'dimmed'] as const,
 		{ description: nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.") }
 	)),
 	renderLineHighlight: register(new EditorStringEnumOption(
@@ -5380,6 +5513,18 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+	)),
+	wordBreak: register(new EditorStringEnumOption(
+		EditorOption.wordBreak, 'wordBreak',
+		'normal' as 'normal' | 'keepAll',
+		['normal', 'keepAll'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('wordBreak.normal', "Use the default line break rule."),
+				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
+			],
+			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
+		}
 	)),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,

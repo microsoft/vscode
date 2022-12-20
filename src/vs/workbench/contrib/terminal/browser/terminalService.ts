@@ -103,6 +103,8 @@ export class TerminalService implements ITerminalService {
 		return this._activeInstance;
 	}
 
+	private _editingTerminal: ITerminalInstance | undefined;
+
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
@@ -629,18 +631,14 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			for (const instance of this.instances) {
+			for (const instance of this._terminalGroupService.instances) {
 				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			}
 			return;
 		}
 
-		// Force dispose of all terminal instances
-		const shouldPersistTerminalsForEvent = this._shouldReviveProcesses(e.reason);
-		for (const instance of this.instances) {
-			if (shouldPersistTerminalsForEvent) {
-				instance.shutdownPersistentProcessId = instance.persistentProcessId;
-			}
+		// Force dispose of all pane terminal instances
+		for (const instance of this._terminalGroupService.instances) {
 			instance.dispose(TerminalExitReason.Shutdown);
 		}
 
@@ -976,7 +974,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel, options?.resource);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -1052,8 +1050,7 @@ export class TerminalService implements ITerminalService {
 		let instance;
 		const editorOptions = this._getEditorOptions(options?.location);
 		if (location === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-			instance.target = TerminalLocation.Editor;
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor, options?.resource);
 			this._terminalEditorService.openEditor(instance, editorOptions);
 		} else {
 			// TODO: pass resource?
@@ -1132,6 +1129,14 @@ export class TerminalService implements ITerminalService {
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalGroupService.setContainer(terminalContainer);
+	}
+
+	getEditingTerminal(): ITerminalInstance | undefined {
+		return this._editingTerminal;
+	}
+
+	setEditingTerminal(instance: ITerminalInstance | undefined) {
+		this._editingTerminal = instance;
 	}
 }
 

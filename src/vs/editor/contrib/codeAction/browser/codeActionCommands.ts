@@ -128,8 +128,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._ui.getValue().update(newState);
 	}
 
-	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false, fromLightbulb: false });
+	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
+		return this._ui.getValue().showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
 	public manualTriggerAtCurrentPosition(

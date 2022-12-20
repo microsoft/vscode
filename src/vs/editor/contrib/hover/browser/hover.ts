@@ -7,7 +7,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
@@ -315,7 +315,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ModesHoverController.ID, ModesHoverController);
+registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);

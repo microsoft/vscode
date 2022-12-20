@@ -24,7 +24,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor() {
 	}
 
-	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
+	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {
@@ -33,13 +33,13 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				injectedTexts.push(injectedText);
 			},
 			finalize: () => {
-				return createLineBreaks(requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, injectedTexts);
+				return createLineBreaks(requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, injectedTexts);
 			}
 		};
 	}
 }
 
-function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
+function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -129,7 +129,15 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 
 	containerDomNode.style.position = 'absolute';
 	containerDomNode.style.top = '10000';
-	containerDomNode.style.wordWrap = 'break-word';
+	if (wordBreak === 'keepAll') {
+		// word-break: keep-all; overflow-wrap: anywhere
+		containerDomNode.style.wordBreak = 'keep-all';
+		containerDomNode.style.overflowWrap = 'anywhere';
+	} else {
+		// overflow-wrap: break-word
+		containerDomNode.style.wordBreak = 'inherit';
+		containerDomNode.style.overflowWrap = 'break-word';
+	}
 	document.body.appendChild(containerDomNode);
 
 	const range = document.createRange();

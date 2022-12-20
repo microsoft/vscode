@@ -621,4 +621,47 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(actual, viewsCustomizations);
 	});
 
+	test('storage change also updates locations even if views do not exists and views are registered later', async function () {
+		const storageService = instantiationService.get(IStorageService);
+		const testObject = aViewDescriptorService();
+
+		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)}.${generateUuid()}`;
+		const viewsCustomizations = {
+			viewContainerLocations: {
+				[generateViewContainerId]: ViewContainerLocation.AuxiliaryBar,
+			},
+			viewLocations: {
+				'view1': generateViewContainerId
+			}
+		};
+		storageService.store('views.customizations', JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
+
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			}
+		];
+		ViewsRegistry.registerViews(viewDescriptors, viewContainer);
+
+		testObject.onDidRegisterExtensions();
+
+		const viewContainer1Views = testObject.getViewContainerModel(viewContainer);
+		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view2']);
+
+		const generateViewContainer = testObject.getViewContainerById(generateViewContainerId)!;
+		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.AuxiliaryBar);
+		const generatedViewContainerModel = testObject.getViewContainerModel(generateViewContainer);
+		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), ['view1']);
+	});
+
 });

@@ -88,6 +88,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/vie
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
+import 'vs/workbench/contrib/notebook/browser/contrib/kernelDetection/notebookKernelDetection';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -898,7 +899,7 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.outputLineHeight]: {
 			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
-			default: 22,
+			default: 19,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {

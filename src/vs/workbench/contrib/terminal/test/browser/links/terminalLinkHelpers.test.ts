@@ -31,6 +31,16 @@ suite('Workbench - Terminal Link Helpers', () => {
 				end: { x: 7 + 1, y: 2 }
 			});
 		});
+		test('should give correct range for links containing multi-character emoji', () => {
+			const lines = createBufferLineArray([
+				{ text: 'A🙂 http://', width: 11 }
+			]);
+			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 0 + 1, startLineNumber: 1, endColumn: 2 + 1, endLineNumber: 1 }, 0);
+			assert.deepStrictEqual(bufferRange, {
+				start: { x: 1, y: 1 },
+				end: { x: 2, y: 1 }
+			});
+		});
 		test('should convert ranges for combining characters before the link', () => {
 			const lines = createBufferLineArray([
 				{ text: 'A🙂 http://', width: 11 },
@@ -38,8 +48,8 @@ suite('Workbench - Terminal Link Helpers', () => {
 			]);
 			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 4 + 1, startLineNumber: 1, endColumn: 19 + 1, endLineNumber: 1 }, 0);
 			assert.deepStrictEqual(bufferRange, {
-				start: { x: 4, y: 1 },
-				end: { x: 7, y: 2 }
+				start: { x: 6, y: 1 },
+				end: { x: 9, y: 2 }
 			});
 		});
 		test('should convert ranges for wide characters inside the link', () => {
@@ -64,15 +74,15 @@ suite('Workbench - Terminal Link Helpers', () => {
 				end: { x: 7 + 2, y: 2 }
 			});
 		});
-		test('should convert ranges for emoji before before and wide inside the link', () => {
+		test('should convert ranges for emoji before and wide inside the link', () => {
 			const lines = createBufferLineArray([
 				{ text: 'A🙂 http://', width: 11 },
 				{ text: 't.com/文/', width: 9 }
 			]);
 			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 4 + 1, startLineNumber: 1, endColumn: 19 + 1, endLineNumber: 1 }, 0);
 			assert.deepStrictEqual(bufferRange, {
-				start: { x: 4, y: 1 },
-				end: { x: 7 + 1, y: 2 }
+				start: { x: 6, y: 1 },
+				end: { x: 10 + 1, y: 2 }
 			});
 		});
 		test('should convert ranges for ascii characters (link starts on wrapped)', () => {
@@ -99,6 +109,38 @@ suite('Workbench - Terminal Link Helpers', () => {
 				end: { x: 7 + 1, y: 3 }
 			});
 		});
+		test('regression test #147619: 获取模板 25235168 的预览图失败', () => {
+			const lines = createBufferLineArray([
+				{ text: '获取模板 25235168 的预览图失败', width: 30 }
+			]);
+			assert.deepStrictEqual(convertLinkRangeToBuffer(lines, 30, {
+				startColumn: 1,
+				startLineNumber: 1,
+				endColumn: 5,
+				endLineNumber: 1
+			}, 0), {
+				start: { x: 1, y: 1 },
+				end: { x: 8, y: 1 }
+			});
+			assert.deepStrictEqual(convertLinkRangeToBuffer(lines, 30, {
+				startColumn: 6,
+				startLineNumber: 1,
+				endColumn: 14,
+				endLineNumber: 1
+			}, 0), {
+				start: { x: 10, y: 1 },
+				end: { x: 17, y: 1 }
+			});
+			assert.deepStrictEqual(convertLinkRangeToBuffer(lines, 30, {
+				startColumn: 15,
+				startLineNumber: 1,
+				endColumn: 21,
+				endLineNumber: 1
+			}, 0), {
+				start: { x: 19, y: 1 },
+				end: { x: 30, y: 1 }
+			});
+		});
 		test('should convert ranges for wide characters inside the link (link starts on wrapped)', () => {
 			const lines = createBufferLineArray([
 				{ text: 'AAAAAAAAAAA', width: 11 },
@@ -111,7 +153,7 @@ suite('Workbench - Terminal Link Helpers', () => {
 				end: { x: 7 + 1, y: 3 }
 			});
 		});
-		test('should convert ranges for wide characters before and inside the link', () => {
+		test('should convert ranges for wide characters before and inside the link #2', () => {
 			const lines = createBufferLineArray([
 				{ text: 'AAAAAAAAAAA', width: 11 },
 				{ text: 'A文 http://', width: 11 },
@@ -130,10 +172,10 @@ suite('Workbench - Terminal Link Helpers', () => {
 				{ text: '://t.com/f/', width: 11 }
 			]);
 			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 15, startLineNumber: 1, endColumn: 30, endLineNumber: 1 }, 0);
-			// This test ensures that the start offset is applies to the end before it's counted
+			// This test ensures that the start offset is applied to the end before it's counted
 			assert.deepStrictEqual(bufferRange, {
-				start: { x: 4 + 4, y: 2 },
-				end: { x: 7 + 4, y: 3 }
+				start: { x: 3 + 4, y: 2 },
+				end: { x: 6 + 4, y: 3 }
 			});
 		});
 		test('should convert ranges for several wide characters before and inside the link', () => {
@@ -143,11 +185,11 @@ suite('Workbench - Terminal Link Helpers', () => {
 				{ text: '://t.com/文', width: 11 },
 				{ text: '文/', width: 3 }
 			]);
-			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 15, startLineNumber: 1, endColumn: 31, endLineNumber: 1 }, 0);
+			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 14, startLineNumber: 1, endColumn: 31, endLineNumber: 1 }, 0);
 			// This test ensures that the start offset is applies to the end before it's counted
 			assert.deepStrictEqual(bufferRange, {
-				start: { x: 4 + 4, y: 2 },
-				end: { x: 2, y: 4 }
+				start: { x: 5, y: 2 },
+				end: { x: 1, y: 4 }
 			});
 		});
 	});
@@ -188,7 +230,7 @@ class TestBufferLine implements IBufferLine {
 				char += '\ude42';
 			}
 			cells.push(char);
-			if (this._text.charAt(i) === TEST_WIDE_CHAR) {
+			if (this._text.charAt(i) === TEST_WIDE_CHAR || char.charCodeAt(0) > 255) {
 				// Skip the next character as it's width is 0
 				cells.push(TEST_NULL_CHAR);
 				wideNullCellOffset++;
@@ -202,7 +244,13 @@ class TestBufferLine implements IBufferLine {
 				switch (cells[x]) {
 					case TEST_WIDE_CHAR: return 2;
 					case TEST_NULL_CHAR: return 0;
-					default: return 1;
+					default: {
+						// Naive measurement, assume anything our of ascii in tests are wide
+						if (cells[x].charCodeAt(0) > 255) {
+							return 2;
+						}
+						return 1;
+					}
 				}
 			}
 		} as any;

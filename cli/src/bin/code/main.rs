@@ -157,12 +157,7 @@ async fn start_code(context: CommandContext, args: Vec<String>) -> Result<i32, A
 		.args(args)
 		.status()
 		.map(|s| s.code().unwrap_or(1))
-		.map_err(|e| {
-			wrap(
-				e,
-				format!("error running VS Code from {}", binary.display()),
-			)
-		})?;
+		.map_err(|e| wrap(e, format!("error running editor from {}", binary.display())))?;
 
 	Ok(code)
 }

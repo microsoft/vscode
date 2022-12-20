@@ -185,6 +185,10 @@ export class ToolBar extends Disposable {
 		});
 	}
 
+	isEmpty(): boolean {
+		return this.actionBar.isEmpty();
+	}
+
 	private getKeybindingLabel(action: IAction): string | undefined {
 		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 

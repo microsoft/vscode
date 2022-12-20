@@ -697,6 +697,7 @@ export class MimeTypeDisplayOrder {
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 
@@ -926,7 +927,8 @@ export const NotebookSetting = {
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
 	outputFontFamily: 'notebook.outputFontFamily',
-	kernelPickerType: 'notebook.kernelPicker.type'
+	kernelPickerType: 'notebook.kernelPicker.type',
+	outputScrolling: 'notebook.experimental.outputScrolling',
 } as const;
 
 export const enum CellStatusbarAlignment {

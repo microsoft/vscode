@@ -13,7 +13,7 @@ import * as types from 'vs/base/common/types';
 import 'vs/css!./folding';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -29,9 +29,7 @@ import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRan
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { editorSelectionBackground, iconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { foldingCollapsedIcon, FoldingDecorationProvider, foldingExpandedIcon, foldingManualCollapsedIcon, foldingManualExpandedIcon } from './foldingDecorations';
+import { FoldingDecorationProvider } from './foldingDecorations';
 import { FoldingRegion, FoldingRegions, FoldRange, FoldSource, ILineRange } from './foldingRanges';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -1087,8 +1085,8 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.createFoldingRangeFromSelection',
-			label: nls.localize('createManualFoldRange.label', "Create Manual Folding Range from Selection"),
-			alias: 'Create Manual Folding Range from Selection',
+			label: nls.localize('createManualFoldRange.label', "Create Folding Range from Selection"),
+			alias: 'Create Folding Range from Selection',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1165,7 +1163,7 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 }
 
 
-registerEditorContribution(FoldingController.ID, FoldingController);
+registerEditorContribution(FoldingController.ID, FoldingController, EditorContributionInstantiation.Eager); // eager because it uses `saveViewState`/`restoreViewState`
 registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);
@@ -1199,25 +1197,3 @@ for (let i = 1; i <= 7; i++) {
 		})
 	);
 }
-
-export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
-export const editorFoldForeground = registerColor('editorGutter.foldingControlForeground', { dark: iconForeground, light: iconForeground, hcDark: iconForeground, hcLight: iconForeground }, nls.localize('editorGutter.foldingControlForeground', 'Color of the folding control in the editor gutter.'));
-
-registerThemingParticipant((theme, collector) => {
-	const foldBackground = theme.getColor(foldBackgroundBackground);
-	if (foldBackground) {
-		collector.addRule(`.monaco-editor .folded-background { background-color: ${foldBackground}; }`);
-	}
-
-	const editorFoldColor = theme.getColor(editorFoldForeground);
-	if (editorFoldColor) {
-		collector.addRule(`
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingExpandedIcon)},
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingCollapsedIcon)},
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingManualExpandedIcon)},
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingManualCollapsedIcon)} {
-			color: ${editorFoldColor} !important;
-		}
-		`);
-	}
-});

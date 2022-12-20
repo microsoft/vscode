@@ -74,10 +74,7 @@ const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
-	/**
-	 * External identifier of this webview.
-	 */
-	public readonly id: string;
+	protected readonly id = generateUuid();
 
 	/**
 	 * The provided identifier of this webview.
@@ -88,11 +85,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 * The origin this webview itself is loaded from. May not be unique
 	 */
 	public readonly origin: string;
-
-	/**
-	 * Unique internal identifier of this webview's iframe element.
-	 */
-	private readonly _iframeId: string;
 
 	private readonly _encodedWebviewOriginPromise: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
@@ -164,10 +156,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	) {
 		super();
 
-		this.id = initInfo.id;
 		this.providedViewType = initInfo.providedViewType;
-		this._iframeId = generateUuid();
-		this.origin = initInfo.origin ?? this._iframeId;
+		this.origin = initInfo.origin ?? this.id;
 
 		this._encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 
@@ -190,7 +180,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 
 		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
-			if (!this._encodedWebviewOrigin || e?.data?.target !== this._iframeId) {
+			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
 
@@ -458,7 +448,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private _initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
-			id: this._iframeId,
+			id: this.id,
 			origin: this.origin,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
@@ -485,28 +475,30 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
-	public mountTo(_stopBlockingIframeDragEvents: HTMLElement) {
+	public mountTo(element: HTMLElement) {
 		if (!this.element) {
 			return;
 		}
 
 		if (this._webviewFindWidget) {
-			_stopBlockingIframeDragEvents.appendChild(this._webviewFindWidget.getDomNode());
+			element.appendChild(this._webviewFindWidget.getDomNode());
 		}
 
 		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
-			this._register(addDisposableListener(_stopBlockingIframeDragEvents, eventName, () => {
+			this._register(addDisposableListener(element, eventName, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
-		for (const node of [_stopBlockingIframeDragEvents, window]) {
+		for (const node of [element, window]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
-		_stopBlockingIframeDragEvents.appendChild(this.element);
+		element.id = this.id; // This is used by aria-flow for accessibility order
+
+		element.appendChild(this.element);
 	}
 
 	private _startBlockingIframeDragEvents() {

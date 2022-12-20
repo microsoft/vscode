@@ -380,7 +380,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
+	protected override createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
@@ -455,7 +455,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return null;
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentContainer = append(parent, $('.content'));
 
 		this.progressBar = this._register(new ProgressBar(contentContainer, defaultProgressBarStyles));

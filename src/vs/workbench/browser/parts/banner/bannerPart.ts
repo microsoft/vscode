@@ -74,7 +74,7 @@ export class BannerPart extends Part implements IBannerService {
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.element.tabIndex = 0;
 

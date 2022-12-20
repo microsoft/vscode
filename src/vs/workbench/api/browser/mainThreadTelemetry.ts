@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTelemetryShape, MainContext, MainThreadTelemetryShape } from '../common/extHost.protocol';
@@ -21,6 +22,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 	) {
@@ -29,8 +31,10 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
 		if (supportsTelemetry(this._productService, this._environmentService)) {
-			this._register(_telemetryService.telemetryLevel.onDidChange(level => {
-				this._proxy.$onDidChangeTelemetryLevel(level);
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
+					this._proxy.$onDidChangeTelemetryLevel(this.telemetryLevel);
+				}
 			}));
 		}
 		const loggingOnly = isLoggingOnly(this._productService, this._environmentService);
@@ -42,7 +46,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 			return TelemetryLevel.NONE;
 		}
 
-		return this._telemetryService.telemetryLevel.value;
+		return this._telemetryService.telemetryLevel;
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {

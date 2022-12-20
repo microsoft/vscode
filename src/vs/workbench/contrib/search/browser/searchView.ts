@@ -51,7 +51,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IFileIconTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
@@ -265,6 +265,7 @@ export class SearchView extends ViewPane {
 			return;
 		}
 		this.isTreeLayoutViewVisible = visible;
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.refreshTree();
 	}
 
@@ -290,7 +291,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	override renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
@@ -406,6 +407,13 @@ export class SearchView extends ViewPane {
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
+
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+	}
+
+	private updateIndentStyles(theme: IFileIconTheme): void {
+		this.resultsElement.classList.toggle('hide-arrows', this.isTreeLayoutViewVisible && theme.hidesExplorerArrows);
 	}
 
 	private onVisibilityChanged(visible: boolean): void {
@@ -741,7 +749,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private createSearchResultsView(container: HTMLElement): void {
-		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
+		this.resultsElement = dom.append(container, $('.results.show-file-icons.file-icon-themable-tree'));
 		const delegate = this.instantiationService.createInstance(SearchDelegate);
 
 		const identityProvider: IIdentityProvider<RenderableMatch> = {
@@ -1902,20 +1910,24 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
-		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const onlyOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const preserveCase = this.viewModel.preserveCase;
 
-		this.viewletState['query.contentPattern'] = contentPattern;
-		this.viewletState['query.regex'] = isRegex;
-		this.viewletState['query.wholeWords'] = isWholeWords;
-		this.viewletState['query.caseSensitive'] = isCaseSensitive;
+		if (this.searchWidget.searchInput) {
+			const isRegex = this.searchWidget.searchInput.getRegex();
+			const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+			const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+			const contentPattern = this.searchWidget.searchInput.getValue();
+
+			this.viewletState['query.contentPattern'] = contentPattern;
+			this.viewletState['query.regex'] = isRegex;
+			this.viewletState['query.wholeWords'] = isWholeWords;
+			this.viewletState['query.caseSensitive'] = isCaseSensitive;
+		}
+
 		this.viewletState['query.folderExclusions'] = patternExcludes;
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;

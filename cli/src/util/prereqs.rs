@@ -5,6 +5,7 @@
 use std::cmp::Ordering;
 
 use super::command::capture_command;
+use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
 use crate::util::errors::SetupError;
 use lazy_static::lazy_static;
@@ -41,8 +42,13 @@ impl PreReqChecker {
 
 	#[cfg(not(target_os = "linux"))]
 	pub async fn verify(&self) -> Result<Platform, AnyError> {
+		use crate::constants::QUALITYLESS_PRODUCT_NAME;
 		Platform::env_default().ok_or_else(|| {
-			SetupError("VS Code is not supported on this platform".to_owned()).into()
+			SetupError(format!(
+				"{} is not supported on this platform",
+				QUALITYLESS_PRODUCT_NAME
+			))
+			.into()
 		})
 	}
 
@@ -91,8 +97,8 @@ impl PreReqChecker {
 			.join("\n");
 
 		Err(AnyError::from(SetupError(format!(
-			"This machine not meet VS Code Server's prerequisites, expected either...\n{}",
-			bullets,
+			"This machine not meet {}'s prerequisites, expected either...\n{}",
+			QUALITYLESS_SERVER_NAME, bullets,
 		))))
 	}
 }
@@ -107,8 +113,8 @@ async fn check_musl_interpreter() -> Result<(), String> {
 
 	if fs::metadata(MUSL_PATH).await.is_err() {
 		return Err(format!(
-			"find {}, which is required to run the VS Code Server in musl environments",
-			MUSL_PATH
+			"find {}, which is required to run the {} in musl environments",
+			MUSL_PATH, QUALITYLESS_SERVER_NAME
 		));
 	}
 
@@ -157,7 +163,10 @@ async fn check_is_nixos() -> bool {
 async fn check_glibcxx_version() -> Result<(), String> {
 	let mut libstdc_path: Option<String> = None;
 
+	#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 	const DEFAULT_LIB_PATH: &str = "/usr/lib64/libstdc++.so.6";
+	#[cfg(any(target_arch = "x86", target_arch = "arm"))]
+	const DEFAULT_LIB_PATH: &str = "/usr/lib/libstdc++.so.6";
 	const LDCONFIG_PATH: &str = "/sbin/ldconfig";
 
 	if fs::metadata(DEFAULT_LIB_PATH).await.is_ok() {

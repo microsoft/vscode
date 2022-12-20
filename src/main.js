@@ -99,16 +99,15 @@ if (locale) {
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
-if (product.quality === 'insider' || product.quality === 'exploration') {
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
 
-	// Pass in the locale to Electron so that the
-	// Windows Control Overlay is rendered correctly on Windows,
-	// and so that the traffic lights are rendered properly
-	// on macOS when using a custom titlebar.
-	// If the locale is `qps-ploc`, the Microsoft
-	// Pseudo Language Language Pack is being used.
-	// In that case, use `en` as the Electron locale.
-
+if (process.platform === 'win32') {
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -184,7 +183,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
@@ -318,6 +317,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
@@ -566,17 +566,20 @@ async function resolveNlsConfiguration() {
 		// valid after we have received the app ready event. This is why the
 		// code is here.
 
-		// The ternary and ts-ignore can both be removed once Electron
-		// officially adopts the getPreferredSystemLanguages API.
-		// Ref https://github.com/microsoft/vscode/issues/159813
-		// and https://github.com/electron/electron/pull/36035
 		/**
 		 * @type string
 		 */
-		// @ts-ignore API not yet available in the official Electron
-		let appLocale = ((product.quality === 'insider' || product.quality === 'exploration') && app?.getPreferredSystemLanguages()?.length) ?
-			// @ts-ignore API not yet available in the official Electron
-			app.getPreferredSystemLanguages()[0] : app.getLocale();
+		let appLocale = app.getLocale();
+
+		// This if statement can be simplified once
+		// VS Code moves to Electron 22.
+		// Ref https://github.com/microsoft/vscode/issues/159813
+		// and https://github.com/electron/electron/pull/36035
+		// if ('getPreferredSystemLanguages' in app
+		// 	&& typeof app.getPreferredSystemLanguages === 'function'
+		// 	&& app.getPreferredSystemLanguages().length) {
+		// 	appLocale = app.getPreferredSystemLanguages()[0];
+		// }
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {

@@ -28,7 +28,6 @@ import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/brows
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 
 export class MarkupCell extends Disposable {
 
@@ -51,7 +50,6 @@ export class MarkupCell extends Disposable {
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -269,7 +267,7 @@ export class MarkupCell extends Disposable {
 		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
-			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double-click to expand cell input ({0})", keybinding.getLabel());
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 

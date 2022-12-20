@@ -39,7 +39,7 @@ import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/ex
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtension, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -87,7 +87,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
-		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
+		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader, this.getTargetPlatform()));
 
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
 		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(e => this.onDidChangeExtensionsFromAnotherSource(e)));
@@ -314,6 +314,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
+		if (!e.affects(this.extensionsScannerService.userExtensionsLocation, FileChangeType.ADDED)) {
+			return;
+		}
+
 		const added: ILocalExtension[] = [];
 		for (const resource of e.rawAdded) {
 			// Check if this is a known directory
@@ -613,7 +617,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.beforeRemovingExtension(await this.toLocalExtension(latest));
 			}
 		}));
-		const toRemove = extensions.filter(e => uninstalled[ExtensionKey.create(e).toString()]);
+		const toRemove = extensions.filter(e => e.metadata /* Installed by VS Code */ && uninstalled[ExtensionKey.create(e).toString()]);
 		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::auth;
-use crate::constants::{CONTROL_PORT, TUNNEL_SERVICE_USER_AGENT};
+use crate::constants::{
+	CONTROL_PORT, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX, TUNNEL_SERVICE_USER_AGENT, IS_INTERACTIVE_CLI,
+};
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
 	wrap, AnyError, DevTunnelError, InvalidTunnelName, TunnelCreationFailed, WrappedError,
@@ -138,6 +140,8 @@ pub struct DevTunnels {
 pub struct ActiveTunnel {
 	/// Name of the tunnel
 	pub name: String,
+	/// Underlying dev tunnels ID
+	pub id: String,
 	manager: ActiveTunnelManager,
 }
 
@@ -378,7 +382,7 @@ impl DevTunnels {
 		preferred_name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
-		let (tunnel, persisted) = match self.launcher_tunnel.load() {
+		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
 				if let Some(name) = preferred_name {
 					if persisted.name.ne(&name) {
@@ -403,6 +407,12 @@ impl DevTunnels {
 				(full_tunnel, persisted)
 			}
 		};
+
+		if !tunnel.tags.iter().any(|t| t == PROTOCOL_VERSION_TAG) {
+			tunnel = self
+				.update_protocol_version_tag(tunnel, &HOST_TUNNEL_REQUEST_OPTIONS)
+				.await?;
+		}
 
 		let locator = TunnelLocator::try_from(&tunnel).unwrap();
 		let host_token = get_host_token_from_tunnel(&tunnel);
@@ -462,7 +472,11 @@ impl DevTunnels {
 		let mut tried_recycle = false;
 
 		let new_tunnel = Tunnel {
-			tags: vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()],
+			tags: vec![
+				name.to_string(),
+				PROTOCOL_VERSION_TAG.to_string(),
+				VSCODE_CLI_TUNNEL_TAG.to_string(),
+			],
 			..Default::default()
 		};
 
@@ -505,6 +519,40 @@ impl DevTunnels {
 				}
 			}
 		}
+	}
+
+	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
+	/// other version tags.
+	async fn update_protocol_version_tag(
+		&self,
+		tunnel: Tunnel,
+		options: &TunnelRequestOptions,
+	) -> Result<Tunnel, AnyError> {
+		debug!(
+			self.log,
+			"Updating tunnel protocol version tag to {}", PROTOCOL_VERSION_TAG
+		);
+		let mut new_tags: Vec<String> = tunnel
+			.tags
+			.into_iter()
+			.filter(|t| !t.starts_with(PROTOCOL_VERSION_TAG_PREFIX))
+			.collect();
+		new_tags.push(PROTOCOL_VERSION_TAG.to_string());
+
+		let tunnel_update = Tunnel {
+			tags: new_tags,
+			tunnel_id: tunnel.tunnel_id.clone(),
+			cluster_id: tunnel.cluster_id.clone(),
+			..Default::default()
+		};
+
+		let result = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.protocol-tag-update"),
+			self.client.update_tunnel(&tunnel_update, options)
+		);
+
+		result.map_err(|e| wrap(e, "tunnel tag update failed").into())
 	}
 
 	/// Tries to delete an unused tunnel, and then creates a tunnel with the
@@ -611,7 +659,7 @@ impl DevTunnels {
 		}
 
 		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
-		if use_random_name {
+		if use_random_name || !*IS_INTERACTIVE_CLI {
 			while !is_name_free(&placeholder_name) {
 				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
 			}
@@ -690,6 +738,7 @@ impl DevTunnels {
 
 		Ok(ActiveTunnel {
 			name: tunnel_details.name.clone(),
+			id: tunnel_details.id.clone(),
 			manager,
 		})
 	}

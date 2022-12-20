@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
@@ -52,6 +52,8 @@ export class HoverWidget extends Widget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
+	private _enableFocusTraps: boolean = false;
+	private _addedFocusTrap: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
@@ -109,6 +111,9 @@ export class HoverWidget extends Widget {
 		if (options.forcePosition) {
 			this._forcePosition = true;
 		}
+		if (options.trapFocus) {
+			this._enableFocusTraps = true;
+		}
 
 		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
 
@@ -137,7 +142,7 @@ export class HoverWidget extends Widget {
 			const markdown = options.content;
 			const mdRenderer = this._instantiationService.createInstance(
 				MarkdownRenderer,
-				{ codeBlockFontFamily: EditorOptions.fontFamily.validate(this._configurationService.getValue<IEditorOptions>('editor').fontFamily) }
+				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
 			);
 
 			const { element } = mdRenderer.render(markdown, {
@@ -222,10 +227,55 @@ export class HoverWidget extends Widget {
 		}
 	}
 
+	private addFocusTrap() {
+		if (!this._enableFocusTraps || this._addedFocusTrap) {
+			return;
+		}
+		this._addedFocusTrap = true;
+
+		// Add a hover tab loop if the hover has at least one element with a valid tabIndex
+		const firstContainerFocusElement = this._hover.containerDomNode;
+		const lastContainerFocusElement = this.findLastFocusableChild(this._hover.containerDomNode);
+		if (lastContainerFocusElement) {
+			const beforeContainerFocusElement = dom.prepend(this._hoverContainer, $('div'));
+			const afterContainerFocusElement = dom.append(this._hoverContainer, $('div'));
+			beforeContainerFocusElement.tabIndex = 0;
+			afterContainerFocusElement.tabIndex = 0;
+			this._register(dom.addDisposableListener(afterContainerFocusElement, 'focus', (e) => {
+				firstContainerFocusElement.focus();
+				e.preventDefault();
+			}));
+			this._register(dom.addDisposableListener(beforeContainerFocusElement, 'focus', (e) => {
+				lastContainerFocusElement.focus();
+				e.preventDefault();
+			}));
+		}
+	}
+
+	private findLastFocusableChild(root: Node): HTMLElement | undefined {
+		if (root.hasChildNodes()) {
+			for (let i = 0; i < root.childNodes.length; i++) {
+				const node = root.childNodes.item(root.childNodes.length - i - 1);
+				if (node.nodeType === node.ELEMENT_NODE) {
+					const parsedNode = node as HTMLElement;
+					if (typeof parsedNode.tabIndex === 'number' && parsedNode.tabIndex >= 0) {
+						return parsedNode;
+					}
+				}
+				const recursivelyFoundElement = this.findLastFocusableChild(node);
+				if (recursivelyFoundElement) {
+					return recursivelyFoundElement;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
 
 		this.layout();
+		this.addFocusTrap();
 	}
 
 	public layout() {

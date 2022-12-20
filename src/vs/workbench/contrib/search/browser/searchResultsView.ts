@@ -129,7 +129,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const disposableElements = new DisposableStore();
 		disposables.add(disposableElements);
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true]]);
+		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true], [FileFocusKey.key, false], [MatchFocusKey.key, false]]);
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
@@ -217,7 +217,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		disposables.add(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true]]);
+		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true], [FolderFocusKey.key, false], [MatchFocusKey.key, false]]);
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
@@ -291,7 +291,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 
 		const disposables = new DisposableStore();
 
-		const contextKeyService = this.contextKeyService.createOverlay([[MatchFocusKey.key, true]]);
+		const contextKeyService = this.contextKeyService.createOverlay([[MatchFocusKey.key, true], [FileFocusKey.key, false], [FolderFocusKey.key, false]]);
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {

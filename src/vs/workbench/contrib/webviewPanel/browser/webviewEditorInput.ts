@@ -5,13 +5,13 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 
 export interface WebviewInputInitInfo {
-	readonly id: string;
 	readonly viewType: string;
 	readonly providedId: string | undefined;
 	readonly name: string;
@@ -33,6 +33,8 @@ export class WebviewInput extends EditorInput {
 		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
+	private readonly _resourceId = generateUuid();
+
 	private _name: string;
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
@@ -44,11 +46,10 @@ export class WebviewInput extends EditorInput {
 	get resource() {
 		return URI.from({
 			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this.id}`
+			path: `webview-panel/webview-${this._resourceId}`
 		});
 	}
 
-	public readonly id: string;
 	public readonly viewType: string;
 	public readonly providedId: string | undefined;
 
@@ -59,7 +60,6 @@ export class WebviewInput extends EditorInput {
 	) {
 		super();
 
-		this.id = init.id;
 		this.viewType = init.viewType;
 		this.providedId = init.providedId;
 
@@ -107,7 +107,7 @@ export class WebviewInput extends EditorInput {
 
 	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		this._iconManager.setIcons(this.id, value);
+		this._iconManager.setIcons(this._resourceId, value);
 	}
 
 	public override matches(other: EditorInput | IUntypedEditorInput): boolean {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -12,7 +13,7 @@ import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { dirname, joinPath } from 'vs/base/common/resources';
+import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -38,17 +39,24 @@ import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+
+const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
+const LineQueryRegex = /line=(\d+)/;
+
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -99,6 +107,8 @@ interface BacklayerWebviewOptions {
 	readonly outputFontFamily: string;
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
+	readonly outputScrolling: boolean;
+	readonly outputLineLimit: number;
 }
 
 const logChannelId = 'notebook.rendering';
@@ -136,13 +146,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 	constructor(
 		public notebookEditor: INotebookDelegateForWebview,
-		public readonly id: string,
+		private readonly id: string,
 		public readonly notebookViewType: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
-		@IWebviewService readonly webviewService: IWebviewService,
-		@IOpenerService readonly openerService: IOpenerService,
+		@IWebviewService private readonly webviewService: IWebviewService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -156,6 +166,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IPathService private readonly pathService: IPathService,
 		@ILoggerService loggerService: ILoggerService,
 		@ILogService logService: ILogService,
 		@IThemeService themeService: IThemeService,
@@ -213,7 +224,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _logRendererDebugMessage(msg: string) {
-		this._renderLogger.debug(`${this.id} - ${msg}`);
+		this._renderLogger.debug(`${this.documentUri} (${this.id}) - ${msg}`);
 	}
 
 	private _updateStyles() {
@@ -245,8 +256,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
 			'notebook-cell-output-font-size': `${this.options.outputFontSize || this.options.fontSize}px`,
 			'notebook-cell-output-line-height': `${this.options.outputLineHeight}px`,
+			'notebook-cell-output-max-height': `${this.options.outputLineHeight * this.options.outputLineLimit}px`,
 			'notebook-cell-output-font-family': this.options.outputFontFamily || this.options.fontFamily,
-			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
+			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double-click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
@@ -257,18 +269,22 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
+		const renderOptions = {
+			lineLimit: this.options.outputLineLimit,
+			outputScrolling: this.options.outputScrolling
+		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
+			renderOptions,
 			renderersData,
 			preloadsData,
 			this.workspaceTrustManagementService.isWorkspaceTrusted(),
-			this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
-		const findHighlight = this.getColor(editorFindMatch);
-		const currentMatchHighlight = this.getColor(editorFindMatchHighlight);
+		const currentHighlight = this.getColor(editorFindMatch);
+		const findMatchHighlight = this.getColor(editorFindMatchHighlight);
 		return /* html */`
 		<html lang="en">
 			<head>
@@ -286,11 +302,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				">` : ''}
 				<style nonce="${this.nonce}">
 					::highlight(find-highlight) {
-						background-color: var(--vscode-editor-findMatchBackground, ${findHighlight});
+						background-color: var(--vscode-editor-findMatchBackground, ${findMatchHighlight});
 					}
 
 					::highlight(current-find-highlight) {
-						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentMatchHighlight});
+						background-color: var(--vscode-editor-findMatchHighlightBackground, ${currentHighlight});
 					}
 
 					#container .cell_container {
@@ -733,39 +749,13 @@ var requirejs = (function() {
 						return;
 					}
 
-					let linkToOpen: URI | string | undefined;
 					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
-						linkToOpen = data.href;
+						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
 					} else if (!/^[\w\-]+:/.test(data.href)) {
-						const fragmentStartIndex = data.href.lastIndexOf('#');
-						const path = decodeURI(fragmentStartIndex >= 0 ? data.href.slice(0, fragmentStartIndex) : data.href);
-						if (this.documentUri.scheme === Schemas.untitled) {
-							const folders = this.workspaceContextService.getWorkspace().folders;
-							if (!folders.length) {
-								return;
-							}
-							linkToOpen = URI.joinPath(folders[0].uri, path);
-						} else {
-							if (data.href.startsWith('/')) {
-								// Resolve relative to workspace
-								let folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
-								if (!folder) {
-									const folders = this.workspaceContextService.getWorkspace().folders;
-									if (!folders.length) {
-										return;
-									}
-									folder = folders[0];
-								}
-								linkToOpen = URI.joinPath(folder.uri, path);
-							} else {
-								// Resolve relative to notebook document
-								linkToOpen = URI.joinPath(dirname(this.documentUri), path);
-							}
-						}
-					}
-
-					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, fromWorkspace: true });
+						this._handleResourceOpening(data.href);
+					} else {
+						// uri with scheme
+						this._openUri(URI.parse(data.href));
 					}
 					break;
 				}
@@ -887,6 +877,79 @@ var requirejs = (function() {
 		}));
 	}
 
+	private _handleResourceOpening(href: string) {
+		let linkToOpen: URI | undefined = undefined;
+		if (href.startsWith('/')) {
+			linkToOpen = URI.parse(href);
+		} else if (href.startsWith('~')) {
+			const userHome = this.pathService.resolvedUserHome;
+			if (userHome) {
+				linkToOpen = URI.parse(osPath.join(userHome.fsPath, href.substring(1)));
+			}
+		} else {
+			if (this.documentUri.scheme === Schemas.untitled) {
+				const folders = this.workspaceContextService.getWorkspace().folders;
+				if (!folders.length) {
+					return;
+				}
+				linkToOpen = URI.joinPath(folders[0].uri, href);
+			} else {
+				// Resolve relative to notebook document
+				linkToOpen = URI.joinPath(dirname(this.documentUri), href);
+			}
+		}
+
+		if (linkToOpen) {
+			this._openUri(linkToOpen);
+		}
+	}
+
+	private _openUri(uri: URI) {
+		let lineNumber: number | undefined = undefined;
+		let column: number | undefined = undefined;
+		const lineCol = LINE_COLUMN_REGEX.exec(uri.path);
+		if (lineCol) {
+			uri = uri.with({
+				path: uri.path.slice(0, lineCol.index),
+				fragment: `L${lineCol[0].slice(1)}`
+			});
+			lineNumber = parseInt(lineCol[1], 10);
+			column = parseInt(lineCol[2], 10);
+		}
+
+		//#region error renderer migration, remove once done
+		const lineMatch = LineQueryRegex.exec(uri.query);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				lineNumber = parsedLineNumber + 1;
+				column = 1;
+				uri = uri.with({ fragment: `L${lineNumber}` });
+			}
+		}
+
+		uri = uri.with({
+			query: null
+		});
+		//#endregion
+
+		let match: { group: IEditorGroup; editor: EditorInput } | undefined = undefined;
+
+		for (const group of this.editorGroupService.groups) {
+			const editorInput = group.editors.find(editor => editor.resource && isEqual(editor.resource, uri, true));
+			if (editorInput) {
+				match = { group, editor: editorInput };
+				break;
+			}
+		}
+
+		if (match) {
+			match.group.openEditor(match.editor, lineNumber !== undefined && column !== undefined ? <ITextEditorOptions>{ selection: { startLineNumber: lineNumber, startColumn: column } } : undefined);
+		} else {
+			this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		}
+	}
+
 	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
 		for (const { id, value, lang } of codeBlocks) {
 			// The language id may be a language aliases (e.g.js instead of javascript)
@@ -945,7 +1008,6 @@ var requirejs = (function() {
 	private _createInset(webviewService: IWebviewService, content: string) {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
-			id: this.id,
 			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,

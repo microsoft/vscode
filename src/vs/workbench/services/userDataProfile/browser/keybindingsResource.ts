@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProfileResource, IProfileResourceTreeItem } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { platform, Platform } from 'vs/base/common/platform';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -64,10 +64,11 @@ export class KeybindingsResource implements IProfileResource {
 
 export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 
+	readonly type = ProfileResourceType.Keybindings;
 	readonly handle = this.profile.keybindingsResource.toString();
 	readonly label = { label: localize('keybindings', "Keyboard Shortcuts") };
 	readonly collapsibleState = TreeItemCollapsibleState.None;
-	checkbox: ITreeItemCheckboxState | undefined = { isChecked: true };
+	checkbox: ITreeItemCheckboxState = { isChecked: true };
 	readonly command = {
 		id: API_OPEN_EDITOR_COMMAND_ID,
 		title: '',

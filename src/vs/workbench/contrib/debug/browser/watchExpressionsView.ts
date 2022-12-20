@@ -78,7 +78,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -175,7 +175,7 @@ export class WatchExpressionsView extends ViewPane {
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}

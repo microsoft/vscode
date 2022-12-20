@@ -78,8 +78,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IActivityService readonly activityService: IActivityService,
-		@IStorageService readonly storageService: IStorageService
+		@IActivityService private readonly activityService: IActivityService,
+		@IStorageService storageService: IStorageService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
@@ -249,7 +249,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		return !!this.tree;
 	}
 
-	protected override layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
+	protected layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
 		if (this.messageBoxContainer) {
 			this.messageBoxContainer.style.height = `${height}px`;
 		}

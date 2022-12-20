@@ -26,7 +26,7 @@ import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo,
 /**
  * One folder to search and a glob expression that should be applied.
  */
-export interface IOneSearchPathPattern {
+interface IOneSearchPathPattern {
 	searchPath: uri;
 	pattern?: string;
 }
@@ -47,7 +47,7 @@ export interface ISearchPathsInfo {
 	pattern?: glob.IExpression;
 }
 
-export interface ICommonQueryBuilderOptions {
+interface ICommonQueryBuilderOptions {
 	_reason?: string;
 	excludePattern?: string | string[];
 	includePattern?: string | string[];
@@ -345,22 +345,20 @@ export class QueryBuilder {
 			return [];
 		}
 
-		const expandedSearchPaths = arrays.flatten(
-			searchPaths.map(searchPath => {
-				// 1 open folder => just resolve the search paths to absolute paths
-				let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+		const expandedSearchPaths = searchPaths.flatMap(searchPath => {
+			// 1 open folder => just resolve the search paths to absolute paths
+			let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
 
-				if (globPortion) {
-					globPortion = normalizeGlobPattern(globPortion);
-				}
+			if (globPortion) {
+				globPortion = normalizeGlobPattern(globPortion);
+			}
 
-				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
-				const oneExpanded = this.expandOneSearchPath(pathPortion);
+			// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
+			const oneExpanded = this.expandOneSearchPath(pathPortion);
 
-				// Expanded search paths to multiple resolved patterns (with ** and without)
-				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)));
-			}));
+			// Expanded search paths to multiple resolved patterns (with ** and without)
+			return oneExpanded.flatMap(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion));
+		});
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
 		expandedSearchPaths.forEach(oneSearchPathPattern => {

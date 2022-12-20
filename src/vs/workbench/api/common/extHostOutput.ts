@@ -37,11 +37,12 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 		readonly extension: IExtensionDescription,
 	) {
 		super();
+		this.setLevel(logger.getLevel());
 		this._register(logger.onDidChangeLogLevel(level => this.setLevel(level)));
 	}
 
 	get logLevel(): LogLevel {
-		return this.logger.getLevel();
+		return this.getLevel();
 	}
 
 	appendLine(value: string): void {

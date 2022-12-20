@@ -6,7 +6,7 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { DeferredPromise, RunOnceScheduler, ThrottledWorker } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -88,16 +88,32 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	protected readonly watchers = new Map<string, IParcelWatcherInstance>();
 
+	// A delay for collecting file changes from Parcel
+	// before collecting them for coalescing and emitting.
+	// Parcel internally uses 50ms as delay, so we use 75ms,
+	// to schedule sufficiently after Parcel.
+	//
+	// Note: since Parcel 2.0.7, the very first event is
+	// emitted without delay if no events occured over a
+	// duration of 500ms. But we always want to aggregate
+	// events to apply our coleasing logic.
+	//
+	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
+
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesWorker = new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IDiskFileChange>(
 		{
 			maxWorkChunkSize: 500,	// only process up to 500 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
 			maxBufferedWork: 30000 	// ...but never buffering more than 30000 events in memory
 		},
 		events => this._onDidChangeFile.fire(events)
-	);
+	));
+
+	// Aggregate file changes over FILE_CHANGES_HANDLER_DELAY
+	// to coalesce events and reduce duplicate events.
+	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY));
 
 	private verboseLogging = false;
 	private enospcErrorLogged = false;
@@ -395,23 +411,14 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Normalize events: handle NFC normalization and symlinks
 		// It is important to do this before checking for includes
 		// and excludes to check on the original path.
-		const { events: normalizedEvents, rootDeleted } = this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
+		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
 		// Check for excludes
-		const includedEvents = this.handleExcludeIncludes(normalizedEvents, excludes, includes);
+		const includedEvents = this.handleExcludeIncludes(parcelEvents, excludes, includes);
 
-		// Coalesce events: merge events of same kind
-		const coalescedEvents = coalesceEvents(includedEvents);
-
-		// Filter events: check for specific events we want to exclude
-		const filteredEvents = this.filterEvents(coalescedEvents, watcher.request, rootDeleted);
-
-		// Broadcast to clients
-		this.emitEvents(filteredEvents);
-
-		// Handle root path delete if confirmed from coalesced events
-		if (rootDeleted && coalescedEvents.some(event => event.path === watcher.request.path && event.type === FileChangeType.DELETED)) {
-			this.onWatchedPathDeleted(watcher);
+		// Add to aggregator for later processing
+		for (const includedEvent of includedEvents) {
+			this.fileChangesAggregator.work(includedEvent);
 		}
 	}
 
@@ -441,6 +448,25 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return events;
 	}
 
+	private handleParcelEvents(parcelEvents: IDiskFileChange[]): void {
+
+		// Coalesce events: merge events of same kind
+		const coalescedEvents = coalesceEvents(parcelEvents);
+
+		// Filter events: check for specific events we want to exclude
+		const { events: filteredEvents, deletedRoots } = this.filterEvents(coalescedEvents);
+
+		// Broadcast to clients
+		this.emitEvents(filteredEvents);
+
+		// Handle root path deletes
+		if (deletedRoots) {
+			for (const deletedRoot of deletedRoots) {
+				this.onWatchedPathDeleted(deletedRoot);
+			}
+		}
+	}
+
 	private emitEvents(events: IDiskFileChange[]): void {
 		if (events.length === 0) {
 			return;
@@ -454,14 +480,14 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 
 		// Broadcast to clients via throttler
-		const worked = this.throttledFileChangesWorker.work(events);
+		const worked = this.throttledFileChangesEmitter.work(events);
 
 		// Logging
 		if (!worked) {
 			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 		} else {
-			if (this.throttledFileChangesWorker.pending > 0) {
-				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			if (this.throttledFileChangesEmitter.pending > 0) {
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 		}
 	}
@@ -496,9 +522,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return { realPath, realPathDiffers, realPathLength };
 	}
 
-	private normalizeEvents(events: parcelWatcher.Event[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): { events: parcelWatcher.Event[]; rootDeleted: boolean } {
-		let rootDeleted = false;
-
+	private normalizeEvents(events: parcelWatcher.Event[], request: IRecursiveWatchRequest, realPathDiffers: boolean, realPathLength: number): void {
 		for (const event of events) {
 
 			// Mac uses NFD unicode form on disk, but we want NFC
@@ -518,33 +542,33 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			if (realPathDiffers) {
 				event.path = request.path + event.path.substr(realPathLength);
 			}
-
-			// Check for root deleted
-			if (event.path === request.path && event.type === 'delete') {
-				rootDeleted = true;
-			}
 		}
-
-		return { events, rootDeleted };
 	}
 
-	private filterEvents(events: IDiskFileChange[], request: IRecursiveWatchRequest, rootDeleted: boolean): IDiskFileChange[] {
-		if (!rootDeleted) {
-			return events;
-		}
+	private filterEvents(events: IDiskFileChange[]): { events: IDiskFileChange[]; deletedRoots?: Set<IParcelWatcherInstance> } {
+		const filteredEvents: IDiskFileChange[] = [];
+		let deletedRoots: Set<IParcelWatcherInstance> | undefined = undefined;
 
-		return events.filter(event => {
-			if (event.path === request.path && event.type === FileChangeType.DELETED) {
+		for (const event of events) {
+			if (event.type === FileChangeType.DELETED && this.watchers.has(event.path)) {
+
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
 				// can happen e.g. in case of network connectivity
 				// issues
 				// (https://github.com/microsoft/vscode/issues/136673)
-				return false;
-			}
 
-			return true;
-		});
+				if (!deletedRoots) {
+					deletedRoots = new Set();
+				}
+
+				deletedRoots.add(this.watchers.get(event.path)!);
+			} else {
+				filteredEvents.push(event);
+			}
+		}
+
+		return { events: filteredEvents, deletedRoots };
 	}
 
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {

@@ -21,15 +21,30 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
 
-		// Any webview editor is not a registered editor but we
-		// still want to support auto-locking for them, so we
-		// manually add them here...
+		// List some editor input identifiers that are not
+		// registered yet via the editor resolver infrastructure
+
+		{
+			id: 'workbench.input.interactive',
+			label: localize('interactiveWindow', 'Interactive Window'),
+			priority: RegisteredEditorPriority.builtin
+		},
 		{
 			id: 'mainThreadWebview-markdown.preview',
 			label: localize('markdownPreview', "Markdown Preview"),
 			priority: RegisteredEditorPriority.builtin
 		}
 	];
+
+	private static readonly AUTO_LOCK_REMOVE_EDITORS = new Set<string>([
+
+		// List some editor types that the above `AUTO_LOCK_EXTRA_EDITORS`
+		// already covers to avoid duplicates.
+
+		'vscode-interactive-input',
+		'interactive',
+		'vscode.markdown.preview.editor'
+	]);
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -62,7 +77,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	}
 
 	private updateDynamicEditorConfigurations(): void {
-		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS];
+		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS].filter(e => !DynamicEditorConfigurations.AUTO_LOCK_REMOVE_EDITORS.has(e.id));
 		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(e => e.id);
 
 		// Build config from registered editors
@@ -81,7 +96,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
 		}
 
-		// Register settng for auto locking groups
+		// Register setting for auto locking groups
 		const oldAutoLockConfigurationNode = this.autoLockConfigurationNode;
 		this.autoLockConfigurationNode = {
 			...workbenchConfigurationNodeBase,

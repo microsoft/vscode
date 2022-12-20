@@ -417,22 +417,16 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		const model = this.editor.getModel();
 		if (model) {
-			const revealLine = where.endLineNumber + 1;
-			if (revealLine <= model.getLineCount()) {
-				// reveal line below the zone widget
-				this.revealLine(revealLine, false);
-			} else {
-				// reveal last line atop
-				this.revealLine(model.getLineCount(), true);
-			}
+			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
+			this.revealRange(range, range.endLineNumber === model.getLineCount());
 		}
 	}
 
-	protected revealLine(lineNumber: number, isLastLine: boolean) {
+	protected revealRange(range: Range, isLastLine: boolean) {
 		if (isLastLine) {
-			this.editor.revealLineInCenter(lineNumber, ScrollType.Smooth);
+			this.editor.revealLineNearTop(range.endLineNumber, ScrollType.Smooth);
 		} else {
-			this.editor.revealLine(lineNumber, ScrollType.Smooth);
+			this.editor.revealRange(range, ScrollType.Smooth);
 		}
 	}
 

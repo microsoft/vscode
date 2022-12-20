@@ -46,7 +46,7 @@ pub fn prompt_yn(text: &str) -> Result<bool, WrappedError> {
 		.map_err(|e| wrap(e, "Failed to read confirm input"))
 }
 
-pub fn prompt_options<T>(text: &str, options: &[T]) -> Result<T, WrappedError>
+pub fn prompt_options<T>(text: impl Into<String>, options: &[T]) -> Result<T, WrappedError>
 where
 	T: Display + Copy,
 {
