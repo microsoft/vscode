@@ -29,6 +29,7 @@ import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIn
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { join } from 'path';
 
 type WorkspaceId = string;
 
@@ -358,8 +359,12 @@ export class PtyService extends Disposable implements IPtyService {
 			if (getWindowsBuildNumber() < 17063) {
 				return original.replace(/\\/g, '/');
 			}
+			const wslExecutable = this._getWSLExecutablePath();
+			if (!wslExecutable) {
+				return original;
+			}
 			return new Promise<string>(c => {
-				const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
 					c(escapeNonWindowsPath(stdout.trim()));
 				});
 				proc.stdin!.end();
@@ -372,8 +377,12 @@ export class PtyService extends Disposable implements IPtyService {
 				if (getWindowsBuildNumber() < 17063) {
 					return original;
 				}
+				const wslExecutable = this._getWSLExecutablePath();
+				if (!wslExecutable) {
+					return original;
+				}
 				return new Promise<string>(c => {
-					const proc = execFile('bash.exe', ['-c', `wslpath -w ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+					const proc = execFile(wslExecutable, ['-e', 'wslpath', '-w', original], {}, (error, stdout, stderr) => {
 						c(stdout.trim());
 					});
 					proc.stdin!.end();
@@ -382,6 +391,16 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		// Fallback just in case
 		return original;
+	}
+
+	private _getWSLExecutablePath(): string | undefined {
+		const useWSLexe = getWindowsBuildNumber() >= 16299;
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const systemRoot = process.env['SystemRoot'];
+		if (systemRoot) {
+			return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', useWSLexe ? 'wsl.exe' : 'bash.exe');
+		}
+		return undefined;
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
