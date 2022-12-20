@@ -463,31 +463,30 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		// If the link looks like a /mnt/ WSL path and this is a Windows frontend, use the backend
-		// to get the resolved path from the wslpath util.
-		let linkUrl: string | undefined;
-		if (isWindows && link.match(/^\/mnt\/[a-z]/i) && this._processManager.backend) {
-			linkUrl = removeLinkSuffix(link);
-			if (!linkUrl) {
-				this._resolvedLinkCache.set(link, null);
-				return null;
-			}
-			linkUrl = await this._processManager.backend.getWslPath(linkUrl, 'unix-to-win');
+		// Remove any line/col suffix before processing the path
+		let linkUrl = removeLinkSuffix(link);
+		if (!linkUrl) {
+			this._resolvedLinkCache.set(link, null);
+			return null;
 		}
 
+		// If the link looks like a /mnt/ WSL path and this is a Windows frontend, use the backend
+		// to get the resolved path from the wslpath util.
+		if (isWindows && link.match(/^\/mnt\/[a-z]/i) && this._processManager.backend) {
+			linkUrl = await this._processManager.backend.getWslPath(linkUrl, 'unix-to-win');
+		}
+		// Skip preprocessing if it looks like a special Windows -> WSL link
+		else if (isWindows && link.match(/^(?:\/\/|\\\\)wsl(?:\$|\.localhost)(\/|\\)/)) {
+			// No-op, it's already the right format
+		}
 		// Handle all non-WSL links
-		if (!linkUrl) {
-			const preprocessedLink = this._preprocessPath(link);
+		else {
+			const preprocessedLink = this._preprocessPath(linkUrl);
 			if (!preprocessedLink) {
 				this._resolvedLinkCache.set(link, null);
 				return null;
 			}
-
-			linkUrl = removeLinkSuffix(preprocessedLink);
-			if (!linkUrl) {
-				this._resolvedLinkCache.set(link, null);
-				return null;
-			}
+			linkUrl = preprocessedLink;
 		}
 
 		try {
