@@ -13,7 +13,7 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
 
@@ -66,6 +66,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 	setup(async () => {
 		watcher = new TestParcelWatcher();
+		watcher.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {
@@ -105,13 +106,13 @@ import { ltrim } from 'vs/base/common/strings';
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
+	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<IDiskFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		await new Promise<void>((resolve, reject) => {
+		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
 					if (event.path === path && event.type === type) {
@@ -119,7 +120,7 @@ import { ltrim } from 'vs/base/common/strings';
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
 						} else {
-							setImmediate(() => resolve()); // copied from parcel watcher tests, seems to drop unrelated events on macOS
+							setImmediate(() => resolve(events)); // copied from parcel watcher tests, seems to drop unrelated events on macOS
 						}
 						break;
 					}
@@ -132,6 +133,8 @@ import { ltrim } from 'vs/base/common/strings';
 		// change event
 		// Refs: https://github.com/microsoft/vscode/issues/137430
 		await timeout(1);
+
+		return res;
 	}
 
 	function awaitMessage(service: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
@@ -244,26 +247,20 @@ import { ltrim } from 'vs/base/common/strings';
 		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
 		await changeFuture;
 
-		// Skip following asserts on macOS where the fs-events service
-		// does not really give a full guarantee about the correlation
-		// of an event to a change.
-		if (!isMacintosh) {
+		// Read file does not emit event
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
+		await Promises.readFile(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
 
-			// Read file does not emit event
-			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-			await Promises.readFile(anotherNewFilePath);
-			await Promise.race([timeout(100), changeFuture]);
+		// Stat file does not emit event
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
 
-			// Stat file does not emit event
-			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-			await Promises.stat(anotherNewFilePath);
-			await Promise.race([timeout(100), changeFuture]);
-
-			// Stat folder does not emit event
-			changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-			await Promises.stat(copiedFolderpath);
-			await Promise.race([timeout(100), changeFuture]);
-		}
+		// Stat folder does not emit event
+		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(copiedFolderpath);
+		await Promise.race([timeout(100), changeFuture]);
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
@@ -281,7 +278,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
-		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -296,7 +293,7 @@ import { ltrim } from 'vs/base/common/strings';
 	async function basicCrudTest(filePath: string): Promise<void> {
 
 		// New file
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
@@ -324,12 +321,12 @@ import { ltrim } from 'vs/base/common/strings';
 		const newFilePath5 = join(testDir, 'deep-multiple', 'newFile-2.txt');
 		const newFilePath6 = join(testDir, 'deep-multiple', 'newFile-3.txt');
 
-		const addedFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.ADDED);
-		const addedFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.ADDED);
-		const addedFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.ADDED);
-		const addedFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.ADDED);
-		const addedFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.ADDED);
-		const addedFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.ADDED);
+		const addedFuture1 = awaitEvent(watcher, newFilePath1, FileChangeType.ADDED);
+		const addedFuture2 = awaitEvent(watcher, newFilePath2, FileChangeType.ADDED);
+		const addedFuture3 = awaitEvent(watcher, newFilePath3, FileChangeType.ADDED);
+		const addedFuture4 = awaitEvent(watcher, newFilePath4, FileChangeType.ADDED);
+		const addedFuture5 = awaitEvent(watcher, newFilePath5, FileChangeType.ADDED);
+		const addedFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.ADDED);
 
 		await Promise.all([
 			await Promises.writeFile(newFilePath1, 'Hello World 1'),
@@ -344,12 +341,12 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// multiple change
 
-		const changeFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.UPDATED);
-		const changeFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.UPDATED);
-		const changeFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.UPDATED);
-		const changeFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.UPDATED);
-		const changeFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.UPDATED);
-		const changeFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.UPDATED);
+		const changeFuture1 = awaitEvent(watcher, newFilePath1, FileChangeType.UPDATED);
+		const changeFuture2 = awaitEvent(watcher, newFilePath2, FileChangeType.UPDATED);
+		const changeFuture3 = awaitEvent(watcher, newFilePath3, FileChangeType.UPDATED);
+		const changeFuture4 = awaitEvent(watcher, newFilePath4, FileChangeType.UPDATED);
+		const changeFuture5 = awaitEvent(watcher, newFilePath5, FileChangeType.UPDATED);
+		const changeFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.UPDATED);
 
 		await Promise.all([
 			await Promises.writeFile(newFilePath1, 'Hello Update 1'),
@@ -364,10 +361,10 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// copy with multiple files
 
-		const copyFuture1: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-1.txt'), FileChangeType.ADDED);
-		const copyFuture2: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-2.txt'), FileChangeType.ADDED);
-		const copyFuture3: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-3.txt'), FileChangeType.ADDED);
-		const copyFuture4: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.ADDED);
+		const copyFuture1 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-1.txt'), FileChangeType.ADDED);
+		const copyFuture2 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-2.txt'), FileChangeType.ADDED);
+		const copyFuture3 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-3.txt'), FileChangeType.ADDED);
+		const copyFuture4 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.ADDED);
 
 		await Promises.copy(join(testDir, 'deep-multiple'), join(testDir, 'deep-multiple-copy'), { preserveSymlinks: false });
 
@@ -375,12 +372,12 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// multiple delete (single files)
 
-		const deleteFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.DELETED);
-		const deleteFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.DELETED);
-		const deleteFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.DELETED);
-		const deleteFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.DELETED);
-		const deleteFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.DELETED);
-		const deleteFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.DELETED);
+		const deleteFuture1 = awaitEvent(watcher, newFilePath1, FileChangeType.DELETED);
+		const deleteFuture2 = awaitEvent(watcher, newFilePath2, FileChangeType.DELETED);
+		const deleteFuture3 = awaitEvent(watcher, newFilePath3, FileChangeType.DELETED);
+		const deleteFuture4 = awaitEvent(watcher, newFilePath4, FileChangeType.DELETED);
+		const deleteFuture5 = awaitEvent(watcher, newFilePath5, FileChangeType.DELETED);
+		const deleteFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.DELETED);
 
 		await Promise.all([
 			await Promises.unlink(newFilePath1),
@@ -395,8 +392,8 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// multiple delete (folder)
 
-		const deleteFolderFuture1: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple'), FileChangeType.DELETED);
-		const deleteFolderFuture2: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.DELETED);
+		const deleteFolderFuture1 = awaitEvent(watcher, join(testDir, 'deep-multiple'), FileChangeType.DELETED);
+		const deleteFolderFuture2 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.DELETED);
 
 		await Promise.all([Promises.rm(join(testDir, 'deep-multiple'), RimRafMode.UNLINK), Promises.rm(join(testDir, 'deep-multiple-copy'), RimRafMode.UNLINK)]);
 
@@ -408,7 +405,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// New file (*.txt)
 		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
