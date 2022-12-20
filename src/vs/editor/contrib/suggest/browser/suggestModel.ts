@@ -17,7 +17,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -386,11 +385,6 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
-			// no quick suggestion when in snippet mode
-			return;
-		}
-
 		this.cancel();
 
 		this._triggerQuickSuggest.cancelAndSet(() => {
@@ -705,6 +699,7 @@ export class SuggestModel implements IDisposable {
 					// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
 					// suggestions to be cancelled, which causes `this._context` to be undefined
 					this.cancel();
+					return;
 				}
 
 				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {

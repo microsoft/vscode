@@ -229,6 +229,7 @@
 	flex-wrap: wrap;
 	padding: 0 4px;
 	overflow: hidden;
+	height: 28px;
 }
 
 .scm-view .button-container .monaco-description-button:hover {
