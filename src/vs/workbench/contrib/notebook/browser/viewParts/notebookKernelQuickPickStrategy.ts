@@ -137,7 +137,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		const quickPickItems = this._getKernelPickerQuickPickItems(notebook, matchResult, this._notebookKernelService, scopedContextKeyService);
 
 		if (quickPickItems.length === 1 && supportAutoRun(quickPickItems[0]) && !skipAutoRun) {
-			return await this._handleQuickPick(editor, quickPickItems[0]);
+			return await this._handleQuickPick(editor, quickPickItems[0], quickPickItems as KernelQuickPickItem[]);
 		}
 
 		quickPick.items = quickPickItems;
@@ -197,13 +197,13 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			quickPick.activeItems = activeItems;
 		}, this);
 
-		const pick = await new Promise<KernelQuickPickItem | undefined>((resolve, reject) => {
+		const pick = await new Promise<{ selected: KernelQuickPickItem | undefined; items: KernelQuickPickItem[] }>((resolve, reject) => {
 			quickPick.onDidAccept(() => {
 				const item = quickPick.selectedItems[0];
 				if (item) {
-					resolve(item);
+					resolve({ selected: item, items: quickPick.items as KernelQuickPickItem[] });
 				} else {
-					resolve(undefined);
+					resolve({ selected: undefined, items: quickPick.items as KernelQuickPickItem[] });
 				}
 
 				quickPick.hide();
@@ -213,13 +213,13 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				kernelDetectionTaskListener.dispose();
 				kernelChangeEventListener.dispose();
 				quickPick.dispose();
-				resolve(undefined);
+				resolve({ selected: undefined, items: quickPick.items as KernelQuickPickItem[] });
 			});
 			quickPick.show();
 		});
 
-		if (pick) {
-			return await this._handleQuickPick(editor, pick);
+		if (pick.selected) {
+			return await this._handleQuickPick(editor, pick.selected, pick.items);
 		}
 
 		return false;
@@ -236,7 +236,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		scopedContextKeyService: IContextKeyService
 	): QuickPickInput<KernelQuickPickItem>[];
 
-	protected async _handleQuickPick(editor: IActiveNotebookEditor, pick: KernelQuickPickItem) {
+	protected async _handleQuickPick(editor: IActiveNotebookEditor, pick: KernelQuickPickItem, quickPickItems: KernelQuickPickItem[]): Promise<boolean> {
 		if (isKernelPick(pick)) {
 			const newKernel = pick.kernel;
 			this._selecteKernel(editor.textModel, newKernel);
@@ -659,21 +659,21 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		};
 	}
 
-	protected override async _handleQuickPick(editor: IActiveNotebookEditor, pick: KernelQuickPickItem): Promise<boolean> {
+	protected override async _handleQuickPick(editor: IActiveNotebookEditor, pick: KernelQuickPickItem, items: KernelQuickPickItem[]): Promise<boolean> {
 		if (pick.id === 'selectAnother') {
-			return this.displaySelectAnotherQuickPick(editor);
+			return this.displaySelectAnotherQuickPick(editor, items.length === 1 && items[0] === pick);
 		}
 
-		return super._handleQuickPick(editor, pick);
+		return super._handleQuickPick(editor, pick, items);
 	}
 
-	private async displaySelectAnotherQuickPick(editor: IActiveNotebookEditor) {
+	private async displaySelectAnotherQuickPick(editor: IActiveNotebookEditor, kernelListEmpty: boolean) {
 		const notebook: NotebookTextModel = editor.textModel;
 		const disposables = new DisposableStore();
 		return new Promise<boolean>(resolve => {
 			// select from kernel sources
 			const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
-			quickPick.title = localize('selectAnotherKernel', "Select Another Kernel");
+			quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
 			quickPick.busy = true;
 			quickPick.buttons = [this._quickInputService.backButton];
 			quickPick.show();
@@ -699,7 +699,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 							}
 							resolve(true);
 						} else {
-							return resolve(this.displaySelectAnotherQuickPick(editor));
+							return resolve(this.displaySelectAnotherQuickPick(editor, false));
 						}
 					} else if (isKernelPick(quickPick.selectedItems[0])) {
 						await this._selecteKernel(notebook, quickPick.selectedItems[0].kernel);
