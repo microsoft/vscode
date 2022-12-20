@@ -6,9 +6,10 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
-import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/copyFiles/dropIntoEditor';
+import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/dropIntoEditor';
 import { coalesce } from '../util/arrays';
 import { Schemes } from '../util/schemes';
+
 
 
 export class InsertLinkFromWorkspace implements Command {
