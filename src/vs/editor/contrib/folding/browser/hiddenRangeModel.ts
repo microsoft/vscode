@@ -90,34 +90,24 @@ export class HiddenRangeModel {
 		return this._hiddenRanges.length > 0;
 	}
 
-	public isHidden(line: number): boolean {
-		return findRange(this._hiddenRanges, line) !== null;
+	public isHidden(line: number, column?: number): boolean {
+		return this.findContainingHiddenRange(line, column) !== null;
 	}
 
 	public adjustSelections(selections: Selection[]): boolean {
 		let hasChanges = false;
-		const editorModel = this._foldingModel.textModel;
-		let lastRange: IRange | null = null;
-
-		const adjustLine = (line: number) => {
-			if (!lastRange || !isInside(line, lastRange)) {
-				lastRange = findRange(this._hiddenRanges, line);
-			}
-			if (lastRange) {
-				return lastRange.startLineNumber - 1;
-			}
-			return null;
-		};
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-			const adjustedStartLine = adjustLine(selection.startLineNumber);
-			if (adjustedStartLine) {
-				selection = selection.setStartPosition(adjustedStartLine, editorModel.getLineMaxColumn(adjustedStartLine));
+			let containingRange = this.findContainingHiddenRange(selection.startLineNumber, selection.startColumn);
+			if (containingRange) {
+				const adjustedStartLine = containingRange.startLineNumber - 1;
+				selection = selection.setStartPosition(adjustedStartLine, containingRange.startColumn);
 				hasChanges = true;
 			}
-			const adjustedEndLine = adjustLine(selection.endLineNumber);
-			if (adjustedEndLine) {
-				selection = selection.setEndPosition(adjustedEndLine, editorModel.getLineMaxColumn(adjustedEndLine));
+			containingRange = this.findContainingHiddenRange(selection.endLineNumber, selection.endColumn);
+			if (containingRange) {
+				const adjustedEndLine = containingRange.startLineNumber - 1;
+				selection = selection.setEndPosition(adjustedEndLine, containingRange.startColumn);
 				hasChanges = true;
 			}
 			selections[i] = selection;
@@ -125,6 +115,10 @@ export class HiddenRangeModel {
 		return hasChanges;
 	}
 
+	private findContainingHiddenRange(line: number, column?: number): IRange | null {
+		const closestRange = findRange(this._hiddenRanges, line);
+		return closestRange && isInside(line, column, closestRange) ? closestRange : null;
+	}
 
 	public dispose() {
 		if (this.hiddenRanges.length > 0) {
@@ -138,11 +132,21 @@ export class HiddenRangeModel {
 	}
 }
 
-function isInside(line: number, range: IRange) {
+function isInside(line: number, column: number | undefined, range: IRange) {
+	if (column !== undefined) {
+		if ((line === range.startLineNumber - 1) && column > range.startColumn) {
+			return true;
+		}
+		if (line === range.endLineNumber && column < range.endColumn) {
+			return true;
+		}
+	}
 	return line >= range.startLineNumber && line <= range.endLineNumber;
 }
+
 function findRange(ranges: IRange[], line: number): IRange | null {
-	const i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
+	//startLineNumber - 1 to include hidden ranges' starting line as well.
+	const i = findFirstInSorted(ranges, r => line < r.startLineNumber - 1) - 1;
 	if (i >= 0 && ranges[i].endLineNumber >= line) {
 		return ranges[i];
 	}

@@ -385,8 +385,16 @@ export class FoldingController extends Disposable implements IEditorContribution
 					const toToggle: FoldingRegion[] = [];
 					for (const selection of selections) {
 						const lineNumber = selection.selectionStartLineNumber;
-						if (this.hiddenRangeModel && this.hiddenRangeModel.isHidden(lineNumber)) {
-							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
+						const columnNumber = selection.selectionStartColumn;
+						if (this.hiddenRangeModel && this.hiddenRangeModel.isHidden(lineNumber, columnNumber)) {
+							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => {
+								if (!r.isCollapsed) {
+									return false;
+								}
+								const withinColumnRange = r.startColumn ? lineNumber === r.startLineNumber && columnNumber > r.startColumn : false;
+								const withinLineRange = lineNumber > r.startLineNumber;
+								return withinColumnRange || withinLineRange;
+							}));
 						}
 					}
 					if (toToggle.length) {
