@@ -185,7 +185,7 @@ class FetchAllRemotesItem implements QuickPickItem {
 	}
 }
 
-class UnsafeRepositoryItem implements QuickPickItem {
+class RepositoryItem implements QuickPickItem {
 	get label(): string {
 		return `$(repo) ${this.path}`;
 	}
@@ -3221,6 +3221,46 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.openExternalRepositories')
+	async openExternalRepositories(always: boolean): Promise<void> {
+		const externalRepositories: string[] = [];
+
+		if (always) {
+			// Update setting
+			externalRepositories.push(...this.model.externalRepositories.keys());
+		} else {
+			const title = l10n.t('Open External Repositories');
+			const allRepositoriesLabel = l10n.t('All Repositories');
+			const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+			const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.externalRepositories.keys()).sort().map(r => new RepositoryItem(r));
+
+			const items = this.model.externalRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+				[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+			const repositoryItem = await window.showQuickPick(items, { title });
+			if (!repositoryItem) {
+				return;
+			}
+
+			if (repositoryItem === allRepositoriesQuickPickItem) {
+				// All Repositories
+				externalRepositories.push(...this.model.externalRepositories.keys());
+			} else {
+				// One Repository
+				externalRepositories.push((repositoryItem as RepositoryItem).path);
+			}
+		}
+
+		for (const externalRepository of externalRepositories) {
+			// Mark repository to be opened
+			this.model.externalRepositories.set(externalRepository, true);
+
+			// Open Repository
+			await this.model.openRepository(externalRepository);
+			this.model.externalRepositories.delete(externalRepository);
+		}
+	}
+
 	@command('git.manageUnsafeRepositories')
 	async manageUnsafeRepositories(): Promise<void> {
 		const unsafeRepositories: string[] = [];
@@ -3231,13 +3271,13 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new UnsafeRepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new RepositoryItem(r));
 
 		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		quickpick.show();
-		const repositoryItem = await new Promise<UnsafeRepositoryItem | QuickPickItem | undefined>(
+		const repositoryItem = await new Promise<RepositoryItem | QuickPickItem | undefined>(
 			resolve => {
 				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
 				quickpick.onDidHide(() => resolve(undefined));
@@ -3253,7 +3293,7 @@ export class CommandCenter {
 			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
 		} else {
 			// One Repository
-			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
+			unsafeRepositories.push((repositoryItem as RepositoryItem).path);
 		}
 
 		for (const unsafeRepository of unsafeRepositories) {

@@ -63,6 +63,35 @@ class UnsafeRepositoryMap extends Map<string, string> {
 	}
 }
 
+/**
+ * Key   - normalized path used in user interface
+ * Value - value indicating whether the repository should be opened
+ */
+class ExternalRepositoryMap extends Map<string, boolean> {
+	constructor() {
+		super();
+		this.updateContextKey();
+	}
+
+	override set(key: string, value: boolean): this {
+		const result = super.set(key, value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	override delete(value: string): boolean {
+		const result = super.delete(value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	private updateContextKey(): void {
+		commands.executeCommand('setContext', 'git.externalRepositoryCount', this.size);
+	}
+}
+
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -137,12 +166,16 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
 	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
 
-	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private _unsafeRepositories = new UnsafeRepositoryMap();
 	get unsafeRepositories(): Map<string, string> {
 		return this._unsafeRepositories;
+	}
+
+	private _externalRepositories = new ExternalRepositoryMap();
+	get externalRepositories(): Map<string, boolean> {
+		return this._externalRepositories;
 	}
 
 	private disposables: Disposable[] = [];
@@ -180,8 +213,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
-		// Unsafe repositories notification
-		if (this._unsafeRepositories.size !== 0) {
+		if (this._externalRepositories.size !== 0) {
+			// External repositories notification
+			this.showExternalRepositoryNotification();
+		} else if (this._unsafeRepositories.size !== 0) {
+			// Unsafe repositories notification
 			this.showUnsafeRepositoryNotification();
 		}
 
@@ -393,65 +429,75 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		}
 
 		try {
-			const rawRoot = await this.git.getRepositoryRoot(repoPath);
-
-			// This can happen whenever `path` has the wrong case sensitivity in
-			// case insensitive file systems
-			// https://github.com/microsoft/vscode/issues/33498
-			const repositoryRoot = Uri.file(rawRoot).fsPath;
-			this.logger.trace(`Repository root: ${repositoryRoot}`);
+			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 
 			if (this.getRepositoryExact(repositoryRoot)) {
 				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
 
-			if (this.shouldRepositoryBeIgnored(rawRoot)) {
+			if (this.shouldRepositoryBeIgnored(repositoryRoot)) {
 				this.logger.trace(`Repository for path ${repositoryRoot} is ignored`);
 				return;
 			}
 
-			// On Window, opening a git repository from the root of the HOMEDRIVE poses a security risk.
-			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
-			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
-			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
-				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+			// Handle git repositories that are outside the workspace
+			const isRepositoryOutsideWorkspace = (workspace.workspaceFolders ?? [])
+				.find(f => pathEquals(f.uri.fsPath, repositoryRoot) || isDescendant(f.uri.fsPath, repositoryRoot)) === undefined;
 
-				if (!isRepoInWorkspaceFolders) {
-					if (this.showRepoOnHomeDriveRootWarning) {
-						window.showWarningMessage(l10n.t('Unable to automatically open the git repository at "{0}". To open that git repository, open it directly as a folder in VS Code.', repositoryRoot));
-						this.showRepoOnHomeDriveRootWarning = false;
-					}
+			if (isRepositoryOutsideWorkspace && this.externalRepositories.get(repositoryRoot) !== true) {
+				this.logger.trace(`External repository: ${repositoryRoot}`);
 
-					this.logger.trace(`Repository for path ${repositoryRoot} is on the root of the HOMEDRIVE`);
-					return;
+				// Show a notification if the external repository is opened after the initial repository scan
+				if (this.state === 'initialized' && !this._externalRepositories.has(repositoryRoot)) {
+					this.showExternalRepositoryNotification();
 				}
+
+				this._externalRepositories.set(repositoryRoot, false);
+				return;
 			}
 
+			// Handle unsafe repositories
+			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
+				this.logger.trace(`Unsafe repository: ${repositoryRoot}`);
+
+				// Show a notification if the unsafe repository is opened after the initial repository scan
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot)) {
+					this.showUnsafeRepositoryNotification();
+				}
+
+				this._unsafeRepositories.set(repositoryRoot, unsafeRepositoryMatch[2]);
+
+				return;
+			}
+
+			// Open repository
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
-		} catch (ex) {
+		} catch (err) {
+			// noop
+			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${err}`);
+		}
+	}
+
+	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
+		try {
+			const rawRoot = await this.git.getRepositoryRoot(repoPath);
+
+			// This can happen whenever `path` has the wrong case sensitivity in case
+			// insensitive file systems https://github.com/microsoft/vscode/issues/33498
+			return { repositoryRoot: Uri.file(rawRoot).fsPath, unsafeRepositoryMatch: null };
+		} catch (err) {
 			// Handle unsafe repository
-			const match = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(ex.stderr);
-			if (match && match.length === 3) {
-				const unsafeRepositoryPath = path.normalize(match[1]);
-				this.logger.trace(`Unsafe repository: ${unsafeRepositoryPath}`);
-
-				// Show a notification if the unsafe repository is opened after the initial repository scan
-				if (this._state === 'initialized' && !this._unsafeRepositories.has(unsafeRepositoryPath)) {
-					this.showUnsafeRepositoryNotification();
-				}
-
-				this._unsafeRepositories.set(unsafeRepositoryPath, match[2]);
-
-				return;
+			const unsafeRepositoryMatch = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(err.stderr);
+			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
+				return { repositoryRoot: path.normalize(unsafeRepositoryMatch[1]), unsafeRepositoryMatch };
 			}
 
-			// noop
-			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			throw err;
 		}
 	}
 
@@ -742,6 +788,25 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	private async showExternalRepositoryNotification(): Promise<void> {
+		const message = this.externalRepositories.size === 1 ?
+			l10n.t('We have found a git repository that is outside the current folder/workspace. Would you like to open the repository?') :
+			l10n.t('We have found git repositories that are outside the current folder/workspace. Would you like to open the repositories?');
+
+		const open = l10n.t('Open');
+		const alwaysOpen = l10n.t('Always Open');
+		const learnMore = l10n.t('Learn More');
+
+		const choice = await window.showErrorMessage(message, open, alwaysOpen, learnMore);
+		if (choice === open || choice === alwaysOpen) {
+			// Open External Repositories
+			commands.executeCommand('git.openExternalRepositories', choice === alwaysOpen);
+		} else if (choice === learnMore) {
+			// Learn More
+			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-external-repository'));
+		}
 	}
 
 	private async showUnsafeRepositoryNotification(): Promise<void> {

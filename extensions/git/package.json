@@ -2785,14 +2785,14 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.unsafeRepositoryCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.unsafeRepositoryCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
@@ -2809,13 +2809,13 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
@@ -2831,15 +2831,13 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
         "group": "5_scm@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.learnMore%",
-        "when": "config.git.enabled",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
         "group": "5_scm@10"
       }
     ]
