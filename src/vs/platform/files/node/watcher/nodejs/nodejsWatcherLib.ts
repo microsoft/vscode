@@ -34,18 +34,18 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	// recursive watcher because we can have many individual
 	// node.js watchers per request.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesEmitter = new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IDiskFileChange>(
 		{
 			maxWorkChunkSize: 100,	// only process up to 100 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
 			maxBufferedWork: 10000 	// ...but never buffering more than 10000 events in memory
 		},
 		events => this.onDidFilesChange(events)
-	);
+	));
 
 	// Aggregate file changes over FILE_CHANGES_HANDLER_DELAY
 	// to coalesce events and reduce spam.
-	private readonly fileChangesAggregator = new RunOnceWorker<IDiskFileChange>(events => this.handleFileChanges(events), NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY);
+	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IDiskFileChange>(events => this.handleFileChanges(events), NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
@@ -326,6 +326,11 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
 								this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
+
+								// Important to flush the event delivery
+								// before disposing the watcher, otherwise
+								// we will loose this event.
+								this.fileChangesAggregator.flush();
 
 								this.dispose();
 							}
