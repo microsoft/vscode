@@ -121,10 +121,6 @@ body.web {
 .monaco-workbench textarea::-webkit-input-placeholder { color: var(--vscode-input-placeholderForeground); }
 .monaco-workbench textarea::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
 
-.monaco-workbench select {
-	font-family: inherit;
-}
-
 .monaco-workbench .pointer {
 	cursor: pointer;
 }
@@ -165,6 +161,7 @@ body.web {
 /* Custom Dropdown (select) Arrows */
 
 .monaco-workbench select {
+	font-family: inherit;
 	appearance: none;
 	-webkit-appearance: none;
 	-moz-appearance: none;
@@ -202,8 +199,7 @@ body.web {
 .monaco-workbench button:focus,
 .monaco-workbench textarea:focus,
 .monaco-workbench input[type="search"]:focus,
-.monaco-workbench input[type="checkbox"]:focus ,
-.monaco-workbench .monaco-list:not(.element-focused):focus:before {
+.monaco-workbench input[type="checkbox"]:focus {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
@@ -245,6 +241,7 @@ body.web {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
