@@ -21,12 +21,13 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, IntervalTimer } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { getRemoteAuthorityPrefix } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -377,8 +378,15 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		const sw = StopWatch.create(false);
+		const prefix = () => `[${extensionHostKindToString(this._extensionHost.runningLocation.kind)}${this._extensionHost.runningLocation.affinity}][resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
+		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
+
+		logInfo(`obtaining proxy...`);
 		const proxy = await this._proxy;
 		if (!proxy) {
+			logError(`no proxy`);
 			return {
 				type: 'error',
 				error: {
@@ -388,10 +396,21 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				}
 			};
 		}
-
+		logInfo(`invoking...`);
+		const intervalLogger = new IntervalTimer();
 		try {
-			return proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
+			const resolverResult = await proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.dispose();
+			if (resolverResult.type === 'ok') {
+				logInfo(`returned ${resolverResult.value.authority.host}:${resolverResult.value.authority.port}`);
+			} else {
+				logError(`returned an error`, resolverResult.error);
+			}
+			return resolverResult;
 		} catch (err) {
+			intervalLogger.dispose();
+			logError(`returned an error`, err);
 			return {
 				type: 'error',
 				error: {
