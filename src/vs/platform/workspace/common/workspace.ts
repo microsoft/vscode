@@ -140,6 +140,13 @@ export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleF
 	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
 }
 
+export function isEmptyWorkspaceIdentifier(obj: unknown): obj is IEmptyWorkspaceIdentifier {
+	const emptyWorkspaceIdentifier = obj as IEmptyWorkspaceIdentifier | undefined;
+	return typeof emptyWorkspaceIdentifier?.id === 'string'
+		&& !isSingleFolderWorkspaceIdentifier(obj)
+		&& !isWorkspaceIdentifier(obj);
+}
+
 export const EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'ext-dev' };
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;

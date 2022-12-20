@@ -1902,20 +1902,24 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
-		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const onlyOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const preserveCase = this.viewModel.preserveCase;
 
-		this.viewletState['query.contentPattern'] = contentPattern;
-		this.viewletState['query.regex'] = isRegex;
-		this.viewletState['query.wholeWords'] = isWholeWords;
-		this.viewletState['query.caseSensitive'] = isCaseSensitive;
+		if (this.searchWidget.searchInput) {
+			const isRegex = this.searchWidget.searchInput.getRegex();
+			const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+			const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+			const contentPattern = this.searchWidget.searchInput.getValue();
+
+			this.viewletState['query.contentPattern'] = contentPattern;
+			this.viewletState['query.regex'] = isRegex;
+			this.viewletState['query.wholeWords'] = isWholeWords;
+			this.viewletState['query.caseSensitive'] = isCaseSensitive;
+		}
+
 		this.viewletState['query.folderExclusions'] = patternExcludes;
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -12,7 +13,7 @@ import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { dirname, joinPath } from 'vs/base/common/resources';
+import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -45,10 +46,17 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+
+const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
+const LineQueryRegex = /line=(\d+)/;
+
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -158,6 +166,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IPathService private readonly pathService: IPathService,
 		@ILoggerService loggerService: ILoggerService,
 		@ILogService logService: ILogService,
 		@IThemeService themeService: IThemeService,
@@ -740,39 +749,13 @@ var requirejs = (function() {
 						return;
 					}
 
-					let linkToOpen: URI | string | undefined;
 					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
-						linkToOpen = data.href;
+						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
 					} else if (!/^[\w\-]+:/.test(data.href)) {
-						const fragmentStartIndex = data.href.lastIndexOf('#');
-						const path = decodeURI(fragmentStartIndex >= 0 ? data.href.slice(0, fragmentStartIndex) : data.href);
-						if (this.documentUri.scheme === Schemas.untitled) {
-							const folders = this.workspaceContextService.getWorkspace().folders;
-							if (!folders.length) {
-								return;
-							}
-							linkToOpen = URI.joinPath(folders[0].uri, path);
-						} else {
-							if (data.href.startsWith('/')) {
-								// Resolve relative to workspace
-								let folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
-								if (!folder) {
-									const folders = this.workspaceContextService.getWorkspace().folders;
-									if (!folders.length) {
-										return;
-									}
-									folder = folders[0];
-								}
-								linkToOpen = URI.joinPath(folder.uri, path);
-							} else {
-								// Resolve relative to notebook document
-								linkToOpen = URI.joinPath(dirname(this.documentUri), path);
-							}
-						}
-					}
-
-					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, fromWorkspace: true });
+						this._handleResourceOpening(data.href);
+					} else {
+						// uri with scheme
+						this._openUri(URI.parse(data.href));
 					}
 					break;
 				}
@@ -892,6 +875,79 @@ var requirejs = (function() {
 				}
 			}
 		}));
+	}
+
+	private _handleResourceOpening(href: string) {
+		let linkToOpen: URI | undefined = undefined;
+		if (href.startsWith('/')) {
+			linkToOpen = URI.parse(href);
+		} else if (href.startsWith('~')) {
+			const userHome = this.pathService.resolvedUserHome;
+			if (userHome) {
+				linkToOpen = URI.parse(osPath.join(userHome.fsPath, href.substring(1)));
+			}
+		} else {
+			if (this.documentUri.scheme === Schemas.untitled) {
+				const folders = this.workspaceContextService.getWorkspace().folders;
+				if (!folders.length) {
+					return;
+				}
+				linkToOpen = URI.joinPath(folders[0].uri, href);
+			} else {
+				// Resolve relative to notebook document
+				linkToOpen = URI.joinPath(dirname(this.documentUri), href);
+			}
+		}
+
+		if (linkToOpen) {
+			this._openUri(linkToOpen);
+		}
+	}
+
+	private _openUri(uri: URI) {
+		let lineNumber: number | undefined = undefined;
+		let column: number | undefined = undefined;
+		const lineCol = LINE_COLUMN_REGEX.exec(uri.path);
+		if (lineCol) {
+			uri = uri.with({
+				path: uri.path.slice(0, lineCol.index),
+				fragment: `L${lineCol[0].slice(1)}`
+			});
+			lineNumber = parseInt(lineCol[1], 10);
+			column = parseInt(lineCol[2], 10);
+		}
+
+		//#region error renderer migration, remove once done
+		const lineMatch = LineQueryRegex.exec(uri.query);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				lineNumber = parsedLineNumber + 1;
+				column = 1;
+				uri = uri.with({ fragment: `L${lineNumber}` });
+			}
+		}
+
+		uri = uri.with({
+			query: null
+		});
+		//#endregion
+
+		let match: { group: IEditorGroup; editor: EditorInput } | undefined = undefined;
+
+		for (const group of this.editorGroupService.groups) {
+			const editorInput = group.editors.find(editor => editor.resource && isEqual(editor.resource, uri, true));
+			if (editorInput) {
+				match = { group, editor: editorInput };
+				break;
+			}
+		}
+
+		if (match) {
+			match.group.openEditor(match.editor, lineNumber !== undefined && column !== undefined ? <ITextEditorOptions>{ selection: { startLineNumber: lineNumber, startColumn: column } } : undefined);
+		} else {
+			this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		}
 	}
 
 	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
