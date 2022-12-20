@@ -54,7 +54,6 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { isThenable } from 'vs/base/common/async';
 
 //#region Helper Interfaces
 
@@ -1505,7 +1504,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (this.userDataProfilesMainService.isEnabled()) {
 			const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
 			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace);
-			const profile = isThenable(profilePromise) ? await profilePromise : profilePromise;
+			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
 			configuration.profiles.profile = profile;
 
 			if (!configuration.extensionDevelopmentPath) {
