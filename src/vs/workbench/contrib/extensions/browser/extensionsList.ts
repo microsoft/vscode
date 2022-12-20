@@ -27,7 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
-export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
+export const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;

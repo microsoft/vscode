@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as querystring from 'querystring';
-import path = require('path');
+import * as path from 'path';
 import Logger from './logger';
 import { isSupportedEnvironment } from './utils';
 import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';

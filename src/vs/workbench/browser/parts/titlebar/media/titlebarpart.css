@@ -85,7 +85,7 @@
 	/* see #55435 */
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container .action-item {
+.monaco-workbench .part.titlebar>.titlebar-container .monaco-toolbar .action-item {
 	margin-right: 4px;
 }
 
@@ -242,7 +242,6 @@
 
 .monaco-workbench.mac .part.titlebar>.window-controls-container {
 	width: 70px;
-	height: env(titlebar-area-height, 28px);
 }
 
 .monaco-workbench.web .part.titlebar>.window-controls-container {

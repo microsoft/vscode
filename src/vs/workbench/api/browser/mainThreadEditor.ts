@@ -523,8 +523,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
-			// ignored because emmet tests fail...
-			// return false;
+			return false;
 		}
 
 		const snippetController = SnippetController2.get(this._codeEditor);

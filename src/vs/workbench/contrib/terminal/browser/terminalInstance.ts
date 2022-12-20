@@ -131,9 +131,12 @@ interface IGridDimensions {
 	rows: number;
 }
 
-const shellIntegrationSupportedShellTypes = [PosixShellType.Bash, PosixShellType.Zsh, PosixShellType.PowerShell, WindowsShellType.PowerShell];
-
-const scrollbarHeight = 5;
+const shellIntegrationSupportedShellTypes = [
+	PosixShellType.Bash,
+	PosixShellType.Zsh,
+	PosixShellType.PowerShell,
+	WindowsShellType.PowerShell
+];
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -144,7 +147,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly _processManager: ITerminalProcessManager;
 	private readonly _resource: URI;
-	private _shutdownPersistentProcessId: number | undefined;
 	// Enables disposal of the xterm onKey
 	// event when the CwdDetection capability
 	// is added
@@ -716,15 +718,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
-			height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0) - 2/* bottom padding */ - verticalPadding);
+			height + (this._hasScrollBar && !this._horizontalScrollbar ? -5/* scroll bar height */ : 0) - 2/* bottom padding */ - verticalPadding);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	set shutdownPersistentProcessId(shutdownPersistentProcessId: number | undefined) {
-		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
-	}
-	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
-	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
+	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
+	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.

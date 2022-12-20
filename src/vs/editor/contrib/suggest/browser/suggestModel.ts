@@ -17,7 +17,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -386,11 +385,6 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
-			// no quick suggestion when in snippet mode
-			return;
-		}
-
 		this.cancel();
 
 		this._triggerQuickSuggest.cancelAndSet(() => {
@@ -655,13 +649,15 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
 			// started a new word while IntelliSense shows -> retrigger but reuse all items that we currently have
-			const map = this._completionModel.getItemsByProvider();
-			this.trigger({
-				auto: this._context.auto,
-				retrigger: true,
-				clipboardText: this._completionModel.clipboardText,
-				completionOptions: { providerItemsToReuse: map }
-			});
+			if (LineContext.shouldAutoTrigger(this._editor)) {
+				const map = this._completionModel.getItemsByProvider();
+				this.trigger({
+					auto: this._context.auto,
+					retrigger: true,
+					clipboardText: this._completionModel.clipboardText,
+					completionOptions: { providerItemsToReuse: map }
+				});
+			}
 			return;
 		}
 
@@ -703,6 +699,7 @@ export class SuggestModel implements IDisposable {
 					// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
 					// suggestions to be cancelled, which causes `this._context` to be undefined
 					this.cancel();
+					return;
 				}
 
 				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {

@@ -251,7 +251,7 @@ export class InlayHintsController implements IEditorContribution {
 				if (!this._editor.hasModel()) {
 					return;
 				}
-				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
+				const newRenderMode = e.altKey && e.ctrlKey && !(e.shiftKey || e.metaKey) ? altMode : defaultMode;
 				if (newRenderMode !== this._activeRenderMode) {
 					this._activeRenderMode = newRenderMode;
 					const model = this._editor.getModel();

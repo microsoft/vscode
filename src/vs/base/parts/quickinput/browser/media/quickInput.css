@@ -162,6 +162,7 @@
 .quick-input-list .monaco-list {
 	overflow: hidden;
 	max-height: calc(20 * 22px);
+	padding-bottom: 5px;
 }
 
 .quick-input-list .monaco-scrollable-element {

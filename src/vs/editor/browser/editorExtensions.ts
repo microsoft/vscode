@@ -452,7 +452,7 @@ export abstract class EditorAction2 extends Action2 {
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
 			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
-				return this.runEditorCommand(editorAccessor, editor!, args);
+				return this.runEditorCommand(editorAccessor, editor!, ...args);
 			}
 		});
 	}
