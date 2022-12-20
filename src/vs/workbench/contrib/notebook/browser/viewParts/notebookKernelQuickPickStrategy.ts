@@ -108,7 +108,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		protected readonly _commandService: ICommandService
 	) { }
 
-	async showQuickPick(editor: IActiveNotebookEditor, wantedId?: string): Promise<boolean> {
+	async showQuickPick(editor: IActiveNotebookEditor, wantedId?: string, skipAutoRun?: boolean): Promise<boolean> {
 		const notebook = editor.textModel;
 		const scopedContextKeyService = editor.scopedContextKeyService;
 		const matchResult = this._getMatchingResult(notebook);
@@ -136,7 +136,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
 		const quickPickItems = this._getKernelPickerQuickPickItems(notebook, matchResult, this._notebookKernelService, scopedContextKeyService);
 
-		if (quickPickItems.length === 1 && supportAutoRun(quickPickItems[0])) {
+		if (quickPickItems.length === 1 && supportAutoRun(quickPickItems[0]) && !skipAutoRun) {
 			return await this._handleQuickPick(editor, quickPickItems[0]);
 		}
 
@@ -681,7 +681,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			disposables.add(quickPick.onDidTriggerButton(button => {
 				if (button === this._quickInputService.backButton) {
 					quickPick.hide();
-					resolve(this.showQuickPick(editor));
+					resolve(this.showQuickPick(editor, undefined, true));
 				}
 			}));
 			disposables.add(quickPick.onDidAccept(async () => {
