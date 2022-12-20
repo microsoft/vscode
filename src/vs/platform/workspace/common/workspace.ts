@@ -148,10 +148,11 @@ export function isEmptyWorkspaceIdentifier(obj: unknown): obj is IEmptyWorkspace
 }
 
 export const EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'ext-dev' };
+export const UNKNOWN_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'empty-window' };
 
-export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+export function toWorkspaceIdentifier(workspace: IWorkspace): IAnyWorkspaceIdentifier;
 export function toWorkspaceIdentifier(backupPath: string | undefined, isExtensionDevelopment: boolean): IEmptyWorkspaceIdentifier;
-export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isExtensionDevelopment?: boolean): IAnyWorkspaceIdentifier | undefined {
+export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isExtensionDevelopment?: boolean): IAnyWorkspaceIdentifier {
 
 	// Empty workspace
 	if (typeof arg0 === 'string' || typeof arg0 === 'undefined') {
@@ -170,7 +171,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 			return EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE;
 		}
 
-		return undefined;
+		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
 
 	// Multi root
@@ -190,7 +191,10 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 		};
 	}
 
-	return undefined;
+	// Empty window
+	return {
+		id: workspace.id
+	};
 }
 
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
