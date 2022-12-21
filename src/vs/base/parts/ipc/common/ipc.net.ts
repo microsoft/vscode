@@ -808,6 +808,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
+	private _socketLatencyMonitor: LatencyMonitor;
 	private _socketDisposables: IDisposable[];
 
 	private readonly _loadEstimator: ILoadEstimator;
@@ -830,23 +831,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onLogEvent = new BufferedEmitter<{ event: string; data: Object }>();
 	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
 
-	private readonly HIGH_LATENCY_SAMPLE_THRESHOLD = 3;
-	private readonly HIGH_LATENCY_TIME_MS = 1000;
-	private readonly LATENCY_SAMPLE_COUNT = 5;
 	private readonly LATENCY_CHECK_INTERVAL_MS = 1 * 60 * 1000;
-
-	// Timestamp of our last latency request message sent to the other host.
-	private _lastLatencyMeasurementSent: number = -1;
-
-	// ID separate from the regular message IDs. Used to match up latency
-	// requests with responses so we know we're timing the right message
-	// even if a reconnection occurs.
-	private _lastLatencyMeasurementId: number = 0;
-	private _highLatencyDetected: boolean = false;
-
-	// Circular buffer of latency measurements
-	private _latencySamples: number[] = Array.from({ length: this.LATENCY_SAMPLE_COUNT }, (_) => 0);
-	private _latencySampleIndex: number = 0;
 
 	private readonly _onLatencyMeasurementChanged = new BufferedEmitter<boolean>();
 	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
@@ -879,6 +864,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
+		this._socketLatencyMonitor = new LatencyMonitor();
+		this._socketDisposables.push(this._socketLatencyMonitor);
+		this._socketDisposables.push(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.push(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
 		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
 		this._socketDisposables.push({ dispose: () => { clearInterval(measureLatencyTimer); } });
 
@@ -912,8 +901,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		if (this._isReconnecting) {
 			return;
 		}
-		this._lastLatencyMeasurementSent = Date.now();
-		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, ++this._lastLatencyMeasurementId, 0, getEmptyBuffer());
+		const msg = this._socketLatencyMonitor.generateRequest();
 		this._socketWriter.write(msg);
 	}
 
@@ -968,13 +956,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-
+		this._socketLatencyMonitor = new LatencyMonitor();
+		this._socketDisposables.push(this._socketLatencyMonitor);
+		this._socketDisposables.push(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.push(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
 		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
 		this._socketDisposables.push({ dispose: () => { clearInterval(measureLatencyTimer); } });
-		this._lastLatencyMeasurementId = 0;
-		this._highLatencyDetected = false;
-		this._latencySamples = Array.from({ length: this._latencySamples.length }, (_) => 0);
-		this._latencySampleIndex = 0;
 
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
@@ -1000,36 +987,13 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._onDidDispose.fire();
 	}
 
-	private _logEvent(event: string, data: Object): void {
-		this._onLogEvent.fire({ event, data });
-	}
-
 	private _receiveMessage(msg: ProtocolMessage): void {
 		if (msg.type === ProtocolMessageType.LatencyMeasurementRequest) {
 			const reply = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementResponse, 0, msg.id, getEmptyBuffer());
 			this._socketWriter.write(reply);
 			return;
 		} else if (msg.type === ProtocolMessageType.LatencyMeasurementResponse) {
-			if (this._lastLatencyMeasurementSent > 0 && msg.ack === this._lastLatencyMeasurementId) {
-				const roundtripTimeTakenMs = Date.now() - this._lastLatencyMeasurementSent;
-				const idx = this._latencySampleIndex++ % this._latencySamples.length;
-				this._latencySamples[idx] = roundtripTimeTakenMs;
-
-				const previousHighLatency = this._highLatencyDetected;
-				const highLatencySampleCount = this._latencySamples.filter(s => s >= this.HIGH_LATENCY_TIME_MS).length;
-				this._highLatencyDetected = highLatencySampleCount >= this.HIGH_LATENCY_SAMPLE_THRESHOLD;
-
-				if (roundtripTimeTakenMs > this.HIGH_LATENCY_TIME_MS) {
-					this._logEvent('ipc.highLatencyMeasurement', {
-						roundtripTimeTakenMs,
-						highLatencySampleCount,
-					});
-				}
-
-				if (previousHighLatency !== this._highLatencyDetected) {
-					this._onLatencyMeasurementChanged.fire(this._highLatencyDetected);
-				}
-			}
+			this._socketLatencyMonitor.handleResponse(msg);
 			return;
 		}
 
@@ -1230,6 +1194,68 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _sendKeepAlive(): void {
 		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
 		this._socketWriter.write(msg);
+	}
+}
+
+class LatencyMonitor extends Disposable {
+
+	private readonly HIGH_LATENCY_SAMPLE_THRESHOLD = 3;
+	private readonly HIGH_LATENCY_TIME_MS = 1000;
+	private readonly LATENCY_SAMPLE_COUNT = 5;
+
+	private readonly _onLogEvent = this._register(new Emitter<{ event: string; data: Object }>());
+	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
+
+	private readonly _onLatencyMeasurementChanged = this._register(new Emitter<boolean>());
+	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
+
+	// Timestamp of our last latency request message sent to the other host.
+	private _lastLatencyMeasurementSent: number = -1;
+
+	// ID separate from the regular message IDs. Used to match up latency
+	// requests with responses so we know we're timing the right message
+	// even if a reconnection occurs.
+	private _lastLatencyMeasurementId: number = 0;
+
+	// Circular buffer of latency measurements
+	private _latencySamples: number[] = Array.from({ length: this.LATENCY_SAMPLE_COUNT }, (_) => 0);
+	private _latencySampleIndex: number = 0;
+	private _highLatencyDetected: boolean = false;
+
+	constructor() {
+		super();
+	}
+
+	private _logEvent(event: string, data: Object): void {
+		this._onLogEvent.fire({ event, data });
+	}
+
+	generateRequest(): ProtocolMessage {
+		this._lastLatencyMeasurementSent = Date.now();
+		return new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, ++this._lastLatencyMeasurementId, 0, getEmptyBuffer());
+	}
+
+	handleResponse(msg: ProtocolMessage): void {
+		if (this._lastLatencyMeasurementSent > 0 && msg.ack === this._lastLatencyMeasurementId) {
+			const roundtripTimeTakenMs = Date.now() - this._lastLatencyMeasurementSent;
+			const idx = this._latencySampleIndex++ % this._latencySamples.length;
+			this._latencySamples[idx] = roundtripTimeTakenMs;
+
+			const previousHighLatency = this._highLatencyDetected;
+			const highLatencySampleCount = this._latencySamples.filter(s => s >= this.HIGH_LATENCY_TIME_MS).length;
+			this._highLatencyDetected = highLatencySampleCount >= this.HIGH_LATENCY_SAMPLE_THRESHOLD;
+
+			if (roundtripTimeTakenMs > this.HIGH_LATENCY_TIME_MS) {
+				this._logEvent('ipc.highLatencyMeasurement', {
+					roundtripTimeTakenMs,
+					highLatencySampleCount,
+				});
+			}
+
+			if (previousHighLatency !== this._highLatencyDetected) {
+				this._onLatencyMeasurementChanged.fire(this._highLatencyDetected);
+			}
+		}
 	}
 }
 
