@@ -16,6 +16,7 @@ import { localize } from 'vs/nls';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -186,6 +187,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		};
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: false,
+			listStyles: defaultListStyles,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {

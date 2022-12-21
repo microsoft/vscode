@@ -9,12 +9,9 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./selectBox';
 
 
@@ -34,8 +31,6 @@ export interface ISelectBoxDelegate extends IDisposable {
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;
-	style(styles: ISelectBoxStyles): void;
-	applyStyles(): void;
 }
 
 export interface ISelectBoxOptions {
@@ -58,19 +53,48 @@ export interface ISelectOptionItem {
 }
 
 export interface ISelectBoxStyles extends IListStyles {
-	selectBackground?: Color;
-	selectListBackground?: Color;
-	selectForeground?: Color;
-	decoratorRightForeground?: Color;
-	selectBorder?: Color;
-	selectListBorder?: Color;
-	focusBorder?: Color;
+	selectBackground: string | undefined;
+	selectListBackground: string | undefined;
+	selectForeground: string | undefined;
+	decoratorRightForeground: string | undefined;
+	selectBorder: string | undefined;
+	selectListBorder: string | undefined;
+	focusBorder: string | undefined;
 }
 
-export const defaultStyles = {
-	selectBackground: Color.fromHex('#3C3C3C'),
-	selectForeground: Color.fromHex('#F0F0F0'),
-	selectBorder: Color.fromHex('#3C3C3C')
+export const unthemedSelectBoxStyles: ISelectBoxStyles = {
+	selectBackground: '#3C3C3C',
+	selectForeground: '#F0F0F0',
+	selectBorder: '#3C3C3C',
+	decoratorRightForeground: undefined,
+	selectListBackground: undefined,
+	selectListBorder: undefined,
+	focusBorder: undefined,
+	listBackground: undefined,
+	listFocusBackground: undefined,
+	listFocusForeground: undefined,
+	listActiveSelectionBackground: undefined,
+	listActiveSelectionForeground: undefined,
+	listActiveSelectionIconForeground: undefined,
+	listFocusAndSelectionOutline: undefined,
+	listFocusAndSelectionBackground: undefined,
+	listFocusAndSelectionForeground: undefined,
+	listInactiveSelectionBackground: undefined,
+	listInactiveSelectionIconForeground: undefined,
+	listInactiveSelectionForeground: undefined,
+	listInactiveFocusForeground: undefined,
+	listInactiveFocusBackground: undefined,
+	listHoverBackground: undefined,
+	listHoverForeground: undefined,
+	listDropBackground: undefined,
+	listFocusOutline: undefined,
+	listInactiveFocusOutline: undefined,
+	listSelectionOutline: undefined,
+	listHoverOutline: undefined,
+	treeIndentGuidesStroke: undefined,
+	treeInactiveIndentGuidesStroke: undefined,
+	tableColumnsBorder: undefined,
+	tableOddRowsBackgroundColor: undefined
 };
 
 export interface ISelectData {
@@ -78,10 +102,10 @@ export interface ISelectData {
 	index: number;
 }
 
-export class SelectBox extends Widget implements ISelectBoxDelegate, IThemable {
+export class SelectBox extends Widget implements ISelectBoxDelegate {
 	private selectBoxDelegate: ISelectBoxDelegate;
 
-	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
+	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 		super();
 
 		// Default to native SelectBox for OSX unless overridden
@@ -126,13 +150,5 @@ export class SelectBox extends Widget implements ISelectBoxDelegate, IThemable {
 
 	render(container: HTMLElement): void {
 		this.selectBoxDelegate.render(container);
-	}
-
-	style(styles: ISelectBoxStyles): void {
-		this.selectBoxDelegate.style(styles);
-	}
-
-	applyStyles(): void {
-		this.selectBoxDelegate.applyStyles();
 	}
 }

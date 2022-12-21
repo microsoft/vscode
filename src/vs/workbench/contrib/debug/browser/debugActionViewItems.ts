@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -22,6 +22,7 @@ import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCo
 import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 
@@ -50,10 +51,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	) {
 		super(context, action);
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.registerListeners();
 	}
@@ -262,13 +262,10 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		session: IDebugSession | undefined,
 		@IDebugService protected readonly debugService: IDebugService,
-		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
-
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		super(null, action, [], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.getSelectedSession();

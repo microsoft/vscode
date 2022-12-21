@@ -359,7 +359,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.focused) .option-decorator-right { color: ${this.styles.decoratorRightForeground}; }`);
 		}
 
-		if (this.styles.selectBackground && this.styles.selectBorder && !this.styles.selectBorder.equals(this.styles.selectBackground)) {
+		if (this.styles.selectBackground && this.styles.selectBorder && this.styles.selectBorder !== this.styles.selectBackground) {
 			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectBorder} } `);
 			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-top { border-top: 1px solid ${this.styles.selectBorder} } `);
 			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-bottom { border-bottom: 1px solid ${this.styles.selectBorder} } `);
@@ -398,7 +398,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.applyStyles();
 	}
 
-	public applyStyles(): void {
+	private applyStyles(): void {
 
 		// Style parent select
 
@@ -422,7 +422,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private styleList() {
 		if (this.selectList) {
 			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			this.selectList.style({});
 
 			const listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
 			this.selectDropDownListContainer.style.backgroundColor = listBackground;
@@ -753,7 +752,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				getWidgetAriaLabel: () => localize({ key: 'selectBox', comment: ['Behave like native select dropdown element.'] }, "Select Box"),
 				getRole: () => 'option',
 				getWidgetRole: () => 'listbox'
-			}
+			},
+			listStyles: this.styles
 		});
 		if (this.selectBoxOptions.ariaLabel) {
 			this.selectList.ariaLabel = this.selectBoxOptions.ariaLabel;
