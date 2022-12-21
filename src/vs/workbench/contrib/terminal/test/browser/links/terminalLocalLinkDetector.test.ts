@@ -23,6 +23,9 @@ const unixLinks = [
 	'./$foo',
 	'../foo',
 	'/foo/bar',
+	'/foo/[bar]',
+	'/foo/[bar].baz',
+	'/foo/[bar]/baz',
 	'/foo/bar+more',
 	'foo/bar',
 	'foo/bar+more',
@@ -44,7 +47,12 @@ const windowsLinks = [
 	'c:\\foo/bar\\baz',
 	'foo/bar',
 	'foo/bar',
+	'foo/[bar]',
+	'foo/[bar].baz',
+	'foo/[bar]/baz',
 	'foo\\bar',
+	'foo\\[bar].baz',
+	'foo\\[bar]\\baz',
 	'foo\\bar+more',
 ];
 
