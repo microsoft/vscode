@@ -7,7 +7,7 @@ import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
-import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
+import { getZoomFactor, getZoomLevel, isWCOEnabled } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -63,7 +63,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	readonly onDidChangeCommandCenterVisibility: Event<void> = this._onDidChangeCommandCenterVisibility.event;
 
 	protected rootContainer!: HTMLElement;
-	protected windowControls: HTMLElement | undefined;
+	protected primaryWindowControls: HTMLElement | undefined;
 	protected dragRegion: HTMLElement | undefined;
 	protected title!: HTMLElement;
 
@@ -285,10 +285,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 		}
 
-		this.windowControls = append(isMacintosh ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-		if (isWeb && isMacintosh) {
-			append(this.rightContent, $('div.window-controls-container'));
-		}
+		this.primaryWindowControls = append(isMacintosh ? this.leftContent : this.rightContent, $('div.window-controls-container.primary'));
+		append(isMacintosh ? this.rightContent : this.leftContent, $('div.window-controls-container.secondary'));
 
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
