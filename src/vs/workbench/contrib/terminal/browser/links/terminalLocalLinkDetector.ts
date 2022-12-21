@@ -164,6 +164,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					}
 				}
 			}
+
 			const linkStat = await this._validateLinkCandidates(linkCandidates);
 
 			// Create the link if validated
