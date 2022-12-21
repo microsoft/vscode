@@ -30,11 +30,11 @@ steps:
       path: .build/builtInExtensions
     displayName: Restore built-in extensions
 
-  # - script: |
-  #     set -e
-  #     tar -xzf .build/node_modules_cache/cache.tgz
-  #   condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-  #   displayName: Extract node_modules cache
+  - script: |
+      set -e
+      tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
 
   - script: |
       set -e
