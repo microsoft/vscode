@@ -305,6 +305,26 @@ export const enum ProtocolConstants {
 	 * Maximal grace time between the first and the last reconnection...
 	 */
 	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
+	/**
+	 * Send a message every 5 seconds to avoid that the connection is closed by the OS.
+	 */
+	KeepAliveSendTime = 5000, // 5 seconds
+	/**
+	 * Measure the latency every 1 minute.
+	 */
+	LatencySampleTime = 1 * 60 * 1000, // 1 minute
+	/**
+	 * Keep the last 5 samples for latency measurement.
+	 */
+	LatencySampleCount = 5,
+	/**
+	 * A latency over 1s will be considered high.
+	 */
+	HighLatencyTimeThreshold = 1000,
+	/**
+	 * Having 3 or more samples with high latency will trigger a high latency event.
+	 */
+	HighLatencySampleThreshold = 3,
 }
 
 class ProtocolMessage {
@@ -871,10 +891,9 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._socketReader.acceptChunk(initialChunk);
 		}
 
-		// send a message every 5s
 		this._keepAliveInterval = setInterval(() => {
 			this._sendKeepAlive();
-		}, 5000);
+		}, ProtocolConstants.KeepAliveSendTime);
 	}
 
 	dispose(): void {
@@ -1198,10 +1217,6 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 class LatencyMonitor extends Disposable {
 
-	private readonly HIGH_LATENCY_SAMPLE_THRESHOLD = 3;
-	private readonly HIGH_LATENCY_TIME_MS = 1000;
-	private readonly LATENCY_SAMPLE_COUNT = 5;
-	private readonly LATENCY_CHECK_INTERVAL_MS = 1 * 60 * 1000;
 
 	private readonly _onSendLatencyRequest = this._register(new Emitter<VSBuffer>());
 	readonly onSendLatencyRequest: Event<VSBuffer> = this._onSendLatencyRequest.event;
@@ -1223,7 +1238,7 @@ class LatencyMonitor extends Disposable {
 	private _lastLatencyMeasurementId: number = 0;
 
 	// Circular buffer of latency measurements
-	private _latencySamples: number[] = Array.from({ length: this.LATENCY_SAMPLE_COUNT }, (_) => 0);
+	private _latencySamples: number[] = Array.from({ length: ProtocolConstants.LatencySampleCount }, (_) => 0);
 	private _latencySampleIndex: number = 0;
 	private _highLatencyDetected: boolean = false;
 
@@ -1238,7 +1253,7 @@ class LatencyMonitor extends Disposable {
 			const buffer = VSBuffer.alloc(4);
 			buffer.writeUInt32BE(measurementId, 0);
 			this._onSendLatencyRequest.fire(buffer);
-		}, this.LATENCY_CHECK_INTERVAL_MS);
+		}, ProtocolConstants.LatencySampleTime);
 	}
 
 	private _logEvent(event: string, data: Object): void {
@@ -1261,10 +1276,10 @@ class LatencyMonitor extends Disposable {
 		this._latencySamples[idx] = roundtripTimeTakenMs;
 
 		const previousHighLatency = this._highLatencyDetected;
-		const highLatencySampleCount = this._latencySamples.filter(s => s >= this.HIGH_LATENCY_TIME_MS).length;
-		this._highLatencyDetected = highLatencySampleCount >= this.HIGH_LATENCY_SAMPLE_THRESHOLD;
+		const highLatencySampleCount = this._latencySamples.filter(s => s >= ProtocolConstants.HighLatencyTimeThreshold).length;
+		this._highLatencyDetected = highLatencySampleCount >= ProtocolConstants.HighLatencySampleThreshold;
 
-		if (roundtripTimeTakenMs > this.HIGH_LATENCY_TIME_MS) {
+		if (roundtripTimeTakenMs > ProtocolConstants.HighLatencyTimeThreshold) {
 			this._logEvent('ipc.highLatencyMeasurement', {
 				roundtripTimeTakenMs,
 				highLatencySampleCount,
