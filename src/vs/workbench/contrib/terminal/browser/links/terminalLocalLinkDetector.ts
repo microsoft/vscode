@@ -204,40 +204,15 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
 
-			const linkStat = await this._validateLinkCandidates(linkCandidates);
+			// Validate and add link
+			const simpleLink = await this._validateAndGetLink(text, bufferRange, linkCandidates, trimRangeMap);
+			if (simpleLink) {
+				links.push(simpleLink);
+			}
 
-			// Create the link if validated
-			if (linkStat) {
-				let type: TerminalBuiltinLinkType;
-				if (linkStat.isDirectory) {
-					if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-						type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-					} else {
-						type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-					}
-				} else {
-					type = TerminalBuiltinLinkType.LocalFile;
-				}
-				// Offset the buffer range if the link range was trimmed
-				const trimRange = trimRangeMap.get(linkStat.link);
-				if (trimRange) {
-					bufferRange.end.x -= trimRange;
-					if (bufferRange.end.x < 0) {
-						bufferRange.end.y--;
-						bufferRange.end.x += this.xterm.cols;
-					}
-				}
-				links.push({
-					text: linkStat.link,
-					uri: linkStat.uri,
-					bufferRange,
-					type
-				});
-
-				// Stop early if too many links exist in the line
-				if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
-					break;
-				}
+			// Stop early if too many links exist in the line
+			if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+				break;
 			}
 		}
 
@@ -339,7 +314,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		return undefined;
 	}
 
-	private async _validateAndGetLink(linkText: string, bufferRange: IBufferRange, linkCandidates: string[]): Promise<ITerminalSimpleLink | undefined> {
+	/**
+	 * @param trimRangeMap A map of link candidates to the amount of buffer range they need trimmed.
+	 */
+	private async _validateAndGetLink(linkText: string, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
 		const linkStat = await this._validateLinkCandidates(linkCandidates);
 		if (linkStat) {
 			let type: TerminalBuiltinLinkType;
@@ -352,6 +330,17 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			} else {
 				type = TerminalBuiltinLinkType.LocalFile;
 			}
+
+			// Offset the buffer range if the link range was trimmed
+			const trimRange = trimRangeMap?.get(linkStat.link);
+			if (trimRange) {
+				bufferRange.end.x -= trimRange;
+				if (bufferRange.end.x < 0) {
+					bufferRange.end.y--;
+					bufferRange.end.x += this.xterm.cols;
+				}
+			}
+
 			return {
 				text: linkText,
 				uri: linkStat.uri,
