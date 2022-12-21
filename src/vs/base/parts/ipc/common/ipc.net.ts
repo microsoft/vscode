@@ -863,9 +863,13 @@ export interface PersistentProtocolOptions {
 	 */
 	loadEstimator?: ILoadEstimator;
 	/**
-	 * Whether to measure round trip time.
+	 * Whether to measure round trip time. Defaults to false.
 	 */
 	measureRoundTripTime?: boolean;
+	/**
+	 * Whether to send keep alive messages. Defaults to true.
+	 */
+	sendKeepAlive?: boolean;
 }
 
 /**
@@ -899,6 +903,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private readonly _loadEstimator: ILoadEstimator;
 	private readonly _measureRoundTripTime: boolean;
+	private readonly _shouldSendKeepAlive: boolean;
 
 	private readonly _onControlMessage = new BufferedEmitter<VSBuffer>();
 	readonly onControlMessage: Event<VSBuffer> = this._onControlMessage.event;
@@ -928,6 +933,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	constructor(opts: PersistentProtocolOptions) {
 		this._loadEstimator = opts.loadEstimator ?? LoadEstimator.getInstance();
 		this._measureRoundTripTime = opts.measureRoundTripTime ?? false;
+		this._shouldSendKeepAlive = opts.sendKeepAlive ?? true;
 		this._isReconnecting = false;
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
 		this._outgoingMsgId = 0;
@@ -960,9 +966,13 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._socketReader.acceptChunk(opts.initialChunk);
 		}
 
-		this._keepAliveInterval = setInterval(() => {
-			this._sendKeepAlive();
-		}, ProtocolConstants.KeepAliveSendTime);
+		if (this._shouldSendKeepAlive) {
+			this._keepAliveInterval = setInterval(() => {
+				this._sendKeepAlive();
+			}, ProtocolConstants.KeepAliveSendTime);
+		} else {
+			this._keepAliveInterval = null;
+		}
 	}
 
 	dispose(): void {

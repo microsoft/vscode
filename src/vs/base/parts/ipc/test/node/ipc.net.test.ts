@@ -302,10 +302,10 @@ suite('PersistentProtocol reconnection', () => {
 				};
 				const ether = new Ether();
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator, sendKeepAlive: false });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator, sendKeepAlive: false });
 				const bMessages = new MessageStream(b);
 
 				// send message a1 before reconnection to get _recvAckCheck() scheduled
