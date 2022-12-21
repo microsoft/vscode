@@ -343,11 +343,20 @@ export class FoldingRegions {
 		const resultRanges: FoldRange[] = [];
 
 		while (nextA || nextB) {
+			const aStartColumn = nextA?.startColumn ?? MAX_COLUMN_NUMBER;
+			const bStartColumn = nextB?.startColumn ?? MAX_COLUMN_NUMBER;
+
+			const aStartsAtB = nextA && nextB &&
+				nextA.startLineNumber === nextB.startLineNumber && aStartColumn === bStartColumn;
+
+			const aStartsAfterB = nextA && nextB && (
+				nextA.startLineNumber > nextB.startLineNumber ||
+				(nextA.startLineNumber === nextB.startLineNumber && aStartColumn > bStartColumn));
 
 			let useRange: FoldRange | undefined = undefined;
-			if (nextB && (!nextA || nextA.startLineNumber >= nextB.startLineNumber)) {
-				if (nextA && nextA.startLineNumber === nextB.startLineNumber) {
-					if (nextB.source === FoldSource.userDefined || (nextA.startColumn ?? MAX_COLUMN_NUMBER) >= (nextB.startColumn ?? MAX_COLUMN_NUMBER)) {
+			if (nextB && (!nextA || aStartsAtB || aStartsAfterB)) {
+				if (nextA && aStartsAtB) {
+					if (nextB.source === FoldSource.userDefined) {
 						// a user defined range (possibly unfolded)
 						useRange = nextB;
 					} else {
