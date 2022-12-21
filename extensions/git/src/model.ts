@@ -33,18 +33,13 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
-/**
- * Key   - normalized path used in user interface
- * Value - path extracted from the output of the `git status` command
- *         used when calling `git config --global --add safe.directory`
- */
-class UnsafeRepositoryMap extends Map<string, string> {
+abstract class RepositoryMap<T> extends Map<string, T> {
 	constructor() {
 		super();
 		this.updateContextKey();
 	}
 
-	override set(key: string, value: string): this {
+	override set(key: string, value: T): this {
 		const result = super.set(key, value);
 		this.updateContextKey();
 
@@ -58,7 +53,16 @@ class UnsafeRepositoryMap extends Map<string, string> {
 		return result;
 	}
 
-	private updateContextKey(): void {
+	abstract updateContextKey(): void;
+}
+
+/**
+ * Key   - normalized path used in user interface
+ * Value - path extracted from the output of the `git status` command
+ *         used when calling `git config --global --add safe.directory`
+ */
+class UnsafeRepositoryMap extends RepositoryMap<string> {
+	updateContextKey(): void {
 		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
 	}
 }
@@ -67,27 +71,8 @@ class UnsafeRepositoryMap extends Map<string, string> {
  * Key   - normalized path used in user interface
  * Value - value indicating whether the repository should be opened
  */
-class ExternalRepositoryMap extends Map<string, boolean> {
-	constructor() {
-		super();
-		this.updateContextKey();
-	}
-
-	override set(key: string, value: boolean): this {
-		const result = super.set(key, value);
-		this.updateContextKey();
-
-		return result;
-	}
-
-	override delete(value: string): boolean {
-		const result = super.delete(value);
-		this.updateContextKey();
-
-		return result;
-	}
-
-	private updateContextKey(): void {
+class ExternalRepositoryMap extends RepositoryMap<boolean> {
+	updateContextKey(): void {
 		commands.executeCommand('setContext', 'git.externalRepositoryCount', this.size);
 	}
 }
@@ -169,12 +154,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private _unsafeRepositories = new UnsafeRepositoryMap();
-	get unsafeRepositories(): Map<string, string> {
+	get unsafeRepositories(): UnsafeRepositoryMap {
 		return this._unsafeRepositories;
 	}
 
 	private _externalRepositories = new ExternalRepositoryMap();
-	get externalRepositories(): Map<string, boolean> {
+	get externalRepositories(): ExternalRepositoryMap {
 		return this._externalRepositories;
 	}
 
