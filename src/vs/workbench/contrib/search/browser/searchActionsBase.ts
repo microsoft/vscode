@@ -50,19 +50,24 @@ export function getElementsToOperateOn(viewer: WorkbenchCompressibleObjectTree<R
 	return elements;
 }
 
+/**
+ * @param elements elements that are going to be removed
+ * @param focusElement element that is focused
+ * @returns whether we need to re-focus on a remove
+ */
 export function shouldRefocus(elements: RenderableMatch[], focusElement: RenderableMatch | undefined) {
 	if (!focusElement) {
 		return false;
 	}
-	return !focusElement || elements.includes(focusElement) || hasDownstreamMatch(elements, focusElement); // this indicates whether we need to re-focus/re-select on a remove.
+	return !focusElement || elements.includes(focusElement) || hasDownstreamMatch(elements, focusElement);
 }
 
-function hasDownstreamMatch(elementsToRemove: RenderableMatch[], focusedElement: RenderableMatch) {
-	for (const elem of elementsToRemove) {
-		if ((elem instanceof FileMatch && focusedElement instanceof Match && elem.matches().includes(focusedElement)) ||
+function hasDownstreamMatch(elements: RenderableMatch[], focusElement: RenderableMatch) {
+	for (const elem of elements) {
+		if ((elem instanceof FileMatch && focusElement instanceof Match && elem.matches().includes(focusElement)) ||
 			(elem instanceof FolderMatch && (
-				(focusedElement instanceof FileMatch && elem.getDownstreamFileMatch(focusedElement.resource)) ||
-				(focusedElement instanceof Match && elem.getDownstreamFileMatch(focusedElement.parent().resource))
+				(focusElement instanceof FileMatch && elem.getDownstreamFileMatch(focusElement.resource)) ||
+				(focusElement instanceof Match && elem.getDownstreamFileMatch(focusElement.parent().resource))
 			))) {
 			return true;
 		}
