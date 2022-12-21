@@ -254,7 +254,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				if (!link || !path) {
 					continue;
 				}
-				console.log('match!', path, link, line);
 
 				// Don't try resolve any links of excessive length
 				if (link.length > Constants.MaxResolvedLinkLength) {
@@ -304,7 +303,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		// the line by attributes and test whether it matches a path
 		if (links.length === 0) {
 			let bufferRangeStart: IBufferCellPosition | undefined = undefined;
-			let lastUnderline: number = 0;
+			let lastAttr: number = -1;
 			const rangeCandidates: IBufferRange[] = [];
 			for (let y = startLine; y <= endLine; y++) {
 				const line = this.xterm.buffer.active.getLine(y);
@@ -316,25 +315,30 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					if (!cell) {
 						break;
 					}
-					const thisUnderline = cell.isUnderline();
-					if (lastUnderline) {
-						if (!thisUnderline) {
+					const thisAttr = (
+						cell.isBold() |
+						cell.isInverse() |
+						cell.isStrikethrough() |
+						cell.isUnderline()
+					);
+					// cell.isDim() |
+					// cell.isItalic() |
+					if (lastAttr === -1) {
+						bufferRangeStart = { x, y };
+					} else {
+						if (lastAttr !== thisAttr) {
 							// TODO: x overflow
 							const bufferRangeEnd = { x, y };
 							rangeCandidates.push({
 								start: bufferRangeStart!,
 								end: bufferRangeEnd
 							});
-						}
-					} else {
-						if (thisUnderline) {
 							bufferRangeStart = { x, y };
 						}
 					}
-					lastUnderline = thisUnderline;
+					lastAttr = thisAttr;
 				}
 			}
-			console.log('rangeCandidates', rangeCandidates);
 
 			for (const rangeCandidate of rangeCandidates) {
 				let text = '';
