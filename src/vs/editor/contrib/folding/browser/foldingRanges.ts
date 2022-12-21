@@ -340,7 +340,7 @@ export class FoldingRegions {
 		const stackedRanges: FoldRange[] = [];
 		let topStackedRange: FoldRange | undefined;
 		let prevLineNumber = 0;
-		let prevColumnNumber: number | undefined = 0;
+		let prevColumnNumber: number | undefined = undefined;
 		const resultRanges: FoldRange[] = [];
 
 		while (nextA || nextB) {
