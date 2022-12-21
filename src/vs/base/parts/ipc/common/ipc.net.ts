@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IntervalTimer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -831,8 +832,6 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onLogEvent = new BufferedEmitter<{ event: string; data: Object }>();
 	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
 
-	private readonly LATENCY_CHECK_INTERVAL_MS = 1 * 60 * 1000;
-
 	private readonly _onLatencyMeasurementChanged = new BufferedEmitter<boolean>();
 	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
 
@@ -863,10 +862,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.add(this._socket.onClose((e) => this._onSocketClose.fire(e)));
 		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor());
-		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest((msg) => this._socketWriter.write(msg)));
 		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
-		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
-		this._socketDisposables.add({ dispose: () => { clearInterval(measureLatencyTimer); } });
+		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketLatencyMonitor.start();
 
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
@@ -892,14 +891,6 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._keepAliveInterval = null;
 		}
 		this._socketDisposables.dispose();
-	}
-
-	private sendLatencyMeasurement(): void {
-		if (this._isReconnecting) {
-			return;
-		}
-		const msg = this._socketLatencyMonitor.generateRequest();
-		this._socketWriter.write(msg);
 	}
 
 	drain(): Promise<void> {
@@ -953,16 +944,16 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.add(this._socket.onClose((e) => this._onSocketClose.fire(e)));
 		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor());
-		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest((msg) => this._socketWriter.write(msg)));
 		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
-		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
-		this._socketDisposables.add({ dispose: () => { clearInterval(measureLatencyTimer); } });
+		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
 
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 
 	public endAcceptReconnection(): void {
 		this._isReconnecting = false;
+		this._socketLatencyMonitor.start();
 
 		// After a reconnection, let the other party know (again) which messages have been received.
 		// (perhaps the other party didn't receive a previous ACK)
@@ -1197,12 +1188,18 @@ class LatencyMonitor extends Disposable {
 	private readonly HIGH_LATENCY_SAMPLE_THRESHOLD = 3;
 	private readonly HIGH_LATENCY_TIME_MS = 1000;
 	private readonly LATENCY_SAMPLE_COUNT = 5;
+	private readonly LATENCY_CHECK_INTERVAL_MS = 1 * 60 * 1000;
+
+	private readonly _onSendLatencyRequest = this._register(new Emitter<ProtocolMessage>());
+	readonly onSendLatencyRequest: Event<ProtocolMessage> = this._onSendLatencyRequest.event;
 
 	private readonly _onLogEvent = this._register(new Emitter<{ event: string; data: Object }>());
 	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
 
 	private readonly _onLatencyMeasurementChanged = this._register(new Emitter<boolean>());
 	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
+
+	private readonly _measureLatencyTimer = this._register(new IntervalTimer());
 
 	// Timestamp of our last latency request message sent to the other host.
 	private _lastLatencyMeasurementSent: number = -1;
@@ -1221,11 +1218,18 @@ class LatencyMonitor extends Disposable {
 		super();
 	}
 
+	start(): void {
+		this._measureLatencyTimer.cancelAndSet(() => {
+			const msg = this._generateRequest();
+			this._onSendLatencyRequest.fire(msg);
+		}, this.LATENCY_CHECK_INTERVAL_MS);
+	}
+
 	private _logEvent(event: string, data: Object): void {
 		this._onLogEvent.fire({ event, data });
 	}
 
-	generateRequest(): ProtocolMessage {
+	private _generateRequest(): ProtocolMessage {
 		this._lastLatencyMeasurementSent = Date.now();
 		return new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, ++this._lastLatencyMeasurementId, 0, getEmptyBuffer());
 	}
