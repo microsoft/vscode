@@ -51,7 +51,6 @@ export class FileStorage {
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
-	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		const res = this.storage[key];
 		if (isUndefinedOrNull(res)) {
@@ -163,7 +162,6 @@ export class StateService implements IStateService {
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
-	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
