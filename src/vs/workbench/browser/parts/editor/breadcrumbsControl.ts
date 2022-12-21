@@ -38,7 +38,7 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { IStyleOverride, defaultBreadcrumbsWidgetStyles, getBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -145,7 +145,7 @@ export interface IBreadcrumbsControlOptions {
 	readonly showSymbolIcons: boolean;
 	readonly showDecorationColors: boolean;
 	readonly showPlaceholder: boolean;
-	readonly widgetStylesOverwrite?: IStyleOverride<IBreadcrumbsWidgetStyles>;
+	readonly widgetStyles?: IBreadcrumbsWidgetStyles;
 }
 
 const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
@@ -209,7 +209,7 @@ export class BreadcrumbsControl {
 		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
-		const styles = _options.widgetStylesOverwrite ? getBreadcrumbsWidgetStyles(_options.widgetStylesOverwrite) : defaultBreadcrumbsWidgetStyles;
+		const styles = _options.widgetStyles ?? defaultBreadcrumbsWidgetStyles;
 		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon, styles);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
