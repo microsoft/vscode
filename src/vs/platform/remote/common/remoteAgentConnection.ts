@@ -11,7 +11,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
-import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, ConnectionHealth, ISocket, PersistentProtocol, SocketCloseEventType, connectionHealthToString } from 'vs/base/parts/ipc/common/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -519,7 +519,7 @@ export class ConnectionGainEvent {
 		public readonly reconnectionToken: string,
 		public readonly millisSinceLastIncomingData: number,
 		public readonly attempt: number,
-		public readonly poorConnectionQuality?: boolean,
+		public readonly connectionHealth?: ConnectionHealth,
 	) { }
 }
 export class ReconnectionPermanentFailureEvent {
@@ -602,15 +602,15 @@ export abstract class PersistentConnection extends Disposable {
 			this._beginReconnecting();
 		}));
 
-		this._register(protocol.onLatencyMeasurementChanged((highLatency) => {
+		this._register(protocol.onDidChangeConnectionHealth((connectionHealth) => {
 			if (this._isReconnecting) {
 				return;
 			}
 
 			if (this._connectionType === ConnectionType.Management) {
-				this.logEvent('ipc.poorConnectionQualityStatusChanged', { extras: { poorQuality: highLatency } });
+				this.logEvent('ipc.poorConnectionQualityStatusChanged', { extras: { connectionHealth: connectionHealthToString(connectionHealth) } });
 			}
-			this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0, highLatency));
+			this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0, connectionHealth));
 		}));
 
 		PersistentConnection._instances.push(this);

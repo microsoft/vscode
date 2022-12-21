@@ -803,6 +803,52 @@ export interface ILoadEstimator {
 	hasHighLoad(): boolean;
 }
 
+export const enum ConnectionHealth {
+	/**
+	 * The connection health is considered good when a certain number of recent round trip time measurements are below a certain threshold.
+	 * @see ProtocolConstants.HighLatencyTimeThreshold @see ProtocolConstants.HighLatencySampleThreshold
+	 */
+	Good,
+	/**
+	 * The connection health is considered poor when a certain number of recent round trip time measurements are above a certain threshold.
+	 * @see ProtocolConstants.HighLatencyTimeThreshold @see ProtocolConstants.HighLatencySampleThreshold
+	 */
+	Poor
+}
+
+export function connectionHealthToString(connectionHealth: ConnectionHealth): string {
+	switch (connectionHealth) {
+		case ConnectionHealth.Good: return 'good';
+		case ConnectionHealth.Poor: return 'poor';
+	}
+}
+
+/**
+ * An event describing that the connection health has changed.
+ */
+export class ConnectionHealthChangedEvent {
+	constructor(
+		public readonly connectionHealth: ConnectionHealth
+	) { }
+}
+
+/**
+ * An event describing that a round trip time measurement was above a certain threshold.
+ */
+export class HighRoundTripTimeEvent {
+	constructor(
+		/**
+		 * The round trip time in milliseconds.
+		 */
+		public readonly roundTripTime: number,
+		/**
+		 * The number of recent round trip time measurements that were above the threshold.
+		 * @see ProtocolConstants.HighLatencyTimeThreshold @see ProtocolConstants.HighLatencySampleThreshold
+		 */
+		public readonly recentHighRoundTripCount: number
+	) { }
+}
+
 /**
  * Same as Protocol, but will actually track messages and acks.
  * Moreover, it will ensure no messages are lost if there are no event listeners.
@@ -849,11 +895,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onSocketTimeout = new BufferedEmitter<SocketTimeoutEvent>();
 	readonly onSocketTimeout: Event<SocketTimeoutEvent> = this._onSocketTimeout.event;
 
-	private readonly _onLogEvent = new BufferedEmitter<{ event: string; data: Object }>();
-	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
+	private readonly _onHighRoundTripTime = new BufferedEmitter<HighRoundTripTimeEvent>();
+	public readonly onHighRoundTripTime = this._onHighRoundTripTime.event;
 
-	private readonly _onLatencyMeasurementChanged = new BufferedEmitter<boolean>();
-	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
+	private readonly _onDidChangeConnectionHealth = new BufferedEmitter<ConnectionHealth>();
+	readonly onDidChangeConnectionHealth = this._onDidChangeConnectionHealth.event;
 
 	public get unacknowledgedCount(): number {
 		return this._outgoingMsgId - this._outgoingAckId;
@@ -883,8 +929,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
 		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor()); // is started immediately
 		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest(buffer => this._sendLatencyMeasurementRequest(buffer)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent(e => this._onLogEvent.fire(e)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged(e => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onHighRoundTripTime(e => this._onHighRoundTripTime.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onDidChangeConnectionHealth(e => this._onDidChangeConnectionHealth.fire(e)));
 		this._socketLatencyMonitor.start();
 
 		if (initialChunk) {
@@ -964,8 +1010,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
 		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor()); // will be started later
 		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest(buffer => this._sendLatencyMeasurementRequest(buffer)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent(e => this._onLogEvent.fire(e)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged(e => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onHighRoundTripTime(e => this._onHighRoundTripTime.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onDidChangeConnectionHealth(e => this._onDidChangeConnectionHealth.fire(e)));
 
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
@@ -1217,30 +1263,35 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 class LatencyMonitor extends Disposable {
 
-
 	private readonly _onSendLatencyRequest = this._register(new Emitter<VSBuffer>());
 	readonly onSendLatencyRequest: Event<VSBuffer> = this._onSendLatencyRequest.event;
 
-	private readonly _onLogEvent = this._register(new Emitter<{ event: string; data: Object }>());
-	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
+	private readonly _onHighRoundTripTime = this._register(new Emitter<HighRoundTripTimeEvent>());
+	public readonly onHighRoundTripTime = this._onHighRoundTripTime.event;
 
-	private readonly _onLatencyMeasurementChanged = this._register(new Emitter<boolean>());
-	readonly onLatencyMeasurementChanged: Event<boolean> = this._onLatencyMeasurementChanged.event;
+	private readonly _onDidChangeConnectionHealth = this._register(new Emitter<ConnectionHealth>());
+	public readonly onDidChangeConnectionHealth = this._onDidChangeConnectionHealth.event;
 
 	private readonly _measureLatencyTimer = this._register(new IntervalTimer());
 
-	// Timestamp of our last latency request message sent to the other host.
+	/**
+	 * Timestamp of our last latency request message sent to the other host.
+	 */
 	private _lastLatencyMeasurementSent: number = -1;
 
-	// ID separate from the regular message IDs. Used to match up latency
-	// requests with responses so we know we're timing the right message
-	// even if a reconnection occurs.
+	/**
+	 * ID separate from the regular message IDs. Used to match up latency
+	 * requests with responses so we know we're timing the right message
+	 * even if a reconnection occurs.
+	 */
 	private _lastLatencyMeasurementId: number = 0;
 
-	// Circular buffer of latency measurements
+	/**
+	 * Circular buffer of latency measurements
+	 */
 	private _latencySamples: number[] = Array.from({ length: ProtocolConstants.LatencySampleCount }, (_) => 0);
 	private _latencySampleIndex: number = 0;
-	private _highLatencyDetected: boolean = false;
+	private _connectionHealth = ConnectionHealth.Good;
 
 	constructor() {
 		super();
@@ -1256,10 +1307,6 @@ class LatencyMonitor extends Disposable {
 		}, ProtocolConstants.LatencySampleTime);
 	}
 
-	private _logEvent(event: string, data: Object): void {
-		this._onLogEvent.fire({ event, data });
-	}
-
 	public handleResponse(buffer: VSBuffer): void {
 		if (buffer.byteLength !== 4) {
 			// invalid measurementId
@@ -1271,23 +1318,19 @@ class LatencyMonitor extends Disposable {
 			return;
 		}
 
-		const roundtripTimeTakenMs = Date.now() - this._lastLatencyMeasurementSent;
-		const idx = this._latencySampleIndex++ % this._latencySamples.length;
-		this._latencySamples[idx] = roundtripTimeTakenMs;
+		const roundtripTime = Date.now() - this._lastLatencyMeasurementSent;
+		const sampleIndex = this._latencySampleIndex++;
+		this._latencySamples[sampleIndex % this._latencySamples.length] = roundtripTime;
 
-		const previousHighLatency = this._highLatencyDetected;
+		const previousConnectionHealth = this._connectionHealth;
 		const highLatencySampleCount = this._latencySamples.filter(s => s >= ProtocolConstants.HighLatencyTimeThreshold).length;
-		this._highLatencyDetected = highLatencySampleCount >= ProtocolConstants.HighLatencySampleThreshold;
+		this._connectionHealth = (highLatencySampleCount >= ProtocolConstants.HighLatencySampleThreshold ? ConnectionHealth.Poor : ConnectionHealth.Good);
 
-		if (roundtripTimeTakenMs > ProtocolConstants.HighLatencyTimeThreshold) {
-			this._logEvent('ipc.highLatencyMeasurement', {
-				roundtripTimeTakenMs,
-				highLatencySampleCount,
-			});
+		if (roundtripTime > ProtocolConstants.HighLatencyTimeThreshold) {
+			this._onHighRoundTripTime.fire(new HighRoundTripTimeEvent(roundtripTime, highLatencySampleCount));
 		}
-
-		if (previousHighLatency !== this._highLatencyDetected) {
-			this._onLatencyMeasurementChanged.fire(this._highLatencyDetected);
+		if (previousConnectionHealth !== this._connectionHealth) {
+			this._onDidChangeConnectionHealth.fire(this._connectionHealth);
 		}
 	}
 }

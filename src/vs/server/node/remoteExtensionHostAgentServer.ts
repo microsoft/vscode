@@ -304,8 +304,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			this._rejectWebSocketConnection(logPrefix, protocol, msg);
 		};
 
-		protocol.onLogEvent((e) => {
-			this._logService.info(`${e.event} - ${JSON.stringify(e.data)}`);
+		protocol.onHighRoundTripTime((e) => {
+			this._logService.info(`ipc.highLatencyMeasurement - ${JSON.stringify(e)}`);
 		});
 
 		const listener = protocol.onControlMessage((raw) => {

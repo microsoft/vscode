@@ -196,9 +196,9 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 
-						protocol.onLogEvent((e) => {
+						protocol.onHighRoundTripTime((e) => {
 							// TODO: How could we get LogService or TelemetryService here?
-							// this._logService.info(`${e.event} - ${JSON.stringify(e.data)}`);
+							// this._logService.info(`ipc.highLatencyMeasurement - ${JSON.stringify(e)}`);
 						});
 
 						resolve(protocol);
