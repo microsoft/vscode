@@ -922,8 +922,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			} else {
 				// hit invisible line => flush request
 				if (reqStart !== null) {
-					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation, onlyMinimapDecorations));
+					//Assuming only one inline folding range for now.
+					const prevLine = this.modelLineProjections[modelLineIndex - 1];
+					const [lastVisibleRange] = prevLine.getModelVisibleRanges(this.model, modelLineIndex);
+					//endColumn + 1 to include the folding range decoration, then filter out the extra decorations that were added as a result.
+					const decorationsPlusExtras = this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, lastVisibleRange.endColumn + 1), ownerId, filterOutValidation, onlyMinimapDecorations);
+					const decorationsPlusOnlyFoldingRange = decorationsPlusExtras.filter(d => lastVisibleRange.endLineNumber !== d.range.startLineNumber || d.range.startColumn !== lastVisibleRange.endColumn + 1 || d.options.hideContent);
+					result = result.concat(decorationsPlusOnlyFoldingRange);
 					reqStart = null;
 				}
 			}

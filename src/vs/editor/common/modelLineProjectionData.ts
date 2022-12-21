@@ -96,6 +96,18 @@ export class ModelLineProjectionData {
 		return this.getLineLength(outputLineIndex);
 	}
 
+	public getInputFoldingOffset(): number | null {
+		if (this.foldingOffset === null) {
+			return null;
+		}
+		return this.offsetInInputWithInjectionsToInputOffset(this.foldingOffset);
+	}
+
+	private offsetInInputWithInjectionsToInputOffset(offsetInInputWithInjections: number, affinity: PositionAffinity = PositionAffinity.None): number {
+		const outputPosition = this.offsetInInputWithInjectionsToOutputPosition(offsetInInputWithInjections, affinity);
+		return this.translateToInputOffset(outputPosition.outputLineIndex, outputPosition.outputOffset);
+	}
+
 	public translateToInputOffset(outputLineIndex: number, outputOffset: number): number {
 		if (outputLineIndex > 0) {
 			outputOffset = Math.max(0, outputOffset - this.wrappedTextIndentLength);
