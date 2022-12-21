@@ -205,7 +205,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			linkCandidates.push(...specialEndLinkCandidates);
 
 			// Validate and add link
-			const simpleLink = await this._validateAndGetLink(text, bufferRange, linkCandidates, trimRangeMap);
+			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
 			if (simpleLink) {
 				links.push(simpleLink);
 			}
@@ -315,9 +315,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	}
 
 	/**
+	 * Validates a set of link candidates and returns a link if validated.
+	 * @param linkText The link text, this should be undefined to use the link stat value
 	 * @param trimRangeMap A map of link candidates to the amount of buffer range they need trimmed.
 	 */
-	private async _validateAndGetLink(linkText: string, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
+	private async _validateAndGetLink(linkText: string | undefined, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
 		const linkStat = await this._validateLinkCandidates(linkCandidates);
 		if (linkStat) {
 			let type: TerminalBuiltinLinkType;
@@ -342,7 +344,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			}
 
 			return {
-				text: linkText,
+				text: linkText ?? linkStat.link,
 				uri: linkStat.uri,
 				bufferRange: bufferRange,
 				type
