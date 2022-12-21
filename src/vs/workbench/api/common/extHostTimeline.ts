@@ -41,17 +41,15 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 		commands.registerArgumentProcessor({
 			processArgument: (arg, extension) => {
-
-				if (arg && arg.$mid === MarshalledId.TimelineActionContext && extension) {
+				if (arg && arg.$mid === MarshalledId.TimelineActionContext) {
 					if (this._providers.get(arg.source) && ExtensionIdentifier.equals(extension, this._providers.get(arg.source)?.extension)) {
 						const uri = arg.uri === undefined ? undefined : URI.revive(arg.uri);
 						return this._itemsBySourceAndUriMap.get(arg.source)?.get(getUriKey(uri))?.get(arg.handle);
+					} else {
+						return undefined;
 					}
 				}
-				if (URI.isUri(arg)) {
-					return arg;
-				}
-				return undefined;
+				return arg;
 			}
 		});
 	}
