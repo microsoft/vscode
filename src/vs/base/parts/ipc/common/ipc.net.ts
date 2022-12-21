@@ -1178,17 +1178,20 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	private _sendKeepAlive(): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
+		this._incomingAckId = this._incomingMsgId;
+		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, this._incomingAckId, getEmptyBuffer());
 		this._socketWriter.write(msg);
 	}
 
 	private _sendLatencyMeasurementRequest(buffer: VSBuffer): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, 0, 0, buffer);
+		this._incomingAckId = this._incomingMsgId;
+		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, 0, this._incomingAckId, buffer);
 		this._socketWriter.write(msg);
 	}
 
 	private _sendLatencyMeasurementResponse(buffer: VSBuffer): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementResponse, 0, 0, buffer);
+		this._incomingAckId = this._incomingMsgId;
+		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementResponse, 0, this._incomingAckId, buffer);
 		this._socketWriter.write(msg);
 	}
 }
