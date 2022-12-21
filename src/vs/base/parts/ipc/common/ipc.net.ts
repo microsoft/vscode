@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 
 export const enum SocketDiagnosticsEventType {
@@ -809,7 +809,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
 	private _socketLatencyMonitor: LatencyMonitor;
-	private _socketDisposables: IDisposable[];
+	private _socketDisposables: DisposableStore;
 
 	private readonly _loadEstimator: ILoadEstimator;
 
@@ -856,20 +856,17 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._lastReplayRequestTime = 0;
 		this._lastSocketTimeoutTime = Date.now();
 
-		this._socketDisposables = [];
+		this._socketDisposables = new DisposableStore();
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketDisposables.push(this._socketWriter);
-		this._socketReader = new ProtocolReader(this._socket);
-		this._socketDisposables.push(this._socketReader);
-		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		this._socketLatencyMonitor = new LatencyMonitor();
-		this._socketDisposables.push(this._socketLatencyMonitor);
-		this._socketDisposables.push(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
-		this._socketDisposables.push(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
+		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
+		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
+		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
+		this._socketDisposables.add(this._socket.onClose((e) => this._onSocketClose.fire(e)));
+		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor());
+		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
 		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
-		this._socketDisposables.push({ dispose: () => { clearInterval(measureLatencyTimer); } });
+		this._socketDisposables.add({ dispose: () => { clearInterval(measureLatencyTimer); } });
 
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
@@ -894,7 +891,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			clearInterval(this._keepAliveInterval);
 			this._keepAliveInterval = null;
 		}
-		this._socketDisposables = dispose(this._socketDisposables);
+		this._socketDisposables.dispose();
 	}
 
 	private sendLatencyMeasurement(): void {
@@ -940,7 +937,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	public beginAcceptReconnection(socket: ISocket, initialDataChunk: VSBuffer | null): void {
 		this._isReconnecting = true;
 
-		this._socketDisposables = dispose(this._socketDisposables);
+		this._socketDisposables.dispose();
+		this._socketDisposables = new DisposableStore();
 		this._onControlMessage.flushBuffer();
 		this._onSocketClose.flushBuffer();
 		this._onSocketTimeout.flushBuffer();
@@ -950,18 +948,15 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._lastSocketTimeoutTime = Date.now();
 
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketDisposables.push(this._socketWriter);
-		this._socketReader = new ProtocolReader(this._socket);
-		this._socketDisposables.push(this._socketReader);
-		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		this._socketLatencyMonitor = new LatencyMonitor();
-		this._socketDisposables.push(this._socketLatencyMonitor);
-		this._socketDisposables.push(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
-		this._socketDisposables.push(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
+		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
+		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
+		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
+		this._socketDisposables.add(this._socket.onClose((e) => this._onSocketClose.fire(e)));
+		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor());
+		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
 		const measureLatencyTimer = setInterval(this.sendLatencyMeasurement.bind(this), this.LATENCY_CHECK_INTERVAL_MS);
-		this._socketDisposables.push({ dispose: () => { clearInterval(measureLatencyTimer); } });
+		this._socketDisposables.add({ dispose: () => { clearInterval(measureLatencyTimer); } });
 
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
