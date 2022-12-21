@@ -29,6 +29,7 @@ export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
+	readonly hadUnknownError?: boolean;
 	readonly wasVerified?: boolean;
 	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
@@ -236,6 +237,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {
 								extensionData: getGalleryExtensionTelemetryData(task.source),
 								wasVerified: task.wasVerified,
+								hadUnknownError: task.hadUnknownError,
 								duration: new Date().getTime() - startTime,
 								durationSinceUpdate
 							});
@@ -252,6 +254,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {
 								extensionData: getGalleryExtensionTelemetryData(task.source),
 								wasVerified: task.wasVerified,
+								hadUnknownError: task.hadUnknownError,
 								duration: new Date().getTime() - startTime,
 								error
 							});
@@ -680,7 +683,7 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, wasVerified, duration, error, durationSinceUpdate }: { extensionData: any; wasVerified?: boolean; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, wasVerified, hadUnknownError, duration, error, durationSinceUpdate }: { extensionData: any; wasVerified?: boolean; hadUnknownError?: boolean; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
 	let errorcode: ExtensionManagementErrorCode | undefined;
 	let errorcodeDetail: string | undefined;
 
@@ -706,6 +709,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"wasVerified" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"hadUnknownError" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
@@ -730,12 +734,13 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"wasVerified" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"hadUnknownError" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, wasVerified, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
+	telemetryService.publicLog(eventName, { ...extensionData, wasVerified, hadUnknownError, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
 }
 
 export abstract class AbstractExtensionTask<T> {

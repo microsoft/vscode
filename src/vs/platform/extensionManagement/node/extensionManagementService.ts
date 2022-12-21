@@ -87,7 +87,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
-		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader, this.getTargetPlatform()));
+		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
 		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(e => this.onDidChangeExtensionsFromAnotherSource(e)));
@@ -635,6 +635,7 @@ export class ExtensionsScanner extends Disposable {
 
 abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtension; metadata: Metadata }> implements IInstallExtensionTask {
 
+	public hadUnknownError: boolean = false;
 	public wasVerified: boolean = false;
 
 	protected _operation = InstallOperation.Install;
@@ -737,9 +738,10 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return { local, metadata };
 		}
 
-		const { location, verified } = await this.extensionsDownloader.download(this.gallery, this._operation);
+		const { location, wasVerified, hadUnknownError } = await this.extensionsDownloader.download(this.gallery, this._operation);
 		try {
-			this.wasVerified = !!verified;
+			this.wasVerified = !!wasVerified;
+			this.hadUnknownError = !!hadUnknownError;
 			this.validateManifest(location.fsPath);
 			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
 			return { local, metadata };
@@ -842,6 +844,14 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 	readonly identifier = this.task.identifier;
 	readonly source = this.task.source;
 	readonly operation = this.task.operation;
+
+	get hadUnknownError() {
+		return this.task.hadUnknownError;
+	}
+
+	get wasVerified() {
+		return this.task.wasVerified;
+	}
 
 	private readonly promise: Promise<{ local: ILocalExtension; metadata: Metadata }>;
 
