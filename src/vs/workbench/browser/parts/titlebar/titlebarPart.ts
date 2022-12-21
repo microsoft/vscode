@@ -7,7 +7,7 @@ import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
-import { getZoomFactor, getZoomLevel, isWCOEnabled } from 'vs/base/browser/browser';
+import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
