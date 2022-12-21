@@ -860,11 +860,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
 		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
 		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.add(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor());
-		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest((msg) => this._socketWriter.write(msg)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
+		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor()); // is started immediately
+		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest(buffer => this._sendLatencyMeasurementRequest(buffer)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent(e => this._onLogEvent.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged(e => this._onLatencyMeasurementChanged.fire(e)));
 		this._socketLatencyMonitor.start();
 
 		if (initialChunk) {
@@ -942,11 +942,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
 		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
 		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.add(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor());
-		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest((msg) => this._socketWriter.write(msg)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent((e) => this._onLogEvent.fire(e)));
-		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged((e) => this._onLatencyMeasurementChanged.fire(e)));
+		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
+		this._socketLatencyMonitor = this._socketDisposables.add(new LatencyMonitor()); // will be started later
+		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest(buffer => this._sendLatencyMeasurementRequest(buffer)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onLogEvent(e => this._onLogEvent.fire(e)));
+		this._socketDisposables.add(this._socketLatencyMonitor.onLatencyMeasurementChanged(e => this._onLatencyMeasurementChanged.fire(e)));
 
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
@@ -974,15 +974,6 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {
-		if (msg.type === ProtocolMessageType.LatencyMeasurementRequest) {
-			const reply = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementResponse, 0, msg.id, getEmptyBuffer());
-			this._socketWriter.write(reply);
-			return;
-		} else if (msg.type === ProtocolMessageType.LatencyMeasurementResponse) {
-			this._socketLatencyMonitor.handleResponse(msg);
-			return;
-		}
-
 		if (msg.ack > this._outgoingAckId) {
 			this._outgoingAckId = msg.ack;
 			do {
@@ -1051,6 +1042,15 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			}
 			case ProtocolMessageType.KeepAlive: {
 				// nothing to do
+				break;
+			}
+			case ProtocolMessageType.LatencyMeasurementRequest: {
+				// we just send the data back
+				this._sendLatencyMeasurementResponse(msg.data);
+				break;
+			}
+			case ProtocolMessageType.LatencyMeasurementResponse: {
+				this._socketLatencyMonitor.handleResponse(msg.data);
 				break;
 			}
 		}
@@ -1181,6 +1181,16 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
 		this._socketWriter.write(msg);
 	}
+
+	private _sendLatencyMeasurementRequest(buffer: VSBuffer): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, 0, 0, buffer);
+		this._socketWriter.write(msg);
+	}
+
+	private _sendLatencyMeasurementResponse(buffer: VSBuffer): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.LatencyMeasurementResponse, 0, 0, buffer);
+		this._socketWriter.write(msg);
+	}
 }
 
 class LatencyMonitor extends Disposable {
@@ -1190,8 +1200,8 @@ class LatencyMonitor extends Disposable {
 	private readonly LATENCY_SAMPLE_COUNT = 5;
 	private readonly LATENCY_CHECK_INTERVAL_MS = 1 * 60 * 1000;
 
-	private readonly _onSendLatencyRequest = this._register(new Emitter<ProtocolMessage>());
-	readonly onSendLatencyRequest: Event<ProtocolMessage> = this._onSendLatencyRequest.event;
+	private readonly _onSendLatencyRequest = this._register(new Emitter<VSBuffer>());
+	readonly onSendLatencyRequest: Event<VSBuffer> = this._onSendLatencyRequest.event;
 
 	private readonly _onLogEvent = this._register(new Emitter<{ event: string; data: Object }>());
 	readonly onLogEvent: Event<{ event: string; data: Object }> = this._onLogEvent.event;
@@ -1218,10 +1228,13 @@ class LatencyMonitor extends Disposable {
 		super();
 	}
 
-	start(): void {
+	public start(): void {
 		this._measureLatencyTimer.cancelAndSet(() => {
-			const msg = this._generateRequest();
-			this._onSendLatencyRequest.fire(msg);
+			this._lastLatencyMeasurementSent = Date.now();
+			const measurementId = ++this._lastLatencyMeasurementId;
+			const buffer = VSBuffer.alloc(4);
+			buffer.writeUInt32BE(measurementId, 0);
+			this._onSendLatencyRequest.fire(buffer);
 		}, this.LATENCY_CHECK_INTERVAL_MS);
 	}
 
@@ -1229,31 +1242,34 @@ class LatencyMonitor extends Disposable {
 		this._onLogEvent.fire({ event, data });
 	}
 
-	private _generateRequest(): ProtocolMessage {
-		this._lastLatencyMeasurementSent = Date.now();
-		return new ProtocolMessage(ProtocolMessageType.LatencyMeasurementRequest, ++this._lastLatencyMeasurementId, 0, getEmptyBuffer());
-	}
+	public handleResponse(buffer: VSBuffer): void {
+		if (buffer.byteLength !== 4) {
+			// invalid measurementId
+			return;
+		}
+		const measurementId = buffer.readUInt32BE(0);
+		if (this._lastLatencyMeasurementSent <= 0 || measurementId !== this._lastLatencyMeasurementId) {
+			// invalid measurementId
+			return;
+		}
 
-	handleResponse(msg: ProtocolMessage): void {
-		if (this._lastLatencyMeasurementSent > 0 && msg.ack === this._lastLatencyMeasurementId) {
-			const roundtripTimeTakenMs = Date.now() - this._lastLatencyMeasurementSent;
-			const idx = this._latencySampleIndex++ % this._latencySamples.length;
-			this._latencySamples[idx] = roundtripTimeTakenMs;
+		const roundtripTimeTakenMs = Date.now() - this._lastLatencyMeasurementSent;
+		const idx = this._latencySampleIndex++ % this._latencySamples.length;
+		this._latencySamples[idx] = roundtripTimeTakenMs;
 
-			const previousHighLatency = this._highLatencyDetected;
-			const highLatencySampleCount = this._latencySamples.filter(s => s >= this.HIGH_LATENCY_TIME_MS).length;
-			this._highLatencyDetected = highLatencySampleCount >= this.HIGH_LATENCY_SAMPLE_THRESHOLD;
+		const previousHighLatency = this._highLatencyDetected;
+		const highLatencySampleCount = this._latencySamples.filter(s => s >= this.HIGH_LATENCY_TIME_MS).length;
+		this._highLatencyDetected = highLatencySampleCount >= this.HIGH_LATENCY_SAMPLE_THRESHOLD;
 
-			if (roundtripTimeTakenMs > this.HIGH_LATENCY_TIME_MS) {
-				this._logEvent('ipc.highLatencyMeasurement', {
-					roundtripTimeTakenMs,
-					highLatencySampleCount,
-				});
-			}
+		if (roundtripTimeTakenMs > this.HIGH_LATENCY_TIME_MS) {
+			this._logEvent('ipc.highLatencyMeasurement', {
+				roundtripTimeTakenMs,
+				highLatencySampleCount,
+			});
+		}
 
-			if (previousHighLatency !== this._highLatencyDetected) {
-				this._onLatencyMeasurementChanged.fire(this._highLatencyDetected);
-			}
+		if (previousHighLatency !== this._highLatencyDetected) {
+			this._onLatencyMeasurementChanged.fire(this._highLatencyDetected);
 		}
 	}
 }
