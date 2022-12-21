@@ -7,8 +7,8 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemable, styleFn } from 'vs/base/common/styler';
 import {
-	activeContrastBorder, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, breadcrumbsFocusForeground, breadcrumbsForeground,
-	ColorIdentifier, ColorTransform, ColorValue, editorWidgetBorder, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground,
+	activeContrastBorder,
+	ColorIdentifier, ColorValue, editorWidgetBorder, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground,
 	inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground,
 	inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground,
 	listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground,
@@ -160,29 +160,8 @@ export const defaultListStyles: IColorMapping = {
 	inputValidationErrorBorder,
 };
 
-
 export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
 	return attachStyler(themeService, colors, callback);
-}
-
-export interface IBreadcrumbsWidgetStyleOverrides extends IColorMapping {
-	breadcrumbsBackground?: ColorIdentifier | ColorTransform;
-	breadcrumbsForeground?: ColorIdentifier;
-	breadcrumbsHoverForeground?: ColorIdentifier;
-	breadcrumbsFocusForeground?: ColorIdentifier;
-	breadcrumbsFocusAndSelectionForeground?: ColorIdentifier;
-}
-
-export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
-	breadcrumbsBackground: breadcrumbsBackground,
-	breadcrumbsForeground: breadcrumbsForeground,
-	breadcrumbsHoverForeground: breadcrumbsFocusForeground,
-	breadcrumbsFocusForeground: breadcrumbsFocusForeground,
-	breadcrumbsFocusAndSelectionForeground: breadcrumbsActiveSelectionForeground,
-};
-
-export function attachBreadcrumbsStyler(widget: IThemable, themeService: IThemeService, style?: IBreadcrumbsWidgetStyleOverrides): IDisposable {
-	return attachStyler(themeService, { ...defaultBreadcrumbsStyles, ...style }, widget);
 }
 
 export interface IMenuStyleOverrides extends IColorMapping {
