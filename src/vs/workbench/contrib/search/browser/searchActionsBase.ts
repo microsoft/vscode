@@ -11,7 +11,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/common/searchModel';
 import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 export const category = { value: nls.localize('search', "Search"), original: 'Search' };
@@ -39,17 +39,36 @@ export function getSearchView(viewsService: IViewsService): SearchView | undefin
 	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 }
 
-export function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
+export function getElementsToOperateOn(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
-
-	const mustReselect = !currElement || elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
 
 	// if selection doesn't include multiple elements, just return current focus element.
 	if (currElement && !(elements.length > 1 && elements.includes(currElement))) {
 		elements = [currElement];
 	}
 
-	return { elements, mustReselect };
+	return elements;
+}
+
+export function shouldRefocus(elements: RenderableMatch[], focusElement: RenderableMatch | undefined) {
+	if (!focusElement) {
+		return false;
+	}
+	return !focusElement || elements.includes(focusElement) || hasDownstreamMatch(elements, focusElement); // this indicates whether we need to re-focus/re-select on a remove.
+}
+
+function hasDownstreamMatch(elementsToRemove: RenderableMatch[], focusedElement: RenderableMatch) {
+	for (const elem of elementsToRemove) {
+		if ((elem instanceof FileMatch && focusedElement instanceof Match && elem.matches().includes(focusedElement)) ||
+			(elem instanceof FolderMatch && (
+				(focusedElement instanceof FileMatch && elem.getDownstreamFileMatch(focusedElement.resource)) ||
+				(focusedElement instanceof Match && elem.getDownstreamFileMatch(focusedElement.parent().resource))
+			))) {
+			return true;
+		}
+	}
+	return false;
+
 }
 
 export function openSearchView(viewsService: IViewsService, focus?: boolean): Promise<SearchView | undefined> {
