@@ -2773,7 +2773,7 @@ export class Breakpoint {
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -2783,9 +2783,6 @@ export class Breakpoint {
 		}
 		if (typeof logMessage === 'string') {
 			this.logMessage = logMessage;
-		}
-		if (typeof id === 'string') {
-			this._id = id;
 		}
 	}
 
@@ -2801,8 +2798,8 @@ export class Breakpoint {
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
-		super(enabled, condition, hitCondition, logMessage, id);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -2811,12 +2808,34 @@ export class SourceBreakpoint extends Breakpoint {
 }
 
 @es5ClassCompat
+export class SourceBreakpointWithId extends SourceBreakpoint {
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
+		super(location, enabled, condition, hitCondition, logMessage);
+	}
+
+	override get id(): string {
+		return this._internalId ?? super.id;
+	}
+}
+
+@es5ClassCompat
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
-		super(enabled, condition, hitCondition, logMessage, id);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		this.functionName = functionName;
+	}
+}
+
+@es5ClassCompat
+export class FunctionBreakpointWithId extends FunctionBreakpoint {
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
+		super(functionName, enabled, condition, hitCondition, logMessage);
+	}
+
+	override get id(): string {
+		return this._internalId ?? super.id;
 	}
 }
 
@@ -2826,14 +2845,25 @@ export class DataBreakpoint extends Breakpoint {
 	readonly dataId: string;
 	readonly canPersist: boolean;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, id?: string) {
-		super(enabled, condition, hitCondition, logMessage, id);
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (!dataId) {
 			throw illegalArgument('dataId');
 		}
 		this.label = label;
 		this.dataId = dataId;
 		this.canPersist = canPersist;
+	}
+}
+
+@es5ClassCompat
+export class DataBreakpointWithId extends DataBreakpoint {
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
+		super(label, dataId, canPersist, enabled, condition, hitCondition, logMessage);
+	}
+
+	override get id(): string {
+		return this._internalId ?? super.id;
 	}
 }
 
