@@ -36,10 +36,10 @@ const enum RegexPathConstants {
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]',
+	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\'":;\\\\]',
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(\\\\|\\/)',
-	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
+	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
 }
 
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
@@ -165,6 +165,25 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 
+			// If any candidates end with special characters that are likely to not be part of the
+			// link, add a candidate excluding them.
+			const specialEndCharRegex = /[\[\]]$/;
+			const trimRangeMap: Map<string, number> = new Map();
+			const specialEndLinkCandidates: string[] = [];
+			for (const candidate of linkCandidates) {
+				let previous = candidate;
+				let removed = previous.replace(specialEndCharRegex, '');
+				let trimRange = 0;
+				while (removed !== previous) {
+					trimRange++;
+					specialEndLinkCandidates.push(removed);
+					trimRangeMap.set(removed, trimRange);
+					previous = removed;
+					removed = removed.replace(specialEndCharRegex, '');
+				}
+			}
+			linkCandidates.push(...specialEndLinkCandidates);
+
 			const linkStat = await this._validateLinkCandidates(linkCandidates);
 
 			// Create the link if validated
@@ -178,6 +197,15 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					}
 				} else {
 					type = TerminalBuiltinLinkType.LocalFile;
+				}
+				// Offset the buffer range if the link range was trimmed
+				const trimRange = trimRangeMap.get(linkStat.link);
+				if (trimRange) {
+					bufferRange.end.x -= trimRange;
+					if (bufferRange.end.x < 0) {
+						bufferRange.end.y--;
+						bufferRange.end.x += this.xterm.cols;
+					}
 				}
 				links.push({
 					text: linkStat.link,
