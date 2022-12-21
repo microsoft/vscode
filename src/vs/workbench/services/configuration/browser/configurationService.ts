@@ -1109,9 +1109,9 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		super();
 		this.registerConfigurationSchemas();
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		this._register(configurationRegistry.onDidUpdateConfiguration(e => this.registerConfigurationSchemas()));
-		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => this.registerConfigurationSchemas()));
+
+		const anyEvent = Event.any(configurationRegistry.onDidUpdateConfiguration, configurationRegistry.onDidSchemaChange, workspaceTrustManagementService.onDidChangeTrust);
+		this._register(Event.debounce(anyEvent, () => undefined, 0)(() => this.registerConfigurationSchemas()));
 	}
 
 	private registerConfigurationSchemas(): void {
