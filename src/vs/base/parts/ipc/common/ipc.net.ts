@@ -816,7 +816,7 @@ export const enum ConnectionHealth {
 	Poor
 }
 
-export function connectionHealthToString(connectionHealth: ConnectionHealth): string {
+export function connectionHealthToString(connectionHealth: ConnectionHealth): 'good' | 'poor' {
 	switch (connectionHealth) {
 		case ConnectionHealth.Good: return 'good';
 		case ConnectionHealth.Poor: return 'poor';
@@ -849,6 +849,25 @@ export class HighRoundTripTimeEvent {
 	) { }
 }
 
+export interface PersistentProtocolOptions {
+	/**
+	 * The socket to use.
+	 */
+	socket: ISocket;
+	/**
+	 * The initial chunk of data that has already been received from the socket.
+	 */
+	initialChunk?: VSBuffer | null;
+	/**
+	 * The CPU load estimator to use.
+	 */
+	loadEstimator?: ILoadEstimator;
+	/**
+	 * Whether to measure round trip time.
+	 */
+	measureRoundTripTime?: boolean;
+}
+
 /**
  * Same as Protocol, but will actually track messages and acks.
  * Moreover, it will ensure no messages are lost if there are no event listeners.
@@ -879,6 +898,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socketDisposables: DisposableStore;
 
 	private readonly _loadEstimator: ILoadEstimator;
+	private readonly _measureRoundTripTime: boolean;
 
 	private readonly _onControlMessage = new BufferedEmitter<VSBuffer>();
 	readonly onControlMessage: Event<VSBuffer> = this._onControlMessage.event;
@@ -896,7 +916,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	readonly onSocketTimeout: Event<SocketTimeoutEvent> = this._onSocketTimeout.event;
 
 	private readonly _onHighRoundTripTime = new BufferedEmitter<HighRoundTripTimeEvent>();
-	public readonly onHighRoundTripTime = this._onHighRoundTripTime.event;
+	readonly onHighRoundTripTime = this._onHighRoundTripTime.event;
 
 	private readonly _onDidChangeConnectionHealth = new BufferedEmitter<ConnectionHealth>();
 	readonly onDidChangeConnectionHealth = this._onDidChangeConnectionHealth.event;
@@ -905,8 +925,9 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: ISocket, initialChunk: VSBuffer | null = null, loadEstimator: ILoadEstimator = LoadEstimator.getInstance()) {
-		this._loadEstimator = loadEstimator;
+	constructor(opts: PersistentProtocolOptions) {
+		this._loadEstimator = opts.loadEstimator ?? LoadEstimator.getInstance();
+		this._measureRoundTripTime = opts.measureRoundTripTime ?? false;
 		this._isReconnecting = false;
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
 		this._outgoingMsgId = 0;
@@ -922,7 +943,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._lastSocketTimeoutTime = Date.now();
 
 		this._socketDisposables = new DisposableStore();
-		this._socket = socket;
+		this._socket = opts.socket;
 		this._socketWriter = this._socketDisposables.add(new ProtocolWriter(this._socket));
 		this._socketReader = this._socketDisposables.add(new ProtocolReader(this._socket));
 		this._socketDisposables.add(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
@@ -931,10 +952,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.add(this._socketLatencyMonitor.onSendLatencyRequest(buffer => this._sendLatencyMeasurementRequest(buffer)));
 		this._socketDisposables.add(this._socketLatencyMonitor.onHighRoundTripTime(e => this._onHighRoundTripTime.fire(e)));
 		this._socketDisposables.add(this._socketLatencyMonitor.onDidChangeConnectionHealth(e => this._onDidChangeConnectionHealth.fire(e)));
-		this._socketLatencyMonitor.start();
+		if (this._measureRoundTripTime) {
+			this._socketLatencyMonitor.start();
+		}
 
-		if (initialChunk) {
-			this._socketReader.acceptChunk(initialChunk);
+		if (opts.initialChunk) {
+			this._socketReader.acceptChunk(opts.initialChunk);
 		}
 
 		this._keepAliveInterval = setInterval(() => {
@@ -1018,7 +1041,9 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 	public endAcceptReconnection(): void {
 		this._isReconnecting = false;
-		this._socketLatencyMonitor.start();
+		if (this._measureRoundTripTime) {
+			this._socketLatencyMonitor.start();
+		}
 
 		// After a reconnection, let the other party know (again) which messages have been received.
 		// (perhaps the other party didn't receive a previous ACK)
