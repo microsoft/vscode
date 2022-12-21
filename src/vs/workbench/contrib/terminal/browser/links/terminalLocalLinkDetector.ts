@@ -8,9 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { convertLinkRangeToBuffer, getXtermLineContent, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IBufferCellPosition, IBufferLine, IBufferRange, Terminal } from 'xterm';
+import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 
 const enum Constants {
 	/**
@@ -241,6 +241,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			}
 		}
 
+		// Match against the fallback matchers which are mainly designed to catch paths with spaces
+		// that aren't possible using the regular mechanism.
 		if (links.length === 0) {
 			for (const matcher of fallbackMatchers) {
 				const match = text.match(matcher);
@@ -269,29 +271,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					endLineNumber: 1
 				}, startLine);
 
-				const linkStat = await this._validateLinkCandidates([path]);
-				if (linkStat) {
-					let type: TerminalBuiltinLinkType;
-					if (linkStat.isDirectory) {
-						if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-						} else {
-							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-						}
-					} else {
-						type = TerminalBuiltinLinkType.LocalFile;
-					}
-					links.push({
-						text: line ? `${linkStat.link}:${line}` : linkStat.link,
-						uri: linkStat.uri,
-						bufferRange,
-						type
-					});
-
-					// Stop early if too many links exist in the line
-					if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
-						break;
-					}
+				// Validate and add link
+				const simpleLink = await this._validateAndGetLink(line ? `${path}:${line}` : path, bufferRange, [path]);
+				if (simpleLink) {
+					links.push(simpleLink);
 				}
 
 				// Only match a single fallback matcher
@@ -302,44 +285,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		// Sometimes links are styled specially in the terminal like underlined or bolded, try split
 		// the line by attributes and test whether it matches a path
 		if (links.length === 0) {
-			let bufferRangeStart: IBufferCellPosition | undefined = undefined;
-			let lastAttr: number = -1;
-			const rangeCandidates: IBufferRange[] = [];
-			for (let y = startLine; y <= endLine; y++) {
-				const line = this.xterm.buffer.active.getLine(y);
-				if (!line) {
-					continue;
-				}
-				for (let x = 0; x < this.xterm.cols; x++) {
-					const cell = line.getCell(x);
-					if (!cell) {
-						break;
-					}
-					const thisAttr = (
-						cell.isBold() |
-						cell.isInverse() |
-						cell.isStrikethrough() |
-						cell.isUnderline()
-					);
-					// cell.isDim() |
-					// cell.isItalic() |
-					if (lastAttr === -1) {
-						bufferRangeStart = { x, y };
-					} else {
-						if (lastAttr !== thisAttr) {
-							// TODO: x overflow
-							const bufferRangeEnd = { x, y };
-							rangeCandidates.push({
-								start: bufferRangeStart!,
-								end: bufferRangeEnd
-							});
-							bufferRangeStart = { x, y };
-						}
-					}
-					lastAttr = thisAttr;
-				}
-			}
-
+			const rangeCandidates = getXtermRangesByAttr(this.xterm.buffer.active, startLine, endLine, this.xterm.cols);
 			for (const rangeCandidate of rangeCandidates) {
 				let text = '';
 				for (let y = rangeCandidate.start.y; y <= rangeCandidate.end.y; y++) {
@@ -347,37 +293,25 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					if (!line) {
 						break;
 					}
-					// TODO: Fix multi-line case
-					text += line.translateToString(false, rangeCandidate.start.x, rangeCandidate.end.x);
+					const lineStartX = y === rangeCandidate.start.y ? rangeCandidate.start.x : 0;
+					const lineEndX = y === rangeCandidate.end.y ? rangeCandidate.end.x : this.xterm.cols - 1;
+					text += line.translateToString(false, lineStartX, lineEndX);
 				}
 
+				// HACK: Adjust to 1-based for link API
 				rangeCandidate.start.x++;
 				rangeCandidate.start.y++;
 				rangeCandidate.end.y++;
 
-				const linkStat = await this._validateLinkCandidates([text]);
-				if (linkStat) {
-					let type: TerminalBuiltinLinkType;
-					if (linkStat.isDirectory) {
-						if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-						} else {
-							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-						}
-					} else {
-						type = TerminalBuiltinLinkType.LocalFile;
-					}
-					links.push({
-						text,
-						uri: linkStat.uri,
-						bufferRange: rangeCandidate,
-						type
-					});
+				// Validate and add link
+				const simpleLink = await this._validateAndGetLink(text, rangeCandidate, [text]);
+				if (simpleLink) {
+					links.push(simpleLink);
+				}
 
-					// Stop early if too many links exist in the line
-					if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
-						break;
-					}
+				// Stop early if too many links exist in the line
+				if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+					break;
 				}
 			}
 		}
@@ -401,6 +335,29 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			if (result) {
 				return result;
 			}
+		}
+		return undefined;
+	}
+
+	private async _validateAndGetLink(linkText: string, bufferRange: IBufferRange, linkCandidates: string[]): Promise<ITerminalSimpleLink | undefined> {
+		const linkStat = await this._validateLinkCandidates(linkCandidates);
+		if (linkStat) {
+			let type: TerminalBuiltinLinkType;
+			if (linkStat.isDirectory) {
+				if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
+					type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
+				} else {
+					type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+				}
+			} else {
+				type = TerminalBuiltinLinkType.LocalFile;
+			}
+			return {
+				text: linkText,
+				uri: linkStat.uri,
+				bufferRange: bufferRange,
+				type
+			};
 		}
 		return undefined;
 	}
