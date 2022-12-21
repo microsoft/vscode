@@ -2179,6 +2179,8 @@ export interface IMinimapLayoutInput {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly pixelRatio: number;
 	readonly scrollBeyondLastLine: boolean;
+	readonly paddingTop: number;
+	readonly paddingBottom: number;
 	readonly minimap: Readonly<Required<IEditorMinimapOptions>>;
 	readonly verticalScrollbarWidth: number;
 	readonly viewLineCount: number;
@@ -2213,15 +2215,21 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	public static computeContainedMinimapLineCount(input: {
 		viewLineCount: number;
 		scrollBeyondLastLine: boolean;
+		paddingTop: number;
+		paddingBottom: number;
 		height: number;
 		lineHeight: number;
 		pixelRatio: number;
-	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
+	}): { typicalViewportLineCount: number; extraLinesBeforeFirstLine: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
 		const typicalViewportLineCount = input.height / input.lineHeight;
-		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
-		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
+		const extraLinesBeforeFirstLine = Math.floor(input.paddingTop / input.lineHeight);
+		let extraLinesBeyondLastLine = Math.floor(input.paddingBottom / input.lineHeight);
+		if (input.scrollBeyondLastLine) {
+			extraLinesBeyondLastLine = Math.max(extraLinesBeyondLastLine, typicalViewportLineCount - 1);
+		}
+		const desiredRatio = (extraLinesBeforeFirstLine + input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
 		const minimapLineCount = Math.floor(input.viewLineCount / desiredRatio);
-		return { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
+		return { typicalViewportLineCount, extraLinesBeforeFirstLine, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
 	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
@@ -2255,6 +2263,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			&& input.typicalHalfwidthCharacterWidth === stableMinimapLayoutInput.typicalHalfwidthCharacterWidth
 			&& input.pixelRatio === stableMinimapLayoutInput.pixelRatio
 			&& input.scrollBeyondLastLine === stableMinimapLayoutInput.scrollBeyondLastLine
+			&& input.paddingTop === stableMinimapLayoutInput.paddingTop
+			&& input.paddingBottom === stableMinimapLayoutInput.paddingBottom
 			&& input.minimap.enabled === stableMinimapLayoutInput.minimap.enabled
 			&& input.minimap.side === stableMinimapLayoutInput.minimap.side
 			&& input.minimap.size === stableMinimapLayoutInput.minimap.size
@@ -2291,9 +2301,11 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let minimapWidthMultiplier: number = 1;
 
 		if (minimapSize === 'fill' || minimapSize === 'fit') {
-			const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+			const { typicalViewportLineCount, extraLinesBeforeFirstLine, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 				viewLineCount: viewLineCount,
 				scrollBeyondLastLine: scrollBeyondLastLine,
+				paddingTop: input.paddingTop,
+				paddingBottom: input.paddingBottom,
 				height: outerHeight,
 				lineHeight: lineHeight,
 				pixelRatio: pixelRatio
@@ -2313,7 +2325,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				let maxMinimapScale = minimapScale + 1;
 
 				if (minimapSize === 'fit') {
-					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					const effectiveMinimapHeight = Math.ceil((extraLinesBeforeFirstLine + viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 					if (isViewportWrapping && couldUseMemory && remainingWidth <= memory.stableFitRemainingWidth) {
 						// There is a loop when using `fit` and viewport wrapping:
 						// - view line count impacts minimap layout
@@ -2344,7 +2356,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 						minimapWidthMultiplier = Math.min(2, minimapScale / configuredMinimapScale);
 					}
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
-					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, extraLinesBeforeFirstLine + viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
 					if (isViewportWrapping) {
 						// remember for next time
 						memory.stableMinimapLayoutInput = input;
@@ -2417,6 +2429,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
 		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars);
 		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
+		const padding = options.get(EditorOption.padding);
 		const minimap = options.get(EditorOption.minimap);
 
 		const scrollbar = options.get(EditorOption.scrollbar);
@@ -2472,6 +2485,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacterWidth,
 			pixelRatio: pixelRatio,
 			scrollBeyondLastLine: scrollBeyondLastLine,
+			paddingTop: padding.top,
+			paddingBottom: padding.bottom,
 			minimap: minimap,
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			viewLineCount: viewLineCount,

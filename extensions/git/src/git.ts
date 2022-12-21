@@ -1455,6 +1455,8 @@ export class Repository {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 				err.gitTreeish = treeish;
+			} else if (/You are on a branch yet to be born/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BranchNotYetBorn;
 			}
 
 			throw err;
@@ -1908,12 +1910,16 @@ export class Repository {
 		}
 	}
 
-	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
+	async createStash(message?: string, includeUntracked?: boolean, staged?: boolean): Promise<void> {
 		try {
 			const args = ['stash', 'push'];
 
 			if (includeUntracked) {
 				args.push('-u');
+			}
+
+			if (staged) {
+				args.push('-S');
 			}
 
 			if (message) {

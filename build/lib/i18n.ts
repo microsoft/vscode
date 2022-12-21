@@ -6,7 +6,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { merge, through, ThroughStream, writeArray } from 'event-stream';
+import { map, merge, through, ThroughStream } from 'event-stream';
+import * as jsonMerge from 'gulp-merge-json';
 import * as File from 'vinyl';
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
@@ -579,57 +580,67 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 	});
 }
 
-function createL10nBundleForExtension(extensionFolderName: string): ThroughStream {
-	const result = through();
-	gulp.src([
-		// For source code of extensions
-		`extensions/${extensionFolderName}/src/**/*.{ts,tsx}`,
-		// For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
-		`extensions/${extensionFolderName}/node_modules/**/*.{js,jsx}`,
-		// For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
-		`extensions/${extensionFolderName}/node_modules/**/bundle.l10n.json`,
-	]).pipe(writeArray((err, files: File[]) => {
-		if (err) {
-			result.emit('error', err);
-			return;
-		}
+function createL10nBundleForExtension(extensionFolderName: string): NodeJS.ReadWriteStream {
+	return gulp
+		.src([
+			// For source code of extensions
+			`extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
+			// // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+			`extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
+			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
+			`extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/bundle.l10n.json`,
+		])
+		.pipe(map(function (data, callback) {
+			const file = data as File;
+			if (!file.isBuffer()) {
+				// Not a buffer so we drop it
+				callback();
+				return;
+			}
+			const extension = path.extname(file.relative);
+			if (extension !== '.json') {
+				const contents = file.contents.toString('utf8');
+				getL10nJson([{ contents, extension }])
+					.then((json) => {
+						callback(undefined, new File({
+							path: `extensions/${extensionFolderName}/bundle.l10n.json`,
+							contents: Buffer.from(JSON.stringify(json), 'utf8')
+						}));
+					})
+					.catch((err) => {
+						callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+					});
+				// signal pause?
+				return false;
+			}
 
-		const buffers = files.filter(file => file.isBuffer());
+			// for bundle.l10n.jsons
+			let bundleJson;
+			try {
+				bundleJson = JSON.parse(file.contents.toString('utf8'));
+			} catch (err) {
+				callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+				return;
+			}
 
-		const json = getL10nJson(buffers
-			.filter(file => path.extname(file.path) !== '.json')
-			.map(file => ({
-				contents: file.contents.toString('utf8'),
-				extension: path.extname(file.path)
-			})));
-
-		buffers
-			.filter(file => path.extname(file.path) === '.json')
-			.forEach(file => {
-				const bundleJson = JSON.parse(file.contents.toString('utf8'));
-				for (const key in bundleJson) {
-					if (
-						// some validation of the bundle.l10n.json format
-						typeof bundleJson[key] !== 'string' &&
-						(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
-					) {
-						console.error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format. Skipping key...`);
-						continue;
-					}
-					json[key] = bundleJson[key];
+			// some validation of the bundle.l10n.json format
+			for (const key in bundleJson) {
+				if (
+					typeof bundleJson[key] !== 'string' &&
+					(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
+				) {
+					callback(new Error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format.`));
+					return;
 				}
-			});
+			}
 
-		if (Object.keys(json).length > 0) {
-			result.emit('data', new File({
-				path: `extensions/${extensionFolderName}/bundle.l10n.json`,
-				contents: Buffer.from(JSON.stringify(json), 'utf8')
-			}));
-		}
-		result.emit('end');
-	}));
-
-	return result;
+			callback(undefined, file);
+		}))
+		.pipe(jsonMerge({
+			fileName: `extensions/${extensionFolderName}/bundle.l10n.json`,
+			jsonSpace: '',
+			concatArrays: true
+		}));
 }
 
 export function createXlfFilesForExtensions(): ThroughStream {

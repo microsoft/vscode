@@ -165,15 +165,17 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 	});
 }
 
-// The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`.
-const CTRL_LETTER_OFFSET = 64;
+const enum Constants {
+	/** The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`. */
+	CtrlLetterOffset = 64
+}
 
 // An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
 // shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
 // disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
 // reader. This works even when clipboard.readText is not supported.
 if (isWindows) {
-	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+v
+	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+v
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 		primary: KeyMod.CtrlCmd | KeyCode.KeyV
 	});
@@ -208,21 +210,21 @@ registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 
 // send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
 if (isIOS) {
-	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
+	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+c
 		when: ContextKeyExpr.and(TerminalContextKeys.focus),
 		primary: KeyMod.WinCtrl | KeyCode.KeyC
 	});
 }
 
 // Delete word left: ctrl+w
-registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
+registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - Constants.CtrlLetterOffset), {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 });
 if (isWindows) {
 	// Delete word left: ctrl+h
 	// Windows cmd.exe requires ^H to delete full word left
-	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
+	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - Constants.CtrlLetterOffset), {
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.CommandPrompt)),
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	});

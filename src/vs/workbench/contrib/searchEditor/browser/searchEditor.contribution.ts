@@ -280,7 +280,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewEditorToSideCommandId,
-			title: { value: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
+			title: { value: localize('search.openNewEditorToSide', "Open New Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
 			category,
 			f1: true,
 			description: openArgDescription
