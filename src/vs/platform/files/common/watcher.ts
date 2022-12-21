@@ -28,8 +28,7 @@ interface IWatchRequest {
 	 *
 	 * Paths or basic glob patterns that are relative will be
 	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
+	 * workspace.
 	 */
 	excludes: string[];
 
@@ -40,8 +39,7 @@ interface IWatchRequest {
 	 *
 	 * Paths or basic glob patterns that are relative will be
 	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
+	 * workspace.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }
