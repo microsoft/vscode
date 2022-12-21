@@ -8,18 +8,18 @@ import { format } from 'vs/base/common/strings';
 import 'vs/css!./countBadge';
 
 export interface ICountBadgeOptions {
-	count?: number;
-	countFormat?: string;
-	titleFormat?: string;
+	readonly count?: number;
+	readonly countFormat?: string;
+	readonly titleFormat?: string;
 }
 
 export interface ICountBadgeStyles {
-	badgeBackground: string | undefined;
-	badgeForeground: string | undefined;
-	badgeBorder: string | undefined;
+	readonly badgeBackground: string | undefined;
+	readonly badgeForeground: string | undefined;
+	readonly badgeBorder: string | undefined;
 }
 
-export const unthemedCountStyles = {
+export const unthemedCountStyles: ICountBadgeStyles = {
 	badgeBackground: '#4D4D4D',
 	badgeForeground: '#FFFFFF',
 	badgeBorder: undefined
