@@ -303,9 +303,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
 
-		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
-			this.updateTitle(this.title);
-		}));
+		const viewContainerModel = this.viewDescriptorService.getViewContainerByViewId(this.id);
+		if (viewContainerModel) {
+			this._register(this.viewDescriptorService.getViewContainerModel(viewContainerModel).onDidChangeContainerInfo(({ title }) => this.updateTitle(this.title)));
+		} else {
+			console.error(`View container model not found for view ${this.id}`);
+		}
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));

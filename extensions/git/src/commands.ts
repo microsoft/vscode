@@ -1122,7 +1122,7 @@ export class CommandCenter {
 
 		await this._stageChanges(textEditor, [changes[index]]);
 
-		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
@@ -1141,6 +1141,7 @@ export class CommandCenter {
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedChanges.length) {
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -1279,7 +1280,7 @@ export class CommandCenter {
 
 		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
 
-		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
@@ -1299,6 +1300,7 @@ export class CommandCenter {
 		});
 
 		if (selectedChanges.length === changes.length) {
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -1388,6 +1390,7 @@ export class CommandCenter {
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -2697,16 +2700,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = remotes.map(r => r.name);
+		const picks: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
 		const placeHolder = l10n.t('Pick a remote to remove');
 
-		const remoteName = await window.showQuickPick(picks, { placeHolder });
+		const remote = await window.showQuickPick(picks, { placeHolder });
 
-		if (!remoteName) {
+		if (!remote) {
 			return;
 		}
 
-		await repository.removeRemote(remoteName);
+		await repository.removeRemote(remote.remoteName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
@@ -2907,14 +2910,21 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 
-		if (noUnstagedChanges && noStagedChanges) {
-			window.showInformationMessage(l10n.t('There are no changes to stash.'));
-			return;
+		if (staged) {
+			if (noStagedChanges) {
+				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
+				return;
+			}
+		} else {
+			if (noUnstagedChanges && noStagedChanges) {
+				window.showInformationMessage(l10n.t('There are no changes to stash.'));
+				return;
+			}
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
@@ -2961,12 +2971,26 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.createStash(message, includeUntracked);
+		try {
+			await repository.createStash(message, includeUntracked, staged);
+		} catch (err) {
+			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
+				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.stash', { repository: true })
 	stash(repository: Repository): Promise<void> {
 		return this._stash(repository);
+	}
+
+	@command('git.stashStaged', { repository: true })
+	stashStaged(repository: Repository): Promise<void> {
+		return this._stash(repository, false, true);
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
