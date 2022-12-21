@@ -461,6 +461,32 @@ import { ltrim } from 'vs/base/common/strings';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
+	test('excludes are supported (path)', async function () {
+		return testExcludes([join(realpathSync(testDir), 'deep')]);
+	});
+
+	test('excludes are supported (glob)', function () {
+		return testExcludes(['deep/**']);
+	});
+
+	async function testExcludes(excludes: string[]) {
+		await watcher.watch([{ path: testDir, excludes, recursive: true }]);
+
+		// New file (*.txt)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	}
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
