@@ -196,7 +196,13 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
-			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-${productService.applicationName}-zsh`);
+			let username: string;
+			try {
+				username = os.userInfo().username;
+			} catch {
+				username = 'unknown';
+			}
+			const zdotdir = path.join(os.tmpdir(), `${username}-${productService.applicationName}-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
