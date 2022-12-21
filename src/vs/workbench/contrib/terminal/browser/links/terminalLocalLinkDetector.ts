@@ -10,7 +10,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IBufferLine, Terminal } from 'xterm';
+import { IBufferCellPosition, IBufferLine, IBufferRange, Terminal } from 'xterm';
 
 const enum Constants {
 	/**
@@ -63,6 +63,13 @@ export const lineAndColumnClause = [
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
+
+const fallbackMatchers: RegExp[] = [
+	// Python style error: File "<path>", line <line>
+	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// The whole line is the path
+	/^(?<link>(?<path>.+))/
+];
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
@@ -230,6 +237,143 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				// Stop early if too many links exist in the line
 				if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
 					break;
+				}
+			}
+		}
+
+		if (links.length === 0) {
+			for (const matcher of fallbackMatchers) {
+				const match = text.match(matcher);
+				const group = match?.groups;
+				if (!group) {
+					continue;
+				}
+				const link = group?.link;
+				const path = group?.path;
+				const line = group?.line;
+				if (!link || !path) {
+					continue;
+				}
+				console.log('match!', path, link, line);
+
+				// Don't try resolve any links of excessive length
+				if (link.length > Constants.MaxResolvedLinkLength) {
+					continue;
+				}
+
+				// Convert the link text's string index into a wrapped buffer range
+				stringIndex = text.indexOf(link);
+				const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
+					startColumn: stringIndex + 1,
+					startLineNumber: 1,
+					endColumn: stringIndex + link.length + 1,
+					endLineNumber: 1
+				}, startLine);
+
+				const linkStat = await this._validateLinkCandidates([path]);
+				if (linkStat) {
+					let type: TerminalBuiltinLinkType;
+					if (linkStat.isDirectory) {
+						if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
+							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
+						} else {
+							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+						}
+					} else {
+						type = TerminalBuiltinLinkType.LocalFile;
+					}
+					links.push({
+						text: line ? `${linkStat.link}:${line}` : linkStat.link,
+						uri: linkStat.uri,
+						bufferRange,
+						type
+					});
+
+					// Stop early if too many links exist in the line
+					if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+						break;
+					}
+				}
+
+				// Only match a single fallback matcher
+				break;
+			}
+		}
+
+		// Sometimes links are styled specially in the terminal like underlined or bolded, try split
+		// the line by attributes and test whether it matches a path
+		if (links.length === 0) {
+			let bufferRangeStart: IBufferCellPosition | undefined = undefined;
+			let lastUnderline: number = 0;
+			const rangeCandidates: IBufferRange[] = [];
+			for (let y = startLine; y <= endLine; y++) {
+				const line = this.xterm.buffer.active.getLine(y);
+				if (!line) {
+					continue;
+				}
+				for (let x = 0; x < this.xterm.cols; x++) {
+					const cell = line.getCell(x);
+					if (!cell) {
+						break;
+					}
+					const thisUnderline = cell.isUnderline();
+					if (lastUnderline) {
+						if (!thisUnderline) {
+							// TODO: x overflow
+							const bufferRangeEnd = { x, y };
+							rangeCandidates.push({
+								start: bufferRangeStart!,
+								end: bufferRangeEnd
+							});
+						}
+					} else {
+						if (thisUnderline) {
+							bufferRangeStart = { x, y };
+						}
+					}
+					lastUnderline = thisUnderline;
+				}
+			}
+			console.log('rangeCandidates', rangeCandidates);
+
+			for (const rangeCandidate of rangeCandidates) {
+				let text = '';
+				for (let y = rangeCandidate.start.y; y <= rangeCandidate.end.y; y++) {
+					const line = this.xterm.buffer.active.getLine(y);
+					if (!line) {
+						break;
+					}
+					// TODO: Fix multi-line case
+					text += line.translateToString(false, rangeCandidate.start.x, rangeCandidate.end.x);
+				}
+
+				rangeCandidate.start.x++;
+				rangeCandidate.start.y++;
+				rangeCandidate.end.y++;
+
+				const linkStat = await this._validateLinkCandidates([text]);
+				if (linkStat) {
+					let type: TerminalBuiltinLinkType;
+					if (linkStat.isDirectory) {
+						if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
+							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
+						} else {
+							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+						}
+					} else {
+						type = TerminalBuiltinLinkType.LocalFile;
+					}
+					links.push({
+						text,
+						uri: linkStat.uri,
+						bufferRange: rangeCandidate,
+						type
+					});
+
+					// Stop early if too many links exist in the line
+					if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+						break;
+					}
 				}
 			}
 		}
