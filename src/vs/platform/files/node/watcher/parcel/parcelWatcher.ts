@@ -47,6 +47,11 @@ export interface IParcelWatcherInstance {
 	readonly token: CancellationToken;
 
 	/**
+	 * An event aggregator to coalesce events and reduce duplicates.
+	 */
+	readonly worker: RunOnceWorker<IDiskFileChange>;
+
+	/**
 	 * Stops and disposes the watcher. This operation is async to await
 	 * unsubscribe call in Parcel.
 	 */
@@ -110,10 +115,6 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		},
 		events => this._onDidChangeFile.fire(events)
 	));
-
-	// Aggregate file changes over FILE_CHANGES_HANDLER_DELAY
-	// to coalesce events and reduce duplicate events.
-	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY));
 
 	private verboseLogging = false;
 	private enospcErrorLogged = false;
@@ -288,8 +289,13 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			ready: instance.p,
 			restarts,
 			token: cts.token,
+			worker: new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
 			stop: async () => {
 				cts.dispose(true);
+
+				watcher.worker.flush();
+				watcher.worker.dispose();
+
 				pollingWatcher.dispose();
 				unlinkSync(snapshotFile);
 			}
@@ -357,8 +363,12 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			ready: instance.p,
 			restarts,
 			token: cts.token,
+			worker: new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
 			stop: async () => {
 				cts.dispose(true);
+
+				watcher.worker.flush();
+				watcher.worker.dispose();
 
 				const watcherInstance = await instance.p;
 				await watcherInstance?.unsubscribe();
@@ -416,9 +426,9 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Check for excludes
 		const includedEvents = this.handleExcludeIncludes(parcelEvents, excludes, includes);
 
-		// Add to aggregator for later processing
+		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
-			this.fileChangesAggregator.work(includedEvent);
+			watcher.worker.work(includedEvent);
 		}
 	}
 
@@ -448,22 +458,20 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return events;
 	}
 
-	private handleParcelEvents(parcelEvents: IDiskFileChange[]): void {
+	private handleParcelEvents(parcelEvents: IDiskFileChange[], watcher: IParcelWatcherInstance): void {
 
 		// Coalesce events: merge events of same kind
 		const coalescedEvents = coalesceEvents(parcelEvents);
 
 		// Filter events: check for specific events we want to exclude
-		const { events: filteredEvents, deletedRoots } = this.filterEvents(coalescedEvents);
+		const { events: filteredEvents, rootDeleted } = this.filterEvents(coalescedEvents, watcher);
 
 		// Broadcast to clients
 		this.emitEvents(filteredEvents);
 
 		// Handle root path deletes
-		if (deletedRoots) {
-			for (const deletedRoot of deletedRoots) {
-				this.onWatchedPathDeleted(deletedRoot);
-			}
+		if (rootDeleted) {
+			this.onWatchedPathDeleted(watcher);
 		}
 	}
 
@@ -545,12 +553,12 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private filterEvents(events: IDiskFileChange[]): { events: IDiskFileChange[]; deletedRoots?: Set<IParcelWatcherInstance> } {
+	private filterEvents(events: IDiskFileChange[], watcher: IParcelWatcherInstance): { events: IDiskFileChange[]; rootDeleted?: boolean } {
 		const filteredEvents: IDiskFileChange[] = [];
-		let deletedRoots: Set<IParcelWatcherInstance> | undefined = undefined;
+		let rootDeleted = false;
 
 		for (const event of events) {
-			if (event.type === FileChangeType.DELETED && this.watchers.has(event.path)) {
+			if (event.type === FileChangeType.DELETED && event.path === watcher.request.path) {
 
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
@@ -558,17 +566,13 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				// issues
 				// (https://github.com/microsoft/vscode/issues/136673)
 
-				if (!deletedRoots) {
-					deletedRoots = new Set();
-				}
-
-				deletedRoots.add(this.watchers.get(event.path)!);
+				rootDeleted = true;
 			} else {
 				filteredEvents.push(event);
 			}
 		}
 
-		return { events: filteredEvents, deletedRoots };
+		return { events: filteredEvents, rootDeleted };
 	}
 
 	private onWatchedPathDeleted(watcher: IParcelWatcherInstance): void {

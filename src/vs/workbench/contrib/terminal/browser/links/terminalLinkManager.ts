@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -463,16 +463,30 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		const preprocessedLink = this._preprocessPath(link);
-		if (!preprocessedLink) {
+		// Remove any line/col suffix before processing the path
+		let linkUrl = removeLinkSuffix(link);
+		if (!linkUrl) {
 			this._resolvedLinkCache.set(link, null);
 			return null;
 		}
 
-		const linkUrl = removeLinkSuffix(preprocessedLink);
-		if (!linkUrl) {
-			this._resolvedLinkCache.set(link, null);
-			return null;
+		// If the link looks like a /mnt/ WSL path and this is a Windows frontend, use the backend
+		// to get the resolved path from the wslpath util.
+		if (isWindows && link.match(/^\/mnt\/[a-z]/i) && this._processManager.backend) {
+			linkUrl = await this._processManager.backend.getWslPath(linkUrl, 'unix-to-win');
+		}
+		// Skip preprocessing if it looks like a special Windows -> WSL link
+		else if (isWindows && link.match(/^(?:\/\/|\\\\)wsl(?:\$|\.localhost)(\/|\\)/)) {
+			// No-op, it's already the right format
+		}
+		// Handle all non-WSL links
+		else {
+			const preprocessedLink = this._preprocessPath(linkUrl);
+			if (!preprocessedLink) {
+				this._resolvedLinkCache.set(link, null);
+				return null;
+			}
+			linkUrl = preprocessedLink;
 		}
 
 		try {

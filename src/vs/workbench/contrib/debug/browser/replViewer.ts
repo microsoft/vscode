@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
@@ -165,11 +165,10 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 
 		data.container = container;
 		data.countContainer = dom.append(expression, $('.count-badge-wrapper'));
-		data.count = new CountBadge(data.countContainer);
+		data.count = new CountBadge(data.countContainer, {}, defaultCountBadgeStyles);
 		data.value = dom.append(expression, $('span.value'));
 		data.source = dom.append(expression, $('.source'));
 		data.toDispose = [];
-		data.toDispose.push(attachBadgeStyler(data.count, this.themeService));
 		data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();

@@ -39,6 +39,7 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -397,7 +398,7 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
-		const countBadge = new CountBadge(this.element);
+		const countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
 		countBadge.setCount(this.extension.extensionPack.length);
 	}
 }
