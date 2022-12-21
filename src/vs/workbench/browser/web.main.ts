@@ -5,6 +5,7 @@
 
 import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
@@ -144,7 +145,7 @@ export class BrowserMain extends Disposable {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const labelService = accessor.get(ILabelService);
 
-			const embedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('vscode.dev', "vscode.dev"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
+			let logger: DelayedLogChannel | undefined = undefined;
 
 			return {
 				commands: {
@@ -165,15 +166,19 @@ export class BrowserMain extends Disposable {
 				},
 				logger: {
 					log: (level, message) => {
-						embedderLogger.log(level, message);
+						if (!logger) {
+							logger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || productService.nameShort, joinPath(dirname(environmentService.logFile), 'webEmbedder.log'));
+						}
+
+						logger.log(level, message);
 					}
 				},
 				window: {
 					withProgress: (options, task) => progressService.withProgress(options, task)
 				},
 				workspace: {
-					openTunnel: async (tunnelOptions) => {
-						const tunnel = await remoteExplorerService.forward({
+					openTunnel: async tunnelOptions => {
+						const tunnel = assertIsDefined(await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
 							local: tunnelOptions.localAddressPort,
 							name: tunnelOptions.label,
@@ -188,16 +193,15 @@ export class BrowserMain extends Disposable {
 							elevateIfNeeded: undefined,
 							onAutoForward: undefined,
 							requireLocalPort: undefined,
-							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http,
-
-						});
-						if (!tunnel) {
-							throw new Error('cannot open tunnel');
-						}
+							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
+						}));
 
 						return new class extends DisposableTunnel implements ITunnel {
 							declare localAddress: string;
-						}({ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }, tunnel.localAddress, () => tunnel.dispose());
+						}({
+							port: tunnel.tunnelRemotePort,
+							host: tunnel.tunnelRemoteHost
+						}, tunnel.localAddress, () => tunnel.dispose());
 					}
 				},
 				shutdown: () => lifecycleService.shutdown()
