@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, menuBorder, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuSeparatorBackground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ICheckboxStyles, IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IDialogStyles } from 'vs/base/browser/ui/dialog/dialog';
@@ -12,6 +12,7 @@ import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IFindWidgetStyles } from 'vs/base/browser/ui/tree/abstractTree';
 import { ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IBreadcrumbsWidgetStyles } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
+import { IMenuStyles } from 'vs/base/browser/ui/menu/menu';
 
 export type IStyleOverride<T> = {
 	[P in keyof T]?: ColorIdentifier;
@@ -133,5 +134,25 @@ export function getBreadcrumbsWidgetStyles(override: IStyleOverride<IBreadcrumbs
 		breadcrumbsHoverForeground: asCssValue(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
 		breadcrumbsFocusForeground: asCssValue(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
 		breadcrumbsFocusAndSelectionForeground: asCssValue(override.breadcrumbsFocusAndSelectionForeground ?? breadcrumbsActiveSelectionForeground)
+	};
+}
+
+
+export const defaultMenuStyles = getMenuStyles({});
+
+export function getMenuStyles(override: IStyleOverride<IMenuStyles>): IMenuStyles {
+	return {
+		shadowColor: asCssValue(override.shadowColor ?? widgetShadow),
+		borderColor: asCssValue(override.borderColor ?? menuBorder),
+		foregroundColor: asCssValue(override.foregroundColor ?? menuForeground),
+		backgroundColor: asCssValue(override.backgroundColor ?? menuBackground),
+		selectionForegroundColor: asCssValue(override.selectionForegroundColor ?? menuSelectionForeground),
+		selectionBackgroundColor: asCssValue(override.selectionBackgroundColor ?? menuSelectionBackground),
+		selectionBorderColor: asCssValue(override.selectionBorderColor ?? menuSelectionBorder),
+		separatorColor: asCssValue(override.separatorColor ?? menuSeparatorBackground),
+		scrollbarShadow: asCssValue(override.scrollbarShadow ?? scrollbarShadow),
+		scrollbarSliderBackground: asCssValue(override.scrollbarSliderBackground ?? scrollbarSliderBackground),
+		scrollbarSliderHoverBackground: asCssValue(override.scrollbarSliderHoverBackground ?? scrollbarSliderHoverBackground),
+		scrollbarSliderActiveBackground: asCssValue(override.scrollbarSliderActiveBackground ?? scrollbarSliderActiveBackground)
 	};
 }

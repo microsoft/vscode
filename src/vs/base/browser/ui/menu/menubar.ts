@@ -85,10 +85,9 @@ export class MenuBar extends Disposable {
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private numMenusShown: number = 0;
-	private menuStyle: IMenuStyles | undefined;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
-	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
+	constructor(private container: HTMLElement, private options: IMenuBarOptions, private menuStyle: IMenuStyles) {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
@@ -607,10 +606,6 @@ export class MenuBar extends Disposable {
 		}
 	}
 
-	style(style: IMenuStyles): void {
-		this.menuStyle = style;
-	}
-
 	update(options?: IMenuBarOptions): void {
 		if (options) {
 			this.options = options;
@@ -1029,10 +1024,7 @@ export class MenuBar extends Disposable {
 			useEventAsContext: true
 		};
 
-		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
-		if (this.menuStyle) {
-			menuWidget.style(this.menuStyle);
-		}
+		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;

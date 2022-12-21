@@ -14,10 +14,10 @@ import {
 	listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground,
 	listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground,
 	listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground,
-	menuBackground, menuBorder, menuForeground, menuSelectionBackground, menuSelectionBorder, menuSelectionForeground, menuSeparatorBackground, pickerGroupForeground,
-	quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, resolveColorValue, scrollbarShadow, scrollbarSliderActiveBackground,
-	scrollbarSliderBackground, scrollbarSliderHoverBackground, selectBackground, selectBorder, selectForeground, selectListBackground, tableColumnsBorder, tableOddRowsBackgroundColor,
-	treeIndentGuidesStroke, widgetShadow, listFocusAndSelectionOutline
+	pickerGroupForeground,
+	quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, resolveColorValue,
+	selectBackground, selectBorder, selectForeground, selectListBackground, tableColumnsBorder, tableOddRowsBackgroundColor,
+	treeIndentGuidesStroke, listFocusAndSelectionOutline
 } from 'vs/platform/theme/common/colorRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -164,32 +164,3 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 	return attachStyler(themeService, colors, callback);
 }
 
-export interface IMenuStyleOverrides extends IColorMapping {
-	shadowColor?: ColorIdentifier;
-	borderColor?: ColorIdentifier;
-	foregroundColor?: ColorIdentifier;
-	backgroundColor?: ColorIdentifier;
-	selectionForegroundColor?: ColorIdentifier;
-	selectionBackgroundColor?: ColorIdentifier;
-	selectionBorderColor?: ColorIdentifier;
-	separatorColor?: ColorIdentifier;
-}
-
-export const defaultMenuStyles = <IMenuStyleOverrides>{
-	shadowColor: widgetShadow,
-	borderColor: menuBorder,
-	foregroundColor: menuForeground,
-	backgroundColor: menuBackground,
-	selectionForegroundColor: menuSelectionForeground,
-	selectionBackgroundColor: menuSelectionBackground,
-	selectionBorderColor: menuSelectionBorder,
-	separatorColor: menuSeparatorBackground,
-	scrollbarShadow: scrollbarShadow,
-	scrollbarSliderBackground: scrollbarSliderBackground,
-	scrollbarSliderHoverBackground: scrollbarSliderHoverBackground,
-	scrollbarSliderActiveBackground: scrollbarSliderActiveBackground
-};
-
-export function attachMenuStyler(widget: IThemable, themeService: IThemeService, style?: IMenuStyleOverrides): IDisposable {
-	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
-}

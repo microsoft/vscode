@@ -14,8 +14,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 
 export interface IContextMenuHandlerOptions {
@@ -34,7 +33,6 @@ export class ContextMenuHandler {
 		private telemetryService: ITelemetryService,
 		private notificationService: INotificationService,
 		private keybindingService: IKeybindingService,
-		private themeService: IThemeService
 	) { }
 
 	configure(options: IContextMenuHandlerOptions): void {
@@ -91,9 +89,9 @@ export class ContextMenuHandler {
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
-				});
-
-				menuDisposables.add(attachMenuStyler(menu, this.themeService));
+				},
+					defaultMenuStyles
+				);
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
