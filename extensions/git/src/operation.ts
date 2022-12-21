@@ -69,7 +69,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation |
 	StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
-type BaseOperation = { kind: OperationKind; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
+type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
 export type ApplyOperation = BaseOperation & { kind: OperationKind.Apply };
 export type BlameOperation = BaseOperation & { kind: OperationKind.Blame };
@@ -120,54 +120,54 @@ export type SyncOperation = BaseOperation & { kind: OperationKind.Sync };
 export type TagOperation = BaseOperation & { kind: OperationKind.Tag };
 
 export const Operation = {
-	Add: (showProgress: boolean) => ({ kind: OperationKind.Add, readOnly: false, remote: false, retry: false, showProgress } as AddOperation),
-	Apply: { kind: OperationKind.Apply, readOnly: false, remote: false, retry: false, showProgress: true } as ApplyOperation,
-	Blame: { kind: OperationKind.Blame, readOnly: true, remote: false, retry: false, showProgress: true } as BlameOperation,
-	Branch: { kind: OperationKind.Branch, readOnly: false, remote: false, retry: false, showProgress: true } as BranchOperation,
-	CheckIgnore: { kind: OperationKind.CheckIgnore, readOnly: true, remote: false, retry: false, showProgress: false } as CheckIgnoreOperation,
-	CherryPick: { kind: OperationKind.CherryPick, readOnly: false, remote: false, retry: false, showProgress: true } as CherryPickOperation,
-	Checkout: (refLabel: string) => ({ kind: OperationKind.Checkout, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutOperation),
-	CheckoutTracking: (refLabel: string) => ({ kind: OperationKind.CheckoutTracking, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutTrackingOperation),
-	Clean: (showProgress: boolean) => ({ kind: OperationKind.Clean, readOnly: false, remote: false, retry: false, showProgress } as CleanOperation),
-	Commit: { kind: OperationKind.Commit, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
-	Config: { kind: OperationKind.Config, readOnly: false, remote: false, retry: false, showProgress: true } as ConfigOperation,
-	DeleteBranch: { kind: OperationKind.DeleteBranch, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
-	DeleteRef: { kind: OperationKind.DeleteRef, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
-	DeleteTag: { kind: OperationKind.DeleteTag, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
-	Diff: { kind: OperationKind.Diff, readOnly: true, remote: false, retry: false, showProgress: true } as DiffOperation,
-	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
-	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
-	GetBranch: { kind: OperationKind.GetBranch, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchOperation,
-	GetBranches: { kind: OperationKind.GetBranches, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchesOperation,
-	GetCommitTemplate: { kind: OperationKind.GetCommitTemplate, readOnly: true, remote: false, retry: false, showProgress: true } as GetCommitTemplateOperation,
-	GetObjectDetails: { kind: OperationKind.GetObjectDetails, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
-	HashObject: { kind: OperationKind.HashObject, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
-	Ignore: { kind: OperationKind.Ignore, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,
-	Log: { kind: OperationKind.Log, readOnly: true, remote: false, retry: false, showProgress: true } as LogOperation,
-	LogFile: { kind: OperationKind.LogFile, readOnly: true, remote: false, retry: false, showProgress: true } as LogFileOperation,
-	Merge: { kind: OperationKind.Merge, readOnly: false, remote: false, retry: false, showProgress: true } as MergeOperation,
-	MergeAbort: { kind: OperationKind.MergeAbort, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
-	MergeBase: { kind: OperationKind.MergeBase, readOnly: true, remote: false, retry: false, showProgress: true } as MergeBaseOperation,
-	Move: { kind: OperationKind.Move, readOnly: false, remote: false, retry: false, showProgress: true } as MoveOperation,
-	PostCommitCommand: { kind: OperationKind.PostCommitCommand, readOnly: false, remote: false, retry: false, showProgress: true } as PostCommitCommandOperation,
-	Pull: { kind: OperationKind.Pull, readOnly: false, remote: true, retry: true, showProgress: true } as PullOperation,
-	Push: { kind: OperationKind.Push, readOnly: false, remote: true, retry: false, showProgress: true } as PushOperation,
-	Remote: { kind: OperationKind.Remote, readOnly: false, remote: false, retry: false, showProgress: true } as RemoteOperation,
-	RenameBranch: { kind: OperationKind.RenameBranch, readOnly: false, remote: false, retry: false, showProgress: true } as RenameBranchOperation,
-	Remove: { kind: OperationKind.Remove, readOnly: false, remote: false, retry: false, showProgress: true } as RemoveOperation,
-	Reset: { kind: OperationKind.Reset, readOnly: false, remote: false, retry: false, showProgress: true } as ResetOperation,
-	Rebase: { kind: OperationKind.Rebase, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseOperation,
-	RebaseAbort: { kind: OperationKind.RebaseAbort, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseAbortOperation,
-	RebaseContinue: { kind: OperationKind.RebaseContinue, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
-	RevertFiles: (showProgress: boolean) => ({ kind: OperationKind.RevertFiles, readOnly: false, remote: false, retry: false, showProgress } as RevertFilesOperation),
-	SetBranchUpstream: { kind: OperationKind.SetBranchUpstream, readOnly: false, remote: false, retry: false, showProgress: true } as SetBranchUpstreamOperation,
-	Show: { kind: OperationKind.Show, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
-	Stage: { kind: OperationKind.Stage, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
-	Status: { kind: OperationKind.Status, readOnly: false, remote: false, retry: false, showProgress: true } as StatusOperation,
-	Stash: { kind: OperationKind.Stash, readOnly: false, remote: false, retry: false, showProgress: true } as StashOperation,
-	SubmoduleUpdate: { kind: OperationKind.SubmoduleUpdate, readOnly: false, remote: false, retry: false, showProgress: true } as SubmoduleUpdateOperation,
-	Sync: { kind: OperationKind.Sync, readOnly: false, remote: true, retry: true, showProgress: true } as SyncOperation,
-	Tag: { kind: OperationKind.Tag, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation
+	Add: (showProgress: boolean) => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as AddOperation),
+	Apply: { kind: OperationKind.Apply, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ApplyOperation,
+	Blame: { kind: OperationKind.Blame, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as BlameOperation,
+	Branch: { kind: OperationKind.Branch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as BranchOperation,
+	CheckIgnore: { kind: OperationKind.CheckIgnore, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as CheckIgnoreOperation,
+	CherryPick: { kind: OperationKind.CherryPick, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as CherryPickOperation,
+	Checkout: (refLabel: string) => ({ kind: OperationKind.Checkout, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutOperation),
+	CheckoutTracking: (refLabel: string) => ({ kind: OperationKind.CheckoutTracking, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutTrackingOperation),
+	Clean: (showProgress: boolean) => ({ kind: OperationKind.Clean, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as CleanOperation),
+	Commit: { kind: OperationKind.Commit, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
+	Config: { kind: OperationKind.Config, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ConfigOperation,
+	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
+	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
+	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
+	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as DiffOperation,
+	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
+	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
+	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchOperation,
+	GetBranches: { kind: OperationKind.GetBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchesOperation,
+	GetCommitTemplate: { kind: OperationKind.GetCommitTemplate, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetCommitTemplateOperation,
+	GetObjectDetails: { kind: OperationKind.GetObjectDetails, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
+	HashObject: { kind: OperationKind.HashObject, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
+	Ignore: { kind: OperationKind.Ignore, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,
+	Log: { kind: OperationKind.Log, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as LogOperation,
+	LogFile: { kind: OperationKind.LogFile, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as LogFileOperation,
+	Merge: { kind: OperationKind.Merge, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeOperation,
+	MergeAbort: { kind: OperationKind.MergeAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
+	MergeBase: { kind: OperationKind.MergeBase, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as MergeBaseOperation,
+	Move: { kind: OperationKind.Move, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MoveOperation,
+	PostCommitCommand: { kind: OperationKind.PostCommitCommand, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as PostCommitCommandOperation,
+	Pull: { kind: OperationKind.Pull, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as PullOperation,
+	Push: { kind: OperationKind.Push, blocking: true, readOnly: false, remote: true, retry: false, showProgress: true } as PushOperation,
+	Remote: { kind: OperationKind.Remote, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RemoteOperation,
+	RenameBranch: { kind: OperationKind.RenameBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RenameBranchOperation,
+	Remove: { kind: OperationKind.Remove, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RemoveOperation,
+	Reset: { kind: OperationKind.Reset, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ResetOperation,
+	Rebase: { kind: OperationKind.Rebase, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseOperation,
+	RebaseAbort: { kind: OperationKind.RebaseAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseAbortOperation,
+	RebaseContinue: { kind: OperationKind.RebaseContinue, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
+	RevertFiles: (showProgress: boolean) => ({ kind: OperationKind.RevertFiles, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RevertFilesOperation),
+	SetBranchUpstream: { kind: OperationKind.SetBranchUpstream, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SetBranchUpstreamOperation,
+	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
+	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
+	Status: { kind: OperationKind.Status, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StatusOperation,
+	Stash: { kind: OperationKind.Stash, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StashOperation,
+	SubmoduleUpdate: { kind: OperationKind.SubmoduleUpdate, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SubmoduleUpdateOperation,
+	Sync: { kind: OperationKind.Sync, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as SyncOperation,
+	Tag: { kind: OperationKind.Tag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation
 };
 
 export interface OperationResult {
@@ -176,10 +176,11 @@ export interface OperationResult {
 }
 
 interface IOperationManager {
-	isIdle(): boolean;
 	getOperations(operationKind: OperationKind): Operation[];
-	shouldShowProgress(): boolean;
+	isIdle(): boolean;
 	isRunning(operationKind: OperationKind): boolean;
+	shouldDisableCommands(): boolean;
+	shouldShowProgress(): boolean;
 }
 
 export class OperationManager implements IOperationManager {
@@ -195,7 +196,7 @@ export class OperationManager implements IOperationManager {
 			this.operations.set(operation.kind, new Set([operation]));
 		}
 
-		this.logger.trace(`Operation start: ${operation.kind} (readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`Operation start: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	end(operation: Operation): void {
@@ -207,16 +208,12 @@ export class OperationManager implements IOperationManager {
 			}
 		}
 
-		this.logger.trace(`Operation end: ${operation.kind} (readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`Operation end: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	getOperations(operationKind: OperationKind): Operation[] {
 		const operationSet = this.operations.get(operationKind);
 		return operationSet ? Array.from(operationSet) : [];
-	}
-
-	isRunning(operationKind: OperationKind): boolean {
-		return this.operations.has(operationKind);
 	}
 
 	isIdle(): boolean {
@@ -231,6 +228,24 @@ export class OperationManager implements IOperationManager {
 		}
 
 		return true;
+	}
+
+	isRunning(operationKind: OperationKind): boolean {
+		return this.operations.has(operationKind);
+	}
+
+	shouldDisableCommands(): boolean {
+		const operationSets = this.operations.values();
+
+		for (const operationSet of operationSets) {
+			for (const operation of operationSet) {
+				if (operation.blocking) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	shouldShowProgress(): boolean {
