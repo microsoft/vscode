@@ -7,8 +7,8 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemable, styleFn } from 'vs/base/common/styler';
 import {
-	activeContrastBorder, badgeBackground, badgeForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, breadcrumbsFocusForeground, breadcrumbsForeground,
-	ColorIdentifier, ColorTransform, ColorValue, contrastBorder, editorWidgetBorder, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground,
+	activeContrastBorder, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, breadcrumbsFocusForeground, breadcrumbsForeground,
+	ColorIdentifier, ColorTransform, ColorValue, editorWidgetBorder, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground,
 	inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground,
 	inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground,
 	listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground,
@@ -60,19 +60,6 @@ export function attachStyler<T extends IColorMapping>(themeService: IThemeServic
 	applyStyles();
 
 	return themeService.onDidColorThemeChange(applyStyles);
-}
-
-export interface IBadgeStyleOverrides extends IStyleOverrides {
-	badgeBackground?: ColorIdentifier;
-	badgeForeground?: ColorIdentifier;
-}
-
-export function attachBadgeStyler(widget: IThemable, themeService: IThemeService, style?: IBadgeStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		badgeBackground: style?.badgeBackground || badgeBackground,
-		badgeForeground: style?.badgeForeground || badgeForeground,
-		badgeBorder: contrastBorder
-	} as IBadgeStyleOverrides, widget);
 }
 
 export interface ISelectBoxStyleOverrides extends IStyleOverrides, IListStyleOverrides {
