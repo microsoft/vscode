@@ -11,6 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getOrSet, ResourceMap } from 'vs/base/common/map';
 import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
@@ -1076,20 +1077,23 @@ export function mergeChanges(...changes: IConfigurationChange[]): IConfiguration
 
 export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private readonly affectedKeysTree: any;
-	readonly affectedKeys: string[];
+	private readonly _changeTree = TernarySearchTree.forConfigKeys<true>();
+
+	readonly affectedKeys = new Set<string>();
 	source!: ConfigurationTarget;
 	sourceConfig: any;
 
 	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
-		const keysSet = new Set<string>();
-		change.keys.forEach(key => keysSet.add(key));
-		change.overrides.forEach(([, keys]) => keys.forEach(key => keysSet.add(key)));
-		this.affectedKeys = [...keysSet.values()];
-
-		const configurationModel = new ConfigurationModel();
-		this.affectedKeys.forEach(key => configurationModel.setValue(key, {}));
-		this.affectedKeysTree = configurationModel.contents;
+		for (const key of change.keys) {
+			this._changeTree.set(key, true);
+			this.affectedKeys.add(key);
+		}
+		for (const [, keys] of change.overrides) {
+			for (const key of keys) {
+				this._changeTree.set(key, true);
+				this.affectedKeys.add(key);
+			}
+		}
 	}
 
 	private _previousConfiguration: Configuration | undefined = undefined;
@@ -1101,27 +1105,13 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	}
 
 	affectsConfiguration(section: string, overrides?: IConfigurationOverrides): boolean {
-		if (this.doesAffectedKeysTreeContains(this.affectedKeysTree, section)) {
-			if (overrides) {
-				const value1 = this.previousConfiguration ? this.previousConfiguration.getValue(section, overrides, this.previous?.workspace) : undefined;
-				const value2 = this.currentConfiguraiton.getValue(section, overrides, this.currentWorkspace);
-				return !objects.equals(value1, value2);
-			}
-			return true;
+		if (!this._changeTree.hasElementOrSubtree(section)) {
+			return false;
 		}
-		return false;
-	}
-
-	private doesAffectedKeysTreeContains(affectedKeysTree: any, section: string): boolean {
-		let requestedTree = toValuesTree({ [section]: true }, () => { });
-
-		let key;
-		while (typeof requestedTree === 'object' && (key = Object.keys(requestedTree)[0])) { // Only one key should present, since we added only one property
-			affectedKeysTree = affectedKeysTree[key];
-			if (!affectedKeysTree) {
-				return false; // Requested tree is not found
-			}
-			requestedTree = requestedTree[key];
+		if (overrides) {
+			const value1 = this.previousConfiguration ? this.previousConfiguration.getValue(section, overrides, this.previous?.workspace) : undefined;
+			const value2 = this.currentConfiguraiton.getValue(section, overrides, this.currentWorkspace);
+			return !objects.equals(value1, value2);
 		}
 		return true;
 	}
