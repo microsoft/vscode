@@ -340,6 +340,7 @@ export class FoldingRegions {
 		const stackedRanges: FoldRange[] = [];
 		let topStackedRange: FoldRange | undefined;
 		let prevLineNumber = 0;
+		let prevColumnNumber: number | undefined = 0;
 		const resultRanges: FoldRange[] = [];
 
 		while (nextA || nextB) {
@@ -398,13 +399,22 @@ export class FoldingRegions {
 					&& topStackedRange.endLineNumber < useRange.startLineNumber) {
 					topStackedRange = stackedRanges.pop();
 				}
+
+				const useRangeColumnNumber = useRange.startColumn ?? MAX_COLUMN_NUMBER;
+				prevColumnNumber = prevColumnNumber ?? MAX_COLUMN_NUMBER;
+
+				const useRangeStartsAfterPrevRange = useRange.startLineNumber > prevLineNumber
+					|| (useRange.startLineNumber === prevLineNumber && useRangeColumnNumber > prevColumnNumber);
+				const useRangeEndsBeforeOrWithTopStackedRange = !topStackedRange
+					|| topStackedRange.endLineNumber >= useRange.endLineNumber;
+
 				if (useRange.endLineNumber > useRange.startLineNumber
-					&& useRange.startLineNumber > prevLineNumber
-					&& useRange.endLineNumber <= maxLineNumber
-					&& (!topStackedRange
-						|| topStackedRange.endLineNumber >= useRange.endLineNumber)) {
+					&& useRangeStartsAfterPrevRange
+					&& useRangeEndsBeforeOrWithTopStackedRange
+					&& useRange.endLineNumber <= maxLineNumber) {
 					resultRanges.push(useRange);
 					prevLineNumber = useRange.startLineNumber;
+					prevColumnNumber = useRange.startColumn;
 					if (topStackedRange) {
 						stackedRanges.push(topStackedRange);
 					}
