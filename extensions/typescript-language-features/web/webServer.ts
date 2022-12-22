@@ -5,7 +5,7 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='dom' />
 import * as ts from 'typescript/lib/tsserverlibrary';
-import { ApiClient, Cancellation, FileType, Requests } from '@vscode/sync-api-client';
+import { ApiClient, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
 import { URI } from 'vscode-uri';
 // GLOBALS
@@ -355,7 +355,19 @@ class WorkerSession extends ts.server.Session<{}> {
 	listen(port: MessagePort) {
 		this.logger.info('webServer.ts: tsserver starting to listen for messages on "message"...')
 		port.onmessage = (message: any) => {
-			const shouldCancel = Cancellation.retrieveCheck(message.data)
+
+			// TEMP fix since Cancellation.retrieveCheck is not correct
+			function retrieveCheck2(data: any) {
+				if (!(data.$cancellationData instanceof SharedArrayBuffer)) {
+					return () => false;
+				}
+				const typedArray = new Int32Array(data.$cancellationData, 0, 1);
+				return () => {
+					return Atomics.load(typedArray, 0) === 1;
+				};
+			}
+
+			const shouldCancel = retrieveCheck2(message.data)
 			if (shouldCancel) {
 				this.wasmCancellationToken.shouldCancel = shouldCancel;
 			}

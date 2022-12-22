@@ -181,12 +181,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 				this.logTrace(`Canceled request with sequence number ${seq}`);
 				return true;
 			}
-
-			if (isWeb()) {
-				Cancellation.addData(request);
-				return true;
-			}
-			else if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
+			if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
 				return true;
 			}
 			this.logTrace(`Tried to cancel request with sequence number ${seq}. But request got already delivered.`);
@@ -228,7 +223,13 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
+
+					const cancelViaSAB = isWeb()
+						? Cancellation.addData(request)
+						: undefined;
+
 					executeInfo.token.onCancellationRequested(() => {
+						cancelViaSAB?.();
 						this.tryCancelRequest(request, command);
 					});
 				}
