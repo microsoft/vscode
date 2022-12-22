@@ -22,6 +22,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { localize } from 'vs/nls';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -172,7 +174,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				this.nativeHostService.minimizeWindow();
 			}));
 
-			// Restore
+			this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OVER, e => {
+				setupCustomHover(this.hoverDelegate, minimizeIcon, localize('window.minimize', 'Minimize'));
+			}));
+
+			// Maximize - Restore Down
 			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
@@ -182,11 +188,18 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 				return this.nativeHostService.maximizeWindow();
 			}));
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.MOUSE_OVER, async e => {
+				const maximized = await this.nativeHostService.isMaximized();
+				setupCustomHover(this.hoverDelegate, this.maxRestoreControl!, maximized ? localize('window.restore', 'Restore Down') : localize('window.maximize', 'Maximize'));
+			}));
 
 			// Close
 			const closeIcon = append(this.windowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
+			}));
+			this._register(addDisposableListener(closeIcon, EventType.MOUSE_OVER, e => {
+				setupCustomHover(this.hoverDelegate, closeIcon, localize('window.close', 'Close'));
 			}));
 
 			// Resizer
