@@ -46,7 +46,22 @@ export async function assertLinkHelper(
 	deepStrictEqual(actualLinks, expectedLinks);
 }
 
-export async function resolveLinkForTest(link: string, uri?: URI): Promise<ResolvedLink | undefined> {
+function countOccurrences(source: string, pattern: string): number {
+	return source.length - (source.replaceAll(pattern, '').length / pattern.length);
+}
+
+export async function resolveLinkForTest(link: string, uri?: URI): Promise<ResolvedLink> {
+	// A set of conditions to help with square brackets in testing, this is only needed because the
+	// resolve path function must be injected
+	if (link.startsWith('[')) {
+		return null;
+	}
+	if (countOccurrences(link, '[') !== countOccurrences(link, ']')) {
+		return null;
+	}
+	if (link.includes('[') !== link.includes(']')) {
+		return null;
+	}
 	return {
 		link,
 		uri: URI.from({ scheme: Schemas.file, path: link }),

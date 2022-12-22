@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { DeclarationProvider, DefinitionProvider, ImplementationProvider, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
+import { DeclarationProvider, DefinitionProvider, ImplementationProvider, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
 
-function getLocationLinks<T>(
+async function getLocationLinks<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
@@ -29,17 +30,8 @@ function getLocationLinks<T>(
 		});
 	});
 
-	return Promise.all(promises).then(values => {
-		const result: LocationLink[] = [];
-		for (const value of values) {
-			if (Array.isArray(value)) {
-				result.push(...value);
-			} else if (value) {
-				result.push(value);
-			}
-		}
-		return result;
-	});
+	const values = await Promise.all(promises);
+	return coalesce(values.flat());
 }
 
 export function getDefinitionsAtPosition(registry: LanguageFeatureRegistry<DefinitionProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {

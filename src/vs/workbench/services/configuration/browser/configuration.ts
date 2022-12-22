@@ -13,7 +13,6 @@ import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { equals } from 'vs/base/common/objects';
@@ -27,6 +26,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { isObject } from 'vs/base/common/types';
 import { DefaultConfiguration as BaseDefaultConfiguration } from 'vs/platform/configuration/common/configurations';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
 
@@ -629,7 +629,7 @@ export class WorkspaceConfiguration extends Disposable {
 		return this._workspaceConfiguration.getFolders();
 	}
 
-	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): Promise<void> {
+	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: IJSONEditingService): Promise<void> {
 		if (this._workspaceIdentifier) {
 			return jsonEditingService.write(this._workspaceIdentifier.configPath, [{ path: ['folders'], value: folders }], true)
 				.then(() => this.reload());

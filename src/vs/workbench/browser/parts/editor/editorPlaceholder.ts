@@ -12,7 +12,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -25,11 +25,10 @@ import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/brows
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Codicon } from 'vs/base/common/codicons';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { truncate } from 'vs/base/common/strings';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -47,6 +46,8 @@ export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
 }
 
 export abstract class EditorPlaceholder extends EditorPane {
+
+	private static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -96,6 +97,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
 		const { icon, label, actions } = await this.getContents(input, options, disposables);
+		const truncatedLabel = truncate(label, EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH);
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
@@ -105,11 +107,11 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Label
 		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
 		const labelWidget = document.createElement('span');
-		labelWidget.textContent = label;
+		labelWidget.textContent = truncatedLabel;
 		labelContainer.appendChild(labelWidget);
 
 		// ARIA label
-		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${label}`);
+		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${truncatedLabel}`);
 
 		// Actions
 		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
@@ -226,7 +228,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		const resource = input.resource;
 		const group = this.group;
 		const error = options.error;
-		const isFileNotFound = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+		const isFileNotFound = (<FileOperationError | undefined>error)?.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
 		// Error Label
 		let label: string;
@@ -273,34 +275,3 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		return { icon: '$(error)', label, actions: actions ?? [] };
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Editor Placeholder Error Icon
-	const editorErrorIconForegroundColor = theme.getColor(editorErrorForeground);
-	if (editorErrorIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.error.cssSelector} {
-			color: ${editorErrorIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Warning Icon
-	const editorWarningIconForegroundColor = theme.getColor(editorWarningForeground);
-	if (editorWarningIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.warning.cssSelector} {
-			color: ${editorWarningIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Info/Trust Icon
-	const editorInfoIconForegroundColor = theme.getColor(editorInfoForeground);
-	if (editorInfoIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.info.cssSelector},
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.workspaceUntrusted.cssSelector} {
-			color: ${editorInfoIconForegroundColor};
-		}`);
-	}
-});

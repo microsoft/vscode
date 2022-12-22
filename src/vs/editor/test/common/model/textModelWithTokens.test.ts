@@ -699,7 +699,7 @@ suite('TextModelWithTokens regression tests', () => {
 });
 
 suite('TextModel.getLineIndentGuide', () => {
-	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
+	function assertIndentGuides(lines: [number, number, number, number, string][], indentSize: number): void {
 		const languageId = 'testLang';
 		const disposables = new DisposableStore();
 		const instantiationService = createModelServices(disposables);
@@ -708,7 +708,7 @@ suite('TextModel.getLineIndentGuide', () => {
 
 		const text = lines.map(l => l[4]).join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, text, languageId));
-		model.updateOptions({ tabSize: tabSize });
+		model.updateOptions({ indentSize: indentSize });
 
 		const actualIndents = model.guides.getLinesIndentGuides(1, model.getLineCount());
 

@@ -27,6 +27,7 @@ export class UpdateChannel implements IServerChannel {
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
+			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -70,5 +71,9 @@ export class UpdateChannelClient implements IUpdateService {
 
 	isLatestVersion(): Promise<boolean> {
 		return this.channel.call('isLatestVersion');
+	}
+
+	_applySpecificUpdate(packagePath: string): Promise<void> {
+		return this.channel.call('_applySpecificUpdate', packagePath);
 	}
 }

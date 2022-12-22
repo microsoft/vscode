@@ -40,12 +40,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
@@ -69,14 +70,21 @@ import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from '
 import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+const enum LastFocusState {
+	Input,
+	Tree,
+}
+
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
 	private filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
-	private filter?: TestingExplorerFilter;
+	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
+	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
+	private lastFocusState = LastFocusState.Input;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -110,11 +118,17 @@ export class TestingExplorerView extends ViewPane {
 		this._register(testProfileService.onDidChange(() => this.updateActions()));
 	}
 
-	/**
-	 * @override
-	 */
 	public override shouldShowWelcome() {
 		return this.viewModel?.welcomeExperience === WelcomeExperience.ForWorkspace ?? true;
+	}
+
+	public override focus() {
+		super.focus();
+		if (this.lastFocusState === LastFocusState.Tree) {
+			this.viewModel.tree.domFocus();
+		} else {
+			this.filter.value?.focus();
+		}
 	}
 
 	public getSelectedOrVisibleItems(profile?: ITestRunProfile) {
@@ -226,6 +240,7 @@ export class TestingExplorerView extends ViewPane {
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
+		this._register(this.viewModel.tree.onDidFocus(() => this.lastFocusState = LastFocusState.Tree));
 		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.viewModel);
 		this._onDidChangeViewWelcomeState.fire();
@@ -235,7 +250,9 @@ export class TestingExplorerView extends ViewPane {
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
 			case TestCommandId.FilterAction:
-				return this.filter = this.instantiationService.createInstance(TestingExplorerFilter, action);
+				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action);
+				this.filterFocusListener.value = this.filter.value.onDidFocus(() => this.lastFocusState = LastFocusState.Input);
+				return this.filter.value;
 			case TestCommandId.RunSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
 			case TestCommandId.DebugSelectedAction:
@@ -321,7 +338,7 @@ export class TestingExplorerView extends ViewPane {
 	 * @override
 	 */
 	public override saveState() {
-		this.filter?.saveState();
+		this.filter.value?.saveState();
 		super.saveState();
 	}
 
@@ -337,7 +354,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined);
+		}, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
@@ -377,7 +394,7 @@ export class TestingExplorerView extends ViewPane {
 		this.dimensions.width = width;
 		this.container.style.height = `${height}px`;
 		this.viewModel.layout(height - this.treeHeader.clientHeight, width);
-		this.filter?.layout(width);
+		this.filter.value?.layout(width);
 	}
 }
 
@@ -485,13 +502,13 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
-				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: false,
 				sorter: instantiationService.createInstance(TreeSorter, this),
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
+				findWidgetEnabled: false
 			}) as WorkbenchObjectTree<TestExplorerTreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {
@@ -586,7 +603,12 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		const onEditorChange = () => {
-			this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+			if (editorService.activeEditor instanceof DiffEditorInput) {
+				this.filter.filterToDocumentUri(editorService.activeEditor.primary.resource);
+			} else {
+				this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+			}
+
 			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc)) {
 				this.tree.refilter();
 			}
@@ -714,9 +736,8 @@ export class TestingExplorerViewModel extends Disposable {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary,
+			getActions: () => actions.secondary,
 			getActionsContext: () => element,
-			onHide: () => actions.dispose(),
 			actionRunner: this.actionRunner,
 		});
 	}
@@ -783,6 +804,8 @@ export class TestingExplorerViewModel extends Disposable {
 	private applyProjectionChanges() {
 		this.reevaluateWelcomeState();
 		this.projection.value?.applyTo(this.tree);
+
+		this.tree.refilter();
 
 		if (this.hasPendingReveal) {
 			this.revealById(this.filterState.reveal.value);
@@ -968,17 +991,15 @@ class NoTestsForDocumentWidget extends Disposable {
 	private readonly el: HTMLElement;
 	constructor(
 		container: HTMLElement,
-		@ITestExplorerFilterState filterState: ITestExplorerFilterState,
-		@IThemeService themeService: IThemeService,
+		@ITestExplorerFilterState filterState: ITestExplorerFilterState
 	) {
 		super();
 		const el = this.el = dom.append(container, dom.$('.testing-no-test-placeholder'));
 		const emptyParagraph = dom.append(el, dom.$('p'));
 		emptyParagraph.innerText = localize('testingNoTest', 'No tests were found in this file.');
 		const buttonLabel = localize('testingFindExtension', 'Show Workspace Tests');
-		const button = this._register(new Button(el, { title: buttonLabel }));
+		const button = this._register(new Button(el, { title: buttonLabel, ...defaultButtonStyles }));
 		button.label = buttonLabel;
-		this._register(attachButtonStyler(button, themeService));
 		this._register(button.onDidClick(() => filterState.toggleFilteringFor(TestFilterTerm.CurrentDoc, false)));
 	}
 
@@ -1006,7 +1027,7 @@ class TestExplorerActionRunner extends ActionRunner {
 }
 
 const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
-	let label = labelForTestInState(element.label, element.state);
+	let label = labelForTestInState(element.description || element.label, element.state);
 
 	if (element instanceof TestItemTreeElement) {
 		if (element.duration !== undefined) {
@@ -1014,6 +1035,13 @@ const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
 				key: 'testing.treeElementLabelDuration',
 				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
 			}, '{0}, in {1}', label, formatDuration(element.duration));
+		}
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label);
 		}
 	}
 
@@ -1169,10 +1197,9 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.profiles, element);
-		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
-		data.actionBar.push(actions.value.primary, { icon: true, label: false });
+		data.actionBar.push(actions.primary, { icon: true, label: false });
 	}
 }
 
@@ -1201,6 +1228,9 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
+		if (node.element.retired) {
+			data.icon.className += ' retired';
+		}
 
 		data.label.title = getLabelForTestTreeElement(node.element);
 		dom.reset(data.label, ...renderLabelWithIcons(node.element.label));
@@ -1258,11 +1288,11 @@ const getActionableElementActions = (
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInActionBarActions(menu, {
+		createAndFillInActionBarActions(menu, {
 			shouldForwardArgs: true,
 		}, result, 'inline');
 
-		return { value: result, dispose: () => actionsDisposable.dispose };
+		return result;
 	} finally {
 		menu.dispose();
 	}

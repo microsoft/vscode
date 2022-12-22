@@ -52,8 +52,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { connectionHealthToString } from 'vs/base/parts/ipc/common/ipc.net';
 
-export interface HelpInformation {
+interface HelpInformation {
 	extensionDescription: IExtensionDescription;
 	getStarted?: string;
 	documentation?: string;
@@ -457,7 +458,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	}
 }
 
-export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
+class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
 	private hasSetSwitchForConnection: boolean = false;
@@ -472,8 +473,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
@@ -549,7 +549,7 @@ registerAction2(SwitchRemoteAction);
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: nls.localize('remote.explorer', "Remote Explorer"),
+		title: { value: nls.localize('remote.explorer', "Remote Explorer"), original: 'Remote Explorer' },
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
@@ -766,9 +766,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			const reconnectButton = {
 				label: nls.localize('reconnectNow', "Reconnect Now"),
 				callback: () => {
-					if (reconnectWaitEvent) {
-						reconnectWaitEvent.skipWait();
-					}
+					reconnectWaitEvent?.skipWait();
 				}
 			};
 
@@ -779,10 +777,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 					type ReconnectReloadClassification = {
 						owner: 'alexdima';
 						comment: 'The reload button in the builtin permanent reconnection failure dialog was pressed';
-						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-						attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+						attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 					};
 					type ReconnectReloadEvent = {
 						remoteName: string | undefined;
@@ -808,9 +806,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
 			connection.onDidStateChange((e) => {
-				if (visibleProgress) {
-					visibleProgress.stopTimer();
-				}
+				visibleProgress?.stopTimer();
 
 				if (disposableListener) {
 					disposableListener.dispose();
@@ -825,8 +821,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						type RemoteConnectionLostClassification = {
 							owner: 'alexdima';
 							comment: 'The remote connection state is now `ConnectionLost`';
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
 						};
 						type RemoteConnectionLostEvent = {
 							remoteName: string | undefined;
@@ -861,10 +857,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						type RemoteReconnectionRunningClassification = {
 							owner: 'alexdima';
 							comment: 'The remote connection state is now `ReconnectionRunning`';
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 						};
 						type RemoteReconnectionRunningEvent = {
 							remoteName: string | undefined;
@@ -902,11 +898,11 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						type RemoteReconnectionPermanentFailureClassification = {
 							owner: 'alexdima';
 							comment: 'The remote connection state is now `ReconnectionPermanentFailure`';
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							handled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
+							handled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error was handled by the resolver.' };
 						};
 						type RemoteReconnectionPermanentFailureEvent = {
 							remoteName: string | undefined;
@@ -947,10 +943,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						type RemoteConnectionGainClassification = {
 							owner: 'alexdima';
 							comment: 'The remote connection state is now `ConnectionGain`';
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 						};
 						type RemoteConnectionGainEvent = {
 							remoteName: string | undefined;
@@ -966,6 +962,26 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						});
 
 						hideProgress();
+						break;
+
+					case PersistentConnectionEventType.ConnectionHealthChanged:
+						type RemoteConnectionHealthClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection health has changed (round trip time)';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							connectionHealth: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The health of the connection: good or poor.' };
+						};
+						type RemoteConnectionHealthEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+							connectionHealth: 'good' | 'poor';
+						};
+						telemetryService.publicLog2<RemoteConnectionHealthEvent, RemoteConnectionHealthClassification>('remoteConnectionHealth', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+							connectionHealth: connectionHealthToString(e.connectionHealth)
+						});
 						break;
 				}
 			});

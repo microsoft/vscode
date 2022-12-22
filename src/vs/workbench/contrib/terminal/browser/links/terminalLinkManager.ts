@@ -5,10 +5,10 @@
 
 import { EventType } from 'vs/base/browser/dom';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -21,7 +21,7 @@ import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/brow
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
-import { lineAndColumnClause, TerminalLocalLinkDetector, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { TerminalLocalLinkDetector, winDrivePrefix } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -32,9 +32,11 @@ import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/termin
 import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
+import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { removeLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
-export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 interface IPath {
 	join(...paths: string[]): string;
@@ -71,9 +73,21 @@ export class TerminalLinkManager extends DisposableStore {
 	) {
 		super();
 
+		let enableFileLinks: boolean = true;
+		const enableFileLinksConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks as ITerminalConfiguration['enableFileLinks'] | boolean;
+		switch (enableFileLinksConfig) {
+			case 'off':
+			case false: // legacy from v1.75
+				enableFileLinks = false;
+				break;
+			case 'notRemote':
+				enableFileLinks = !this._processManager.remoteAuthority;
+				break;
+		}
+
 		// Setup link detectors in their order of priority
 		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
-		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
+		if (enableFileLinks) {
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
@@ -83,7 +97,7 @@ export class TerminalLinkManager extends DisposableStore {
 		});
 
 		// Setup link openers
-		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS);
+		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener);
 		const localFolderInWorkspaceOpener = this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
@@ -92,6 +106,48 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		this._registerStandardLinkProviders();
+
+		let activeHoverDisposable: IDisposable | undefined;
+		let activeTooltipScheduler: RunOnceScheduler | undefined;
+		this.add(toDisposable(() => {
+			activeHoverDisposable?.dispose();
+			activeTooltipScheduler?.dispose();
+		}));
+		this._xterm.options.linkHandler = {
+			activate: (_, text) => {
+				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
+					type: TerminalBuiltinLinkType.Url,
+					text,
+					bufferRange: null!,
+					uri: URI.parse(text)
+				});
+			},
+			hover: (e, text, range) => {
+				activeHoverDisposable?.dispose();
+				activeHoverDisposable = undefined;
+				activeTooltipScheduler?.dispose();
+				activeTooltipScheduler = new RunOnceScheduler(() => {
+					const core = (this._xterm as any)._core as IXtermCore;
+					const cellDimensions = {
+						width: core._renderService.dimensions.css.cell.width,
+						height: core._renderService.dimensions.css.cell.height
+					};
+					const terminalDimensions = {
+						width: this._xterm.cols,
+						height: this._xterm.rows
+					};
+					activeHoverDisposable = this._showHover({
+						viewportRange: convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
+						cellDimensions,
+						terminalDimensions
+					}, this._getLinkHoverString(text, text), undefined, (text) => this._xterm.options.linkHandler?.activate(e, text, range));
+					// Clear out scheduler until next hover event
+					activeTooltipScheduler?.dispose();
+					activeTooltipScheduler = undefined;
+				}, this._configurationService.getValue('workbench.hover.delay'));
+				activeTooltipScheduler.schedule();
+			}
+		};
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
@@ -212,8 +268,8 @@ export class TerminalLinkManager extends DisposableStore {
 
 		const core = (this._xterm as any)._core as IXtermCore;
 		const cellDimensions = {
-			width: core._renderService.dimensions.actualCellWidth,
-			height: core._renderService.dimensions.actualCellHeight
+			width: core._renderService.dimensions.css.cell.width,
+			height: core._renderService.dimensions.css.cell.height
 		};
 		const terminalDimensions = {
 			width: this._xterm.cols,
@@ -236,14 +292,16 @@ export class TerminalLinkManager extends DisposableStore {
 		actions: IHoverAction[] | undefined,
 		linkHandler: (url: string) => void,
 		link?: TerminalLink
-	) {
+	): IDisposable | undefined {
 		if (this._widgetManager) {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, actions, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
 			if (attached) {
 				link?.onInvalidated(() => attached.dispose());
 			}
+			return attached;
 		}
+		return undefined;
 	}
 
 	setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -274,15 +332,6 @@ export class TerminalLinkManager extends DisposableStore {
 		this._externalLinkProviders.push(newLinkProvider);
 		this._registerStandardLinkProviders();
 		return newLinkProvider;
-	}
-
-	protected get _localLinkRegex(): RegExp {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
-		}
-		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
@@ -414,16 +463,30 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		const preprocessedLink = this._preprocessPath(link);
-		if (!preprocessedLink) {
+		// Remove any line/col suffix before processing the path
+		let linkUrl = removeLinkSuffix(link);
+		if (!linkUrl) {
 			this._resolvedLinkCache.set(link, null);
 			return null;
 		}
 
-		const linkUrl = this.extractLinkUrl(preprocessedLink);
-		if (!linkUrl) {
-			this._resolvedLinkCache.set(link, null);
-			return null;
+		// If the link looks like a /mnt/ WSL path and this is a Windows frontend, use the backend
+		// to get the resolved path from the wslpath util.
+		if (isWindows && link.match(/^\/mnt\/[a-z]/i) && this._processManager.backend) {
+			linkUrl = await this._processManager.backend.getWslPath(linkUrl, 'unix-to-win');
+		}
+		// Skip preprocessing if it looks like a special Windows -> WSL link
+		else if (isWindows && link.match(/^(?:\/\/|\\\\)wsl(?:\$|\.localhost)(\/|\\)/)) {
+			// No-op, it's already the right format
+		}
+		// Handle all non-WSL links
+		else {
+			const preprocessedLink = this._preprocessPath(linkUrl);
+			if (!preprocessedLink) {
+				this._resolvedLinkCache.set(link, null);
+				return null;
+			}
+			linkUrl = preprocessedLink;
 		}
 
 		try {
@@ -454,19 +517,6 @@ export class TerminalLinkManager extends DisposableStore {
 			this._resolvedLinkCache.set(link, null);
 			return null;
 		}
-	}
-
-	/**
-	 * Returns url from link as link may contain line and column information.
-	 *
-	 * @param link url link which may contain line and column number.
-	 */
-	extractLinkUrl(link: string): string | null {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
-		if (!matches) {
-			return null;
-		}
-		return matches[1];
 	}
 }
 

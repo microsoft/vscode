@@ -5,12 +5,10 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { flakySuite } from 'vs/base/test/common/testUtils';
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { randomPath } from 'vs/base/common/extpath';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { TestWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyHistoryService.test';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
@@ -28,22 +26,26 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { assertIsDefined } from 'vs/base/common/types';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-flakySuite('WorkingCopyHistoryTracker', () => {
+suite('WorkingCopyHistoryTracker', () => {
 
-	let testDir: string;
-	let historyHome: string;
-	let workHome: string;
+	let testDir: URI;
+	let historyHome: URI;
+	let workHome: URI;
 
 	let workingCopyHistoryService: TestWorkingCopyHistoryService;
 	let workingCopyService: WorkingCopyService;
 	let fileService: IFileService;
 	let configurationService: TestConfigurationService;
+	let inMemoryFileSystemDisposable: IDisposable;
 
 	let tracker: WorkingCopyHistoryTracker;
 
-	let testFile1Path: string;
-	let testFile2Path: string;
+	let testFile1Path: URI;
+	let testFile2Path: URI;
 
 	const testFile1PathContents = 'Hello Foo';
 	const testFile2PathContents = [
@@ -65,25 +67,27 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 	}
 
 	setup(async () => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopyhistorytracker');
-		historyHome = join(testDir, 'User', 'History');
-		workHome = join(testDir, 'work');
+		testDir = URI.file(randomPath(join(tmpdir(), 'vsctests', 'workingcopyhistorytracker'))).with({ scheme: Schemas.inMemory });
+		historyHome = joinPath(testDir, 'User', 'History');
+		workHome = joinPath(testDir, 'work');
 
 		workingCopyHistoryService = new TestWorkingCopyHistoryService(testDir);
 		workingCopyService = new WorkingCopyService();
 		fileService = workingCopyHistoryService._fileService;
 		configurationService = workingCopyHistoryService._configurationService;
 
+		inMemoryFileSystemDisposable = fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
+
 		tracker = createTracker();
 
-		await Promises.mkdir(historyHome, { recursive: true });
-		await Promises.mkdir(workHome, { recursive: true });
+		await fileService.createFolder(historyHome);
+		await fileService.createFolder(workHome);
 
-		testFile1Path = join(workHome, 'foo.txt');
-		testFile2Path = join(workHome, 'bar.txt');
+		testFile1Path = joinPath(workHome, 'foo.txt');
+		testFile2Path = joinPath(workHome, 'bar.txt');
 
-		await Promises.writeFile(testFile1Path, testFile1PathContents);
-		await Promises.writeFile(testFile2Path, testFile2PathContents);
+		await fileService.writeFile(testFile1Path, VSBuffer.fromString(testFile1PathContents));
+		await fileService.writeFile(testFile2Path, VSBuffer.fromString(testFile2PathContents));
 	});
 
 	function createTracker() {
@@ -99,17 +103,19 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		);
 	}
 
-	teardown(() => {
+	teardown(async () => {
 		workingCopyHistoryService.dispose();
 		workingCopyService.dispose();
 		tracker.dispose();
 
-		return Promises.rm(testDir);
+		await fileService.del(testDir, { recursive: true });
+
+		inMemoryFileSystemDisposable.dispose();
 	});
 
 	test('history entry added on save', async () => {
-		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
-		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy2 = new TestWorkingCopy(testFile2Path);
 
 		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
 		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
@@ -136,7 +142,7 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 	});
 
 	test('history entry skipped when setting disabled (globally)', async () => {
-		configurationService.setUserConfiguration('workbench.localHistory.enabled', false, URI.file(testFile1Path));
+		configurationService.setUserConfiguration('workbench.localHistory.enabled', false, testFile1Path);
 
 		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
 	});
@@ -152,14 +158,14 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 	});
 
 	test('history entry skipped when too large', async () => {
-		configurationService.setUserConfiguration('workbench.localHistory.maxFileSize', 0, URI.file(testFile1Path));
+		configurationService.setUserConfiguration('workbench.localHistory.maxFileSize', 0, testFile1Path);
 
 		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
 	});
 
 	async function assertNoLocalHistoryEntryAddedWithSettingsConfigured(): Promise<void> {
-		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
-		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy2 = new TestWorkingCopy(testFile2Path);
 
 		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
 		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
@@ -187,7 +193,7 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 	test('entries moved (file rename)', async () => {
 		const entriesMoved = Event.toPromise(workingCopyHistoryService.onDidMoveEntries);
 
-		const workingCopy = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy = new TestWorkingCopy(testFile1Path);
 
 		const entry1 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
@@ -233,8 +239,8 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 	test('entries moved (folder rename)', async () => {
 		const entriesMoved = Event.toPromise(workingCopyHistoryService.onDidMoveEntries);
 
-		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
-		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+		const workingCopy1 = new TestWorkingCopy(testFile1Path);
+		const workingCopy2 = new TestWorkingCopy(testFile2Path);
 
 		const entry1A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
@@ -250,8 +256,8 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		entries = await workingCopyHistoryService.getEntries(workingCopy2.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
 
-		const renamedWorkHome = joinPath(dirname(URI.file(workHome)), 'renamed');
-		await workingCopyHistoryService._fileService.move(URI.file(workHome), renamedWorkHome);
+		const renamedWorkHome = joinPath(dirname(testDir), 'renamed');
+		await workingCopyHistoryService._fileService.move(workHome, renamedWorkHome);
 
 		const renamedWorkingCopy1Resource = joinPath(renamedWorkHome, basename(workingCopy1.resource));
 		const renamedWorkingCopy2Resource = joinPath(renamedWorkHome, basename(workingCopy2.resource));

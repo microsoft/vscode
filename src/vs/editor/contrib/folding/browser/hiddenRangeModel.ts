@@ -11,7 +11,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { CollapseMemento, FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class HiddenRangeModel {
 
@@ -77,28 +77,6 @@ export class HiddenRangeModel {
 		if (this._hasLineChanges || updateHiddenAreas || k < this._hiddenRanges.length) {
 			this.applyHiddenRanges(newHiddenAreas);
 		}
-	}
-
-	public applyMemento(state: CollapseMemento): boolean {
-		if (!Array.isArray(state) || state.length === 0) {
-			return false;
-		}
-		const hiddenRanges: IRange[] = [];
-		for (const r of state) {
-			if (!r.startLineNumber || !r.endLineNumber) {
-				return false;
-			}
-			hiddenRanges.push(new Range(r.startLineNumber + 1, 1, r.endLineNumber, 1));
-		}
-		this.applyHiddenRanges(hiddenRanges);
-		return true;
-	}
-
-	/**
-	 * Collapse state memento, for persistence only, only used if folding model is not yet initialized
-	 */
-	public getMemento(): CollapseMemento {
-		return this._hiddenRanges.map(r => ({ startLineNumber: r.startLineNumber - 1, endLineNumber: r.endLineNumber }));
 	}
 
 	private applyHiddenRanges(newHiddenAreas: IRange[]) {

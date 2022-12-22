@@ -46,10 +46,6 @@ const configurationEntrySchema: IJSONSchema = {
 					{
 						type: 'object',
 						properties: {
-							isExecutable: {
-								type: 'boolean',
-								markdownDeprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
-							},
 							scope: {
 								type: 'string',
 								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
@@ -78,6 +74,13 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
+							enumItemLabels: {
+								type: 'array',
+								items: {
+									type: 'string'
+								},
+								markdownDescription: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
+							},
 							markdownDescription: {
 								type: 'string',
 								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
@@ -103,7 +106,11 @@ const configurationEntrySchema: IJSONSchema = {
 							order: {
 								type: 'integer',
 								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
-							}
+							},
+							ignoreSync: {
+								type: 'boolean',
+								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
+							},
 						}
 					}
 				]

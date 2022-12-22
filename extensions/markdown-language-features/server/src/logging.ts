@@ -3,26 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger } from 'vscode-markdown-languageservice';
+import { ILogger, LogLevel } from 'vscode-markdown-languageservice';
 
-class ConsoleLogger implements ILogger {
-
-	public verbose(title: string, message: string, data?: any): void {
-		this.appendLine(`[Verbose ${ConsoleLogger.now()}] ${title}: ${message}`);
-		if (data) {
-			this.appendLine(ConsoleLogger.data2String(data));
-		}
-	}
+export class LogFunctionLogger implements ILogger {
 
 	private static now(): string {
 		const now = new Date();
 		return String(now.getUTCHours()).padStart(2, '0')
 			+ ':' + String(now.getMinutes()).padStart(2, '0')
 			+ ':' + String(now.getUTCSeconds()).padStart(2, '0') + '.' + String(now.getMilliseconds()).padStart(3, '0');
-	}
-
-	private appendLine(value: string): void {
-		console.log(value);
 	}
 
 	private static data2String(data: any): string {
@@ -37,6 +26,22 @@ class ConsoleLogger implements ILogger {
 		}
 		return JSON.stringify(data, undefined, 2);
 	}
+
+	constructor(
+		private readonly _logFn: typeof console.log
+	) { }
+
+
+	public log(level: LogLevel, title: string, message: string, data?: any): void {
+		this.appendLine(`[${level} ${LogFunctionLogger.now()}] ${title}: ${message}`);
+		if (data) {
+			this.appendLine(LogFunctionLogger.data2String(data));
+		}
+	}
+
+	private appendLine(value: string): void {
+		this._logFn(value);
+	}
 }
 
-export const consoleLogger = new ConsoleLogger();
+export const consoleLogger = new LogFunctionLogger(console.log);

@@ -10,7 +10,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TextTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { TextMergeTabInput, TextTabInput } from 'vs/workbench/api/common/extHostTypes';
 
 suite('ExtHostEditorTabs', function () {
 
@@ -207,6 +207,37 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		assert.strictEqual(first.activeTab, first.tabs[0]);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, first);
+	});
+
+	test('TextMergeTabInput surfaces in the UI', function () {
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const tab: IEditorTabDto = createTabDto({
+			input: {
+				kind: TabInputKind.TextMergeInput,
+				base: URI.from({ scheme: 'test', path: 'base' }),
+				input1: URI.from({ scheme: 'test', path: 'input1' }),
+				input2: URI.from({ scheme: 'test', path: 'input2' }),
+				result: URI.from({ scheme: 'test', path: 'result' }),
+			}
+		});
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tab]
+		}]);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
+		assert.ok(first.activeTab);
+		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
+		assert.ok(first.activeTab.input instanceof TextMergeTabInput);
 	});
 
 	test('Ensure reference stability', function () {

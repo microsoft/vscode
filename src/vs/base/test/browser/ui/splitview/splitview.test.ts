@@ -62,7 +62,7 @@ class TestView implements IView<number> {
 }
 
 function getSashes(splitview: SplitView): Sash[] {
-	return (splitview as any).sashItems.map((i: any) => i.sash) as Sash[];
+	return splitview.sashItems.map((i: any) => i.sash) as Sash[];
 }
 
 suite('Splitview', () => {

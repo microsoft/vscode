@@ -22,6 +22,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('ExtensionStorageMigration', () => {
 
@@ -38,7 +39,7 @@ suite('ExtensionStorageMigration', () => {
 		fileService.registerProvider(ROOT.scheme, disposables.add(new InMemoryFileSystemProvider()));
 		instantiationService.stub(IFileService, fileService);
 		const environmentService = instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{ userRoamingDataHome: ROOT, workspaceStorageHome });
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new NullLogService()));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
 
 		instantiationService.stub(IExtensionStorageService, instantiationService.createInstance(ExtensionStorageService));

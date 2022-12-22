@@ -57,7 +57,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 const enum ShellType { cmd, powershell, bash }
 
 
-export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null }): string {
+export function prepareCommand(shell: string, args: string[], argsCanBeInterpretedByShell: boolean, cwd?: string, env?: { [key: string]: string | null }): string {
 
 	shell = shell.trim().toLowerCase();
 
@@ -109,10 +109,11 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				}
 			}
 			if (args.length > 0) {
-				const cmd = quote(args.shift()!);
+				const arg = args.shift()!;
+				const cmd = argsCanBeInterpretedByShell ? arg : quote(arg);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
 				for (const a of args) {
-					command += (a === '<' || a === '>') ? a : quote(a);
+					command += (a === '<' || a === '>' || argsCanBeInterpretedByShell) ? a : quote(a);
 					command += ' ';
 				}
 			}
@@ -150,7 +151,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				}
 			}
 			for (const a of args) {
-				command += (a === '<' || a === '>') ? a : quote(a);
+				command += (a === '<' || a === '>' || argsCanBeInterpretedByShell) ? a : quote(a);
 				command += ' ';
 			}
 			if (env) {
@@ -185,7 +186,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += ' ';
 			}
 			for (const a of args) {
-				command += (a === '<' || a === '>') ? a : quote(a);
+				command += (a === '<' || a === '>' || argsCanBeInterpretedByShell) ? a : quote(a);
 				command += ' ';
 			}
 			break;

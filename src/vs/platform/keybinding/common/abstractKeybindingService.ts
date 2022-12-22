@@ -19,13 +19,14 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IME } from 'vs/base/common/ime';
 
 interface CurrentChord {
 	keypress: string;
 	label: string | null;
 }
 
-const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
+const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: undefined;
@@ -164,6 +165,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 
 		}, 500);
+		IME.disable();
 	}
 
 	private _leaveChordMode(): void {
@@ -173,6 +175,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 		this._currentChordChecker.cancel();
 		this._currentChord = null;
+		IME.enable();
 	}
 
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {

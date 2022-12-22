@@ -228,7 +228,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.updateOptions(options);
 	}
 
-	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
+	splice(start: number, deleteCount: number, elements: readonly TRow[] = []): void {
 		this.list.splice(start, deleteCount, elements);
 	}
 
@@ -265,8 +265,8 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.layout(listHeight, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	triggerTypeNavigation(): void {
+		this.list.triggerTypeNavigation();
 	}
 
 	style(styles: ITableStyles): void {

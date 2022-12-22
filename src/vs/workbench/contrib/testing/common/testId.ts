@@ -23,7 +23,7 @@ export const enum TestPosition {
 	IsParent,
 }
 
-type TestItemLike = { id: string; parent?: TestItemLike };
+type TestItemLike = { id: string; parent?: TestItemLike; _isRoot?: boolean };
 
 /**
  * The test ID is a stringifiable client that
@@ -35,7 +35,7 @@ export class TestId {
 	 * Creates a test ID from an ext host test item.
 	 */
 	public static fromExtHostTestItem(item: TestItemLike, rootId: string, parent = item.parent) {
-		if (item.id === rootId) {
+		if (item._isRoot) {
 			return new TestId([rootId]);
 		}
 
@@ -56,7 +56,7 @@ export class TestId {
 	}
 
 	/**
-	 * Cheaply ets whether the ID refers to the root .
+	 * Cheaply gets whether the ID refers to the root .
 	 */
 	public static root(idString: string) {
 		const idx = idString.indexOf(TestIdPathParts.Delimiter);
@@ -82,6 +82,14 @@ export class TestId {
 	 */
 	public static joinToString(base: string | TestId, b: string) {
 		return base.toString() + TestIdPathParts.Delimiter + b;
+	}
+
+	/**
+	 * Cheaply gets the parent ID of a test identified with the string.
+	 */
+	public static parentId(idString: string) {
+		const idx = idString.lastIndexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? undefined : idString.slice(0, idx);
 	}
 
 	/**
@@ -115,8 +123,8 @@ export class TestId {
 	/**
 	 * Gets the ID of the parent test.
 	 */
-	public get parentId(): TestId {
-		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : this;
+	public get parentId(): TestId | undefined {
+		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : undefined;
 	}
 
 	/**
@@ -146,6 +154,16 @@ export class TestId {
 	 */
 	public *idsFromRoot() {
 		for (let i = 1; i <= this.viewEnd; i++) {
+			yield new TestId(this.path, i);
+		}
+	}
+
+	/**
+	 * Returns an iterable that yields IDs of the current item up to the root
+	 * item.
+	 */
+	public *idsToRoot() {
+		for (let i = this.viewEnd; i > 0; i--) {
 			yield new TestId(this.path, i);
 		}
 	}

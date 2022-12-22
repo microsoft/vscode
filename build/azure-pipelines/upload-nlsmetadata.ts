@@ -33,6 +33,7 @@ function main(): Promise<void> {
 			.pipe(merge({
 				fileName: 'combined.nls.metadata.json',
 				jsonSpace: '',
+				concatArrays: true,
 				edit: (parsedJson, file) => {
 					if (file.base === 'out-vscode-web-min') {
 						return { vscode: parsedJson };

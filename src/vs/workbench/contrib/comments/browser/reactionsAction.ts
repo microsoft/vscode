@@ -32,12 +32,12 @@ export class ReactionActionViewItem extends ActionViewItem {
 	constructor(action: ReactionAction) {
 		super(null, action, {});
 	}
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (!this.label) {
 			return;
 		}
 
-		const action = this.getAction() as ReactionAction;
+		const action = this.action as ReactionAction;
 		if (action.class) {
 			this.label.classList.add(action.class);
 		}

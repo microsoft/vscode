@@ -103,14 +103,6 @@ async function detectAvailableWindowsProfiles(
 			source: ProfileSource.GitBash,
 			isAutoDetected: true
 		});
-		detectedProfiles.set('Cygwin', {
-			path: [
-				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-			],
-			args: ['--login'],
-			isAutoDetected: true
-		});
 		detectedProfiles.set('Command Prompt', {
 			path: `${system32Path}\\cmd.exe`,
 			icon: Codicon.terminalCmd,
@@ -122,7 +114,7 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
-	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
+	if (includeDetectedProfiles || useWslProfiles) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
 			for (const wslProfile of result) {
@@ -211,11 +203,12 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['ProgramFiles(X86)']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramFiles(X86)']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
-			`${process.env['AllUsersProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`
 		],
-		args: ['--login']
+		args: ['--login', '-i']
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
@@ -370,10 +363,6 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>;
 	readFile(path: string): Promise<Buffer>;
-}
-
-export interface IProfileVariableResolver {
-	resolve(text: string[]): Promise<string[]>;
 }
 
 interface IPotentialTerminalProfile {

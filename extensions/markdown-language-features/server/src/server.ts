@@ -3,130 +3,332 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Connection, Emitter, Event, InitializeParams, InitializeResult, RequestType, TextDocuments } from 'vscode-languageserver';
+import { CancellationToken, CompletionRegistrationOptions, CompletionRequest, Connection, Disposable, DocumentHighlightRegistrationOptions, DocumentHighlightRequest, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DocumentSymbol, Position, Range } from 'vscode-languageserver-types';
+import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
 import { URI } from 'vscode-uri';
-import { consoleLogger } from './logging';
+import { getLsConfiguration, LsConfiguration } from './config';
+import { ConfigurationManager, Settings } from './configuration';
+import { registerValidateSupport } from './languageFeatures/diagnostics';
+import { LogFunctionLogger } from './logging';
+import * as protocol from './protocol';
+import { IDisposable } from './util/dispose';
+import { VsCodeClientWorkspace } from './workspace';
+import * as l10n from '@vscode/l10n';
 
+interface MdServerInitializationOptions extends LsConfiguration { }
 
-const parseRequestType: RequestType<{ uri: string }, md.Token[], any> = new RequestType('markdown/parse');
+const organizeLinkDefKind = 'source.organizeLinkDefinitions';
 
-class TextDocumentToITextDocumentAdapter implements md.ITextDocument {
-	public readonly uri: md.IUri;
-
-	public get version(): number { return this._doc.version; }
-
-	public get lineCount(): number { return this._doc.lineCount; }
-
-	constructor(
-		private readonly _doc: TextDocument,
-	) {
-		this.uri = URI.parse(this._doc.uri);
-	}
-
-	getText(range?: md.IRange | undefined): string {
-		return this._doc.getText(range);
-	}
-
-	positionAt(offset: number): md.IPosition {
-		const pos = this._doc.positionAt(offset);
-		return md.makePosition(pos.line, pos.character);
-	}
-}
-
-export function startServer(connection: Connection) {
-	const documents = new TextDocuments(TextDocument);
-	documents.listen(connection);
-
-	connection.onInitialize((_params: InitializeParams): InitializeResult => {
-		return {
-			capabilities: {
-				documentSymbolProvider: true,
-			}
-		};
-	});
-
+export async function startVsCodeServer(connection: Connection) {
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
 
 	const parser = new class implements md.IMdParser {
 		slugifier = md.githubSlugifier;
 
-		async tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-			return await connection.sendRequest(parseRequestType, { uri: document.uri.toString() });
+		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
+			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
 		}
 	};
 
-	const workspace = new class implements md.IMdWorkspace {
+	const documents = new TextDocuments(TextDocument);
+	const notebooks = new NotebookDocuments(documents);
 
-		private readonly _onDidChangeMarkdownDocument = new Emitter<md.ITextDocument>();
-		onDidChangeMarkdownDocument: Event<md.ITextDocument> = this._onDidChangeMarkdownDocument.event;
+	const workspaceFactory: WorkspaceFactory = ({ connection, config, workspaceFolders }) => {
+		const workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
+		workspace.workspaceFolders = (workspaceFolders ?? []).map(x => URI.parse(x.uri));
+		return workspace;
+	};
 
-		private readonly _onDidCreateMarkdownDocument = new Emitter<md.ITextDocument>();
-		onDidCreateMarkdownDocument: Event<md.ITextDocument> = this._onDidCreateMarkdownDocument.event;
+	return startServer(connection, { documents, notebooks, logger, parser, workspaceFactory });
+}
 
-		private readonly _onDidDeleteMarkdownDocument = new Emitter<md.IUri>();
-		onDidDeleteMarkdownDocument: Event<md.IUri> = this._onDidDeleteMarkdownDocument.event;
+type WorkspaceFactory = (config: {
+	connection: Connection;
+	config: LsConfiguration;
+	workspaceFolders?: lsp.WorkspaceFolder[] | null;
+}) => md.IWorkspace;
 
-		async getAllMarkdownDocuments(): Promise<Iterable<md.ITextDocument>> {
-			return documents.all().map(doc => new TextDocumentToITextDocumentAdapter(doc));
-		}
-		hasMarkdownDocument(resource: md.IUri): boolean {
-			return !!documents.get(resource.toString());
-		}
-		async getOrLoadMarkdownDocument(_resource: md.IUri): Promise<md.ITextDocument | undefined> {
-			return undefined;
-		}
-		async pathExists(_resource: md.IUri): Promise<boolean> {
-			return false;
-		}
-		async readDirectory(_resource: md.IUri): Promise<[string, { isDir: boolean }][]> {
+export async function startServer(connection: Connection, serverConfig: {
+	documents: TextDocuments<md.ITextDocument>;
+	notebooks?: NotebookDocuments<md.ITextDocument>;
+	logger: md.ILogger;
+	parser: md.IMdParser;
+	workspaceFactory: WorkspaceFactory;
+}) {
+	const { documents, notebooks } = serverConfig;
+
+	let mdLs: md.IMdLanguageService | undefined;
+
+	connection.onInitialize((params: InitializeParams): InitializeResult => {
+		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
+		const config = getLsConfiguration(initOptions ?? {});
+
+		const configurationManager = new ConfigurationManager(connection);
+
+		const workspace = serverConfig.workspaceFactory({ connection, config, workspaceFolders: params.workspaceFolders });
+		mdLs = md.createLanguageService({
+			workspace,
+			parser: serverConfig.parser,
+			logger: serverConfig.logger,
+			markdownFileExtensions: config.markdownFileExtensions,
+			excludePaths: config.excludePaths,
+		});
+
+		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
+		registerDocumentHighlightSupport(connection, documents, mdLs, configurationManager);
+		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
+
+		return {
+			capabilities: {
+				diagnosticProvider: {
+					documentSelector: null,
+					identifier: 'markdown',
+					interFileDependencies: true,
+					workspaceDiagnostics: false,
+				},
+				codeActionProvider: { resolveProvider: true },
+				definitionProvider: true,
+				documentLinkProvider: { resolveProvider: true },
+				documentSymbolProvider: true,
+				foldingRangeProvider: true,
+				referencesProvider: true,
+				renameProvider: { prepareProvider: true, },
+				selectionRangeProvider: true,
+				workspaceSymbolProvider: true,
+				workspace: {
+					workspaceFolders: {
+						supported: true,
+						changeNotifications: true,
+					},
+				}
+			}
+		};
+	});
+
+	connection.onDocumentLinks(async (params, token): Promise<lsp.DocumentLink[]> => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
 			return [];
 		}
-	};
+		return mdLs!.getDocumentLinks(document, token);
+	});
 
-	const provider = md.createLanguageService(workspace, parser, consoleLogger);
+	connection.onDocumentLinkResolve(async (link, token): Promise<lsp.DocumentLink | undefined> => {
+		return mdLs!.resolveDocumentLink(link, token);
+	});
 
-	connection.onDocumentSymbol(async (documentSymbolParams, _token): Promise<DocumentSymbol[]> => {
+	connection.onDocumentSymbol(async (params, token): Promise<lsp.DocumentSymbol[]> => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
+		}
+		return mdLs!.getDocumentSymbols(document, { includeLinkDefinitions: true }, token);
+	});
+
+	connection.onFoldingRanges(async (params, token): Promise<lsp.FoldingRange[]> => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
+		}
+		return mdLs!.getFoldingRanges(document, token);
+	});
+
+	connection.onSelectionRanges(async (params, token): Promise<lsp.SelectionRange[] | undefined> => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
+		}
+		return mdLs!.getSelectionRanges(document, params.positions, token);
+	});
+
+	connection.onWorkspaceSymbol(async (params, token): Promise<lsp.WorkspaceSymbol[]> => {
+		return mdLs!.getWorkspaceSymbols(params.query, token);
+	});
+
+	connection.onReferences(async (params, token): Promise<lsp.Location[]> => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
+		}
+		return mdLs!.getReferences(document, params.position, params.context, token);
+	});
+
+	connection.onDefinition(async (params, token): Promise<lsp.Definition | undefined> => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+		return mdLs!.getDefinition(document, params.position, token);
+	});
+
+	connection.onPrepareRename(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
 		try {
-			const document = documents.get(documentSymbolParams.textDocument.uri) as TextDocument | undefined;
-			if (document) {
-				const response = await provider.provideDocumentSymbols(new TextDocumentToITextDocumentAdapter(document));
-				// TODO: only required because extra methods returned on positions/ranges
-				return response.map(symbol => convertDocumentSymbol(symbol));
-			}
+			return await mdLs!.prepareRename(document, params.position, token);
 		} catch (e) {
-			console.error(e.stack);
+			if (e instanceof md.RenameNotSupportedAtLocationError) {
+				throw new ResponseError(0, e.message);
+			} else {
+				throw e;
+			}
+		}
+	});
+
+	connection.onRenameRequest(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+		return mdLs!.getRenameEdit(document, params.position, params.newName, token);
+	});
+
+	interface OrganizeLinkActionData {
+		readonly uri: string;
+	}
+
+	connection.onCodeAction(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		if (params.context.only?.some(kind => kind === 'source' || kind.startsWith('source.'))) {
+			const action: lsp.CodeAction = {
+				title: l10n.t("Organize link definitions"),
+				kind: organizeLinkDefKind,
+				data: <OrganizeLinkActionData>{ uri: document.uri }
+			};
+			return [action];
+		}
+
+		return mdLs!.getCodeActions(document, params.range, params.context, token);
+	});
+
+	connection.onCodeActionResolve(async (codeAction, token) => {
+		if (codeAction.kind === organizeLinkDefKind) {
+			const data = codeAction.data as OrganizeLinkActionData;
+			const document = documents.get(data.uri);
+			if (!document) {
+				return codeAction;
+			}
+
+			const edits = (await mdLs?.organizeLinkDefinitions(document, { removeUnused: true }, token)) || [];
+			codeAction.edit = {
+				changes: {
+					[data.uri]: edits
+				}
+			};
+			return codeAction;
+		}
+
+		return codeAction;
+	});
+
+	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
+		return mdLs!.getFileReferences(URI.parse(params.uri), token);
+	}));
+
+	connection.onRequest(protocol.getEditForFileRenames, (async (params, token: CancellationToken) => {
+		const result = await mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
+		if (!result) {
+			return result;
+		}
+
+		return {
+			edit: result.edit,
+			participatingRenames: result.participatingRenames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() }))
+		};
+	}));
+
+	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {
+		return mdLs!.resolveLinkTarget(params.linkText, URI.parse(params.uri), token);
+	}));
+
+	documents.listen(connection);
+	notebooks?.listen(connection);
+	connection.listen();
+}
+
+function registerDynamicClientFeature(
+	config: ConfigurationManager,
+	isEnabled: (settings: Settings | undefined) => boolean,
+	register: () => Promise<Disposable>,
+) {
+	let registration: Promise<IDisposable> | undefined;
+	function update() {
+		const settings = config.getSettings();
+		if (isEnabled(settings)) {
+			if (!registration) {
+				registration = register();
+			}
+		} else {
+			registration?.then(x => x.dispose());
+			registration = undefined;
+		}
+	}
+
+	update();
+	return config.onDidChangeConfiguration(() => update());
+}
+
+function registerCompletionsSupport(
+	connection: Connection,
+	documents: TextDocuments<md.ITextDocument>,
+	ls: md.IMdLanguageService,
+	config: ConfigurationManager,
+): IDisposable {
+	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
+		const settings = config.getSettings();
+		if (!settings?.markdown.suggest.paths.enabled) {
+			return [];
+		}
+
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			return ls.getCompletionItems(document, params.position, params.context!, token);
 		}
 		return [];
 	});
 
-	connection.listen();
+	return registerDynamicClientFeature(config, (settings) => !!settings?.markdown.suggest.paths.enabled, () => {
+		const registrationOptions: CompletionRegistrationOptions = {
+			documentSelector: null,
+			triggerCharacters: ['.', '/', '#'],
+		};
+		return connection.client.register(CompletionRequest.type, registrationOptions);
+	});
 }
 
+function registerDocumentHighlightSupport(
+	connection: Connection,
+	documents: TextDocuments<md.ITextDocument>,
+	mdLs: md.IMdLanguageService,
+	configurationManager: ConfigurationManager
+) {
+	connection.onDocumentHighlight(async (params, token) => {
+		const settings = configurationManager.getSettings();
+		if (!settings?.markdown.occurrencesHighlight.enabled) {
+			return undefined;
+		}
 
-function convertDocumentSymbol(sym: DocumentSymbol): DocumentSymbol {
-	return {
-		kind: sym.kind,
-		name: sym.name,
-		range: convertRange(sym.range),
-		selectionRange: convertRange(sym.selectionRange),
-		children: sym.children?.map(convertDocumentSymbol),
-		detail: sym.detail,
-		tags: sym.tags,
-	};
-}
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
 
-function convertRange(range: Range): Range {
-	return {
-		start: convertPosition(range.start),
-		end: convertPosition(range.end),
-	};
-}
+		return mdLs!.getDocumentHighlights(document, params.position, token);
+	});
 
-function convertPosition(start: Position): Position {
-	return {
-		character: start.character,
-		line: start.line,
-	};
+	return registerDynamicClientFeature(configurationManager, (settings) => !!settings?.markdown.occurrencesHighlight.enabled, () => {
+		const registrationOptions: DocumentHighlightRegistrationOptions = {
+			documentSelector: null,
+		};
+		return connection.client.register(DocumentHighlightRequest.type, registrationOptions);
+	});
 }

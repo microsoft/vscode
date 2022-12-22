@@ -6,9 +6,11 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Terminal } from 'xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
@@ -21,8 +23,9 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		configurationService = new TestConfigurationService();
 
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.set(IProductService, TestProductService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
 	});
 
@@ -33,27 +36,29 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		await assertLinkHelper(text, expected, detector, TerminalBuiltinLinkType.Search);
 	}
 
-	test('should link words as defined by wordSeparators', async () => {
-		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ()[]' } });
-		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink('(foo)', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink('[foo]', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
-
-		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
-		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink('(foo)', [{ range: [[1, 1], [5, 1]], text: '(foo)' }]);
-		await assertLink('[foo]', [{ range: [[1, 1], [5, 1]], text: '[foo]' }]);
-		await assertLink('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
-
-		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' []' } });
-		await assertLink('aabbccdd.txt ', [{ range: [[1, 1], [12, 1]], text: 'aabbccdd.txt' }]);
-		await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
-		await assertLink(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
+	suite('should link words as defined by wordSeparators', () => {
+		test('" ()[]"', async () => {
+			await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ()[]' } });
+			await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
+			await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			await assertLink('(foo)', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			await assertLink('[foo]', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			await assertLink('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
+		});
+		test('" "', async () => {
+			await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+			await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
+			await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			await assertLink('(foo)', [{ range: [[1, 1], [5, 1]], text: '(foo)' }]);
+			await assertLink('[foo]', [{ range: [[1, 1], [5, 1]], text: '[foo]' }]);
+			await assertLink('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
+		});
+		test('" []"', async () => {
+			await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' []' } });
+			await assertLink('aabbccdd.txt ', [{ range: [[1, 1], [12, 1]], text: 'aabbccdd.txt' }]);
+			await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
+			await assertLink(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
+		});
 	});
 
 	// These are failing - the link's start x is 1 px too far to the right bc it starts

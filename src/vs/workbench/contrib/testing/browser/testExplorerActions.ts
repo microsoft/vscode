@@ -5,7 +5,6 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -40,8 +39,12 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
-const category = CATEGORIES.Test;
+const category = Categories.Test;
 
 const enum ActionOrder {
 	// Navigation:
@@ -152,7 +155,7 @@ export class DebugAction extends Action2 {
 
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			tests: elements.flatMap(e => [...e.tests]),
 			group: TestRunProfileBitset.Debug,
 		});
 	}
@@ -214,7 +217,7 @@ export class RunAction extends Action2 {
 	 */
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			tests: elements.flatMap(e => [...e.tests]),
 			group: TestRunProfileBitset.Run,
 		});
 	}
@@ -249,7 +252,7 @@ export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ConfigureTestProfilesAction,
-			title: localize('testing.configureProfile', 'Configure Test Profiles'),
+			title: { value: localize('testing.configureProfile', 'Configure Test Profiles'), original: 'Configure Test Profiles' },
 			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,
@@ -668,10 +671,15 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: hasAnyTestProvider,
-			},
+			}, {
+				id: MenuId.EditorContext,
+				group: 'testing',
+				order: group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug,
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
+			}]
 		});
 	}
 
@@ -679,9 +687,15 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	 * @override
 	 */
 	public async run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
-		const position = control?.getPosition();
-		const model = control?.getModel();
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		const activeControl = editorService.activeTextEditorControl;
+		if (!activeEditorPane || !activeControl) {
+			return;
+		}
+
+		const position = activeControl?.getPosition();
+		const model = activeControl?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -689,12 +703,20 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const testService = accessor.get(ITestService);
 		const profileService = accessor.get(ITestProfileService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
+		const progressService = accessor.get(IProgressService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		let bestNodes: InternalTestItem[] = [];
 		let bestRange: Range | undefined;
 
 		let bestNodesBefore: InternalTestItem[] = [];
 		let bestRangeBefore: Range | undefined;
+
+		const saveBeforeTest = getTestingConfiguration(configurationService, TestingConfigKeys.SaveBeforeTest);
+		if (saveBeforeTest) {
+			await editorService.save({ editor: activeEditorPane.input, groupId: activeEditorPane.group.id });
+			await testService.syncTests();
+		}
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
@@ -703,8 +725,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		// If we don't find any test whose range contains the position, we pick
 		// the closest one before the position. Again, if we find several tests
 		// whose range is equal to the closest one, we run them all.
-		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
-			for await (const test of testsInFile(testService.collection, uriIdentityService, model.uri)) {
+		await showDiscoveringWhile(progressService, (async () => {
+			for await (const test of testsInFile(testService, uriIdentityService, model.uri)) {
 				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}
@@ -734,6 +756,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				group: this.group,
 				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
+		} else if (isCodeEditor(activeControl)) {
+			MessageController.get(activeControl)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
 		}
 	}
 }
@@ -772,10 +796,16 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-			},
+			}, {
+				id: MenuId.EditorContext,
+				group: 'testing',
+				// add 0.1 to be after the "at cursor" commands
+				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
+			}],
 		});
 	}
 
@@ -813,6 +843,10 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 				tests: discovered,
 				group: this.group,
 			});
+		}
+
+		if (isCodeEditor(control)) {
+			MessageController.get(control)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
 		}
 
 		return undefined;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -28,13 +28,14 @@ export class ExtensionHostProfiler {
 		return {
 			stop: once(async () => {
 				const profile = await this._profilingService.stopProfiling(id);
-				const extensions = await this._extensionService.getExtensions();
+				await this._extensionService.whenInstalledExtensionsRegistered();
+				const extensions = this._extensionService.extensions;
 				return this._distill(profile, extensions);
 			})
 		};
 	}
 
-	private _distill(profile: IV8Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
+	private _distill(profile: IV8Profile, extensions: readonly IExtensionDescription[]): IExtensionHostProfile {
 		const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
 		for (const extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {

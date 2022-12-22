@@ -307,7 +307,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return Promise.all(promises).then(() => {
 				type ExperimentsClassification = {
 					owner: 'sbatten';
-					experiments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					comment: 'Information about the experiments in this session';
+					experiments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The list of experiments in this session' };
 				};
 				this.telemetryService.publicLog2<{ experiments: string[] }, ExperimentsClassification>('experiments', { experiments: this._experiments.map(e => e.id) });
 			});

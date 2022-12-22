@@ -208,9 +208,23 @@ export class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
+	/**
+	 * A snippet is trivial when it has no placeholder or only a final placeholder at
+	 * its very end
+	 */
 	get isTrivialSnippet(): boolean {
-		return this._snippet.placeholders.length === 0
-			|| (this._snippet.placeholders.length === 1 && this._snippet.placeholders[0].isFinalTabstop);
+		if (this._snippet.placeholders.length === 0) {
+			return true;
+		}
+		if (this._snippet.placeholders.length === 1) {
+			const [placeholder] = this._snippet.placeholders;
+			if (placeholder.isFinalTabstop) {
+				if (this._snippet.rightMostDescendant === placeholder) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	computePossibleSelections() {
@@ -366,7 +380,7 @@ export interface ISnippetEdit {
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): string {
+	static adjustWhitespace(model: ITextModel, position: IPosition, adjustIndentation: boolean, snippet: TextmateSnippet, filter?: Set<Marker>): string {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
@@ -376,6 +390,11 @@ export class SnippetSession {
 		snippet.walk(marker => {
 			// all text elements that are not inside choice
 			if (!(marker instanceof Text) || marker.parent instanceof Choice) {
+				return true;
+			}
+
+			// check with filter (iff provided)
+			if (filter && !filter.has(marker)) {
 				return true;
 			}
 
@@ -496,9 +515,9 @@ export class SnippetSession {
 			// cursor and the leading whitespace is different
 			const start = snippetSelection.getStartPosition();
 			const snippetLineLeadingWhitespace = SnippetSession.adjustWhitespace(
-				model, start, snippet,
+				model, start,
 				adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber)),
-				true
+				snippet,
 			);
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
@@ -535,6 +554,17 @@ export class SnippetSession {
 		const parser = new SnippetParser();
 		const snippet = new TextmateSnippet();
 
+		// snippet variables resolver
+		const resolver = new CompositeSnippetVariableResolver([
+			editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model)),
+			new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
+			new SelectionBasedVariableResolver(model, editor.getSelection(), 0, overtypingCapturer),
+			new CommentBasedVariableResolver(model, editor.getSelection(), languageConfigurationService),
+			new TimeBasedVariableResolver,
+			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
+			new RandomBasedVariableResolver,
+		]);
+
 		//
 		snippetEdits = snippetEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 		let offset = 0;
@@ -552,7 +582,9 @@ export class SnippetSession {
 				offset += textNode.value.length;
 			}
 
-			parser.parseFragment(template, snippet);
+			const newNodes = parser.parseFragment(template, snippet);
+			SnippetSession.adjustWhitespace(model, range.getStartPosition(), true, snippet, new Set(newNodes));
+			snippet.resolveVariables(resolver);
 
 			const snippetText = snippet.toString();
 			const snippetFragmentText = snippetText.slice(offset);
@@ -567,19 +599,6 @@ export class SnippetSession {
 
 		//
 		parser.ensureFinalTabstop(snippet, enforceFinalTabstop, true);
-
-		// snippet variables resolver
-		const resolver = new CompositeSnippetVariableResolver([
-			editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model)),
-			new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
-			new SelectionBasedVariableResolver(model, editor.getSelection(), 0, overtypingCapturer),
-			new CommentBasedVariableResolver(model, editor.getSelection(), languageConfigurationService),
-			new TimeBasedVariableResolver,
-			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
-			new RandomBasedVariableResolver,
-		]);
-		snippet.resolveVariables(resolver);
-
 
 		return {
 			edits,

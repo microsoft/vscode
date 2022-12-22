@@ -5,7 +5,7 @@
 
 import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Event } from 'vs/base/common/event';
@@ -113,4 +113,4 @@ export class ActivityService implements IActivityService {
 	}
 }
 
-registerSingleton(IActivityService, ActivityService, true);
+registerSingleton(IActivityService, ActivityService, InstantiationType.Delayed);

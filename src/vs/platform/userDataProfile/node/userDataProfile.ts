@@ -3,111 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI, UriDto } from 'vs/base/common/uri';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, toUserDataProfile, WorkspaceIdentifier, EmptyWindowWorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations } from 'vs/platform/userDataProfile/common/userDataProfile';
 
-export type UserDataProfilesObject = {
-	profiles: IUserDataProfile[];
-	workspaces: ResourceMap<IUserDataProfile>;
-	emptyWindow?: IUserDataProfile;
-};
-
-export type StoredUserDataProfile = {
-	name: string;
-	location: URI;
-	useDefaultFlags?: UseDefaultProfileFlags;
-};
-
-export type StoredProfileAssociations = {
-	workspaces?: IStringDictionary<string>;
-	emptyWindow?: string;
-};
-
-export class UserDataProfilesService extends BaseUserDataProfilesService implements IUserDataProfilesService {
-
-	protected static readonly PROFILES_KEY = 'userDataProfiles';
-	protected static readonly PROFILE_ASSOCIATIONS_KEY = 'profileAssociations';
-
-	protected enabled: boolean = false;
+export class ServerUserDataProfilesService extends BaseUserDataProfilesService implements IUserDataProfilesService {
 
 	constructor(
-		@IStateService private readonly stateService: IStateService,
-		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@INativeEnvironmentService protected readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
-		super(environmentService, fileService, logService);
+		super(nativeEnvironmentService, fileService, uriIdentityService, logService);
 	}
 
-	setEnablement(enabled: boolean): void {
-		this._profilesObject = undefined;
-		this.enabled = enabled;
+	protected override getDefaultProfileExtensionsLocation(): URI {
+		return this.uriIdentityService.extUri.joinPath(URI.file(this.nativeEnvironmentService.extensionsPath).with({ scheme: this.profilesHome.scheme }), 'extensions.json');
 	}
 
-	protected _profilesObject: UserDataProfilesObject | undefined;
-	protected get profilesObject(): UserDataProfilesObject {
-		if (!this._profilesObject) {
-			const profiles = this.enabled ? this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags)) : [];
-			let emptyWindow: IUserDataProfile | undefined;
-			const workspaces = new ResourceMap<IUserDataProfile>();
-			if (profiles.length) {
-				const profileAssicaitions = this.getStoredProfileAssociations();
-				if (profileAssicaitions.workspaces) {
-					for (const [workspacePath, profilePath] of Object.entries(profileAssicaitions.workspaces)) {
-						const workspace = URI.parse(workspacePath);
-						const profileLocation = URI.parse(profilePath);
-						const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profileLocation));
-						if (profile) {
-							workspaces.set(workspace, profile);
-						}
-					}
-				}
-				if (profileAssicaitions.emptyWindow) {
-					const emptyWindowProfileLocation = URI.parse(profileAssicaitions.emptyWindow);
-					emptyWindow = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, emptyWindowProfileLocation));
-				}
-			}
-			profiles.unshift(this.createDefaultUserDataProfile(profiles.length > 0));
-			this._profilesObject = { profiles, workspaces, emptyWindow };
-		}
-		return this._profilesObject;
+}
+
+
+export class UserDataProfilesService extends ServerUserDataProfilesService implements IUserDataProfilesService {
+
+	constructor(
+		@IStateService private readonly stateService: IStateService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
+	) {
+		super(uriIdentityService, nativeEnvironmentService, fileService, logService);
 	}
 
-	override get profiles(): IUserDataProfile[] { return this.profilesObject.profiles; }
-
-	override getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile {
-		const workspace = this.getWorkspace(workspaceIdentifier);
-		const profile = URI.isUri(workspace) ? this.profilesObject.workspaces.get(workspace) : this.profilesObject.emptyWindow;
-		return profile ?? this.defaultProfile;
-	}
-
-	protected getWorkspace(workspaceIdentifier: WorkspaceIdentifier): URI | EmptyWindowWorkspaceIdentifier {
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return workspaceIdentifier.uri;
-		}
-		if (isWorkspaceIdentifier(workspaceIdentifier)) {
-			return workspaceIdentifier.configPath;
-		}
-		return 'empty-window';
-	}
-
-	protected getStoredProfiles(): StoredUserDataProfile[] {
+	protected override getStoredProfiles(): StoredUserDataProfile[] {
 		return revive(this.stateService.getItem<UriDto<StoredUserDataProfile>[]>(UserDataProfilesService.PROFILES_KEY, []));
 	}
 
-	protected getStoredProfileAssociations(): StoredProfileAssociations {
+	protected override getStoredProfileAssociations(): StoredProfileAssociations {
 		return revive(this.stateService.getItem<UriDto<StoredProfileAssociations>>(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, {}));
+	}
+
+	protected override getDefaultProfileExtensionsLocation(): URI {
+		return this.uriIdentityService.extUri.joinPath(URI.file(this.nativeEnvironmentService.extensionsPath).with({ scheme: this.profilesHome.scheme }), 'extensions.json');
 	}
 
 }

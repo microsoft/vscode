@@ -31,6 +31,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -66,7 +67,7 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
 		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
 
 		instantiationService = workbenchInstantiationService({

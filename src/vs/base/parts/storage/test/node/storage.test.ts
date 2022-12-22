@@ -670,56 +670,57 @@ flakySuite('SQLite Storage Library', function () {
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
-
-		class TestStorage extends Storage {
-			getStorage(): IStorageDatabase {
-				return this.database;
+		return runWithFakedTimers({}, async () => {
+			class TestStorage extends Storage {
+				getStorage(): IStorageDatabase {
+					return this.database;
+				}
 			}
-		}
 
-		const storage = new TestStorage(new SQLiteStorageDatabase(join(testdir, 'storage.db')));
+			const storage = new TestStorage(new SQLiteStorageDatabase(join(testdir, 'storage.db')));
 
-		await storage.init();
+			await storage.init();
 
-		storage.set('foo', 'bar');
-		storage.set('some/foo/path', 'some/bar/path');
+			storage.set('foo', 'bar');
+			storage.set('some/foo/path', 'some/bar/path');
 
-		await timeout(2);
+			await timeout(2);
 
-		storage.set('foo1', 'bar');
-		storage.set('some/foo1/path', 'some/bar/path');
+			storage.set('foo1', 'bar');
+			storage.set('some/foo1/path', 'some/bar/path');
 
-		await timeout(2);
+			await timeout(2);
 
-		storage.set('foo2', 'bar');
-		storage.set('some/foo2/path', 'some/bar/path');
+			storage.set('foo2', 'bar');
+			storage.set('some/foo2/path', 'some/bar/path');
 
-		await timeout(2);
+			await timeout(2);
 
-		storage.delete('foo1');
-		storage.delete('some/foo1/path');
+			storage.delete('foo1');
+			storage.delete('some/foo1/path');
 
-		await timeout(2);
+			await timeout(2);
 
-		storage.delete('foo4');
-		storage.delete('some/foo4/path');
+			storage.delete('foo4');
+			storage.delete('some/foo4/path');
 
-		await timeout(5);
+			await timeout(5);
 
-		storage.set('foo3', 'bar');
-		await storage.set('some/foo3/path', 'some/bar/path');
+			storage.set('foo3', 'bar');
+			await storage.set('some/foo3/path', 'some/bar/path');
 
-		const items = await storage.getStorage().getItems();
-		strictEqual(items.get('foo'), 'bar');
-		strictEqual(items.get('some/foo/path'), 'some/bar/path');
-		strictEqual(items.has('foo1'), false);
-		strictEqual(items.has('some/foo1/path'), false);
-		strictEqual(items.get('foo2'), 'bar');
-		strictEqual(items.get('some/foo2/path'), 'some/bar/path');
-		strictEqual(items.get('foo3'), 'bar');
-		strictEqual(items.get('some/foo3/path'), 'some/bar/path');
+			const items = await storage.getStorage().getItems();
+			strictEqual(items.get('foo'), 'bar');
+			strictEqual(items.get('some/foo/path'), 'some/bar/path');
+			strictEqual(items.has('foo1'), false);
+			strictEqual(items.has('some/foo1/path'), false);
+			strictEqual(items.get('foo2'), 'bar');
+			strictEqual(items.get('some/foo2/path'), 'some/bar/path');
+			strictEqual(items.get('foo3'), 'bar');
+			strictEqual(items.get('some/foo3/path'), 'some/bar/path');
 
-		await storage.close();
+			await storage.close();
+		});
 	});
 
 	test('lots of INSERT & DELETE (below inline max)', async () => {

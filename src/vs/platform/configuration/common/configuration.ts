@@ -26,7 +26,7 @@ export interface IConfigurationOverrides {
 export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifiers || types.isArray(thing.overrideIdentifiers))
+		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
 		&& !thing.overrideIdentifier
 		&& (!thing.resource || thing.resource instanceof URI);
 }
@@ -34,7 +34,8 @@ export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurat
 export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null };
 
 export const enum ConfigurationTarget {
-	USER = 1,
+	APPLICATION = 1,
+	USER,
 	USER_LOCAL,
 	USER_REMOTE,
 	WORKSPACE,
@@ -44,6 +45,7 @@ export const enum ConfigurationTarget {
 }
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
+		case ConfigurationTarget.APPLICATION: return 'APPLICATION';
 		case ConfigurationTarget.USER: return 'USER';
 		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
 		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
@@ -62,7 +64,7 @@ export interface IConfigurationChange {
 export interface IConfigurationChangeEvent {
 
 	readonly source: ConfigurationTarget;
-	readonly affectedKeys: string[];
+	readonly affectedKeys: ReadonlySet<string>;
 	readonly change: IConfigurationChange;
 
 	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
@@ -95,6 +97,17 @@ export interface IConfigurationValue<T> {
 	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
+}
+
+export interface IConfigurationUpdateOptions {
+	/**
+	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 */
+	donotNotifyError?: boolean;
+	/**
+	 * How to handle dirty file when updating the configuration.
+	 */
+	handleDirtyFile?: 'save' | 'revert';
 }
 
 export interface IConfigurationService {
@@ -138,7 +151,7 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 

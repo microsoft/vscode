@@ -19,7 +19,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
 
@@ -442,8 +442,8 @@ export class ResolvedLanguageConfiguration {
 		return new AutoClosingPairs(this.characterPair.getAutoClosingPairs());
 	}
 
-	public getAutoCloseBeforeSet(): string {
-		return this.characterPair.getAutoCloseBeforeSet();
+	public getAutoCloseBeforeSet(forQuotes: boolean): string {
+		return this.characterPair.getAutoCloseBeforeSet(forQuotes);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {
@@ -474,4 +474,4 @@ export class ResolvedLanguageConfiguration {
 	}
 }
 
-registerSingleton(ILanguageConfigurationService, LanguageConfigurationService);
+registerSingleton(ILanguageConfigurationService, LanguageConfigurationService, InstantiationType.Delayed);
