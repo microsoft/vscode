@@ -34,7 +34,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
