@@ -83,9 +83,10 @@ export class SimpleKeybinding implements IBaseKeybinding {
 		this.keyCode = keyCode;
 	}
 
-	public equals(other: SimpleKeybinding): boolean {
+	public equals(other: SimpleKeybinding | ScanCodeBinding): boolean {
 		return (
-			this.ctrlKey === other.ctrlKey
+			other instanceof SimpleKeybinding
+			&& this.ctrlKey === other.ctrlKey
 			&& this.shiftKey === other.shiftKey
 			&& this.altKey === other.altKey
 			&& this.metaKey === other.metaKey
@@ -182,14 +183,23 @@ export class ScanCodeBinding implements IBaseKeybinding {
 		this.scanCode = scanCode;
 	}
 
-	public equals(other: ScanCodeBinding): boolean {
+	public equals(other: SimpleKeybinding | ScanCodeBinding): boolean {
 		return (
-			this.ctrlKey === other.ctrlKey
+			other instanceof ScanCodeBinding
+			&& this.ctrlKey === other.ctrlKey
 			&& this.shiftKey === other.shiftKey
 			&& this.altKey === other.altKey
 			&& this.metaKey === other.metaKey
 			&& this.scanCode === other.scanCode
 		);
+	}
+
+	public getHashCode(): string {
+		const ctrl = this.ctrlKey ? '1' : '0';
+		const shift = this.shiftKey ? '1' : '0';
+		const alt = this.altKey ? '1' : '0';
+		const meta = this.metaKey ? '1' : '0';
+		return `${ctrl}${shift}${alt}${meta}${this.scanCode}`;
 	}
 
 	/**
@@ -202,6 +212,43 @@ export class ScanCodeBinding implements IBaseKeybinding {
 			|| (this.altKey && (this.scanCode === ScanCode.AltLeft || this.scanCode === ScanCode.AltRight))
 			|| (this.metaKey && (this.scanCode === ScanCode.MetaLeft || this.scanCode === ScanCode.MetaRight))
 		);
+	}
+}
+
+export class UserKeybinding {
+	public readonly parts: (SimpleKeybinding | ScanCodeBinding)[];
+
+	constructor(parts: (SimpleKeybinding | ScanCodeBinding)[]) {
+		if (parts.length === 0) {
+			throw illegalArgument(`parts`);
+		}
+		this.parts = parts;
+	}
+
+	public getHashCode(): string {
+		let result = '';
+		for (let i = 0, len = this.parts.length; i < len; i++) {
+			if (i !== 0) {
+				result += ';';
+			}
+			result += this.parts[i].getHashCode();
+		}
+		return result;
+	}
+
+	public equals(other: UserKeybinding | null): boolean {
+		if (other === null) {
+			return false;
+		}
+		if (this.parts.length !== other.parts.length) {
+			return false;
+		}
+		for (let i = 0; i < this.parts.length; i++) {
+			if (!this.parts[i].equals(other.parts[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { UserKeybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
-	parts: (SimpleKeybinding | ScanCodeBinding)[];
+	keybinding: UserKeybinding | null;
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | undefined;
@@ -44,15 +44,15 @@ export class KeybindingIO {
 	}
 
 	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
-		const parts = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : []);
+		const keybinding = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : null);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
 		const command = (typeof input.command === 'string' ? input.command : null);
 		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
 		return {
-			parts: parts,
-			command: command,
-			commandArgs: commandArgs,
-			when: when,
+			keybinding,
+			command,
+			commandArgs,
+			when,
 			_source: input
 		};
 	}

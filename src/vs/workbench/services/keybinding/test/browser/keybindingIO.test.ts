@@ -141,14 +141,14 @@ suite('keybindingIO', () => {
 		const strJSON = `[{ "key": [], "command": "firstcommand" }]`;
 		const userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.deepStrictEqual(keybindingItem.parts, []);
+		assert.deepStrictEqual(keybindingItem.keybinding, null);
 	});
 
 	test('issue #10452 - invalid key 2', () => {
 		const strJSON = `[{ "key": "", "command": "firstcommand" }]`;
 		const userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.deepStrictEqual(keybindingItem.parts, []);
+		assert.deepStrictEqual(keybindingItem.keybinding, null);
 	});
 
 	test('test commands args', () => {

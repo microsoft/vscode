@@ -10,7 +10,7 @@ import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent }
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -286,8 +286,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
 	}
 
-	private _printUserBinding(parts: (SimpleKeybinding | ScanCodeBinding)[]): string {
-		return UserSettingsLabelProvider.toLabel(OS, parts, (part) => {
+	private _printUserBinding(keybinding: UserKeybinding): string {
+		return UserSettingsLabelProvider.toLabel(OS, keybinding.parts, (part) => {
 			if (part instanceof SimpleKeybinding) {
 				return KeyCodeUtils.toString(part.keyCode);
 			}
@@ -326,7 +326,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		result.push(`Default Resolved Keybindings (unique only):`);
 		for (const item of KeybindingsRegistry.getDefaultKeybindings()) {
-			if (!item.keybinding || item.keybinding.length === 0) {
+			if (!item.keybinding) {
 				continue;
 			}
 			const input = this._printUserBinding(item.keybinding);
@@ -340,7 +340,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		result.push(`User Resolved Keybindings (unique only):`);
 		for (const item of this.userKeybindings.keybindings) {
-			if (!item.parts || item.parts.length === 0) {
+			if (!item.keybinding) {
 				continue;
 			}
 			const input = item._source.key;
@@ -348,7 +348,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				continue;
 			}
 			seenBindings.add(input);
-			const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.parts);
+			const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.keybinding);
 			this._printResolvedKeybindings(result, input, resolvedKeybindings);
 		}
 
@@ -426,12 +426,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		let resultLen = 0;
 		for (const item of items) {
 			const when = item.when || undefined;
-			const parts = item.parts;
-			if (parts.length === 0) {
+			if (!item.keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
-				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(parts);
+				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}
@@ -441,7 +440,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _assertBrowserConflicts(kb: (SimpleKeybinding | ScanCodeBinding)[], commandId: string | null): boolean {
+	private _assertBrowserConflicts(keybinding: UserKeybinding, commandId: string | null): boolean {
 		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
@@ -450,7 +449,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
-		for (const part of kb) {
+		for (const part of keybinding.parts) {
 			if (!part.metaKey && !part.altKey && !part.ctrlKey && !part.shiftKey) {
 				continue;
 			}
@@ -510,8 +509,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		const parts = KeybindingParser.parseUserBinding(userBinding);
-		return this._keyboardMapper.resolveUserBinding(parts);
+		const keybinding = KeybindingParser.parseUserBinding(userBinding);
+		return (keybinding ? this._keyboardMapper.resolveUserBinding(keybinding) : []);
 	}
 
 	private _handleKeybindingsExtensionPointUser(extensionId: ExtensionIdentifier, isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector, result: IExtensionKeybindingRule[]): void {
