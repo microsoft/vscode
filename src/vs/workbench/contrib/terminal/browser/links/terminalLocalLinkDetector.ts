@@ -67,7 +67,7 @@ export const lineAndColumnClause = [
 
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
-	/^\s*(?<link>File "(?<path>.+)"(, line (?<line>\d+))?)/,
+	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
 	// A C++ compile error
 	/^(?<link>(?<path>.+)\((?<line>\d+),(?<col>\d+)\)) :/,
 	// The whole line is the path

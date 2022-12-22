@@ -69,6 +69,16 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 interface LinkFormatInfo {
 	urlFormat: string;
 	resolvedFormat?: string;
+	/**
+	 * The start offset to the buffer range that is not in the actual link (but is in the matched
+	 * area.
+	 */
+	linkCellStartOffset?: number;
+	/**
+	 * The end offset to the buffer range that is not in the actual link (but is in the matched
+	 * area.
+	 */
+	linkCellEndOffset?: number;
 	line?: string;
 	column?: string;
 }
@@ -108,8 +118,10 @@ const windowsFallbackLinks: (string | { link: string; resource: URI })[] = [
 
 const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 	// Python style error: File "<path>", line <line>
-	{ urlFormat: 'File "{0}"', resolvedFormat: '{0}' },
-	{ urlFormat: 'File "{0}", line {1}', line: '5', resolvedFormat: '{0}:{1}' },
+	{ urlFormat: 'File "{0}"', resolvedFormat: '{0}', linkCellStartOffset: 5 },
+	{ urlFormat: 'File "{0}", line {1}', line: '5', resolvedFormat: '{0}:{1}', linkCellStartOffset: 5 },
+	// A C++ compile error
+	{ urlFormat: '{0}({1},{2}) :', line: '5', column: '3', resolvedFormat: '{0}:{1}:{2}', linkCellEndOffset: -2 },
 	// The whole line is the path
 	{ urlFormat: '{0}' },
 ];
@@ -257,14 +269,16 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		for (const l of windowsFallbackLinks) {
 			const baseLink = typeof l === 'string' ? l : l.link;
 			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
-			suite.only(`Fallback link "${baseLink}"`, () => {
+			suite(`Fallback link "${baseLink}"`, () => {
 				for (let i = 0; i < supportedFallbackLinkFormats.length; i++) {
 					const linkFormat = supportedFallbackLinkFormats[i];
 					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
 					const resolvedFormat = linkFormat.resolvedFormat ? format(linkFormat.resolvedFormat, baseLink, linkFormat.line, linkFormat.column) : formattedLink;
+					const linkCellStartOffset = linkFormat.linkCellStartOffset ?? 0;
+					const linkCellEndOffset = linkFormat.linkCellEndOffset ?? 0;
 					test(`should detect in "${formattedLink}"`, async () => {
 						validResources = [resource];
-						await assertLinks(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: resolvedFormat, range: [[1, 1], [formattedLink.length, 1]] }]);
+						await assertLinks(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: resolvedFormat, range: [[1 + linkCellStartOffset, 1], [formattedLink.length + linkCellEndOffset, 1]] }]);
 					});
 				}
 			});
