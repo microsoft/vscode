@@ -16,6 +16,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ExtensionManagementError, ExtensionManagementErrorCode, getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
@@ -92,7 +93,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, true);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Verified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -101,7 +102,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, false);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -110,7 +111,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, false);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -119,7 +120,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, false);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -134,7 +135,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 			assert.ok(e instanceof ExtensionManagementError);
 			assert.strictEqual(e.code, ExtensionManagementErrorCode.Signature);
 			assert.strictEqual(e.message, errorCode);
-			assert.strictEqual(testObject.wasVerified, false);
+			assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
 			assert.strictEqual(testObject.installed, false);
 			return;
 		}
@@ -148,7 +149,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, true);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Verified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -157,7 +158,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, false);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -166,7 +167,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.wasVerified, false);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
 		assert.strictEqual(testObject.installed, true);
 	});
 

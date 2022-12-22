@@ -16,6 +16,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
@@ -46,7 +47,7 @@ export class ExtensionsDownloader extends Disposable {
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<{ readonly location: URI; readonly wasVerified: boolean; readonly hadUnknownError: boolean }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
 		await this.cleanUpPromise;
 
 		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
@@ -56,20 +57,22 @@ export class ExtensionsDownloader extends Disposable {
 			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Download);
 		}
 
-		let wasVerified: boolean = false;
-		let hadUnknownError: boolean = false;
+		let verificationStatus: ExtensionVerificationStatus = ExtensionVerificationStatus.Unverified;
 
 		if (await this.shouldVerifySignature(extension)) {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			try {
-				wasVerified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
-				this.logService.info(`Extension signature verification: ${extension.identifier.id} (was verified: ${wasVerified})`);
+				const verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
+				if (verified) {
+					verificationStatus = ExtensionVerificationStatus.Verified;
+				}
+				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification Status: ${verificationStatus})`);
 			} catch (error) {
 				const code: string = (error as ExtensionSignatureVerificationError).code;
 
 				if (code === 'UnknownError') {
-					hadUnknownError = true;
-					this.logService.warn(`Extension signature verification: ${extension.identifier.id} (was verified: ${wasVerified} with UnknownError)`);
+					verificationStatus = ExtensionVerificationStatus.UnknownError;
+					this.logService.warn(`Extension signature verification: ${extension.identifier.id} (was verified: ${verificationStatus} with UnknownError)`);
 				} else {
 					await this.delete(signatureArchiveLocation);
 					await this.delete(location);
@@ -79,7 +82,7 @@ export class ExtensionsDownloader extends Disposable {
 			}
 		}
 
-		return { location, wasVerified, hadUnknownError };
+		return { location, verificationStatus };
 	}
 
 	private async shouldVerifySignature(extension: IGalleryExtension): Promise<boolean> {

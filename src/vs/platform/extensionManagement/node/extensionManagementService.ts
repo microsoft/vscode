@@ -24,7 +24,7 @@ import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions, InstallVSIXOptions
@@ -635,8 +635,8 @@ export class ExtensionsScanner extends Disposable {
 
 abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtension; metadata: Metadata }> implements IInstallExtensionTask {
 
-	public hadUnknownError: boolean = false;
-	public wasVerified: boolean = false;
+	protected _verificationStatus = ExtensionVerificationStatus.Unverified;
+	get verificationStatus() { return this._verificationStatus; }
 
 	protected _operation = InstallOperation.Install;
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
@@ -738,10 +738,9 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return { local, metadata };
 		}
 
-		const { location, wasVerified, hadUnknownError } = await this.extensionsDownloader.download(this.gallery, this._operation);
+		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation);
 		try {
-			this.wasVerified = !!wasVerified;
-			this.hadUnknownError = !!hadUnknownError;
+			this._verificationStatus = verificationStatus;
 			this.validateManifest(location.fsPath);
 			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
 			return { local, metadata };
@@ -845,12 +844,8 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 	readonly source = this.task.source;
 	readonly operation = this.task.operation;
 
-	get hadUnknownError() {
-		return this.task.hadUnknownError;
-	}
-
-	get wasVerified() {
-		return this.task.wasVerified;
+	get verificationStatus() {
+		return this.task.verificationStatus;
 	}
 
 	private readonly promise: Promise<{ local: ILocalExtension; metadata: Metadata }>;
