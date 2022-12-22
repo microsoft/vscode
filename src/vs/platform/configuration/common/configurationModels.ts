@@ -161,10 +161,6 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this;
 	}
 
-	clone(): ConfigurationModel {
-		return new ConfigurationModel(objects.deepClone(this.contents), [...this.keys], objects.deepClone(this.overrides));
-	}
-
 	private createOverrideConfigurationModel(identifier: string): ConfigurationModel {
 		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
 
