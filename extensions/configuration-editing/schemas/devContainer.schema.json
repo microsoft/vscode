@@ -1,5 +1,5 @@
 {
-	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$schema": "https://json-schema.org/draft/2019-09/schema",
 	"description": "Defines a dev container",
 	"allowComments": true,
 	"allowTrailingCommas": false,
@@ -724,7 +724,8 @@
 								{
 									"$ref": "#/definitions/buildOptions"
 								}
-							]
+							],
+							"unevaluatedProperties": false
 						}
 					},
 					"required": [
@@ -911,8 +912,8 @@
 		},
 		{
 			"type": "object",
-			"$ref": "#/definitions/devContainerCommon",
-			"additionalProperties": false
+			"$ref": "#/definitions/devContainerCommon"
 		}
-	]
+	],
+	"unevaluatedProperties": false
 }
