@@ -138,7 +138,8 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
-		if (a && a.renderLabel) {
+		if (!a || a.renderLabel) {
+			// render new action with label to get a correct full width.
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 		} else {
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
