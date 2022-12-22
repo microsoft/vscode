@@ -6,6 +6,7 @@
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorAction2, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,7 +23,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpoint, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, State, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -249,7 +250,7 @@ export class RunToCursorAction extends EditorAction {
 			id: RunToCursorAction.ID,
 			label: RunToCursorAction.LABEL,
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 2
@@ -275,7 +276,29 @@ export class RunToCursorAction extends EditorAction {
 			// otherwise set it at the precise column #102199
 			column = position.column;
 		}
-
+		if (debugService.state === State.Inactive) {
+			// add a break point to be removed later
+			const canSet = debugService.canSetBreakpointsIn(editor.getModel());
+			const modelUri = editor.getModel().uri;
+			let breakPointToRemove: IBreakpoint | undefined;
+			if (canSet) {
+				breakPointToRemove = (await debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], false))[0];
+			}
+			// start the debugger . Same as Debug: Start Debugging
+			const { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
+			const config = await getConfig();
+			const configOrName = config ? Object.assign(deepClone(config), {}) : name;
+			await debugService.startDebugging(launch, configOrName, undefined, true);
+			// Remove the break point in one time listener
+			// Why can't I invoke runTo and let it do the job ?
+			const listner = debugService.onDidChangeState((state) => {
+				if (state === State.Stopped) {
+					debugService.removeBreakpoints(breakPointToRemove?.getId());
+					listner.dispose();
+				}
+			});
+			return;
+		}
 		await debugService.runTo(uri, position.lineNumber, column);
 	}
 }
