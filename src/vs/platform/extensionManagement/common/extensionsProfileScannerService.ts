@@ -19,12 +19,34 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isObject, isString } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
 	location: UriComponents | string;
 	version: string;
 	metadata?: Metadata;
+}
+
+export const enum ExtensionsProfileScanningErrorCode {
+
+	/**
+	 * Error when trying to scan extensions from a profile that does not exist.
+	 */
+	ERROR_PROFILE_NOT_FOUND = 'ERROR_PROFILE_NOT_FOUND',
+
+	/**
+	 * Error when profile file is invalid.
+	 */
+	ERROR_INVALID_CONTENT = 'ERROR_INVALID_CONTENT',
+
+}
+
+export class ExtensionsProfileScanningError extends Error {
+	constructor(message: string, public code: ExtensionsProfileScanningErrorCode) {
+		super(message);
+	}
 }
 
 export interface IScannedProfileExtension {
@@ -47,6 +69,10 @@ export interface DidRemoveProfileExtensionsEvent extends ProfileExtensionsEvent 
 	readonly error?: Error;
 }
 
+export interface IProfileExtensionsScanOptions {
+	readonly bailOutWhenFileNotFound?: boolean;
+}
+
 export const IExtensionsProfileScannerService = createDecorator<IExtensionsProfileScannerService>('IExtensionsProfileScannerService');
 export interface IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
@@ -56,7 +82,7 @@ export interface IExtensionsProfileScannerService {
 	readonly onRemoveExtensions: Event<ProfileExtensionsEvent>;
 	readonly onDidRemoveExtensions: Event<DidRemoveProfileExtensionsEvent>;
 
-	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]>;
 	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
 }
@@ -82,13 +108,14 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
 
-	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]> {
-		return this.withProfileExtensions(profileLocation);
+	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]> {
+		return this.withProfileExtensions(profileLocation, undefined, options);
 	}
 
 	async addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
@@ -168,7 +195,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		}
 	}
 
-	private async withProfileExtensions(file: URI, updateFn?: (extensions: IScannedProfileExtension[]) => IScannedProfileExtension[]): Promise<IScannedProfileExtension[]> {
+	private async withProfileExtensions(file: URI, updateFn?: (extensions: IScannedProfileExtension[]) => IScannedProfileExtension[], options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]> {
 		return this.getResourceAccessQueue(file).queue(async () => {
 			let extensions: IScannedProfileExtension[] = [];
 
@@ -185,16 +212,19 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				if (this.uriIdentityService.extUri.isEqual(file, this.userDataProfilesService.defaultProfile.extensionsResource)) {
 					storedProfileExtensions = await this.migrateFromOldDefaultProfileExtensionsLocation();
 				}
+				if (!storedProfileExtensions && options?.bailOutWhenFileNotFound) {
+					throw new ExtensionsProfileScanningError(getErrorMessage(error), ExtensionsProfileScanningErrorCode.ERROR_PROFILE_NOT_FOUND);
+				}
 			}
 			if (storedProfileExtensions) {
 				if (!Array.isArray(storedProfileExtensions)) {
-					throw new Error(`Invalid extensions content in ${file.toString()}`);
+					this.reportAndThrowInvalidConentError(file);
 				}
 				// TODO @sandy081: Remove this migration after couple of releases
 				let migrate = false;
 				for (const e of storedProfileExtensions) {
 					if (!isStoredProfileExtension(e)) {
-						throw new Error(`Invalid extensions content in ${file.toString()}`);
+						this.reportAndThrowInvalidConentError(file);
 					}
 					let location: URI;
 					if (isString(e.location)) {
@@ -233,6 +263,17 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 
 			return extensions;
 		});
+	}
+
+	private reportAndThrowInvalidConentError(file: URI): void {
+		type ErrorClassification = {
+			owner: 'sandy081';
+			comment: 'Information about the error that occurred while scanning';
+			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+		};
+		const error = new ExtensionsProfileScanningError(`Invalid extensions content in ${file.toString()}`, ExtensionsProfileScanningErrorCode.ERROR_INVALID_CONTENT);
+		this.telemetryService.publicLogError2<{ code: string }, ErrorClassification>('extensionsProfileScanningError', { code: error.code });
+		throw error;
 	}
 
 	private toRelativePath(extensionsProfileLocation: URI, extensionLocation: URI): string | undefined {
