@@ -18,6 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -75,9 +76,10 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
 		const uriIdentityService = new UriIdentityService(fileService);
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
-		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, userDataProfilesService, uriIdentityService, logService));
+		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, userDataProfilesService, uriIdentityService, NullTelemetryService, logService));
 		await fileService.createFolder(systemExtensionsLocation);
 		await fileService.createFolder(userExtensionsLocation);
 	});
