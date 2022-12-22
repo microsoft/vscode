@@ -67,6 +67,8 @@ export const lineAndColumnClause = [
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// A C++ compile error
+	/^(?<link>(?<path>.+)\((?<line>\d+),(?<col>\d+)\)) :/,
 	// The whole line is the path
 	/^(?<link>(?<path>.+))/
 ];
@@ -228,6 +230,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				const link = group?.link;
 				const path = group?.path;
 				const line = group?.line;
+				const col = group?.col;
 				if (!link || !path) {
 					continue;
 				}
@@ -247,7 +250,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}, startLine);
 
 				// Validate and add link
-				const simpleLink = await this._validateAndGetLink(line ? `${path}:${line}` : path, bufferRange, [path]);
+				const suffix = line ? `:${line}${col ? `:${col}` : ''}` : '';
+				const simpleLink = await this._validateAndGetLink(`${path}${suffix}`, bufferRange, [path]);
 				if (simpleLink) {
 					links.push(simpleLink);
 				}
