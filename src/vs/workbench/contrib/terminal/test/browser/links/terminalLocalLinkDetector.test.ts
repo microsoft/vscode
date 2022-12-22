@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -199,43 +199,47 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 	});
 
-	suite('Windows', () => {
-		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-				initialCwd: 'C:\\Parent\\Cwd',
-				os: OperatingSystem.Windows,
-				remoteAuthority: undefined,
-				userHome: 'C:\\Home',
-				backend: undefined
+	// Only test these when on Windows because there is special behavior around replacing separators
+	// in URI that cannot be changed
+	if (isWindows) {
+		suite('Windows', () => {
+			setup(() => {
+				detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+					initialCwd: 'C:\\Parent\\Cwd',
+					os: OperatingSystem.Windows,
+					remoteAuthority: undefined,
+					userHome: 'C:\\Home',
+					backend: undefined
+				});
+			});
+
+			for (const l of windowsLinks) {
+				const baseLink = typeof l === 'string' ? l : l.link;
+				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+				suite(`Link "${baseLink}"`, () => {
+					for (let i = 0; i < supportedLinkFormats.length; i++) {
+						const linkFormat = supportedLinkFormats[i];
+						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+						test(`should detect in "${formattedLink}"`, async () => {
+							validResources = [resource];
+							await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
+							await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
+							await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
+							await assertLink(TerminalBuiltinLinkType.LocalFile, `[${formattedLink}]`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
+						});
+					}
+				});
+			}
+
+			test('Git diff links', async () => {
+				validResources = [URI.file('C:\\Parent\\Cwd\\foo\\bar')];
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `diff --git a/foo/bar b/foo/bar`, [
+					{ text: 'foo/bar', range: [[14, 1], [20, 1]] },
+					{ text: 'foo/bar', range: [[24, 1], [30, 1]] }
+				]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `--- a/foo/bar`, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `+++ b/foo/bar`, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
 			});
 		});
-
-		for (const l of windowsLinks) {
-			const baseLink = typeof l === 'string' ? l : l.link;
-			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
-			suite(`Link "${baseLink}"`, () => {
-				for (let i = 0; i < supportedLinkFormats.length; i++) {
-					const linkFormat = supportedLinkFormats[i];
-					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
-					test(`should detect in "${formattedLink}"`, async () => {
-						validResources = [resource];
-						await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
-						await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
-						await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
-						await assertLink(TerminalBuiltinLinkType.LocalFile, `[${formattedLink}]`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
-					});
-				}
-			});
-		}
-
-		test('Git diff links', async () => {
-			validResources = [URI.file('C:\\Parent\\Cwd\\foo\\bar')];
-			await assertLink(TerminalBuiltinLinkType.LocalFile, `diff --git a/foo/bar b/foo/bar`, [
-				{ text: 'foo/bar', range: [[14, 1], [20, 1]] },
-				{ text: 'foo/bar', range: [[24, 1], [30, 1]] }
-			]);
-			await assertLink(TerminalBuiltinLinkType.LocalFile, `--- a/foo/bar`, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
-			await assertLink(TerminalBuiltinLinkType.LocalFile, `+++ b/foo/bar`, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
-		});
-	});
+	}
 });
