@@ -11,7 +11,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITerminalLinkResolverService, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { assertLinkHelper, resolveLinkForTest } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
+import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
 import { Terminal } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
@@ -104,7 +104,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	let configurationService: TestConfigurationService;
 	let detector: TerminalLocalLinkDetector;
 	let xterm: Terminal;
-	let validResources: URI[] = [];
+	let validResources: URI[];
 
 	async function assertLink(
 		type: TerminalBuiltinLinkType,
@@ -131,17 +131,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			}
 		});
 		instantiationService.set(ITerminalLinkResolverService, instantiationService.createInstance(TerminalLinkResolverService));
+		validResources = [];
 
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 
 	suite('platform independent', () => {
 		setup(() => {
-			instantiationService.stub(ITerminalLinkResolverService, {
-				async resolveLink(processManager, link, uri?) {
-					return resolveLinkForTest(link, uri);
-				}
-			});
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
 				initialCwd: '/parent/cwd',
 				os: OperatingSystem.Linux,

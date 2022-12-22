@@ -25,7 +25,7 @@ export class TerminalLinkResolverService implements ITerminalLinkResolverService
 	) {
 	}
 
-	async resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink> {
+	async resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink> {
 		// Get the link cache
 		let cache = this._resolvedLinkCaches.get(processManager.remoteAuthority ?? '');
 		if (!cache) {
