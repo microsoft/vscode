@@ -431,31 +431,6 @@ suite('Splitview', () => {
 		view1.dispose();
 	});
 
-	test('Issue #70083: When giving room back to split view, give it all back to maximized view', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
-
-		splitview.addView(view1, Sizing.Distribute);
-		assert.strictEqual(view1.size, 200);
-
-		splitview.addView(view2, Sizing.Split(0));
-		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
-
-		// Maximize view 1 (by shrinking view 2)
-		splitview.resizeView(1, view2.minimumSize);
-		assert.deepStrictEqual([view1.size, view2.size], [180, 20]);
-
-		// Give space back to views (e.g. when sidebar closes)
-		splitview.layout(250);
-		assert.deepStrictEqual([view1.size, view2.size], [230, 20]);
-
-		splitview.dispose();
-		view2.dispose();
-		view1.dispose();
-	});
-
 	test('proportional layout', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);

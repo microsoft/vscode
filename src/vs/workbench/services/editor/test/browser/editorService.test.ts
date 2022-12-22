@@ -2657,30 +2657,4 @@ suite('EditorService', () => {
 
 		assert.strictEqual(events[0].context, EditorCloseContext.REPLACE);
 	});
-
-	test('Issue #137865: Adding and removing groups should maintain maximized views', async () => {
-		const [part] = await createEditorService();
-
-		// Set up 2 groups with first maximized
-		const rootGroup = part.activeGroup;
-		let rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-		let rightGroupSize = part.getSize(rightGroup);
-		rightGroupSize.width = rightGroup.minimumWidth;
-		part.setSize(rightGroup, rightGroupSize);
-		part.activateGroup(rootGroup);
-		assert.strictEqual(part.getSize(rightGroup).width, rightGroup.minimumWidth);
-		assert.strictEqual(part.getSize(rootGroup).width, 1080 - rightGroup.minimumWidth);
-
-		// Add a group
-		let addedGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-		part.activateGroup(addedGroup);
-		assert.strictEqual(part.getSize(rightGroup).width, rightGroup.minimumWidth);
-		assert.strictEqual(part.getSize(rootGroup).width, rootGroup.minimumWidth);
-		assert.strictEqual(part.getSize(addedGroup).width, 1080 - rightGroup.minimumWidth - rootGroup.minimumWidth);
-
-		// Remove group
-		part.removeGroup(addedGroup);
-		assert.strictEqual(part.getSize(rightGroup).width, rightGroup.minimumWidth);
-		assert.strictEqual(part.getSize(rootGroup).width, 1080 - rightGroup.minimumWidth);
-	});
 });
