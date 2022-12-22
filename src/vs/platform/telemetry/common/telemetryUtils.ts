@@ -13,7 +13,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * A special class used to denoting a telemetry value which should not be clean.
@@ -161,7 +161,7 @@ export function isLoggingOnly(productService: IProductService, environmentServic
  */
 export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
 	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
-	const crashReporterConfig = configurationService.getValue<boolean | undefined>('telemetry.enableCrashReporter');
+	const crashReporterConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_CRASH_REPORTER_SETTING_ID);
 	const oldConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_OLD_SETTING_ID);
 
 	// If `telemetry.enableCrashReporter` is false or `telemetry.enableTelemetry' is false, disable telemetry
