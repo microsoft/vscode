@@ -200,14 +200,24 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	});
 
 	suite('Windows', () => {
+		const wslUnixToWindowsPathMap: Map<string, string> = new Map();
+
 		setup(() => {
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
 				initialCwd: 'C:\\Parent\\Cwd',
 				os: OperatingSystem.Windows,
 				remoteAuthority: undefined,
 				userHome: 'C:\\Home',
-				backend: undefined
+				backend: {
+					async getWslPath(original, direction) {
+						if (direction === 'unix-to-win') {
+							return wslUnixToWindowsPathMap.get(original) ?? original;
+						}
+						return original;
+					},
+				}
 			});
+			wslUnixToWindowsPathMap.clear();
 		});
 
 		for (const l of windowsLinks) {
@@ -236,6 +246,36 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			]);
 			await assertLink(TerminalBuiltinLinkType.LocalFile, `--- a/foo/bar`, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
 			await assertLink(TerminalBuiltinLinkType.LocalFile, `+++ b/foo/bar`, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
+		});
+
+		suite('WSL', () => {
+			test('Unix -> Windows /mnt/ style links', async () => {
+				wslUnixToWindowsPathMap.set('/mnt/c/foo/bar', 'C:\\foo\\bar');
+				validResources = [URI.file('C:\\foo\\bar')];
+				const wslLink = '/mnt/c/foo/bar';
+				await assertLink(TerminalBuiltinLinkType.LocalFile, wslLink, [{ text: wslLink, range: [[1, 1], [wslLink.length, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${wslLink} `, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `(${wslLink})`, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `[${wslLink}]`, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+			});
+
+			test('Windows -> Unix \\\\wsl$\\ style links', async () => {
+				validResources = [URI.file('\\\\wsl$\\Debian\\home\\foo\\bar')];
+				const wslLink = '\\\\wsl$\\Debian\\home\\foo\\bar';
+				await assertLink(TerminalBuiltinLinkType.LocalFile, wslLink, [{ text: wslLink, range: [[1, 1], [wslLink.length, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${wslLink} `, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `(${wslLink})`, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `[${wslLink}]`, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+			});
+
+			test('Windows -> Unix \\\\wsl.localhost\\ style links', async () => {
+				validResources = [URI.file('\\\\wsl.localhost\\Debian\\home\\foo\\bar')];
+				const wslLink = '\\\\wsl.localhost\\Debian\\home\\foo\\bar';
+				await assertLink(TerminalBuiltinLinkType.LocalFile, wslLink, [{ text: wslLink, range: [[1, 1], [wslLink.length, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${wslLink} `, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `(${wslLink})`, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+				await assertLink(TerminalBuiltinLinkType.LocalFile, `[${wslLink}]`, [{ text: wslLink, range: [[2, 1], [wslLink.length + 1, 1]] }]);
+			});
 		});
 	});
 });
