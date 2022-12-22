@@ -31,7 +31,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 interface ISideBySideEditorViewState {
 	primary: object;

@@ -26,7 +26,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export interface IOpenEditorResult {
 

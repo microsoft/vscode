@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import * as assert from 'vs/base/common/assert';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -80,11 +80,6 @@ interface IEditorsDiffDecorationsWithZones {
 interface IEditorsZones {
 	original: IMyViewZone[];
 	modified: IMyViewZone[];
-}
-
-export interface IBoundarySashes {
-	readonly top?: Sash;
-	readonly bottom?: Sash;
 }
 
 class VisualEditorState {
