@@ -11,7 +11,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getOrSet, ResourceMap } from 'vs/base/common/map';
 import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
@@ -1077,7 +1076,10 @@ export function mergeChanges(...changes: IConfigurationChange[]): IConfiguration
 
 export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private readonly _changeTree = TernarySearchTree.forConfigKeys<true>();
+	private readonly _marker = '\n';
+	private readonly _markerCode1 = this._marker.charCodeAt(0);
+	private readonly _markerCode2 = '.'.charCodeAt(0);
+	private readonly _affectsConfigStr: string;
 
 	readonly affectedKeys = new Set<string>();
 	source!: ConfigurationTarget;
@@ -1085,14 +1087,16 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
 	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
 		for (const key of change.keys) {
-			this._changeTree.set(key, true);
 			this.affectedKeys.add(key);
 		}
 		for (const [, keys] of change.overrides) {
 			for (const key of keys) {
-				this._changeTree.set(key, true);
 				this.affectedKeys.add(key);
 			}
+		}
+		this._affectsConfigStr = '\n';
+		for (const key of this.affectedKeys) {
+			this._affectsConfigStr = key + '\n';
 		}
 	}
 
@@ -1105,7 +1109,21 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	}
 
 	affectsConfiguration(section: string, overrides?: IConfigurationOverrides): boolean {
-		if (!this._changeTree.hasElementOrSubtree(section)) {
+		// we have one large string with all keys that have changed. we pad (marker) the section
+		// and check that either find it padded or before a segment character
+		const needle = this._marker + section;
+		const idx = this._affectsConfigStr.indexOf(needle);
+		if (idx < 0) {
+			// NOT: (marker + section)
+			return false;
+		}
+		const pos = idx + needle.length;
+		if (pos >= this._affectsConfigStr.length) {
+			return false;
+		}
+		const code = this._affectsConfigStr.charCodeAt(pos);
+		if (code !== this._markerCode1 && code !== this._markerCode2) {
+			// NOT: section + (marker | segment)
 			return false;
 		}
 		if (overrides) {
