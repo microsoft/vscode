@@ -58,6 +58,48 @@ async function buildIndividualFixes(
 	}
 }
 
+async function buildAwaitInSyncFixes(
+	fixes: readonly AutoFix[],
+	edit: vscode.WorkspaceEdit,
+	client: ITypeScriptServiceClient,
+	file: string,
+	diagnostics: readonly vscode.Diagnostic[],
+	token: vscode.CancellationToken,
+): Promise<void> {
+	const handledLocations: Proto.Location[] = [];
+	for (const diagnostic of diagnostics) {
+		for (const { codes, fixName } of fixes) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			if (!codes.has(diagnostic.code as number)) {
+				continue;
+			}
+
+			const args: Proto.CodeFixRequestArgs = {
+				...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
+				errorCodes: [+(diagnostic.code!)]
+			};
+
+			const response = await client.execute('getCodeFixes', args, token);
+			if (response.type !== 'response') {
+				continue;
+			}
+
+			const fix = response.body?.find(fix => fix.fixName === fixName);
+			if (fix) {
+				const [textChange] = fix.changes[0].textChanges;
+				if (!handledLocations.some(({ line, offset, }) => line === textChange.start.line && offset === textChange.start.offset)) {
+					handledLocations.push(textChange.start);
+					typeConverters.WorkspaceEdit.withFileCodeEdits(edit, client, fix.changes);
+				}
+				break;
+			}
+		}
+	}
+}
+
 async function buildCombinedFix(
 	fixes: readonly AutoFix[],
 	edit: vscode.WorkspaceEdit,
@@ -137,9 +179,12 @@ class SourceFixAll extends SourceAction {
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
 		this.edit = new vscode.WorkspaceEdit();
 
+		await buildAwaitInSyncFixes([
+			{ codes: errorCodes.asyncOnlyAllowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction },
+		], this.edit, client, file, diagnostics, token);
+
 		await buildIndividualFixes([
 			{ codes: errorCodes.incorrectlyImplementsInterface, fixName: fixNames.classIncorrectlyImplementsInterface },
-			{ codes: errorCodes.asyncOnlyAllowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction },
 		], this.edit, client, file, diagnostics, token);
 
 		await buildCombinedFix([
