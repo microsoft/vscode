@@ -8,9 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { convertLinkRangeToBuffer, getXtermLineContent, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IBufferLine, Terminal } from 'xterm';
+import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 
 const enum Constants {
 	/**
@@ -63,6 +63,13 @@ export const lineAndColumnClause = [
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
+
+const fallbackMatchers: RegExp[] = [
+	// Python style error: File "<path>", line <line>
+	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// The whole line is the path
+	/^(?<link>(?<path>.+))/
+];
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
@@ -197,35 +204,85 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
 
-			const linkStat = await this._validateLinkCandidates(linkCandidates);
+			// Validate and add link
+			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
+			if (simpleLink) {
+				links.push(simpleLink);
+			}
 
-			// Create the link if validated
-			if (linkStat) {
-				let type: TerminalBuiltinLinkType;
-				if (linkStat.isDirectory) {
-					if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-						type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-					} else {
-						type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-					}
-				} else {
-					type = TerminalBuiltinLinkType.LocalFile;
+			// Stop early if too many links exist in the line
+			if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
+				break;
+			}
+		}
+
+		// Match against the fallback matchers which are mainly designed to catch paths with spaces
+		// that aren't possible using the regular mechanism.
+		if (links.length === 0) {
+			for (const matcher of fallbackMatchers) {
+				const match = text.match(matcher);
+				const group = match?.groups;
+				if (!group) {
+					continue;
 				}
-				// Offset the buffer range if the link range was trimmed
-				const trimRange = trimRangeMap.get(linkStat.link);
-				if (trimRange) {
-					bufferRange.end.x -= trimRange;
-					if (bufferRange.end.x < 0) {
-						bufferRange.end.y--;
-						bufferRange.end.x += this.xterm.cols;
-					}
+				const link = group?.link;
+				const path = group?.path;
+				const line = group?.line;
+				if (!link || !path) {
+					continue;
 				}
-				links.push({
-					text: linkStat.link,
-					uri: linkStat.uri,
-					bufferRange,
-					type
-				});
+
+				// Don't try resolve any links of excessive length
+				if (link.length > Constants.MaxResolvedLinkLength) {
+					continue;
+				}
+
+				// Convert the link text's string index into a wrapped buffer range
+				stringIndex = text.indexOf(link);
+				const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
+					startColumn: stringIndex + 1,
+					startLineNumber: 1,
+					endColumn: stringIndex + link.length + 1,
+					endLineNumber: 1
+				}, startLine);
+
+				// Validate and add link
+				const simpleLink = await this._validateAndGetLink(line ? `${path}:${line}` : path, bufferRange, [path]);
+				if (simpleLink) {
+					links.push(simpleLink);
+				}
+
+				// Only match a single fallback matcher
+				break;
+			}
+		}
+
+		// Sometimes links are styled specially in the terminal like underlined or bolded, try split
+		// the line by attributes and test whether it matches a path
+		if (links.length === 0) {
+			const rangeCandidates = getXtermRangesByAttr(this.xterm.buffer.active, startLine, endLine, this.xterm.cols);
+			for (const rangeCandidate of rangeCandidates) {
+				let text = '';
+				for (let y = rangeCandidate.start.y; y <= rangeCandidate.end.y; y++) {
+					const line = this.xterm.buffer.active.getLine(y);
+					if (!line) {
+						break;
+					}
+					const lineStartX = y === rangeCandidate.start.y ? rangeCandidate.start.x : 0;
+					const lineEndX = y === rangeCandidate.end.y ? rangeCandidate.end.x : this.xterm.cols - 1;
+					text += line.translateToString(false, lineStartX, lineEndX);
+				}
+
+				// HACK: Adjust to 1-based for link API
+				rangeCandidate.start.x++;
+				rangeCandidate.start.y++;
+				rangeCandidate.end.y++;
+
+				// Validate and add link
+				const simpleLink = await this._validateAndGetLink(text, rangeCandidate, [text]);
+				if (simpleLink) {
+					links.push(simpleLink);
+				}
 
 				// Stop early if too many links exist in the line
 				if (++resolvedLinkCount >= Constants.MaxResolvedLinksInLine) {
@@ -253,6 +310,45 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			if (result) {
 				return result;
 			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Validates a set of link candidates and returns a link if validated.
+	 * @param linkText The link text, this should be undefined to use the link stat value
+	 * @param trimRangeMap A map of link candidates to the amount of buffer range they need trimmed.
+	 */
+	private async _validateAndGetLink(linkText: string | undefined, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
+		const linkStat = await this._validateLinkCandidates(linkCandidates);
+		if (linkStat) {
+			let type: TerminalBuiltinLinkType;
+			if (linkStat.isDirectory) {
+				if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
+					type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
+				} else {
+					type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+				}
+			} else {
+				type = TerminalBuiltinLinkType.LocalFile;
+			}
+
+			// Offset the buffer range if the link range was trimmed
+			const trimRange = trimRangeMap?.get(linkStat.link);
+			if (trimRange) {
+				bufferRange.end.x -= trimRange;
+				if (bufferRange.end.x < 0) {
+					bufferRange.end.y--;
+					bufferRange.end.x += this.xterm.cols;
+				}
+			}
+
+			return {
+				text: linkText ?? linkStat.link,
+				uri: linkStat.uri,
+				bufferRange: bufferRange,
+				type
+			};
 		}
 		return undefined;
 	}
