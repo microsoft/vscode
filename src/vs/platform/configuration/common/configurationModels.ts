@@ -1094,9 +1094,11 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 				this.affectedKeys.add(key);
 			}
 		}
-		this._affectsConfigStr = '\n';
+
+		// Example: '\nfoo.bar\nabc.def\n'
+		this._affectsConfigStr = this._marker;
 		for (const key of this.affectedKeys) {
-			this._affectsConfigStr = key + '\n';
+			this._affectsConfigStr = key + this._marker;
 		}
 	}
 
