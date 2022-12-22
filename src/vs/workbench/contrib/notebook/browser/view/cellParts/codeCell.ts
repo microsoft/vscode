@@ -182,7 +182,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (model && this.templateData.editor) {
-				this._reigsterModelListeners();
+				this._reigsterModelListeners(model);
 				this.templateData.editor.setModel(model);
 				this.viewCell.attachTextEditor(this.templateData.editor, this.viewCell.layoutInfo.estimatedHasHorizontalScrolling);
 				const focusEditorIfNeeded = () => {
