@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const enum ExtensionVerificationStatus {
-	'Verified' = 'verified',
+	'Verified' = 'Verified',
 	'Unverified' = 'Unverified',
 	'UnknownError' = 'UnknownError',
 }
@@ -686,7 +686,7 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, hadUnknownError, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; hadUnknownError?: boolean; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
 	let errorcode: ExtensionManagementErrorCode | undefined;
 	let errorcodeDetail: string | undefined;
 
@@ -736,13 +736,12 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"hadUnknownError" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, hadUnknownError, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
+	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
 }
 
 export abstract class AbstractExtensionTask<T> {

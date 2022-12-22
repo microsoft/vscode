@@ -66,13 +66,13 @@ export class ExtensionsDownloader extends Disposable {
 				if (verified) {
 					verificationStatus = ExtensionVerificationStatus.Verified;
 				}
-				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification Status: ${verificationStatus})`);
+				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
 			} catch (error) {
 				const code: string = (error as ExtensionSignatureVerificationError).code;
 
 				if (code === 'UnknownError') {
 					verificationStatus = ExtensionVerificationStatus.UnknownError;
-					this.logService.warn(`Extension signature verification: ${extension.identifier.id} (was verified: ${verificationStatus} with UnknownError)`);
+					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
 				} else {
 					await this.delete(signatureArchiveLocation);
 					await this.delete(location);
