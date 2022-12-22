@@ -14,7 +14,6 @@ import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } fro
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -188,7 +187,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
@@ -341,12 +339,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		result.push(`User Resolved Keybindings (unique only):`);
-		for (const _item of this.userKeybindings.keybindings) {
-			const item = KeybindingIO.readUserKeybindingItem(_item);
+		for (const item of this.userKeybindings.keybindings) {
 			if (!item.parts || item.parts.length === 0) {
 				continue;
 			}
-			const input = _item.key;
+			const input = item._source.key;
 			if (seenBindings.has(input)) {
 				continue;
 			}
@@ -386,7 +383,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
 			const defaults = this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
-			const overrides = this._resolveUserKeybindingItems(this.userKeybindings.keybindings.map((k) => KeybindingIO.readUserKeybindingItem(k)), false);
+			const overrides = this._resolveUserKeybindingItems(this.userKeybindings.keybindings, false);
 			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
 		}
 		return this._cachedResolver;
@@ -686,8 +683,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 class UserKeybindings extends Disposable {
 
-	private _keybindings: IUserFriendlyKeybinding[] = [];
-	get keybindings(): IUserFriendlyKeybinding[] { return this._keybindings; }
+	private _rawKeybindings: IUserFriendlyKeybinding[] = [];
+	private _keybindings: IUserKeybindingItem[] = [];
+	get keybindings(): IUserKeybindingItem[] { return this._keybindings; }
 
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
@@ -748,15 +746,25 @@ class UserKeybindings extends Disposable {
 	}
 
 	private async reload(): Promise<boolean> {
-		const existing = this._keybindings;
+		const newKeybindings = await this.readUserKeybindings();
+		if (objects.equals(this._rawKeybindings, newKeybindings)) {
+			// no change
+			return false;
+		}
+
+		this._rawKeybindings = newKeybindings;
+		this._keybindings = this._rawKeybindings.map((k) => KeybindingIO.readUserKeybindingItem(k));
+		return true;
+	}
+
+	private async readUserKeybindings(): Promise<IUserFriendlyKeybinding[]> {
 		try {
 			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
-			this._keybindings = Array.isArray(value) ? value : [];
+			return Array.isArray(value) ? value : [];
 		} catch (e) {
-			this._keybindings = [];
+			return [];
 		}
-		return existing ? !objects.equals(existing, this._keybindings) : true;
 	}
 }
 

@@ -14,6 +14,7 @@ export interface IUserKeybindingItem {
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | undefined;
+	_source: IUserFriendlyKeybinding;
 }
 
 export class KeybindingIO {
@@ -51,7 +52,8 @@ export class KeybindingIO {
 			parts: parts,
 			command: command,
 			commandArgs: commandArgs,
-			when: when
+			when: when,
+			_source: input
 		};
 	}
 }
