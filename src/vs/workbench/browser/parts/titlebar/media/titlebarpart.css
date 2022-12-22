@@ -3,17 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* START: Don't commit */
-.monaco-workbench .part.titlebar > .titlebar-container .window-controls-container {
-	background-color: crimson;
-}
-
-.monaco-workbench .part.titlebar .titlebar-container.titlebar-container.counter-zoom {
-	outline: 1px dashed crimson;
-	outline-offset: -3px;
-}
-/* END: Don't commit */
-
 /* Part Element */
 .monaco-workbench .part.titlebar {
 	display: flex;
@@ -288,7 +277,7 @@
 	height: 100%;
 }
 
-/* Web WCO Sizing */
+/* Web WCO Sizing/Ordering */
 .monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container {
 	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
 	height: env(titlebar-area-height, 35px);
@@ -297,6 +286,14 @@
 .monaco-workbench.web .part.titlebar .titlebar-left .window-controls-container {
 	width: env(titlebar-area-x, 0px);
 	height: env(titlebar-area-height, 35px);
+}
+
+.monaco-workbench.web.mac .part.titlebar .titlebar-left .window-controls-container {
+	order: 0;
+}
+
+.monaco-workbench.web.mac .part.titlebar .titlebar-right .window-controls-container {
+	order: 1;
 }
 
 /* Desktop Windows/Linux Window Controls*/
@@ -312,24 +309,9 @@
 	zoom: calc(1 / var(--zoom-factor, 1));
 }
 
-.monaco-workbench.mac .part.titlebar .titlebar-container.counter-zoom .window-controls-container {
-	zoom: unset !important;
-}
-
-.monaco-workbench.mac .part.titlebar .window-controls-container {
+/* Desktop macOS Window Controls */
+.monaco-workbench:not(.web).mac .part.titlebar .window-controls-container.primary {
 	width: 70px;
-}
-
-.monaco-workbench.web.mac .part.titlebar .titlebar-left .window-controls-container {
-	width: env(titlebar-area-x, 0px);
-	height: env(titlebar-area-height, 35px);
-	order: 0;
-}
-
-.monaco-workbench.web.mac .part.titlebar .titlebar-right .window-controls-container {
-	width: calc(100vw - (env(titlebar-area-x, 0px) + env(titlebar-area-width, 100vw)));
-	height: env(titlebar-area-height, 35px);
-	order: 1;
 }
 
 .monaco-workbench.fullscreen .part.titlebar .window-controls-container {
