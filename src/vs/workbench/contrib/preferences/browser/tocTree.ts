@@ -17,7 +17,7 @@ import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { settingsHeaderForeground, settingsHeaderHoverForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
@@ -239,8 +239,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,
-			listFocusForeground: foreground, // transparent(foreground, 0.9),
-			listHoverForeground: foreground, // transparent(foreground, 0.9),
+			listFocusForeground: settingsHeaderHoverForeground,
+			listHoverForeground: settingsHeaderHoverForeground,
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,

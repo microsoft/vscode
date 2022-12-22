@@ -952,8 +952,6 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
-	readonly listStyles?: IListStyles;
-
 	// list view options
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
@@ -1035,8 +1033,7 @@ const DefaultOptions: IListOptions<any> = {
 		onDragStart(): void { },
 		onDragOver() { return false; },
 		drop() { }
-	},
-	listStyles: unthemedListStyles
+	}
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1417,8 +1414,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
-
-		this.style(_options.listStyles || unthemedListStyles);
 	}
 
 	protected createMouseController(options: IListOptions<T>): MouseController<T> {

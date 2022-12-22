@@ -257,12 +257,12 @@ export class SuggestWidget implements IDisposable {
 
 					return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
 				},
-			},
-			listStyles: getListStyles({
-				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-				listInactiveFocusOutline: activeContrastBorder
-			})
+			}
 		});
+		this._list.style(getListStyles({
+			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
+			listInactiveFocusOutline: activeContrastBorder
+		}));
 
 		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode);
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);

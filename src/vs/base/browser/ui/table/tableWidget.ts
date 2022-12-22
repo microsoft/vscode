@@ -135,7 +135,7 @@ class ColumnHeader<TRow, TCell> implements IView {
 	}
 }
 
-export interface ITableOptions<TRow> extends IListOptions<TRow> { listStyles?: ITableStyles }
+export interface ITableOptions<TRow> extends IListOptions<TRow> { }
 export interface ITableOptionsUpdate extends IListOptionsUpdate { }
 export interface ITableStyles extends IListStyles { }
 
@@ -220,7 +220,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		}, null, this.disposables);
 
 		this.styleElement = createStyleSheet(this.domNode);
-		this.style(_options?.listStyles ?? unthemedListStyles);
+		this.style(unthemedListStyles);
 	}
 
 	updateOptions(options: ITableOptionsUpdate): void {

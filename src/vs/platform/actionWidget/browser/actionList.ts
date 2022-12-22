@@ -187,7 +187,6 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		};
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService), new HeaderRenderer()], {
 			keyboardSupport: false,
-			listStyles: defaultListStyles,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -204,6 +203,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getWidgetRole: () => 'listbox'
 			},
 		}));
+		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));

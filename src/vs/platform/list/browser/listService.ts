@@ -9,7 +9,7 @@ import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate }
 import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { DefaultStyleController, IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { ITableOptions, ITableOptionsUpdate, Table } from 'vs/base/browser/ui/table/tableWidget';
+import { ITableOptions, ITableOptionsUpdate, ITableStyles, Table } from 'vs/base/browser/ui/table/tableWidget';
 import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
@@ -245,7 +245,6 @@ export class WorkbenchList<T> extends List<T> {
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				listStyles: defaultListStyles,
 				...workbenchListOptions,
 				horizontalScrolling,
 			}
@@ -271,9 +270,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
-		}
+		this.updateStyles(options.overrideStyles);
 
 		this.disposables.add(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
@@ -326,17 +323,15 @@ export class WorkbenchList<T> extends List<T> {
 	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
-		}
+		this.updateStyles(options.overrideStyles);
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 		}
 	}
 
-	private updateStyles(styles: IStyleOverride<IListStyles>): void {
-		this.style(getListStyles(styles));
+	private updateStyles(styles: IStyleOverride<IListStyles> | undefined): void {
+		this.style(styles ? getListStyles(styles) : defaultListStyles);
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
@@ -374,7 +369,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				listStyles: defaultListStyles,
 				...workbenchListOptions,
 				horizontalScrolling,
 			}
@@ -398,9 +392,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
-		}
+		this.updateStyles(options.overrideStyles);
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -446,8 +438,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		}
 	}
 
-	private updateStyles(styles: IStyleOverride<IListStyles>): void {
-		this.style(getListStyles(styles));
+	private updateStyles(styles: IStyleOverride<IListStyles> | undefined): void {
+		this.style(styles ? getListStyles(styles) : defaultListStyles);
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
@@ -498,7 +490,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		super(user, container, delegate, columns, renderers,
 			{
 				keyboardSupport: false,
-				listStyles: defaultListStyles,
 				...workbenchListOptions,
 				horizontalScrolling,
 			}
@@ -524,9 +515,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
-		}
+		this.updateStyles(options.overrideStyles);
 
 		this.disposables.add(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
@@ -579,17 +568,15 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	override updateOptions(options: IWorkbenchTableOptionsUpdate): void {
 		super.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
-		}
+		this.updateStyles(options.overrideStyles);
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
 		}
 	}
 
-	private updateStyles(styles: IStyleOverride<IListStyles>): void {
-		this.style(getListStyles(styles));
+	private updateStyles(styles: IStyleOverride<ITableStyles> | undefined): void {
+		this.style(styles ? getListStyles(styles) : defaultListStyles);
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
