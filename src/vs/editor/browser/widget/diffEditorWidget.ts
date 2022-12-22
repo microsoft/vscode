@@ -82,6 +82,11 @@ interface IEditorsZones {
 	modified: IMyViewZone[];
 }
 
+export interface IBoundarySashes {
+	readonly top?: Sash;
+	readonly bottom?: Sash;
+}
+
 class VisualEditorState {
 	private _zones: string[];
 	private _inlineDiffMargins: InlineDiffMargin[];
@@ -219,6 +224,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _isVisible: boolean;
 	private _isHandlingScrollEvent: boolean;
+
+	private _boundarySashes: IBoundarySashes | undefined;
 
 	private _options: ValidDiffEditorBaseOptions;
 
@@ -402,6 +409,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public getViewWidth(): number {
 		return this._elementSizeObserver.getWidth();
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes) {
+		this._boundarySashes = sashes;
+		this._strategy.setBoundarySashes(sashes);
 	}
 
 	private _setState(newState: editorBrowser.DiffEditorState): void {
@@ -1402,6 +1414,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._strategy?.dispose();
 
 		this._strategy = newStrategy;
+
+		if (this._boundarySashes) {
+			newStrategy.setBoundarySashes(this._boundarySashes);
+		}
+
 		newStrategy.applyColors(this._themeService.getColorTheme());
 
 		if (this._diffComputationResult) {
@@ -1571,6 +1588,10 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 
 	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	public abstract layout(): number;
+
+	setBoundarySashes(_sashes: IBoundarySashes): void {
+		// To be implemented by subclasses
+	}
 }
 
 interface IMyViewZone {
@@ -2048,6 +2069,10 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 	public getVerticalSashHeight(sash: Sash): number {
 		return this._dataSource.getHeight();
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this._sash.orthogonalEndSash = sashes.bottom;
 	}
 
 	protected _getViewZones(lineChanges: ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[]): IEditorsZones {
