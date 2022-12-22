@@ -1072,6 +1072,14 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(testObject.affectsConfiguration('tasks'));
 	});
 
+	test('affectsConfiguration returns false for empty string', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({ 'window.zoomLevel': 1 }));
+		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+
+		assert.strictEqual(false, testObject.affectsConfiguration(''));
+	});
+
 });
 
 function toConfigurationModel(obj: any): ConfigurationModel {
