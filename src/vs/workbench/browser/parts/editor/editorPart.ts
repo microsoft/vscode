@@ -499,6 +499,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+		const shouldMaximize = this.groupViews.size > 1 && this.isGroupMaximized(locationView);
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
@@ -517,6 +518,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Notify group index change given a new group was added
 		this.notifyGroupIndexChange();
+
+		// Maximize new group, if the reference view was previously maximized
+		if (shouldMaximize) {
+			this.arrangeGroups(GroupsArrangement.MAXIMIZE, newGroupView);
+		}
 
 		return newGroupView;
 	}
