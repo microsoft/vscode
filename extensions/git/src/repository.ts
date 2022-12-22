@@ -298,8 +298,8 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
-	clone() {
-		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
+	clone(resourceGroupType?: ResourceGroupType) {
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
 	}
 }
 
@@ -1093,7 +1093,7 @@ export class Repository implements Disposable {
 				const addedResourceStates: Resource[] = [];
 				for (const resource of [...this.mergeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.workingTreeGroup.resourceStates]) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath) && !indexGroupResourcePaths.includes(resource.resourceUri.fsPath)) {
-						addedResourceStates.push(resource);
+						addedResourceStates.push(resource.clone(ResourceGroupType.Index));
 					}
 				}
 
@@ -1141,6 +1141,7 @@ export class Repository implements Disposable {
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
 
 				const resourcePaths = resources.length === 0 ?
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
@@ -1151,9 +1152,9 @@ export class Repository implements Disposable {
 				for (const resource of this.indexGroup.resourceStates) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath)) {
 						if (resource.type === Status.INDEX_ADDED) {
-							untrackedResources.push(resource);
+							untrackedResources.push(resource.clone(untrackedChangesResourceGroupType));
 						} else {
-							trackedResources.push(resource);
+							trackedResources.push(resource.clone(ResourceGroupType.WorkingTree));
 						}
 					}
 				}
