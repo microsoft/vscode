@@ -26,6 +26,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 
 export interface IOpenEditorResult {
 
@@ -85,6 +86,7 @@ export class EditorPanes extends Disposable {
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private pagePosition: IDomNodePagePosition | undefined;
+	private boundarySashes: IBoundarySashes | undefined;
 	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
@@ -273,6 +275,11 @@ export class EditorPanes extends Disposable {
 			editorPane.layout(new Dimension(this.pagePosition.width, this.pagePosition.height), { top: this.pagePosition.top, left: this.pagePosition.left });
 		}
 
+		// Boundary sashes
+		if (this.boundarySashes) {
+			editorPane.setBoundarySashes(this.boundarySashes);
+		}
+
 		return editorPane;
 	}
 
@@ -401,5 +408,10 @@ export class EditorPanes extends Disposable {
 		this.pagePosition = pagePosition;
 
 		this._activeEditorPane?.layout(new Dimension(pagePosition.width, pagePosition.height), pagePosition);
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes) {
+		this.boundarySashes = sashes;
+		this._activeEditorPane?.setBoundarySashes(sashes);
 	}
 }
