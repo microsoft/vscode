@@ -336,6 +336,7 @@
 	background-color: var(--vscode-peekViewTitle-background);
 	color: var(--vscode--editor-foreground);
 	font-size: inherit;
+	font-family: var(--monaco-monospace-font);
 }
 
 .review-widget .body .comment-form .review-thread-reply-button:focus {
