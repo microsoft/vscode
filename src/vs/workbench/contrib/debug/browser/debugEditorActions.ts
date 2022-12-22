@@ -292,7 +292,7 @@ export class RunToCursorAction extends EditorAction {
 			// Remove the break point in one time listener
 			// Why can't I invoke runTo and let it do the job ?
 			const listner = debugService.onDidChangeState((state) => {
-				if (state === State.Stopped) {
+				if (state === State.Stopped || state === State.Inactive) {
 					debugService.removeBreakpoints(breakPointToRemove?.getId());
 					listner.dispose();
 				}
