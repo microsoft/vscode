@@ -587,7 +587,7 @@ export function registerTerminalActions() {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
-			instance.sendText(text, true);
+			instance.sendText(text, true, true);
 			if (instance.target === TerminalLocation.Editor) {
 				await terminalEditorService.revealActiveEditor();
 			} else {
