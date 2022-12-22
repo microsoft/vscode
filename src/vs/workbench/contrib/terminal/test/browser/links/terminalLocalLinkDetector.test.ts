@@ -68,6 +68,7 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 
 interface LinkFormatInfo {
 	urlFormat: string;
+	resolvedFormat?: string;
 	line?: string;
 	column?: string;
 }
@@ -97,6 +98,20 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}",{1}', line: '5' },
 	{ urlFormat: '{0}\',{1}', line: '5' }
+];
+
+const windowsFallbackLinks: (string | { link: string; resource: URI })[] = [
+	'C:\\foo bar',
+	'C:\\foo bar\\baz',
+	'C:\\foo\\bar baz'
+];
+
+const supportedFallbackLinkFormats: LinkFormatInfo[] = [
+	// Python style error: File "<path>", line <line>
+	{ urlFormat: 'File "{0}"', resolvedFormat: '{0}' },
+	{ urlFormat: 'File "{0}", line {1}', line: '5', resolvedFormat: '{0}:{1}' },
+	// The whole line is the path
+	{ urlFormat: '{0}' },
 ];
 
 suite('Workbench - TerminalLocalLinkDetector', () => {
@@ -239,6 +254,22 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			});
 		}
 
+		for (const l of windowsFallbackLinks) {
+			const baseLink = typeof l === 'string' ? l : l.link;
+			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+			suite.only(`Fallback link "${baseLink}"`, () => {
+				for (let i = 0; i < supportedFallbackLinkFormats.length; i++) {
+					const linkFormat = supportedFallbackLinkFormats[i];
+					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					const resolvedFormat = linkFormat.resolvedFormat ? format(linkFormat.resolvedFormat, baseLink, linkFormat.line, linkFormat.column) : formattedLink;
+					test(`should detect in "${formattedLink}"`, async () => {
+						validResources = [resource];
+						await assertLinks(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: resolvedFormat, range: [[1, 1], [formattedLink.length, 1]] }]);
+					});
+				}
+			});
+		}
+
 		test('Git diff links', async () => {
 			validResources = [URI.file('C:\\Parent\\Cwd\\foo\\bar')];
 			await assertLinks(TerminalBuiltinLinkType.LocalFile, `diff --git a/foo/bar b/foo/bar`, [
@@ -253,20 +284,17 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			test('Unix -> Windows /mnt/ style links', async () => {
 				wslUnixToWindowsPathMap.set('/mnt/c/foo/bar', 'C:\\foo\\bar');
 				validResources = [URI.file('C:\\foo\\bar')];
-				const wslLink = '/mnt/c/foo/bar';
-				await assertLinksWithWrapped(wslLink);
+				await assertLinksWithWrapped('/mnt/c/foo/bar');
 			});
 
 			test('Windows -> Unix \\\\wsl$\\ style links', async () => {
 				validResources = [URI.file('\\\\wsl$\\Debian\\home\\foo\\bar')];
-				const wslLink = '\\\\wsl$\\Debian\\home\\foo\\bar';
-				await assertLinksWithWrapped(wslLink);
+				await assertLinksWithWrapped('\\\\wsl$\\Debian\\home\\foo\\bar');
 			});
 
 			test('Windows -> Unix \\\\wsl.localhost\\ style links', async () => {
 				validResources = [URI.file('\\\\wsl.localhost\\Debian\\home\\foo\\bar')];
-				const wslLink = '\\\\wsl.localhost\\Debian\\home\\foo\\bar';
-				await assertLinksWithWrapped(wslLink);
+				await assertLinksWithWrapped('\\\\wsl.localhost\\Debian\\home\\foo\\bar');
 			});
 		});
 	});
