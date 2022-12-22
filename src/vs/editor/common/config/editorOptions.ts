@@ -3079,7 +3079,7 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 	constructor() {
 		const defaults: InternalParameterHintOptions = {
 			enabled: true,
-			cycle: false
+			cycle: true
 		};
 		super(
 			EditorOption.parameterHints, 'parameterHints', defaults,
