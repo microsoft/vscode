@@ -85,6 +85,10 @@ function printCallFrame(frame: CdpCallFrame, fullPaths: boolean): string {
 			result += ':';
 			result += frame.lineNumber + 1;
 		}
+		if (frame.columnNumber >= 0) {
+			result += ',';
+			result += frame.columnNumber + 1;
+		}
 	}
 	return result;
 }

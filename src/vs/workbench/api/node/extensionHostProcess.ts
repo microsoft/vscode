@@ -192,7 +192,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol = new PersistentProtocol({ socket, initialChunk: initialDataChunk });
 						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
@@ -229,7 +229,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				const protocol = new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer'));
+				const protocol = new PersistentProtocol({ socket: new NodeSocket(socket, 'extHost-renderer') });
 				protocol.sendResume();
 				resolve(protocol);
 			});

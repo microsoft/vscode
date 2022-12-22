@@ -110,7 +110,6 @@ registerAction2(class CreateProfileAction extends Action2 {
 				original: 'Create Profile...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true,
 			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
@@ -131,15 +130,8 @@ registerAction2(class CreateProfileAction extends Action2 {
 				id: CreateEmptyProfileAction.ID,
 				label: CreateEmptyProfileAction.TITLE.value,
 			}, {
-				type: 'separator',
-			}, {
 				id: CreateFromCurrentProfileAction.ID,
 				label: CreateFromCurrentProfileAction.TITLE.value,
-			}, {
-				type: 'separator',
-			}, {
-				id: CreateTransientProfileAction.ID,
-				label: CreateTransientProfileAction.TITLE.value,
 			}], { hideInput: true, canPickMany: false, title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value) });
 		if (pick?.id) {
 			return commandService.executeCommand(pick.id);

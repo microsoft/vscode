@@ -2672,7 +2672,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 					c(originalPath.replace(/\\/g, '/'));
 				}
 				else if (shellType === WindowsShellType.Wsl) {
-					c(backend?.getWslPath(originalPath) || originalPath);
+					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
 				}
 
 				else if (hasSpace) {
@@ -2683,7 +2683,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			} else {
 				const lowerExecutable = executable.toLowerCase();
 				if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-					c(backend?.getWslPath(originalPath) || originalPath);
+					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
 				} else if (hasSpace) {
 					c('"' + originalPath + '"');
 				} else {

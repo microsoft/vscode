@@ -190,10 +190,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
-	private _isVisible = false;
 	private readonly _uuid = generateUuid();
 	private _focusTracker!: DOM.IFocusTracker;
 	private _webviewFocused: boolean = false;
+	private _isVisible = false;
+	get isVisible() {
+		return this._isVisible;
+	}
 
 	private _isDisposed: boolean = false;
 
