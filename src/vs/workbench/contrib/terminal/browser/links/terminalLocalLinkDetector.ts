@@ -68,7 +68,7 @@ const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
 	// A C++ compile error
-	/^(?<link>(?<path>.+) : (error|warning)( (?<line>\d+))?):/,
+	/^(?<link>(?<path>.+)\((?<line>\d+),(?<col>\d+)\)) :/,
 	// The whole line is the path
 	/^(?<link>(?<path>.+))/
 ];
