@@ -370,7 +370,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 	}
 
-	private getFileReadLimits(): IFileReadLimits {
+	private getFileReadLimits(): IFileReadLimits | undefined {
+		if (this.forceOpenAs === ForceOpenAs.Text) {
+			return undefined; // limit is disabled when force opening
+		}
+
 		let sizeLimit: number | undefined = undefined;
 
 		const largeFileThresholdMB = this.textResourceConfigurationService.getValue<number>(this.resource, 'workbench.editorLargeFileConfirmation');
