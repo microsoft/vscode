@@ -87,7 +87,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private options: ISelectOptionItem[] = [];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
-	private styles: ISelectBoxStyles;
+	private readonly styles: ISelectBoxStyles;
 	private listRenderer!: SelectListRenderer;
 	private contextViewProvider!: IContextViewProvider;
 	private selectDropDownContainer!: HTMLElement;
@@ -107,6 +107,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		super();
 		this._isVisible = false;
+		this.styles = styles;
+
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
 		if (typeof this.selectBoxOptions.minBottomMargin !== 'number') {
@@ -131,8 +133,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
 
-		this.styles = styles;
-
 		this.registerListeners();
 		this.constructSelectDropDown(contextViewProvider);
 
@@ -141,6 +141,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (options) {
 			this.setOptions(options, selected);
 		}
+
+		this.initStyleSheet();
 
 	}
 
@@ -336,14 +338,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.container = container;
 		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
-		this.applyStyles();
+		this.styleSelectElement();
 	}
 
-	public style(styles: ISelectBoxStyles): void {
+	private initStyleSheet(): void {
 
 		const content: string[] = [];
-
-		this.styles = styles;
 
 		// Style non-native select mode
 
@@ -394,42 +394,29 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: transparent !important; color: inherit !important; outline: none !important; }`);
 
 		this.styleElement.textContent = content.join('\n');
-
-		this.applyStyles();
 	}
 
-	private applyStyles(): void {
+	private styleSelectElement(): void {
+		const background = this.styles.selectBackground ?? '';
+		const foreground = this.styles.selectForeground ?? '';
+		const border = this.styles.selectBorder ?? '';
 
-		// Style parent select
-
-		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : '';
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : '';
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
-		}
-
-		// Style drop down select list (non-native mode only)
-
-		if (this.selectList) {
-			this.styleList();
-		}
+		this.selectElement.style.backgroundColor = background;
+		this.selectElement.style.color = foreground;
+		this.selectElement.style.borderColor = border;
 	}
 
 	private styleList() {
-		if (this.selectList) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
+		const background = this.styles.selectBackground ?? '';
 
-			const listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
-			this.selectDropDownListContainer.style.backgroundColor = listBackground;
-			this.selectionDetailsPane.style.backgroundColor = listBackground;
-			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : '';
-			this.selectDropDownContainer.style.outlineColor = optionsBorder;
-			this.selectDropDownContainer.style.outlineOffset = '-1px';
-		}
+		const listBackground = this.styles.selectListBackground ? this.styles.selectListBackground : background;
+		this.selectDropDownListContainer.style.backgroundColor = listBackground;
+		this.selectionDetailsPane.style.backgroundColor = listBackground;
+		const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder : '';
+		this.selectDropDownContainer.style.outlineColor = optionsBorder;
+		this.selectDropDownContainer.style.outlineOffset = '-1px';
+
+		this.selectList.style(this.styles);
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
@@ -752,8 +739,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				getWidgetAriaLabel: () => localize({ key: 'selectBox', comment: ['Behave like native select dropdown element.'] }, "Select Box"),
 				getRole: () => 'option',
 				getWidgetRole: () => 'listbox'
-			},
-			listStyles: this.styles
+			}
 		});
 		if (this.selectBoxOptions.ariaLabel) {
 			this.selectList.ariaLabel = this.selectBoxOptions.ariaLabel;

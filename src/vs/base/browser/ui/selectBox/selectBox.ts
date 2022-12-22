@@ -5,7 +5,7 @@
 
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -53,16 +53,17 @@ export interface ISelectOptionItem {
 }
 
 export interface ISelectBoxStyles extends IListStyles {
-	selectBackground: string | undefined;
-	selectListBackground: string | undefined;
-	selectForeground: string | undefined;
-	decoratorRightForeground: string | undefined;
-	selectBorder: string | undefined;
-	selectListBorder: string | undefined;
-	focusBorder: string | undefined;
+	readonly selectBackground: string | undefined;
+	readonly selectListBackground: string | undefined;
+	readonly selectForeground: string | undefined;
+	readonly decoratorRightForeground: string | undefined;
+	readonly selectBorder: string | undefined;
+	readonly selectListBorder: string | undefined;
+	readonly focusBorder: string | undefined;
 }
 
 export const unthemedSelectBoxStyles: ISelectBoxStyles = {
+	...unthemedListStyles,
 	selectBackground: '#3C3C3C',
 	selectForeground: '#F0F0F0',
 	selectBorder: '#3C3C3C',
@@ -70,31 +71,6 @@ export const unthemedSelectBoxStyles: ISelectBoxStyles = {
 	selectListBackground: undefined,
 	selectListBorder: undefined,
 	focusBorder: undefined,
-	listBackground: undefined,
-	listFocusBackground: undefined,
-	listFocusForeground: undefined,
-	listActiveSelectionBackground: undefined,
-	listActiveSelectionForeground: undefined,
-	listActiveSelectionIconForeground: undefined,
-	listFocusAndSelectionOutline: undefined,
-	listFocusAndSelectionBackground: undefined,
-	listFocusAndSelectionForeground: undefined,
-	listInactiveSelectionBackground: undefined,
-	listInactiveSelectionIconForeground: undefined,
-	listInactiveSelectionForeground: undefined,
-	listInactiveFocusForeground: undefined,
-	listInactiveFocusBackground: undefined,
-	listHoverBackground: undefined,
-	listHoverForeground: undefined,
-	listDropBackground: undefined,
-	listFocusOutline: undefined,
-	listInactiveFocusOutline: undefined,
-	listSelectionOutline: undefined,
-	listHoverOutline: undefined,
-	treeIndentGuidesStroke: undefined,
-	treeInactiveIndentGuidesStroke: undefined,
-	tableColumnsBorder: undefined,
-	tableOddRowsBackgroundColor: undefined
 };
 
 export interface ISelectData {
