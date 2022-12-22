@@ -654,6 +654,12 @@ export class TernarySearchTree<K, V> {
 	}
 
 	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
+		return this._findSuperstrOrElement(key, false);
+	}
+
+	private _findSuperstrOrElement(key: K, allowValue: true): IterableIterator<[K, V]> | V | undefined;
+	private _findSuperstrOrElement(key: K, allowValue: false): IterableIterator<[K, V]> | undefined;
+	private _findSuperstrOrElement(key: K, allowValue: boolean): IterableIterator<[K, V]> | V | undefined {
 		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -671,13 +677,21 @@ export class TernarySearchTree<K, V> {
 			} else {
 				// collect
 				if (!node.mid) {
-					return undefined;
+					if (allowValue) {
+						return node.value;
+					} else {
+						return undefined;
+					}
 				} else {
 					return this._entries(node.mid);
 				}
 			}
 		}
 		return undefined;
+	}
+
+	hasElementOrSubtree(key: K): boolean {
+		return this._findSuperstrOrElement(key, true) !== undefined;
 	}
 
 	forEach(callback: (value: V, index: K) => any): void {
