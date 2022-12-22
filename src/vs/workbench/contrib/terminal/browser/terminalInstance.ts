@@ -781,7 +781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		xterm.raw.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
-				this._linkManager.processCwd = await this._processManager.getInitialCwd();
+				this._linkManager.processCwd = this._processManager.initialCwd;
 			}
 		});
 		// Init winpty compat and link handler after process creation as they rely on the
@@ -2226,7 +2226,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async getInitialCwd(): Promise<string> {
 		if (!this._initialCwd) {
-			this._initialCwd = await this._processManager.getInitialCwd();
+			this._initialCwd = this._processManager.initialCwd;
 		}
 		return this._initialCwd;
 	}
@@ -2237,7 +2237,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else if (this.capabilities.has(TerminalCapability.NaiveCwdDetection)) {
 			return this.capabilities.get(TerminalCapability.NaiveCwdDetection)!.getCwd();
 		}
-		return await this._processManager.getInitialCwd();
+		return this._processManager.initialCwd;
 	}
 
 	private async _refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {

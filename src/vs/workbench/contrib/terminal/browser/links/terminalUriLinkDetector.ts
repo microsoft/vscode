@@ -28,6 +28,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 	constructor(
 		readonly xterm: Terminal,
+		// TODO: Migrate to ITerminalLinkResolverService
 		private readonly _resolvePath: (link: string, uri?: URI) => Promise<ResolvedLink>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService

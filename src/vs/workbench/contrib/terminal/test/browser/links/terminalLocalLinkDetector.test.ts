@@ -8,7 +8,7 @@ import { format } from 'vs/base/common/strings';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkResolverService, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper, resolveLinkForTest } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
@@ -117,7 +117,18 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('platform independent', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Linux, resolveLinkForTest);
+			instantiationService.stub(ITerminalLinkResolverService, {
+				async resolveLink(processManager, link, uri?) {
+					return resolveLinkForTest(link, uri);
+				}
+			});
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+				initialCwd: '',
+				os: OperatingSystem.Linux,
+				remoteAuthority: undefined,
+				userHome: '/home',
+				backend: undefined
+			});
 		});
 
 		test('should support multiple link results', async () => {
@@ -130,7 +141,18 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('macOS/Linux', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Linux, resolveLinkForTest);
+			instantiationService.stub(ITerminalLinkResolverService, {
+				async resolveLink(processManager, link, uri?) {
+					return resolveLinkForTest(link, uri);
+				}
+			});
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+				initialCwd: '',
+				os: OperatingSystem.Linux,
+				remoteAuthority: undefined,
+				userHome: '/home',
+				backend: undefined
+			});
 		});
 
 		for (const baseLink of unixLinks) {
@@ -160,7 +182,18 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('Windows', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Windows, resolveLinkForTest);
+			instantiationService.stub(ITerminalLinkResolverService, {
+				async resolveLink(processManager, link, uri?) {
+					return resolveLinkForTest(link, uri);
+				}
+			});
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+				initialCwd: '',
+				os: OperatingSystem.Windows,
+				remoteAuthority: undefined,
+				userHome: '/home',
+				backend: undefined
+			});
 		});
 
 		for (const baseLink of windowsLinks) {
