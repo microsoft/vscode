@@ -2650,7 +2650,7 @@
             "experimental"
           ]
         },
-        "git.externalRepositories": {
+        "git.openExternalRepositories": {
           "type": "string",
           "enum": [
             "always",
@@ -2658,12 +2658,12 @@
             "prompt"
           ],
           "enumDescriptions": [
-            "%config.externalRepositories.always%",
-            "%config.externalRepositories.never%",
-            "%config.externalRepositories.prompt%"
+            "%config.openExternalRepositories.always%",
+            "%config.openExternalRepositories.never%",
+            "%config.openExternalRepositories.prompt%"
           ],
           "default": "prompt",
-          "markdownDescription": "%config.externalRepositories%",
+          "markdownDescription": "%config.openExternalRepositories%",
           "scope": "resource"
         }
       }

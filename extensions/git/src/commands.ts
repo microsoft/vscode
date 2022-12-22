@@ -3226,7 +3226,7 @@ export class CommandCenter {
 		const externalRepositories: string[] = [];
 
 		const title = l10n.t('Open External Repositories');
-		const placeHolder = l10n.t('Pick an external repository to open');
+		const placeHolder = l10n.t('Pick an repository to open');
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };

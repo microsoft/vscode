@@ -240,10 +240,10 @@
 	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
 	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"config.optimisticUpdate": "Controls whether to optimistically update the state of the Source Control view after running git commands.",
-	"config.externalRepositories": "Control whether repositories outside the folder/workspace should be opened.",
-	"config.externalRepositories.always": "Always open repositories outside the folder/workspace",
-	"config.externalRepositories.never": "Never open repositories outside the folder/workspace",
-	"config.externalRepositories.prompt": "Prompt before opening repositories outside the folder/workspace",
+	"config.openExternalRepositories": "Control whether repositories in the parent directories of the folder, workspace or open files should be opened.",
+	"config.openExternalRepositories.always": "Always open repositories in the parent directories of the folder, workspace or open files",
+	"config.openExternalRepositories.never": "Never open repositories in the parent directories of the folder, workspace or open files",
+	"config.openExternalRepositories.prompt": "Prompt before opening repositories in the parent directories of the folder, workspace or open files",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -336,7 +336,7 @@
 		"message": "Scanning workspace for git repositories..."
 	},
 	"view.workbench.scm.externalRepository": {
-		"message": "The detected git repository is outside the current folder/workspace. Use [this setting](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D) to change how external repositories are handled.\n[Open Repository](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"message": "A git repository was found in one of the parent directories of the workspace, or opened file(s).\n[Open Repository](command:git.openExternalRepositories)\nUse [this setting](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D) to control how git repositories in parent directories of the workspace, opened file(s) are opened. To learn more [read our docs](https://aka.ms/vscode-git-external-repository).",
 		"comment": [
 			"{Locked='](command:git.openExternalRepositories'}",
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D'}",
@@ -345,7 +345,7 @@
 		]
 	},
 	"view.workbench.scm.externalRepositories": {
-		"message": "The detected git repositories are outside the current folder/workspace. Use [this setting](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D) to change how external repositories are handled.\n[Open Repositories](command:git.openExternalRepositories)\nTo learn more about repositories outside the current folder/workspace [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"message": "Git repositories were found in one of the parent directories of the workspace, or opened file(s).\n[Open Repository](command:git.openExternalRepositories)\nUse [this setting](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D) to control how git repositories in parent directories of the workspace, opened file(s) are opened. To learn more [read our docs](https://aka.ms/vscode-git-external-repository).",
 		"comment": [
 			"{Locked='](command:git.openExternalRepositories'}",
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.externalRepositories%22%5D'}",

@@ -429,7 +429,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			// Handle git repositories that are outside the workspace
 			const isRepositoryOutsideWorkspace = (workspace.workspaceFolders ?? [])
 				.find(f => pathEquals(f.uri.fsPath, repositoryRoot) || isDescendant(f.uri.fsPath, repositoryRoot)) === undefined;
-			const externalRepositoriesConfig = config.get<'always' | 'never' | 'prompt'>('externalRepositories', 'prompt');
+			const externalRepositoriesConfig = config.get<'always' | 'never' | 'prompt'>('openExternalRepositories', 'prompt');
 
 			if (isRepositoryOutsideWorkspace && externalRepositoriesConfig !== 'always' && this.externalRepositories.get(repositoryRoot) !== true) {
 				this.logger.trace(`External repository: ${repositoryRoot}`);
@@ -780,24 +780,39 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async showExternalRepositoryNotification(): Promise<void> {
+		const question = l10n.t('Would you like to open repositories from parent directories of the workspace, or file being opened?');
+
 		const message = this.externalRepositories.size === 1 ?
-			l10n.t('We have found a git repository that is outside the current folder/workspace. Would you like to open the repository?') :
-			l10n.t('We have found git repositories that are outside the current folder/workspace. Would you like to open the repositories?');
+			workspace.workspaceFolders !== undefined ?
+				l10n.t('We found a git repository in one of the parent directories of this workspace.') :
+				l10n.t('We found a git repository in one of the parent directories of the open file(s).') :
+			workspace.workspaceFolders !== undefined ?
+				l10n.t('We found git repositories in one of the parent directories of this workspace.') :
+				l10n.t('We found git repositories in one of the parent directories of the open file(s).');
 
-		const open = l10n.t('Open');
-		const configure = l10n.t('Configure');
-		const learnMore = l10n.t('Learn More');
+		const yes = l10n.t('Yes');
+		const always = l10n.t('Always');
+		const never = l10n.t('Never');
 
-		const choice = await window.showErrorMessage(message, open, configure, learnMore);
-		if (choice === open) {
+		const choice = await window.showErrorMessage(`${message} ${question}`, yes, always, never);
+		if (choice === yes) {
 			// Open External Repositories
 			commands.executeCommand('git.openExternalRepositories');
-		} else if (choice === configure) {
-			// Configure
-			commands.executeCommand('workbench.action.openSettings', 'git.externalRepositories');
-		} else if (choice === learnMore) {
-			// Learn More
-			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-external-repository'));
+		} else if (choice === always || choice === never) {
+			// Update setting
+			const config = workspace.getConfiguration('git');
+			await config.update('openExternalRepositories', choice === always ? 'always' : 'never', true);
+
+			if (choice === always) {
+				for (const externalRepository of [...this.externalRepositories.keys()]) {
+					// Mark repository to be opened
+					this.externalRepositories.set(externalRepository, true);
+
+					// Open Repository
+					await this.openRepository(externalRepository);
+					this.externalRepositories.delete(externalRepository);
+				}
+			}
 		}
 	}
 
