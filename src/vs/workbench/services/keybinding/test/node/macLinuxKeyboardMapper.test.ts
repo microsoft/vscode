@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, createKeybinding, createSimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { SimpleKeybinding, createKeybinding, createSimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -326,17 +326,13 @@ suite('keyboardMapper - MAC de_ch', () => {
 		);
 	});
 
-	test('resolveUserBinding empty', () => {
-		assertResolveUserBinding(mapper, [], []);
-	});
-
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,
-			[
+			new UserKeybinding([
 				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
 				new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
-			],
+			]),
 			[{
 				label: '⌘, ⇧⌘7',
 				ariaLabel: 'Command+, Shift+Command+7',
@@ -419,10 +415,10 @@ suite('keyboardMapper - MAC en_us', () => {
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper,
-			[
+			new UserKeybinding([
 				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
 				new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
-			],
+			]),
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
@@ -826,10 +822,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
-		],
+			mapper, new UserKeybinding([
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+			]),
 			[{
 				label: 'Ctrl+, Ctrl+Shift+7',
 				ariaLabel: 'Control+, Control+Shift+7',
@@ -1236,10 +1232,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
-		],
+			mapper, new UserKeybinding([
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+			]),
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -1255,9 +1251,9 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma)
-		],
+			mapper, new UserKeybinding([
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma)
+			]),
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
