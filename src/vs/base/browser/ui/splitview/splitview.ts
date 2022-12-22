@@ -765,28 +765,9 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		} else {
-			// See if there's a maximized size
-			let maximizedIndex: number = -1;
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
-				if (item.size !== item.minimumSize) {
-					if (maximizedIndex !== -1) {
-						maximizedIndex = -1;
-						break;
-					}
-					maximizedIndex = i;
-				}
-			}
-			if (maximizedIndex !== -1) {
-				const item = this.viewItems[maximizedIndex];
-				item.size -= (previousSize - item.size);
-			}
-			// No maximized size
-			else {
-				for (let i = 0; i < this.viewItems.length; i++) {
-					const item = this.viewItems[i];
-					item.size = clamp(Math.round(this.proportions[i] * size), item.minimumSize, item.maximumSize);
-				}
+				item.size = clamp(Math.round(this.proportions[i] * size), item.minimumSize, item.maximumSize);
 			}
 		}
 
@@ -1242,14 +1223,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		for (let i = 0; emptyDelta !== 0 && i < indexes.length; i++) {
 			const item = this.viewItems[indexes[i]];
-			// Only resize non-minimized items
-			if (item.size !== item.minimumSize) {
-				const size = clamp(item.size + emptyDelta, item.minimumSize, item.maximumSize);
-				const viewDelta = size - item.size;
+			const size = clamp(item.size + emptyDelta, item.minimumSize, item.maximumSize);
+			const viewDelta = size - item.size;
 
-				emptyDelta -= viewDelta;
-				item.size = size;
-			}
+			emptyDelta -= viewDelta;
+			item.size = size;
 		}
 	}
 
