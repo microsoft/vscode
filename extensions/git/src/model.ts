@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Operation, Repository, RepositoryState } from './repository';
+import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -18,6 +18,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { OperationKind } from './operation';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -533,19 +534,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			let commitInProgress = false;
 			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(Operation.Commit)) {
+				if (repository.operations.isRunning(OperationKind.Commit)) {
 					commitInProgress = true;
 				}
 
-				// When one of the following operations is running, we want to
-				// disable most commands in order to avoid multiple commands
-				// running at the same time.
-				if (repository.operations.isRunning(Operation.Checkout) ||
-					repository.operations.isRunning(Operation.CheckoutTracking) ||
-					repository.operations.isRunning(Operation.Commit) ||
-					repository.operations.isRunning(Operation.Pull) ||
-					repository.operations.isRunning(Operation.Push) ||
-					repository.operations.isRunning(Operation.Sync)) {
+				if (repository.operations.shouldDisableCommands()) {
 					operationInProgress = true;
 				}
 			}

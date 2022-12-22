@@ -105,7 +105,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
-import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
@@ -558,7 +558,7 @@ export class CodeApplication extends Disposable {
 		this._register(instantiationService.createInstance(ProxyAuthHandler));
 
 		// Transient profiles handler
-		this._register(instantiationService.createInstance(UserDataTransientProfilesHandler));
+		this._register(instantiationService.createInstance(UserDataProfilesHandler));
 	}
 
 	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {

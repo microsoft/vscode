@@ -116,8 +116,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	});
 };
 
-const terminalIndexRe = /^([0-9]+): /;
-
 export class TerminalLaunchHelpAction extends Action {
 
 	constructor(
@@ -589,7 +587,7 @@ export function registerTerminalActions() {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
-			instance.sendText(text, true);
+			instance.sendText(text, true, true);
 			if (instance.target === TerminalLocation.Editor) {
 				await terminalEditorService.revealActiveEditor();
 			} else {
@@ -2435,6 +2433,8 @@ export function registerTerminalActions() {
 				accessor.get(IConfigurationService).updateValue(TerminalSettingId.TabsEnabled, true);
 				return;
 			}
+
+			const terminalIndexRe = /^([0-9]+): /;
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
 				terminalGroupService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);

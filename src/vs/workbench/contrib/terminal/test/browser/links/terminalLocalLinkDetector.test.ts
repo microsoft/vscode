@@ -13,6 +13,8 @@ import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper, resolveLinkForTest } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
 import { Terminal } from 'xterm';
+import { timeout } from 'vs/base/common/async';
+import { strictEqual } from 'assert';
 
 const unixLinks = [
 	'/foo',
@@ -21,6 +23,9 @@ const unixLinks = [
 	'./$foo',
 	'../foo',
 	'/foo/bar',
+	'/foo/[bar]',
+	'/foo/[bar].baz',
+	'/foo/[bar]/baz',
 	'/foo/bar+more',
 	'foo/bar',
 	'foo/bar+more',
@@ -42,7 +47,12 @@ const windowsLinks = [
 	'c:\\foo/bar\\baz',
 	'foo/bar',
 	'foo/bar',
+	'foo/[bar]',
+	'foo/[bar].baz',
+	'foo/[bar]/baz',
 	'foo\\bar',
+	'foo\\[bar].baz',
+	'foo\\[bar]\\baz',
 	'foo\\bar+more',
 ];
 
@@ -90,7 +100,11 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		text: string,
 		expected: (Pick<ITerminalSimpleLink, 'text'> & { range: [number, number][] })[]
 	) {
-		await assertLinkHelper(text, expected, detector, type);
+		const race = await Promise.race([
+			assertLinkHelper(text, expected, detector, type).then(() => 'success'),
+			timeout(2).then(() => 'timeout')
+		]);
+		strictEqual(race, 'success', `Awaiting link assertion for "${text}" timed out`);
 	}
 
 	setup(() => {
@@ -123,8 +137,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			suite(`Link: ${baseLink}`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
-					test(`Format: ${linkFormat.urlFormat}`, async () => {
-						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					test(`should detect in "${formattedLink}"`, async () => {
 						await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
@@ -153,8 +167,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			suite(`Link "${baseLink}"`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
-					test(`Format: ${linkFormat.urlFormat}`, async () => {
-						const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
+					test(`should detect in "${formattedLink}"`, async () => {
 						await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);

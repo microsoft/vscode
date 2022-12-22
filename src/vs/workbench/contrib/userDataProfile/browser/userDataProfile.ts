@@ -35,6 +35,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
 
+const SelectProfileSubMenu = new MenuId('SelectProfile');
+
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly currentProfileContext: IContextKey<string>;
@@ -99,6 +101,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerActions(): void {
 		this.registerManageProfilesSubMenu();
+		this.registerSelectProfileSubMenu();
 
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
@@ -108,14 +111,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerManageProfilesSubMenu(): void {
-		const that = this;
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
-			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
-			submenu: ManageProfilesSubMenu,
-			group: '5_settings',
-			when: PROFILES_ENABLEMENT_CONTEXT,
-			order: 1
-		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			title: PROFILES_TTILE,
 			submenu: ManageProfilesSubMenu,
@@ -123,10 +118,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			when: PROFILES_ENABLEMENT_CONTEXT,
 			order: 1
 		});
-		MenuRegistry.appendMenuItem(MenuId.AccountsContext, <ISubmenuItem>{
-			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
-			submenu: ManageProfilesSubMenu,
-			group: '1_settings',
+	}
+
+	private registerSelectProfileSubMenu(): IDisposable {
+		const that = this;
+		return MenuRegistry.appendMenuItem(ManageProfilesSubMenu, <ISubmenuItem>{
+			get title() { return localize('profile', "Profile ({0})", that.userDataProfileService.currentProfile.name); },
+			submenu: SelectProfileSubMenu,
+			group: '0_profiles',
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
@@ -149,7 +148,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
+							id: SelectProfileSubMenu,
 							group: '0_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 						}
@@ -182,8 +181,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
 					title: {
-						value: localize('change short name profile', "Change Short Name ({0})...", themeIcon?.id ?? shortName),
-						original: `Change Short Name (${themeIcon?.id ?? shortName})...`
+						value: localize('change short name profile', "Change Profile Short Name ({0})...", themeIcon?.id ?? shortName),
+						original: `Change Profile Short Name (${themeIcon?.id ?? shortName})...`
 					},
 					menu: [
 						{
@@ -238,8 +237,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.renameCurrentProfile`,
 					title: {
-						value: localize('rename profile', "Rename ({0})...", that.userDataProfileService.currentProfile.name),
-						original: `Rename (${that.userDataProfileService.currentProfile.name})...`
+						value: localize('rename profile', "Rename Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Rename Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					menu: [
 						{
@@ -266,8 +265,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('export profile', "Export ({0})...", that.userDataProfileService.currentProfile.name),
-						original: `Export (${that.userDataProfileService.currentProfile.name})...`
+						value: localize('export profile', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					category: PROFILES_CATEGORY,
 					precondition: IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
@@ -310,8 +309,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('import profile', "Import..."),
-						original: 'Import...'
+						value: localize('import profile', "Import Profile..."),
+						original: 'Import Profile...'
 					},
 					category: PROFILES_CATEGORY,
 					f1: true,

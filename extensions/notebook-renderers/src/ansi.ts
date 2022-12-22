@@ -379,6 +379,11 @@ export function handleANSIOutput(text: string): HTMLSpanElement {
 	}
 }
 
+const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
+	createHTML: value => value,
+	createScript: value => value,
+});
+
 export function appendStylizedStringToContainer(
 	root: HTMLElement,
 	stringContent: string,
@@ -392,7 +397,14 @@ export function appendStylizedStringToContainer(
 		return;
 	}
 
-	const container = linkify(stringContent, true, workspaceFolder);
+	let container = document.createElement('span');
+	const trustedHtml = ttPolicy?.createHTML(stringContent) ?? stringContent;
+	container.innerHTML = trustedHtml as string;
+
+	if (container.childElementCount === 0) {
+		// plain text
+		container = linkify(stringContent, true, workspaceFolder);
+	}
 
 	container.className = cssClasses.join(' ');
 	if (customTextColor) {

@@ -361,7 +361,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			}
 		}
 
-		this.registerOverrideIdentifiers(overrideIdentifiers);
+		this.doRegisterOverrideIdentifiers(overrideIdentifiers);
 		this._onDidSchemaChange.fire();
 		this._onDidUpdateConfiguration.fire({ properties, defaultsOverrides: true });
 	}
@@ -401,6 +401,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
+		this.doRegisterOverrideIdentifiers(overrideIdentifiers);
+		this._onDidSchemaChange.fire();
+	}
+
+	private doRegisterOverrideIdentifiers(overrideIdentifiers: string[]) {
 		for (const overrideIdentifier of overrideIdentifiers) {
 			this.overrideIdentifiers.add(overrideIdentifier);
 		}
@@ -599,7 +604,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			windowSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			resourceSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 		}
-		this._onDidSchemaChange.fire();
 	}
 
 	private registerOverridePropertyPatternKey(): void {

@@ -9,15 +9,12 @@ import { isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { Codicon } from 'vs/base/common/codicons';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
@@ -269,48 +266,3 @@ export class NotificationsList extends Disposable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
-	if (linkColor) {
-		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
-	}
-
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`
-		.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
-			outline-color: ${focusOutline};
-		}`);
-	}
-
-	// Notification Error Icon
-	const notificationErrorIconForegroundColor = theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND);
-	if (notificationErrorIconForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notifications-center ${Codicon.error.cssSelector},
-		.monaco-workbench .notifications-toasts ${Codicon.error.cssSelector} {
-			color: ${notificationErrorIconForegroundColor};
-		}`);
-	}
-
-	// Notification Warning Icon
-	const notificationWarningIconForegroundColor = theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND);
-	if (notificationWarningIconForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notifications-center ${Codicon.warning.cssSelector},
-		.monaco-workbench .notifications-toasts ${Codicon.warning.cssSelector} {
-			color: ${notificationWarningIconForegroundColor};
-		}`);
-	}
-
-	// Notification Info Icon
-	const notificationInfoIconForegroundColor = theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND);
-	if (notificationInfoIconForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notifications-center ${Codicon.info.cssSelector},
-		.monaco-workbench .notifications-toasts ${Codicon.info.cssSelector} {
-			color: ${notificationInfoIconForegroundColor};
-		}`);
-	}
-});
