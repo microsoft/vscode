@@ -18,7 +18,13 @@ const indent: (str: string) => string = (ts as any).server.indent;
 const setSys: (s: ts.System) => void = (ts as any).setSys;
 // End misc internals
 // BEGIN webServer/webServer.ts
-function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[]): ts.server.ServerHost {
+function fromResource(extensionUri: URI, uri: URI) {
+	if (uri.scheme === extensionUri.scheme && uri.authority === extensionUri.authority && uri.path.startsWith(extensionUri.path + '/dist/browser/typescript/lib.') && uri.path.endsWith('.d.ts')) {
+		return uri.path
+	}
+	return `/${uri.scheme}/${uri.authority}${uri.path}`
+}
+function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ts.server.ServerHost {
 	/**
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
@@ -44,22 +50,26 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
 		 */
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
-			// TODO: Send a message to add a watcher for path (which probably needs to be translated)
 			logger.info(`calling watchFile on ${path} (${watchFiles.has(path) ? 'OLD' : 'new'})`)
 			watchFiles.set(path, { path, callback, pollingInterval, options })
+			const uri = toResource(path)
+			fsWatcher.postMessage({ type: 'watchFile', uri })
 			return {
 				close() {
-					// TODO: Send a message to remove the watcher for path
 					watchFiles.delete(path)
+					fsWatcher.postMessage({ type: "dispose", uri })
 				}
 			}
 		},
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logger.info(`calling watchDirectory on ${path} (${watchDirectories.has(path) ? 'OLD' : 'new'})`)
 			watchDirectories.set(path, { path, callback, recursive, options })
+			const uri = toResource(path)
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri })
 			return {
 				close() {
 					watchDirectories.delete(path)
+					fsWatcher.postMessage({ type: "dispose", uri })
 				}
 			}
 		},
@@ -242,6 +252,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 		},
 		/** For module resolution only; symlinks aren't supported yet. */
 		realpath(path: string): string {
+			// skip paths without .. or ./ or /.
+			if (!path.match(/\.\.|\/\.|\.\//)) {
+				return path
+			}
 			const uri = toResource(path)
 			const out = [uri.scheme]
 			if (uri.authority)
@@ -268,9 +282,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 	}
 }
 
-function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void)) {
+function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), fsWatcher: MessagePort) {
 	logger.info("in createWebSystem")
-	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), [])
+	// TODO: Why is args empty?
+	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), [], fsWatcher)
 	setSys(sys)
 	logger.info("finished creating web system")
 	return sys
@@ -356,6 +371,7 @@ class WorkerSession extends ts.server.Session<{}> {
 		this.logger.info('webServer.ts: tsserver starting to listen for messages on "message"...')
 		port.onmessage = (message: any) => {
 
+			// TODO: Is this still needed?
 			// TEMP fix since Cancellation.retrieveCheck is not correct
 			function retrieveCheck2(data: any) {
 				if (!(data.$cancellationData instanceof SharedArrayBuffer)) {
@@ -393,8 +409,8 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void)) {
-	session = new WorkerSession(createWebSystem(extensionUri, connection, logger), options, tsserver, logger, hrtime)
+function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), fsWatcher: MessagePort) {
+	session = new WorkerSession(createWebSystem(extensionUri, connection, logger, fsWatcher), options, tsserver, logger, hrtime)
 	session.listen(tsserver)
 }
 // END tsserver/webServer.ts
@@ -410,7 +426,7 @@ serverLogger.msg = s => postMessage({ type: "log", body: s + '\n' })
 serverLogger.startGroup = () => { }
 serverLogger.endGroup = () => { }
 serverLogger.getLogFileName = () => "tsserver.log"
-function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>): void {
+function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>, fsWatcher: MessagePort): void {
 	// TODO: Parse args for partial semantic mode -- need to have both but right now both start in semantic mode.
 	// webServer.ts
 	// getWebPath
@@ -436,7 +452,8 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 		extensionUri,
 		tsserver,
 		connection,
-		serverLogger);
+		serverLogger,
+		fsWatcher);
 }
 function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
 	const arg = findArgument(args, name)
@@ -451,21 +468,29 @@ function findArgument(args: readonly string[], name: string): string | undefined
 		? args[index + 1]
 		: undefined;
 }
-function updateWatch(event: "create" | "change" | "delete", path: string, logger: ts.server.Logger) {
-	logger.info(`checking for watch on ${path}: event=${event}`)
+function updateWatch(event: "create" | "change" | "delete", uri: URI, extensionUri: URI, logger: ts.server.Logger) {
+	// TODO: Commit this, then roll it back and test file watches using the old way
+	// 1. creating watches seem to use the correct paths, BUT file watches never fire
+	logger.info(`checking for watch on ${uri.toString()}: event=${event}`)
 	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
 		: event === 'change' ? ts.FileWatcherEventKind.Changed
 			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
 				: ts.FileWatcherEventKind.Changed;
-	// TODO: Almost certainly need to translate path
+	const path = fromResource(extensionUri, uri)
 	if (watchFiles.has(path)) {
 		logger.info("file watcher found for " + path)
 		watchFiles.get(path)!.callback(path, kind) // TODO: Might need to have first arg be watchFiles.get(path).path
+		return
 	}
-	// TODO: Should assert afterward now -- only expected watch messages should be coming in
+	let found = false
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
 		logger.info(`directory watcher on ${watch} found for ${path}`)
 		watchDirectories.get(watch)!.callback(path)
+		found = true
+	}
+	if (!found) {
+		logger.info(`no watcher found for ${path}`)
+		console.error(`no watcher found for ${path}`)
 	}
 }
 let initial: Promise<any> | undefined;
@@ -473,9 +498,10 @@ const listener = async (e: any) => {
 	if (!initial) {
 		if ('args' in e.data) {
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
-			watcher.onmessage = (e: any) => updateWatch(e.data.event, e.data.path, serverLogger);
+			const extensionUri = URI.from(e.data.extensionUri);
+			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri, serverLogger);
 			const connection = new ClientConnection<Requests>(sync);
-			initial = connection.serviceReady().then(() => initializeSession(e.data.args, URI.from(e.data.extensionUri), "vscode-web", tsserver, connection));
+			initial = connection.serviceReady().then(() => initializeSession(e.data.args, extensionUri, "vscode-web", tsserver, connection, watcher));
 		}
 		else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));

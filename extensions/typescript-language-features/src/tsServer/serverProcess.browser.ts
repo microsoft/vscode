@@ -12,9 +12,17 @@ import { TypeScriptVersion } from './versionProvider';
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { Requests, ApiService } from '@vscode/sync-api-service';
 import { TypeScriptVersionManager } from './versionManager';
+type BrowserWatchEvent = {
+	type: 'dispose' | 'watchDirectory' | 'watchFile';
+	recursive?: boolean;
+	uri: {
+		scheme: string;
+		authority: string;
+		path: string;
+	};
+};
 
 export class WorkerServerProcess implements TsServerProcess {
-
 	public static fork(
 		version: TypeScriptVersion,
 		args: readonly string[],
@@ -37,6 +45,7 @@ export class WorkerServerProcess implements TsServerProcess {
 	private readonly _onDataHandlers = new Set<(data: Proto.Response) => void>();
 	private readonly _onErrorHandlers = new Set<(err: Error) => void>();
 	private readonly _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
+	private readonly fsWatchers = new Map<vscode.Uri, vscode.FileSystemWatcher>();
 	/** For communicating with TS server synchronously */
 	private readonly tsserver: MessagePort;
 	/** For communicating watches asynchronously */
@@ -65,12 +74,32 @@ export class WorkerServerProcess implements TsServerProcess {
 				handler(event.data);
 			}
 		};
-		this.watcher.onmessage = (event) => {
-			// TODO: A multi-watcher message would look something like this:
-			// if (msg.data.type === 'dispose-watcher') {
-			//	 watchers.get(msg.data.path).dispose()
-			// }
-			console.error(`unexpected message on watcher channel: ${JSON.stringify(event)}`);
+		this.watcher.onmessage = (event: MessageEvent<BrowserWatchEvent>) => {
+			switch (event.data.type) {
+				case 'dispose': {
+					const uri = vscode.Uri.from(event.data.uri);
+					const fsWatcher = this.fsWatchers.get(uri);
+					if (fsWatcher) {
+						fsWatcher.dispose();
+						this.fsWatchers.delete(uri);
+					} else {
+						console.error(`tried to dispose watcher for unwatched path: ${JSON.stringify(event.data)}`);
+					}
+					break;
+				}
+				case 'watchDirectory':
+				case 'watchFile': {
+					const uri = vscode.Uri.from(event.data.uri);
+					const fsWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, event.data.recursive ? '**' : ''));
+					fsWatcher.onDidChange(e => this.watcher.postMessage({ type: 'watch', event: 'change', uri: e }));
+					fsWatcher.onDidCreate(e => this.watcher.postMessage({ type: 'watch', event: 'create', uri: e }));
+					fsWatcher.onDidDelete(e => this.watcher.postMessage({ type: 'watch', event: 'delete', uri: e }));
+					this.fsWatchers.set(uri, fsWatcher);
+					break;
+				}
+				default:
+					console.error(`unexpected message on watcher channel: ${JSON.stringify(event)}`);
+			}
 		};
 		mainChannel.onmessage = (msg: any) => {
 			// for logging only
@@ -81,22 +110,15 @@ export class WorkerServerProcess implements TsServerProcess {
 			console.error(`unexpected message on main channel: ${JSON.stringify(msg)}`);
 		};
 		mainChannel.onerror = (err: ErrorEvent) => {
-			this.output.append(JSON.stringify('error! ' + JSON.stringify(err)) + '\n');
+			console.error('error! ' + JSON.stringify(err));
 			for (const handler of this._onErrorHandlers) {
 				// TODO: The ErrorEvent type might be wrong; previously this was typed as Error and didn't have the property access.
 				handler(err.error);
 			}
 		};
-		// TODO: For prototyping, create one watcher ahead of time and send messages using the worker.
-		// For the real thing, the host
-		// sends messages to tell the extension to create a new filesystemwatcher for each file/directory
-		const fsWatcher = vscode.workspace.createFileSystemWatcher('**/*');
-		fsWatcher.onDidChange(e => this.watcher.postMessage({ type: 'watch', event: 'change', path: e.path }));
-		fsWatcher.onDidCreate(e => this.watcher.postMessage({ type: 'watch', event: 'create', path: e.path }));
-		fsWatcher.onDidDelete(e => this.watcher.postMessage({ type: 'watch', event: 'delete', path: e.path }));
-		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
+		this.output.append(`creating new MessageChannel and posting its port2 + args: ${args.join(' ')}\n`);
 		mainChannel.postMessage(
-			{ args, extensionUri: { scheme: extensionUri.scheme, authority: extensionUri.authority, path: extensionUri.path } },
+			{ args, extensionUri },
 			[syncChannel.port1, tsserverChannel.port1, watcherChannel.port1]
 		);
 		const connection = new ServiceConnection<Requests>(syncChannel.port2);
