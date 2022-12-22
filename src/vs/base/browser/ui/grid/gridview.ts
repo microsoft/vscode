@@ -89,6 +89,14 @@ export interface IView {
 	readonly priority?: LayoutPriority;
 
 	/**
+	 * If the {@link GridView} supports proportional layout,
+	 * this property allows for finer control over the proportional layout algorithm, per view.
+	 *
+	 * @defaultValue `true`
+	 */
+	readonly proportionalLayout?: boolean;
+
+	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
 	 * attempts to grow it beyond the minimum size.
 	 *
@@ -306,6 +314,14 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		return LayoutPriority.Normal;
 	}
 
+	get proportionalLayout(): boolean {
+		if (this.children.length === 0) {
+			return true;
+		}
+
+		return this.children.every(c => c.proportionalLayout);
+	}
+
 	get minimumOrthogonalSize(): number {
 		return this.splitview.minimumSize;
 	}
@@ -388,7 +404,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		readonly orientation: Orientation,
 		readonly layoutController: LayoutController,
 		styles: IGridViewStyles,
-		readonly proportionalLayout: boolean,
+		readonly splitviewProportionalLayout: boolean,
 		size: number = 0,
 		orthogonalSize: number = 0,
 		edgeSnapping: boolean = false,
@@ -402,7 +418,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
-			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
+			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout: splitviewProportionalLayout });
 			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
 		} else {
 			// Reconstruction behavior, we want to reconstruct a splitview
@@ -417,7 +433,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 				size: this.orthogonalSize
 			};
 
-			const options = { proportionalLayout, orientation, styles };
+			const options = { proportionalLayout: splitviewProportionalLayout, orientation, styles };
 
 			this.children = childDescriptors.map(c => c.node);
 			this.splitview = new SplitView(this.element, { ...options, descriptor });
@@ -848,6 +864,10 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		return this.view.priority;
 	}
 
+	get proportionalLayout(): boolean {
+		return this.view.proportionalLayout ?? true;
+	}
+
 	get snap(): boolean | undefined {
 		return this.view.snap;
 	}
@@ -920,7 +940,7 @@ export interface INodeDescriptor {
 
 function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
 	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.proportionalLayout, size, orthogonalSize, node.edgeSnapping);
+		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.splitviewProportionalLayout, size, orthogonalSize, node.edgeSnapping);
 
 		let totalSize = 0;
 
