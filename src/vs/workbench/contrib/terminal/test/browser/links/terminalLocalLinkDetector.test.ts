@@ -21,34 +21,40 @@ import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
+	// Absolute
 	'/foo',
-	{ link: '~/foo', resource: URI.file('/home/foo') },
-	{ link: './foo', resource: URI.file('/parent/cwd/foo') },
-	{ link: './$foo', resource: URI.file('/parent/cwd/$foo') },
-	{ link: '../foo', resource: URI.file('/parent/foo') },
 	'/foo/bar',
 	'/foo/[bar]',
 	'/foo/[bar].baz',
 	'/foo/[bar]/baz',
 	'/foo/bar+more',
+	// User home
+	{ link: '~/foo', resource: URI.file('/home/foo') },
+	// Relative
+	{ link: './foo', resource: URI.file('/parent/cwd/foo') },
+	{ link: './$foo', resource: URI.file('/parent/cwd/$foo') },
+	{ link: '../foo', resource: URI.file('/parent/foo') },
 	{ link: 'foo/bar', resource: URI.file('/parent/cwd/foo/bar') },
 	{ link: 'foo/bar+more', resource: URI.file('/parent/cwd/foo/bar+more') },
 ];
 
 const windowsLinks: (string | { link: string; resource: URI })[] = [
+	// Absolute
 	'c:\\foo',
 	'\\\\?\\c:\\foo',
 	'c:/foo',
-	{ link: '.\\foo', resource: URI.file('C:\\Parent\\Cwd\\foo') },
-	{ link: './foo', resource: URI.file('C:\\Parent\\Cwd\\foo') },
-	{ link: './$foo', resource: URI.file('C:\\Parent\\Cwd\\$foo') },
-	{ link: '..\\foo', resource: URI.file('C:\\foo') },
-	{ link: '~\\foo', resource: URI.file('C:\\Home\\foo') },
-	{ link: '~/foo', resource: URI.file('C:\\Home\\foo') },
 	'c:/foo/bar',
 	'c:\\foo\\bar',
 	'c:\\foo\\bar+more',
 	'c:\\foo/bar\\baz',
+	// User home
+	{ link: '~\\foo', resource: URI.file('C:\\Home\\foo') },
+	{ link: '~/foo', resource: URI.file('C:\\Home\\foo') },
+	// Relative
+	{ link: '.\\foo', resource: URI.file('C:\\Parent\\Cwd\\foo') },
+	{ link: './foo', resource: URI.file('C:\\Parent\\Cwd\\foo') },
+	{ link: './$foo', resource: URI.file('C:\\Parent\\Cwd\\$foo') },
+	{ link: '..\\foo', resource: URI.file('C:\\Parent\\foo') },
 	{ link: 'foo/bar', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar') },
 	{ link: 'foo/bar', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar') },
 	{ link: 'foo/[bar]', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar]') },
