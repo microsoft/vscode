@@ -244,6 +244,11 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
 		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+
+		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
+		// be hard to tell whether the node is collapsed or expanded.
+		const twistieContainer = templateData.el.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
+		twistieContainer?.classList.add('force-twistie');
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
