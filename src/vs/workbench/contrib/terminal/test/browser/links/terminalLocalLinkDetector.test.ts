@@ -20,28 +20,28 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 
-const unixLinks = [
+const unixLinks: (string | { link: string; resource: URI })[] = [
 	'/foo',
-	'~/foo',
-	'./foo',
-	'./$foo',
-	'../foo',
+	{ link: '~/foo', resource: URI.file('/home/foo') },
+	{ link: './foo', resource: URI.file('/parent/cwd/foo') },
+	{ link: './$foo', resource: URI.file('/parent/cwd/$foo') },
+	{ link: '../foo', resource: URI.file('/parent/foo') },
 	'/foo/bar',
 	'/foo/[bar]',
 	'/foo/[bar].baz',
 	'/foo/[bar]/baz',
 	'/foo/bar+more',
-	'foo/bar',
-	'foo/bar+more',
+	{ link: 'foo/bar', resource: URI.file('/parent/cwd/foo/bar') },
+	{ link: 'foo/bar+more', resource: URI.file('/parent/cwd/foo/bar+more') },
 ];
 
 const windowsLinks: (string | { link: string; resource: URI })[] = [
 	'c:\\foo',
 	'\\\\?\\c:\\foo',
 	'c:/foo',
-	{ link: '.\\foo', resource: URI.file('C:\\Cwd\\foo') },
-	{ link: './foo', resource: URI.file('C:\\Cwd\\foo') },
-	{ link: './$foo', resource: URI.file('C:\\Cwd\\$foo') },
+	{ link: '.\\foo', resource: URI.file('C:\\Parent\\Cwd\\foo') },
+	{ link: './foo', resource: URI.file('C:\\Parent\\Cwd\\foo') },
+	{ link: './$foo', resource: URI.file('C:\\Parent\\Cwd\\$foo') },
 	{ link: '..\\foo', resource: URI.file('C:\\foo') },
 	{ link: '~\\foo', resource: URI.file('C:\\Home\\foo') },
 	{ link: '~/foo', resource: URI.file('C:\\Home\\foo') },
@@ -49,15 +49,15 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 	'c:\\foo\\bar',
 	'c:\\foo\\bar+more',
 	'c:\\foo/bar\\baz',
-	{ link: 'foo/bar', resource: URI.file('C:\\Cwd\\foo\\bar') },
-	{ link: 'foo/bar', resource: URI.file('C:\\Cwd\\foo\\bar') },
-	{ link: 'foo/[bar]', resource: URI.file('C:\\Cwd\\foo\\[bar]') },
-	{ link: 'foo/[bar].baz', resource: URI.file('C:\\Cwd\\foo\\[bar].baz') },
-	{ link: 'foo/[bar]/baz', resource: URI.file('C:\\Cwd\\foo\\[bar]/baz') },
-	{ link: 'foo\\bar', resource: URI.file('C:\\Cwd\\foo\\bar') },
-	{ link: 'foo\\[bar].baz', resource: URI.file('C:\\Cwd\\foo\\[bar].baz') },
-	{ link: 'foo\\[bar]\\baz', resource: URI.file('C:\\Cwd\\foo\\[bar]\\baz') },
-	{ link: 'foo\\bar+more', resource: URI.file('C:\\Cwd\\foo\\bar+more') },
+	{ link: 'foo/bar', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar') },
+	{ link: 'foo/bar', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar') },
+	{ link: 'foo/[bar]', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar]') },
+	{ link: 'foo/[bar].baz', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar].baz') },
+	{ link: 'foo/[bar]/baz', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar]/baz') },
+	{ link: 'foo\\bar', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar') },
+	{ link: 'foo\\[bar].baz', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar].baz') },
+	{ link: 'foo\\[bar]\\baz', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar]\\baz') },
+	{ link: 'foo\\bar+more', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar+more') },
 ];
 
 interface LinkFormatInfo {
@@ -98,6 +98,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	let configurationService: TestConfigurationService;
 	let detector: TerminalLocalLinkDetector;
 	let xterm: Terminal;
+	let validResources: URI[] = [];
 
 	async function assertLink(
 		type: TerminalBuiltinLinkType,
@@ -115,6 +116,15 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IFileService, {
+			async stat(resource) {
+				if (!validResources.map(e => e.path).includes(resource.path)) {
+					throw new Error('Doesn\'t exist');
+				}
+				return createFileStat(resource);
+			}
+		});
+		instantiationService.set(ITerminalLinkResolverService, instantiationService.createInstance(TerminalLinkResolverService));
 
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
@@ -127,7 +137,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				}
 			});
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-				initialCwd: '',
+				initialCwd: '/parent/cwd',
 				os: OperatingSystem.Linux,
 				remoteAuthority: undefined,
 				userHome: '/home',
@@ -145,13 +155,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('macOS/Linux', () => {
 		setup(() => {
-			instantiationService.stub(ITerminalLinkResolverService, {
-				async resolveLink(processManager, link, uri?) {
-					return resolveLinkForTest(link, uri);
-				}
-			});
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-				initialCwd: '',
+				initialCwd: '/parent/cwd',
 				os: OperatingSystem.Linux,
 				remoteAuthority: undefined,
 				userHome: '/home',
@@ -159,12 +164,15 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			});
 		});
 
-		for (const baseLink of unixLinks) {
+		for (const l of unixLinks) {
+			const baseLink = typeof l === 'string' ? l : l.link;
+			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
 			suite(`Link: ${baseLink}`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
 					const formattedLink = format(linkFormat.urlFormat, baseLink, linkFormat.line, linkFormat.column);
 					test(`should detect in "${formattedLink}"`, async () => {
+						validResources = [resource];
 						await assertLink(TerminalBuiltinLinkType.LocalFile, formattedLink, [{ text: formattedLink, range: [[1, 1], [formattedLink.length, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, ` ${formattedLink} `, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
 						await assertLink(TerminalBuiltinLinkType.LocalFile, `(${formattedLink})`, [{ text: formattedLink, range: [[2, 1], [formattedLink.length + 1, 1]] }]);
@@ -175,6 +183,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		}
 
 		test('Git diff links', async () => {
+			validResources = [URI.file('/parent/cwd/foo/bar')];
 			await assertLink(TerminalBuiltinLinkType.LocalFile, `diff --git a/foo/bar b/foo/bar`, [
 				{ text: 'foo/bar', range: [[14, 1], [20, 1]] },
 				{ text: 'foo/bar', range: [[24, 1], [30, 1]] }
@@ -185,22 +194,9 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	});
 
 	suite('Windows', () => {
-		let validResources: URI[] = [];
-
 		setup(() => {
-			instantiationService.stub(IFileService, {
-				async stat(resource) {
-					// console.log('stat:', resource.path);
-					// console.log('stat!:', validResources[0].path);
-					if (!validResources.map(e => e.path).includes(resource.path)) {
-						throw new Error('Doesn\'t exist');
-					}
-					return createFileStat(resource);
-				}
-			});
-			instantiationService.set(ITerminalLinkResolverService, instantiationService.createInstance(TerminalLinkResolverService));
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-				initialCwd: 'C:\\Cwd',
+				initialCwd: 'C:\\Parent\\Cwd',
 				os: OperatingSystem.Windows,
 				remoteAuthority: undefined,
 				userHome: 'C:\\Home',
@@ -227,9 +223,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		}
 
 		test('Git diff links', async () => {
-			validResources = [
-				URI.file('C:\\Cwd\\foo\\bar')
-			];
+			validResources = [URI.file('C:\\Parent\\Cwd\\foo\\bar')];
 			await assertLink(TerminalBuiltinLinkType.LocalFile, `diff --git a/foo/bar b/foo/bar`, [
 				{ text: 'foo/bar', range: [[14, 1], [20, 1]] },
 				{ text: 'foo/bar', range: [[24, 1], [30, 1]] }
