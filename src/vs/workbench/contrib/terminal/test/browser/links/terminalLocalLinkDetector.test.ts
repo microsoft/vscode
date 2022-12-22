@@ -146,6 +146,10 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 
 		test('should support multiple link results', async () => {
+			validResources = [
+				URI.file('/parent/cwd/foo'),
+				URI.file('/parent/cwd/bar')
+			];
 			await assertLink(TerminalBuiltinLinkType.LocalFile, './foo ./bar', [
 				{ range: [[1, 1], [5, 1]], text: './foo' },
 				{ range: [[7, 1], [11, 1]], text: './bar' }
