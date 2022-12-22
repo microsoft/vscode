@@ -103,9 +103,12 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 				return;
 			}
 
-			// There is a special case where the text editor has to handle binary file editor input: if a binary file
-			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
-			// editor has to open this model using the binary editor. We return early in this case.
+			// There is a special case where the text editor has to handle binary
+			// file editor input: if a binary file has been resolved and cached
+			// before, it maybe an actual instance of BinaryEditorModel. In this
+			// case our text editor has to open this model using the binary editor.
+			// We return early in this case.
+
 			if (resolvedModel instanceof BinaryEditorModel) {
 				return this.openAsBinary(input, options);
 			}
@@ -149,6 +152,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		// In case we tried to open a file inside the text editor and the response
 		// indicates that this is not a text file, reopen the file through the binary
 		// editor.
+
 		if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
 			return this.openAsBinary(input, options);
 		}
