@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { URI } from 'vs/base/common/uri';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { IBufferLine } from 'xterm';
-import { Schemas } from 'vs/base/common/network';
 
 export async function assertLinkHelper(
 	text: string,
@@ -44,27 +42,4 @@ export async function assertLinkHelper(
 		};
 	});
 	deepStrictEqual(actualLinks, expectedLinks);
-}
-
-function countOccurrences(source: string, pattern: string): number {
-	return source.length - (source.replaceAll(pattern, '').length / pattern.length);
-}
-
-export async function resolveLinkForTest(link: string, uri?: URI): Promise<ResolvedLink> {
-	// A set of conditions to help with square brackets in testing, this is only needed because the
-	// resolve path function must be injected
-	if (link.startsWith('[')) {
-		return null;
-	}
-	if (countOccurrences(link, '[') !== countOccurrences(link, ']')) {
-		return null;
-	}
-	if (link.includes('[') !== link.includes(']')) {
-		return null;
-	}
-	return {
-		link,
-		uri: URI.from({ scheme: Schemas.file, path: link }),
-		isDirectory: false,
-	};
 }
