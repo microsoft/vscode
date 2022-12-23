@@ -711,7 +711,7 @@ export class TriggerSuggestAction extends EditorAction {
 			id: TriggerSuggestAction.id,
 			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
 			alias: 'Trigger Suggest',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider, SuggestContext.Visible.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
