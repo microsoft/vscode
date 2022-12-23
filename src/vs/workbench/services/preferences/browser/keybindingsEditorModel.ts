@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { OperatingSystem, Language } from 'vs/base/common/platform';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
 import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -286,7 +286,7 @@ class KeybindingItemMatches {
 	}
 
 	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[], completeMatch: boolean): KeybindingMatches | null {
-		const [firstPart, chordPart] = keybinding.getParts();
+		const [firstPart, chordPart] = keybinding.getChords();
 
 		const userSettingsLabel = keybinding.getUserSettingsLabel();
 		const ariaLabel = keybinding.getAriaLabel();
@@ -354,36 +354,36 @@ class KeybindingItemMatches {
 		return this.hasAnyMatch(firstPartMatch) || this.hasAnyMatch(chordPartMatch) ? { firstPart: firstPartMatch, chordPart: chordPartMatch } : null;
 	}
 
-	private matchPart(part: ResolvedKeybindingPart | null, match: KeybindingMatch, word: string, completeMatch: boolean): boolean {
+	private matchPart(chord: ResolvedChord | null, match: KeybindingMatch, word: string, completeMatch: boolean): boolean {
 		let matched = false;
-		if (this.matchesMetaModifier(part, word)) {
+		if (this.matchesMetaModifier(chord, word)) {
 			matched = true;
 			match.metaKey = true;
 		}
-		if (this.matchesCtrlModifier(part, word)) {
+		if (this.matchesCtrlModifier(chord, word)) {
 			matched = true;
 			match.ctrlKey = true;
 		}
-		if (this.matchesShiftModifier(part, word)) {
+		if (this.matchesShiftModifier(chord, word)) {
 			matched = true;
 			match.shiftKey = true;
 		}
-		if (this.matchesAltModifier(part, word)) {
+		if (this.matchesAltModifier(chord, word)) {
 			matched = true;
 			match.altKey = true;
 		}
-		if (this.matchesKeyCode(part, word, completeMatch)) {
+		if (this.matchesKeyCode(chord, word, completeMatch)) {
 			match.keyCode = true;
 			matched = true;
 		}
 		return matched;
 	}
 
-	private matchesKeyCode(keybinding: ResolvedKeybindingPart | null, word: string, completeMatch: boolean): boolean {
-		if (!keybinding) {
+	private matchesKeyCode(chord: ResolvedChord | null, word: string, completeMatch: boolean): boolean {
+		if (!chord) {
 			return false;
 		}
-		const ariaLabel: string = keybinding.keyAriaLabel || '';
+		const ariaLabel: string = chord.keyAriaLabel || '';
 		if (completeMatch || ariaLabel.length === 1 || word.length === 1) {
 			if (strings.compareIgnoreCase(ariaLabel, word) === 0) {
 				return true;
@@ -396,41 +396,41 @@ class KeybindingItemMatches {
 		return false;
 	}
 
-	private matchesMetaModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
-		if (!keybinding) {
+	private matchesMetaModifier(chord: ResolvedChord | null, word: string): boolean {
+		if (!chord) {
 			return false;
 		}
-		if (!keybinding.metaKey) {
+		if (!chord.metaKey) {
 			return false;
 		}
 		return this.wordMatchesMetaModifier(word);
 	}
 
-	private matchesCtrlModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
-		if (!keybinding) {
+	private matchesCtrlModifier(chord: ResolvedChord | null, word: string): boolean {
+		if (!chord) {
 			return false;
 		}
-		if (!keybinding.ctrlKey) {
+		if (!chord.ctrlKey) {
 			return false;
 		}
 		return this.wordMatchesCtrlModifier(word);
 	}
 
-	private matchesShiftModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
-		if (!keybinding) {
+	private matchesShiftModifier(chord: ResolvedChord | null, word: string): boolean {
+		if (!chord) {
 			return false;
 		}
-		if (!keybinding.shiftKey) {
+		if (!chord.shiftKey) {
 			return false;
 		}
 		return this.wordMatchesShiftModifier(word);
 	}
 
-	private matchesAltModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
-		if (!keybinding) {
+	private matchesAltModifier(chord: ResolvedChord | null, word: string): boolean {
+		if (!chord) {
 			return false;
 		}
-		if (!keybinding.altKey) {
+		if (!chord.altKey) {
 			return false;
 		}
 		return this.wordMatchesAltModifier(word);
@@ -444,42 +444,42 @@ class KeybindingItemMatches {
 			!!keybindingMatch.keyCode;
 	}
 
-	private isCompleteMatch(part: ResolvedKeybindingPart | null, match: KeybindingMatch): boolean {
-		if (!part) {
+	private isCompleteMatch(chord: ResolvedChord | null, match: KeybindingMatch): boolean {
+		if (!chord) {
 			return true;
 		}
 		if (!match.keyCode) {
 			return false;
 		}
-		if (part.metaKey && !match.metaKey) {
+		if (chord.metaKey && !match.metaKey) {
 			return false;
 		}
-		if (part.altKey && !match.altKey) {
+		if (chord.altKey && !match.altKey) {
 			return false;
 		}
-		if (part.ctrlKey && !match.ctrlKey) {
+		if (chord.ctrlKey && !match.ctrlKey) {
 			return false;
 		}
-		if (part.shiftKey && !match.shiftKey) {
+		if (chord.shiftKey && !match.shiftKey) {
 			return false;
 		}
 		return true;
 	}
 
-	private createCompleteMatch(part: ResolvedKeybindingPart | null): KeybindingMatch {
+	private createCompleteMatch(chord: ResolvedChord | null): KeybindingMatch {
 		const match: KeybindingMatch = {};
-		if (part) {
+		if (chord) {
 			match.keyCode = true;
-			if (part.metaKey) {
+			if (chord.metaKey) {
 				match.metaKey = true;
 			}
-			if (part.altKey) {
+			if (chord.altKey) {
 				match.altKey = true;
 			}
-			if (part.ctrlKey) {
+			if (chord.ctrlKey) {
 				match.ctrlKey = true;
 			}
-			if (part.shiftKey) {
+			if (chord.shiftKey) {
 				match.shiftKey = true;
 			}
 		}

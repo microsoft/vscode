@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding } from 'vs/base/common/keybindings';
+import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -199,14 +199,14 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.add(widget.onDetailsKeyDown(e => {
 				// cmd + c on macOS, ctrl + c on Win / Linux
 				if (
-					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KeyC)) ||
-					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KeyC)))
+					e.toKeyCodeChord().equals(new KeyCodeChord(true, false, false, false, KeyCode.KeyC)) ||
+					(platform.isMacintosh && e.toKeyCodeChord().equals(new KeyCodeChord(false, false, false, true, KeyCode.KeyC)))
 				) {
 					e.stopPropagation();
 					return;
 				}
 
-				if (!e.toKeybinding().isModifierKey()) {
+				if (!e.toKeyCodeChord().isModifierKey()) {
 					this.editor.focus();
 				}
 			}));

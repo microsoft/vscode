@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const WRITE_FILE_IF_DIFFERENT = false;
@@ -18,7 +18,7 @@ async function createKeyboardMapper(isUSStandard: boolean, file: string, mapAltG
 }
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
-	const keyBinding = createKeybinding(k, OperatingSystem.Windows);
+	const keyBinding = decodeKeybinding(k, OperatingSystem.Windows);
 	assertResolveKeybinding(mapper, keyBinding!, expected);
 }
 
@@ -44,7 +44,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+A',
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+A'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -61,7 +61,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+Z'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -87,7 +87,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+Z'],
 				singleModifierDispatchParts: [null],
 			}
@@ -104,7 +104,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+]'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -130,7 +130,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+]'],
 				singleModifierDispatchParts: [null],
 			}
@@ -147,7 +147,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Shift+]',
 				userSettingsLabel: 'shift+oem_6',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['shift+]'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -164,7 +164,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+/',
 				userSettingsLabel: 'ctrl+oem_2',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+/'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -181,7 +181,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+Shift+/',
 				userSettingsLabel: 'ctrl+shift+oem_2',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+shift+/'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -198,7 +198,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+oem_5',
 				isWYSIWYG: false,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -223,7 +223,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+Down',
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+DownArrow'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -240,7 +240,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+NumPad0'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -257,7 +257,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+Home'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -283,7 +283,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+Home'],
 				singleModifierDispatchParts: [null],
 			}
@@ -291,10 +291,10 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
-		assertResolveUserBinding(
-			mapper, new UserKeybinding([
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+		assertResolveKeybinding(
+			mapper, new Keybinding([
+				new ScanCodeChord(true, false, false, false, ScanCode.Comma),
+				new KeyCodeChord(true, false, false, false, KeyCode.Slash),
 			]),
 			[{
 				label: 'Ctrl+, Ctrl+§',
@@ -302,7 +302,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_comma ctrl+oem_2',
 				isWYSIWYG: false,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -328,7 +328,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['ctrl'],
 			}
@@ -358,7 +358,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+\\',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -366,10 +366,10 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
-		assertResolveUserBinding(
-			mapper, new UserKeybinding([
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+		assertResolveKeybinding(
+			mapper, new Keybinding([
+				new ScanCodeChord(true, false, false, false, ScanCode.Comma),
+				new KeyCodeChord(true, false, false, false, KeyCode.Slash),
 			]),
 			[{
 				label: 'Ctrl+, Ctrl+/',
@@ -377,7 +377,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+, ctrl+/',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -385,9 +385,9 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	});
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
-		assertResolveUserBinding(
-			mapper, new UserKeybinding([
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+		assertResolveKeybinding(
+			mapper, new Keybinding([
+				new ScanCodeChord(true, false, false, false, ScanCode.Comma),
 			]),
 			[{
 				label: 'Ctrl+,',
@@ -395,7 +395,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: 'Ctrl+,',
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+,'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -421,7 +421,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['ctrl'],
 			}
@@ -447,7 +447,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'shift',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['shift'],
 			}
@@ -473,7 +473,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'alt',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['alt'],
 			}
@@ -499,7 +499,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'win',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['meta'],
 			}
@@ -525,7 +525,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+shift',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: [null],
 			}
@@ -553,7 +553,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				electronAccelerator: 'Ctrl+Alt+Z',
 				userSettingsLabel: 'ctrl+alt+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+alt+Z'],
 				singleModifierDispatchParts: [null],
 			}
@@ -592,7 +592,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				electronAccelerator: 'Ctrl+ABNT_C1',
 				userSettingsLabel: 'ctrl+abnt_c1',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+ABNT_C1'],
 				singleModifierDispatchParts: [null],
 			}
@@ -618,7 +618,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				electronAccelerator: 'Ctrl+ABNT_C2',
 				userSettingsLabel: 'ctrl+abnt_c2',
 				isWYSIWYG: false,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+ABNT_C2'],
 				singleModifierDispatchParts: [null],
 			}
@@ -648,7 +648,7 @@ suite('keyboardMapper - WINDOWS ru', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+k',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+K'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -684,7 +684,7 @@ suite('keyboardMapper - misc', () => {
 				electronAccelerator: 'Ctrl+B',
 				userSettingsLabel: 'ctrl+b',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+B'],
 				singleModifierDispatchParts: [null],
 			}]

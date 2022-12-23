@@ -817,26 +817,26 @@ class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
 }
 
 function createKeyboardNavigationEventFilter(keybindingService: IKeybindingService): IKeyboardNavigationEventFilter {
-	let inChord = false;
+	let inMultiChord = false;
 
 	return event => {
-		if (event.toKeybinding().isModifierKey()) {
+		if (event.toKeyCodeChord().isModifierKey()) {
 			return false;
 		}
 
-		if (inChord) {
-			inChord = false;
+		if (inMultiChord) {
+			inMultiChord = false;
 			return false;
 		}
 
 		const result = keybindingService.softDispatch(event, event.target);
 
-		if (result?.enterChord) {
-			inChord = true;
+		if (result?.enterMultiChord) {
+			inMultiChord = true;
 			return false;
 		}
 
-		inChord = false;
+		inMultiChord = false;
 		return !result;
 	};
 }
