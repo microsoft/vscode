@@ -683,8 +683,10 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
 			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
-			this._register(options?.configurationService.onDidChangeConfiguration(() => {
-				this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+			this._register(options?.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+				}
 			}));
 		} else {
 			this.openOnSingleClick = options?.openOnSingleClick ?? true;
