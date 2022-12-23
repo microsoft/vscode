@@ -252,7 +252,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 
 		// Error Icon
 		let icon = '$(error)';
-		if (isEditorOpenError(error) && error.actions.length > 0) {
+		if (isEditorOpenError(error)) {
 			if (error.forceSeverity === Severity.Info) {
 				icon = '$(info)';
 			} else if (error.forceSeverity === Severity.Warning) {
