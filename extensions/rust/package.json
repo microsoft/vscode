@@ -29,7 +29,11 @@
       {
         "language": "rust",
         "path": "./syntaxes/rust.tmLanguage.json",
-        "scopeName": "source.rust"
+        "scopeName": "source.rust",
+        "embeddedLanguages": {
+          "meta.embedded.block.markdown": "markdown"
+        },
+        "tokenTypes": {}
       }
     ]
   },
