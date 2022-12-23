@@ -1171,6 +1171,17 @@ export class FileOperationError extends Error {
 	}
 }
 
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
+	}
+}
+
 export class NotModifiedSinceFileOperationError extends FileOperationError {
 
 	constructor(
