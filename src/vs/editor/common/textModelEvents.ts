@@ -155,7 +155,7 @@ export class LineInjectedText {
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
-			if (decoration.options.before && decoration.options.before.content.length > 0) {
+			if (decoration.options.before) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.startLineNumber,
@@ -164,7 +164,7 @@ export class LineInjectedText {
 					decoration.options.hideContent ? 2 : 0, //collapsedText should always render last
 				));
 			}
-			if (decoration.options.after && decoration.options.after.content.length > 0) {
+			if (decoration.options.after) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.endLineNumber,
