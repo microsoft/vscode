@@ -213,8 +213,9 @@ export class EditorPanes extends Disposable {
 			{ detail, cancelId }
 		);
 
-		// Make sure to run any error action if present
-		if (result.choice !== cancelId && errorActions) {
+		if (typeof cancelId === 'number' && result.choice === cancelId) {
+			errorHandled = true; // treat cancel as handled and do not show placeholder
+		} else if (errorActions) {
 			const errorAction = errorActions[result.choice];
 			if (errorAction) {
 				const result = errorAction.run();
@@ -222,8 +223,10 @@ export class EditorPanes extends Disposable {
 					result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
 				}
 
-				errorHandled = true; // consider the error as handled!
+				errorHandled = true; // treat custom error action as handled and do not show placeholder
 			}
+		} else {
+			errorHandled = false; // show placeholder when generic "OK" is clicked
 		}
 
 		return errorHandled;
