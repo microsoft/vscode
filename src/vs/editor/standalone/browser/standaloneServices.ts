@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keybindings';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, UserKeybinding, createKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -426,7 +426,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		const entries: IKeybindingItem[] = rules.map((rule) => {
 			const keybinding = createKeybinding(rule.keybinding, OS);
 			return {
-				keybinding: keybinding?.parts ?? null,
+				keybinding: (keybinding && keybinding.parts.length > 0 ? new UserKeybinding(keybinding.parts) : null),
 				command: rule.command ?? null,
 				commandArgs: rule.commandArgs,
 				when: rule.when,

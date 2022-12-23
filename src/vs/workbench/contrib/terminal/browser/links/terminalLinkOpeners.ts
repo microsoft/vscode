@@ -75,7 +75,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
-		private readonly _initialCwd: Promise<string>,
+		private readonly _initialCwd: string,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
@@ -138,9 +138,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		const pathModule = osPathModule(this._os);
 		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
 		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
-		const initialCwd = await this._initialCwd;
-		if (!isAbsolute && initialCwd.length > 0) {
-			absolutePath = pathModule.join(initialCwd, sanitizedLink);
+		if (!isAbsolute && this._initialCwd.length > 0) {
+			absolutePath = pathModule.join(this._initialCwd, sanitizedLink);
 		}
 
 		// Try open as an absolute link

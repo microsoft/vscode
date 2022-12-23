@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, createKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -119,7 +119,7 @@ suite('keybindingIO', () => {
 	test('deserialize scan codes', () => {
 		assert.deepStrictEqual(
 			KeybindingParser.parseUserBinding('ctrl+shift+[comma] ctrl+/'),
-			[new ScanCodeBinding(true, true, false, false, ScanCode.Comma), new SimpleKeybinding(true, false, false, false, KeyCode.Slash)]
+			new UserKeybinding([new ScanCodeBinding(true, true, false, false, ScanCode.Comma), new SimpleKeybinding(true, false, false, false, KeyCode.Slash)])
 		);
 	});
 
@@ -141,14 +141,14 @@ suite('keybindingIO', () => {
 		const strJSON = `[{ "key": [], "command": "firstcommand" }]`;
 		const userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.deepStrictEqual(keybindingItem.parts, []);
+		assert.deepStrictEqual(keybindingItem.keybinding, null);
 	});
 
 	test('issue #10452 - invalid key 2', () => {
 		const strJSON = `[{ "key": "", "command": "firstcommand" }]`;
 		const userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.deepStrictEqual(keybindingItem.parts, []);
+		assert.deepStrictEqual(keybindingItem.keybinding, null);
 	});
 
 	test('test commands args', () => {

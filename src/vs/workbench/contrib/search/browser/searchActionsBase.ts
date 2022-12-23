@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as nls from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
@@ -22,17 +20,8 @@ export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
 }
 
-export function appendKeyBindingLabel(label: string, inputKeyBinding: number | ResolvedKeybinding | undefined, keyBindingService2: IKeybindingService): string {
-	if (typeof inputKeyBinding === 'number') {
-		const keybinding = createKeybinding(inputKeyBinding, OS);
-		if (keybinding) {
-			const resolvedKeybindings = keyBindingService2.resolveKeybinding(keybinding);
-			return doAppendKeyBindingLabel(label, resolvedKeybindings.length > 0 ? resolvedKeybindings[0] : undefined);
-		}
-		return doAppendKeyBindingLabel(label, undefined);
-	} else {
-		return doAppendKeyBindingLabel(label, inputKeyBinding);
-	}
+export function appendKeyBindingLabel(label: string, inputKeyBinding: ResolvedKeybinding | undefined): string {
+	return doAppendKeyBindingLabel(label, inputKeyBinding);
 }
 
 export function getSearchView(viewsService: IViewsService): SearchView | undefined {

@@ -75,6 +75,7 @@ export interface IUserDataProfileImportExportService {
 
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI): Promise<void>;
+	showProfileContents(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
@@ -123,4 +124,5 @@ export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
-export const IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportExportInProgress', false);
+export const IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileExportInProgress', false);
+export const IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportInProgress', false);

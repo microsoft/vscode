@@ -34,6 +34,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -42,7 +43,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
-	private diffEditorControl: IDiffEditor | undefined = undefined;
+	private diffEditorControl: DiffEditorWidget | undefined = undefined;
 
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
@@ -307,6 +308,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	override layout(dimension: Dimension): void {
 		this.diffEditorControl?.layout(dimension);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this.diffEditorControl?.setBoundarySashes(sashes);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {
