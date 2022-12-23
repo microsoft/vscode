@@ -140,7 +140,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			if (name === 'tcsh') {
 				shellArgs = ['-ic'];
 			} else {
-				shellArgs = ['-ilc'];
+				shellArgs = ['-i', '-l', '-c'];
 			}
 		}
 
