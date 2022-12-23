@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { UserKeybinding } from 'vs/base/common/keybindings';
+import { Keybinding } from 'vs/base/common/keybindings';
 import { isWindows, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -32,7 +32,7 @@ suite('Search Actions', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
 		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
-		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: UserKeybinding) => USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS));
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS));
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		counter = 0;

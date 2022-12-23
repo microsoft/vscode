@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -27,8 +27,8 @@ suite('keybindingIO', () => {
 		}
 
 		function testOneDeserialization(keybinding: string, _expected: number, msg: string, OS: OperatingSystem): void {
-			const actualDeserialized = KeybindingParser.parseKeybinding(keybinding, OS);
-			const expected = createKeybinding(_expected, OS);
+			const actualDeserialized = KeybindingParser.parseKeybinding(keybinding);
+			const expected = decodeKeybinding(_expected, OS);
 			assert.deepStrictEqual(actualDeserialized, expected, keybinding + ' - ' + msg);
 		}
 		function testDeserialization(inWin: string, inMac: string, inLinux: string, expected: number): void {
@@ -118,8 +118,8 @@ suite('keybindingIO', () => {
 
 	test('deserialize scan codes', () => {
 		assert.deepStrictEqual(
-			KeybindingParser.parseUserBinding('ctrl+shift+[comma] ctrl+/'),
-			new UserKeybinding([new ScanCodeBinding(true, true, false, false, ScanCode.Comma), new SimpleKeybinding(true, false, false, false, KeyCode.Slash)])
+			KeybindingParser.parseKeybinding('ctrl+shift+[comma] ctrl+/'),
+			new Keybinding([new ScanCodeChord(true, true, false, false, ScanCode.Comma), new KeyCodeChord(true, false, false, false, KeyCode.Slash)])
 		);
 	});
 

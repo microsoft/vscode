@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UserKeybinding } from 'vs/base/common/keybindings';
+import { Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
-	keybinding: UserKeybinding | null;
+	keybinding: Keybinding | null;
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | undefined;
@@ -44,7 +44,7 @@ export class KeybindingIO {
 	}
 
 	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
-		const keybinding = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : null);
+		const keybinding = (typeof input.key === 'string' ? KeybindingParser.parseKeybinding(input.key) : null);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
 		const command = (typeof input.command === 'string' ? input.command : null);
 		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { decodeKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -12,7 +12,7 @@ import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface IKeybindingItem {
-	keybinding: UserKeybinding | null;
+	keybinding: Keybinding | null;
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | null | undefined;
@@ -47,7 +47,7 @@ export interface IKeybindingRule extends IKeybindings {
 }
 
 export interface IExtensionKeybindingRule {
-	keybinding: UserKeybinding | null;
+	keybinding: Keybinding | null;
 	id: string;
 	args?: any;
 	weight: number;
@@ -114,7 +114,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		const result = new DisposableStore();
 
 		if (actualKb && actualKb.primary) {
-			const kk = createKeybinding(actualKb.primary, OS);
+			const kk = decodeKeybinding(actualKb.primary, OS);
 			if (kk) {
 				result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when));
 			}
@@ -123,7 +123,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				const kk = createKeybinding(k, OS);
+				const kk = decodeKeybinding(k, OS);
 				if (kk) {
 					result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when));
 				}
@@ -161,9 +161,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		);
 	}
 
-	private _registerDefaultKeybinding(keybinding: UserKeybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
 		const remove = this._coreKeybindings.push({
-			keybinding: new UserKeybinding(keybinding.parts),
+			keybinding: keybinding,
 			command: commandId,
 			commandArgs: commandArgs,
 			when: when,

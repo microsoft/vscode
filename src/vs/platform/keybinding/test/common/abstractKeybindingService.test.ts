@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { createSimpleKeybinding, ResolvedKeybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -51,19 +51,19 @@ suite('AbstractKeybindingService', () => {
 			return true;
 		}
 
-		public resolveKeybinding(kb: UserKeybinding): ResolvedKeybinding[] {
-			return USLayoutResolvedKeybinding.resolveUserBinding(kb, OS);
+		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
+			return USLayoutResolvedKeybinding.resolveKeybinding(kb, OS);
 		}
 
 		public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-			const keybinding = new SimpleKeybinding(
+			const chord = new KeyCodeChord(
 				keyboardEvent.ctrlKey,
 				keyboardEvent.shiftKey,
 				keyboardEvent.altKey,
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
-			).toChord();
-			return this.resolveKeybinding(keybinding)[0];
+			).toKeybinding();
+			return this.resolveKeybinding(chord)[0];
 		}
 
 		public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {

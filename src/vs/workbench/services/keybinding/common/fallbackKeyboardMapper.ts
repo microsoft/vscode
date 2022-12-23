@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -26,18 +26,18 @@ export class FallbackKeyboardMapper implements IKeyboardMapper {
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
 		const ctrlKey = keyboardEvent.ctrlKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
 		const altKey = keyboardEvent.altKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
-		const keybinding = new SimpleKeybinding(
+		const chord = new KeyCodeChord(
 			ctrlKey,
 			keyboardEvent.shiftKey,
 			altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		const result = this.resolveUserBinding(new UserKeybinding([keybinding]));
+		const result = this.resolveKeybinding(new Keybinding([chord]));
 		return result[0];
 	}
 
-	public resolveUserBinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
-		return USLayoutResolvedKeybinding.resolveUserBinding(keybinding, this._OS);
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return USLayoutResolvedKeybinding.resolveKeybinding(keybinding, this._OS);
 	}
 }

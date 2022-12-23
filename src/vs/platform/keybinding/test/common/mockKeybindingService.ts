@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ResolvedKeybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -104,19 +104,19 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public resolveKeybinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
-		return USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		const keybinding = new SimpleKeybinding(
+		const chord = new KeyCodeChord(
 			keyboardEvent.ctrlKey,
 			keyboardEvent.shiftKey,
 			keyboardEvent.altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding.toChord())[0];
+		return this.resolveKeybinding(chord.toKeybinding())[0];
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {

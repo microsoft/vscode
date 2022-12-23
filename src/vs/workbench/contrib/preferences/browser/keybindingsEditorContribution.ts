@@ -260,8 +260,8 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			return true;
 		}
 
-		const aKeybinding = KeybindingParser.parseUserBinding(a);
-		const bKeybinding = KeybindingParser.parseUserBinding(b);
+		const aKeybinding = KeybindingParser.parseKeybinding(a);
+		const bKeybinding = KeybindingParser.parseKeybinding(b);
 		if (aKeybinding === null && bKeybinding === null) {
 			return true;
 		}

@@ -10,7 +10,7 @@ import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent }
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, KeyCodeChord, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -286,17 +286,17 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
 	}
 
-	private _printUserBinding(keybinding: UserKeybinding): string {
-		return UserSettingsLabelProvider.toLabel(OS, keybinding.parts, (part) => {
-			if (part instanceof SimpleKeybinding) {
-				return KeyCodeUtils.toString(part.keyCode);
+	private _printKeybinding(keybinding: Keybinding): string {
+		return UserSettingsLabelProvider.toLabel(OS, keybinding.chords, (chord) => {
+			if (chord instanceof KeyCodeChord) {
+				return KeyCodeUtils.toString(chord.keyCode);
 			}
-			return ScanCodeUtils.toString(part.scanCode);
+			return ScanCodeUtils.toString(chord.scanCode);
 		}) || '[null]';
 	}
 
 	private _printResolvedKeybinding(resolvedKeybinding: ResolvedKeybinding): string {
-		return resolvedKeybinding.getDispatchParts().map(x => x || '[null]').join(' ');
+		return resolvedKeybinding.getDispatchChords().map(x => x || '[null]').join(' ');
 	}
 
 	private _printResolvedKeybindings(output: string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
@@ -329,12 +329,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			if (!item.keybinding) {
 				continue;
 			}
-			const input = this._printUserBinding(item.keybinding);
+			const input = this._printKeybinding(item.keybinding);
 			if (seenBindings.has(input)) {
 				continue;
 			}
 			seenBindings.add(input);
-			const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.keybinding);
+			const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(item.keybinding);
 			this._printResolvedKeybindings(result, input, resolvedKeybindings);
 		}
 
@@ -348,7 +348,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				continue;
 			}
 			seenBindings.add(input);
-			const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.keybinding);
+			const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(item.keybinding);
 			this._printResolvedKeybindings(result, input, resolvedKeybindings);
 		}
 
@@ -410,7 +410,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 					continue;
 				}
 
-				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(keybinding);
+				const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(keybinding);
 				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
 					const resolvedKeybinding = resolvedKeybindings[i];
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
@@ -430,7 +430,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
-				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(item.keybinding);
+				const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(item.keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}
@@ -440,7 +440,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _assertBrowserConflicts(keybinding: UserKeybinding, commandId: string | null): boolean {
+	private _assertBrowserConflicts(keybinding: Keybinding, commandId: string | null): boolean {
 		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
@@ -449,47 +449,47 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
-		for (const part of keybinding.parts) {
-			if (!part.metaKey && !part.altKey && !part.ctrlKey && !part.shiftKey) {
+		for (const chord of keybinding.chords) {
+			if (!chord.metaKey && !chord.altKey && !chord.ctrlKey && !chord.shiftKey) {
 				continue;
 			}
 
 			const modifiersMask = KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift;
 
 			let partModifiersMask = 0;
-			if (part.metaKey) {
+			if (chord.metaKey) {
 				partModifiersMask |= KeyMod.CtrlCmd;
 			}
 
-			if (part.shiftKey) {
+			if (chord.shiftKey) {
 				partModifiersMask |= KeyMod.Shift;
 			}
 
-			if (part.altKey) {
+			if (chord.altKey) {
 				partModifiersMask |= KeyMod.Alt;
 			}
 
-			if (part.ctrlKey && OS === OperatingSystem.Macintosh) {
+			if (chord.ctrlKey && OS === OperatingSystem.Macintosh) {
 				partModifiersMask |= KeyMod.WinCtrl;
 			}
 
 			if ((partModifiersMask & modifiersMask) === (KeyMod.CtrlCmd | KeyMod.Alt)) {
-				if (part instanceof ScanCodeBinding && (part.scanCode === ScanCode.ArrowLeft || part.scanCode === ScanCode.ArrowRight)) {
+				if (chord instanceof ScanCodeChord && (chord.scanCode === ScanCode.ArrowLeft || chord.scanCode === ScanCode.ArrowRight)) {
 					// console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 					return true;
 				}
-				if (part instanceof SimpleKeybinding && (part.keyCode === KeyCode.LeftArrow || part.keyCode === KeyCode.RightArrow)) {
+				if (chord instanceof KeyCodeChord && (chord.keyCode === KeyCode.LeftArrow || chord.keyCode === KeyCode.RightArrow)) {
 					// console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 					return true;
 				}
 			}
 
 			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd) {
-				if (part instanceof ScanCodeBinding && (part.scanCode >= ScanCode.Digit1 && part.scanCode <= ScanCode.Digit0)) {
+				if (chord instanceof ScanCodeChord && (chord.scanCode >= ScanCode.Digit1 && chord.scanCode <= ScanCode.Digit0)) {
 					// console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 					return true;
 				}
-				if (part instanceof SimpleKeybinding && (part.keyCode >= KeyCode.Digit0 && part.keyCode <= KeyCode.Digit9)) {
+				if (chord instanceof KeyCodeChord && (chord.keyCode >= KeyCode.Digit0 && chord.keyCode <= KeyCode.Digit9)) {
 					// console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 					return true;
 				}
@@ -499,8 +499,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return false;
 	}
 
-	public resolveKeybinding(kb: UserKeybinding): ResolvedKeybinding[] {
-		return this._keyboardMapper.resolveUserBinding(kb);
+	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
+		return this._keyboardMapper.resolveKeybinding(kb);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -509,8 +509,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		const keybinding = KeybindingParser.parseUserBinding(userBinding);
-		return (keybinding ? this._keyboardMapper.resolveUserBinding(keybinding) : []);
+		const keybinding = KeybindingParser.parseKeybinding(userBinding);
+		return (keybinding ? this._keyboardMapper.resolveKeybinding(keybinding) : []);
 	}
 
 	private _handleKeybindingsExtensionPointUser(extensionId: ExtensionIdentifier, isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector, result: IExtensionKeybindingRule[]): void {
@@ -592,7 +592,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			args,
 			when: fullWhen,
 			weight: weight,
-			keybinding: KeybindingParser.parseUserBinding(keybinding),
+			keybinding: KeybindingParser.parseKeybinding(keybinding),
 			extensionId: extensionId.value,
 			isBuiltinExtension: isBuiltin
 		};

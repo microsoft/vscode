@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
-	resolveUserBinding(keybinding: UserKeybinding): ResolvedKeybinding[];
+	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 }
 
 export class CachedKeyboardMapper implements IKeyboardMapper {
@@ -30,11 +30,11 @@ export class CachedKeyboardMapper implements IKeyboardMapper {
 		return this._actual.resolveKeyboardEvent(keyboardEvent);
 	}
 
-	public resolveUserBinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
 		const hashCode = keybinding.getHashCode();
 		const resolved = this._cache.get(hashCode);
 		if (!resolved) {
-			const r = this._actual.resolveUserBinding(keybinding);
+			const r = this._actual.resolveKeybinding(keybinding);
 			this._cache.set(hashCode, r);
 			return r;
 		}
