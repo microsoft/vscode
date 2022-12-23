@@ -32,8 +32,7 @@
         "scopeName": "source.rust",
         "embeddedLanguages": {
           "meta.embedded.block.markdown": "markdown"
-        },
-        "tokenTypes": {}
+        }
       }
     ]
   },

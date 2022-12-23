@@ -300,17 +300,14 @@
 				{
 					"comment": "documentation comments",
 					"name": "comment.line.documentation.rust",
-					"match": "///\\s?(.*)",
-					"captures": {
-						"0": {
-							"name": "meta.embedded.block.markdown",
-							"patterns": [
-								{
-									"include": "text.html.markdown"
-								}
-							]
+					"begin": "^\\s*///",
+					"while": "^\\s*///",
+					"contentName": "meta.embedded.block.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown"
 						}
-					}
+					]
 				},
 				{
 					"comment": "line comments",
