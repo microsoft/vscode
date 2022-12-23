@@ -29,7 +29,7 @@
     },
     {
       "file": "src/vs/base/browser/ui/splitview/splitview.ts",
-      "description": "The _orthogonal sash_ concept can apply to other widgets as well. The the splitview, for example. It's the widget which renders views across one direction and allows the user to resize each view, according to sizing constraints:\r\n\r\n![debug](https://user-images.githubusercontent.com/22350/209339846-9713bf3e-49c4-4724-b34d-b3aee419387d.gif)\r\n\r\nNotice how the vertical sash (to the right of the side bar) can be configured as the _orthogonal end_ sash to the splitview, effectively creating draggable corners at the end of each sash within the entire split view:\r\n\r\n![debug](https://user-images.githubusercontent.com/22350/209339848-e3d4d345-7d44-4325-ba82-0ff64a6ac219.gif)",
+      "description": "The _orthogonal sash_ concept can apply to other widgets as well. Take the splitview, for example, which is the widget which renders views across one direction and allows the user to resize each view, according to sizing constraints:\r\n\r\n![debug](https://user-images.githubusercontent.com/22350/209339846-9713bf3e-49c4-4724-b34d-b3aee419387d.gif)\r\n\r\nNotice how the vertical sash to the right of the side bar can be configured to be the _orthogonal end_ sash to the splitview, effectively creating draggable corners at the end of each sash within the entire split view:\r\n\r\n![debug](https://user-images.githubusercontent.com/22350/209339848-e3d4d345-7d44-4325-ba82-0ff64a6ac219.gif)",
       "line": 476
     },
     {
