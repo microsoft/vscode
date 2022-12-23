@@ -34,6 +34,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import Severity from 'vs/base/common/severity';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 /**
  * An implementation of editor for file system resources.
@@ -58,7 +59,8 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPathService private readonly pathService: IPathService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPreferencesService protected readonly preferencesService: IPreferencesService
+		@IPreferencesService protected readonly preferencesService: IPreferencesService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
@@ -159,26 +161,27 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			return this.openAsBinary(input, options);
 		}
 
-		// Similar, handle case where we were asked to open a folder in the text editor.
+		// Handle case where we were asked to open a folder
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
-			let action: IAction;
+			const actions: IAction[] = [];
+
+			actions.push(toAction({
+				id: 'workbench.files.action.openFolder', label: localize('openFolder', "Open Folder"), run: async () => {
+					return this.hostService.openWindow([{ folderUri: input.resource }], { forceNewWindow: true });
+				}
+			}));
+
 			if (this.contextService.isInsideWorkspace(input.preferredResource)) {
-				action = toAction({
-					id: 'workbench.files.action.reveal', label: localize('reveal', "Reveal in Explorer View"), run: async () => {
+				actions.push(toAction({
+					id: 'workbench.files.action.reveal', label: localize('reveal', "Reveal Folder"), run: async () => {
 						await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 
 						return this.explorerService.select(input.preferredResource, true);
 					}
-				});
-			} else {
-				action = toAction({
-					id: 'workbench.files.action.ok', label: localize('ok', "OK"), run: async () => {
-						// No operation possible, but clicking OK will close the editor
-					}
-				});
+				}));
 			}
 
-			throw createEditorOpenError(new FileOperationError(localize('fileIsDirectoryError', "File is a directory"), FileOperationResult.FILE_IS_DIRECTORY), [action]);
+			throw createEditorOpenError(localize('fileIsDirectory', "The file is not displayed in the text editor because it is a directory."), actions, { forceMessage: true });
 		}
 
 		// Handle case where a file is too large to open without confirmation

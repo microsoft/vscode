@@ -28,6 +28,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Severity from 'vs/base/common/severity';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 /**
  * An implementation of editor for file system resources.
@@ -53,8 +54,9 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IProductService private readonly productService: IProductService,
 		@IPathService pathService: IPathService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService
 	) {
-		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService, pathService, configurationService, preferencesService);
+		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService, pathService, configurationService, preferencesService, hostService);
 	}
 
 	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
