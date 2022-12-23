@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { Keybinding, KeybindingModifier, ResolvedKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { KeybindingModifier, ResolvedKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
@@ -33,11 +33,6 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 		dispatchParts: kb.getDispatchParts(),
 		singleModifierDispatchParts: kb.getSingleModifierDispatchParts()
 	};
-}
-
-export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding | null, expected: IResolvedKeybinding[]): void {
-	const actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding!).map(toIResolvedKeybinding);
-	assert.deepStrictEqual(actual, expected);
 }
 
 export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEvent: IKeyboardEvent, expected: IResolvedKeybinding): void {

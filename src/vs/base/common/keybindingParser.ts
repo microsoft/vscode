@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCodeUtils, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, Keybinding, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { SimpleKeybinding, ScanCodeBinding, UserKeybinding, Keypress } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 export class KeybindingParser {
@@ -80,7 +80,7 @@ export class KeybindingParser {
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	public static parseKeybinding(input: string, OS: OperatingSystem): Keybinding | null {
+	public static parseKeybinding(input: string, OS: OperatingSystem): UserKeybinding | null {
 		if (!input) {
 			return null;
 		}
@@ -92,10 +92,10 @@ export class KeybindingParser {
 			[part, input] = this.parseSimpleKeybinding(input);
 			parts.push(part);
 		} while (input.length > 0);
-		return new ChordKeybinding(parts);
+		return new UserKeybinding(parts);
 	}
 
-	private static parseSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {
+	private static parseSimpleUserBinding(input: string): [Keypress, string] {
 		const mods = this._readModifiers(input);
 		const scanCodeMatch = mods.key.match(/^\[([^\]]+)\]$/);
 		if (scanCodeMatch) {
@@ -112,8 +112,8 @@ export class KeybindingParser {
 			return null;
 		}
 
-		const parts: (SimpleKeybinding | ScanCodeBinding)[] = [];
-		let part: SimpleKeybinding | ScanCodeBinding;
+		const parts: Keypress[] = [];
+		let part: Keypress;
 
 		while (input.length > 0) {
 			[part, input] = this.parseSimpleUserBinding(input);

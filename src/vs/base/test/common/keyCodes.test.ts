@@ -5,12 +5,12 @@
 
 import * as assert from 'assert';
 import { EVENT_KEY_CODE_MAP, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, KeyChord, KeyCode, KeyCodeUtils, KeyMod, NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, createKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { createKeybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 suite('keyCodes', () => {
 
-	function testBinaryEncoding(expected: Keybinding | null, k: number, OS: OperatingSystem): void {
+	function testBinaryEncoding(expected: UserKeybinding | null, k: number, OS: OperatingSystem): void {
 		assert.deepStrictEqual(createKeybinding(k, OS), expected);
 	}
 
@@ -51,7 +51,7 @@ suite('keyCodes', () => {
 
 	test('MAC binary encoding', () => {
 
-		function test(expected: Keybinding | null, k: number): void {
+		function test(expected: UserKeybinding | null, k: number): void {
 			testBinaryEncoding(expected, k, OperatingSystem.Macintosh);
 		}
 
@@ -74,14 +74,14 @@ suite('keyCodes', () => {
 		test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 		test(
-			new ChordKeybinding([
+			new UserKeybinding([
 				new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
 				new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
 			]),
 			KeyChord(KeyCode.Enter, KeyCode.Tab)
 		);
 		test(
-			new ChordKeybinding([
+			new UserKeybinding([
 				new SimpleKeybinding(false, false, false, true, KeyCode.KeyY),
 				new SimpleKeybinding(false, false, false, false, KeyCode.KeyZ)
 			]),
@@ -93,7 +93,7 @@ suite('keyCodes', () => {
 
 		[OperatingSystem.Linux, OperatingSystem.Windows].forEach((OS) => {
 
-			function test(expected: Keybinding | null, k: number): void {
+			function test(expected: UserKeybinding | null, k: number): void {
 				testBinaryEncoding(expected, k, OS);
 			}
 
@@ -116,14 +116,14 @@ suite('keyCodes', () => {
 			test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 			test(
-				new ChordKeybinding([
+				new UserKeybinding([
 					new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
 					new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
 				]),
 				KeyChord(KeyCode.Enter, KeyCode.Tab)
 			);
 			test(
-				new ChordKeybinding([
+				new UserKeybinding([
 					new SimpleKeybinding(true, false, false, false, KeyCode.KeyY),
 					new SimpleKeybinding(false, false, false, false, KeyCode.KeyZ)
 				]),

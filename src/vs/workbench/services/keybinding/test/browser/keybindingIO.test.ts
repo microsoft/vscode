@@ -8,15 +8,15 @@ import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } f
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 
 suite('keybindingIO', () => {
 
 	test('serialize/deserialize', () => {
 
 		function testOneSerialization(keybinding: number, expected: string, msg: string, OS: OperatingSystem): void {
-			const usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
+			const usLayoutResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
 			const actualSerialized = usLayoutResolvedKeybinding.getUserSettingsLabel();
 			assert.strictEqual(actualSerialized, expected, expected + ' - ' + msg);
 		}

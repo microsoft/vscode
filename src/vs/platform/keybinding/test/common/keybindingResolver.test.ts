@@ -11,6 +11,7 @@ import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/cont
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 
 function createContext(ctx: any) {
 	return {
@@ -23,7 +24,7 @@ function createContext(ctx: any) {
 suite('KeybindingResolver', () => {
 
 	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : undefined);
+		const resolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,
@@ -35,8 +36,8 @@ suite('KeybindingResolver', () => {
 		);
 	}
 
-	function getDispatchStr(runtimeKb: SimpleKeybinding): string {
-		return USLayoutResolvedKeybinding.getDispatchStr(runtimeKb)!;
+	function getDispatchStr(keypress: SimpleKeybinding): string {
+		return USLayoutResolvedKeybinding.getDispatchStr(keypress)!;
 	}
 
 	test('resolve key', () => {
@@ -392,7 +393,7 @@ suite('KeybindingResolver', () => {
 			const lookupResult = resolver.lookupKeybindings(commandId);
 			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId);
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
-				const expected = new USLayoutResolvedKeybinding(createKeybinding(expectedKeys[i], OS)!, OS);
+				const expected = createUSLayoutResolvedKeybinding(expectedKeys[i], OS)!;
 
 				assert.strictEqual(lookupResult[i].resolvedKeybinding!.getUserSettingsLabel(), expected.getUserSettingsLabel(), 'value mismatch @ commandId ' + commandId);
 			}
@@ -403,7 +404,7 @@ suite('KeybindingResolver', () => {
 
 			let previousPart: (string | null) = null;
 			for (let i = 0, len = expectedKey.parts.length; i < len; i++) {
-				const part = getDispatchStr(expectedKey.parts[i]);
+				const part = getDispatchStr(<SimpleKeybinding>expectedKey.parts[i]);
 				const result = resolver.resolve(ctx, previousPart, part);
 				if (i === len - 1) {
 					// if it's the final part, then we should find a valid command,

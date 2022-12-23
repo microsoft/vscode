@@ -22,10 +22,10 @@ export class ResolvedKeybindingItem {
 
 	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean, extensionId: string | null, isBuiltinExtension: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
-		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
+		this.keypressParts = resolvedKeybinding ? toEmptyArrayIfContainsNull(resolvedKeybinding.getDispatchParts()) : [];
 		if (resolvedKeybinding && this.keypressParts.length === 0) {
 			// handle possible single modifier chord keybindings
-			this.keypressParts = removeElementsAfterNulls(resolvedKeybinding.getSingleModifierDispatchParts());
+			this.keypressParts = toEmptyArrayIfContainsNull(resolvedKeybinding.getSingleModifierDispatchParts());
 		}
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;
@@ -37,13 +37,12 @@ export class ResolvedKeybindingItem {
 	}
 }
 
-export function removeElementsAfterNulls<T>(arr: (T | null)[]): T[] {
+export function toEmptyArrayIfContainsNull<T>(arr: (T | null)[]): T[] {
 	const result: T[] = [];
 	for (let i = 0, len = arr.length; i < len; i++) {
 		const element = arr[i];
 		if (!element) {
-			// stop processing at first encountered null
-			return result;
+			return [];
 		}
 		result.push(element);
 	}

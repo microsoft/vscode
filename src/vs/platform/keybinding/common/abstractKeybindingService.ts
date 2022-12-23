@@ -8,7 +8,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
+import { KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart, UserKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -73,7 +73,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	protected abstract _getResolver(): KeybindingResolver;
 	protected abstract _documentHasFocus(): boolean;
-	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
+	public abstract resolveKeybinding(keybinding: UserKeybinding): ResolvedKeybinding[];
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 	public abstract registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;

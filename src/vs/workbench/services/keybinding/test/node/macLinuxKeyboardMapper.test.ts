@@ -10,7 +10,7 @@ import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 import { IMacLinuxKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const WRITE_FILE_IF_DIFFERENT = false;
@@ -38,7 +38,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 	}
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('kb => hw', () => {
@@ -531,7 +531,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	}
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('kb => hw', () => {
@@ -906,7 +906,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+A', () => {
@@ -1678,7 +1678,7 @@ suite('keyboardMapper - LINUX ru', () => {
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+S', () => {
@@ -1752,7 +1752,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('issue #28237 resolveKeybinding Cmd+C', () => {
@@ -1798,7 +1798,7 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 
 	const runtimeKeybinding = createSimpleKeybinding(kb, OS);
 
-	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding.toChord(), OS).getUserSettingsLabel();
+	const keybindingLabel = new USLayoutResolvedKeybinding([runtimeKeybinding], OS).getUserSettingsLabel();
 
 	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {

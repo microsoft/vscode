@@ -28,19 +28,19 @@ const enum BinaryKeybindingsMask {
 	KeyCode = 0x000000FF
 }
 
-export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding | null {
+export function createKeybinding(keybinding: number, OS: OperatingSystem): UserKeybinding | null {
 	if (keybinding === 0) {
 		return null;
 	}
 	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
 	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
 	if (chordPart !== 0) {
-		return new ChordKeybinding([
+		return new UserKeybinding([
 			createSimpleKeybinding(firstPart, OS),
 			createSimpleKeybinding(chordPart, OS)
 		]);
 	}
-	return new ChordKeybinding([createSimpleKeybinding(firstPart, OS)]);
+	return new UserKeybinding([createSimpleKeybinding(firstPart, OS)]);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
@@ -83,7 +83,7 @@ export class SimpleKeybinding implements IBaseKeybinding {
 		this.keyCode = keyCode;
 	}
 
-	public equals(other: SimpleKeybinding | ScanCodeBinding): boolean {
+	public equals(other: Keypress): boolean {
 		return (
 			other instanceof SimpleKeybinding
 			&& this.ctrlKey === other.ctrlKey
@@ -112,8 +112,8 @@ export class SimpleKeybinding implements IBaseKeybinding {
 		);
 	}
 
-	public toChord(): ChordKeybinding {
-		return new ChordKeybinding([this]);
+	public toChord(): UserKeybinding {
+		return new UserKeybinding([this]);
 	}
 
 	/**
@@ -128,45 +128,6 @@ export class SimpleKeybinding implements IBaseKeybinding {
 		);
 	}
 }
-
-export class ChordKeybinding {
-	public readonly parts: SimpleKeybinding[];
-
-	constructor(parts: SimpleKeybinding[]) {
-		if (parts.length === 0) {
-			throw illegalArgument(`parts`);
-		}
-		this.parts = parts;
-	}
-
-	public getHashCode(): string {
-		let result = '';
-		for (let i = 0, len = this.parts.length; i < len; i++) {
-			if (i !== 0) {
-				result += ';';
-			}
-			result += this.parts[i].getHashCode();
-		}
-		return result;
-	}
-
-	public equals(other: ChordKeybinding | null): boolean {
-		if (other === null) {
-			return false;
-		}
-		if (this.parts.length !== other.parts.length) {
-			return false;
-		}
-		for (let i = 0; i < this.parts.length; i++) {
-			if (!this.parts[i].equals(other.parts[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-}
-
-export type Keybinding = ChordKeybinding;
 
 export class ScanCodeBinding implements IBaseKeybinding {
 	public readonly ctrlKey: boolean;
@@ -183,7 +144,7 @@ export class ScanCodeBinding implements IBaseKeybinding {
 		this.scanCode = scanCode;
 	}
 
-	public equals(other: SimpleKeybinding | ScanCodeBinding): boolean {
+	public equals(other: Keypress): boolean {
 		return (
 			other instanceof ScanCodeBinding
 			&& this.ctrlKey === other.ctrlKey
@@ -215,10 +176,13 @@ export class ScanCodeBinding implements IBaseKeybinding {
 	}
 }
 
-export class UserKeybinding {
-	public readonly parts: (SimpleKeybinding | ScanCodeBinding)[];
+export type Keypress = SimpleKeybinding | ScanCodeBinding;
 
-	constructor(parts: (SimpleKeybinding | ScanCodeBinding)[]) {
+export class UserKeybinding {
+
+	public readonly parts: Keypress[];
+
+	constructor(parts: Keypress[]) {
 		if (parts.length === 0) {
 			throw illegalArgument(`parts`);
 		}

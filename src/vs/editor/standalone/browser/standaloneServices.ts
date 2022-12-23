@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, UserKeybinding, createKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, SimpleKeybinding, UserKeybinding, createKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -490,8 +490,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+	public resolveKeybinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
+		return USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
@@ -501,8 +501,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			keyboardEvent.altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
-		).toChord();
-		return new USLayoutResolvedKeybinding(keybinding, OS);
+		);
+		return new USLayoutResolvedKeybinding([keybinding], OS);
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {

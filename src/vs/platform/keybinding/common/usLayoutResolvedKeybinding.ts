@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, Keybinding, KeybindingModifier, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { KeybindingModifier, Keypress, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { toEmptyArrayIfContainsNull } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 /**
  * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.
  */
 export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKeybinding> {
 
-	constructor(actual: Keybinding, os: OperatingSystem) {
-		super(os, actual.parts);
+	constructor(keypresses: SimpleKeybinding[], os: OperatingSystem) {
+		super(os, keypresses);
 	}
 
 	private _keyCodeToUILabel(keyCode: KeyCode): string {
@@ -170,7 +170,7 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 		return KeyCode.Unknown;
 	}
 
-	private static _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding | null): SimpleKeybinding | null {
+	private static _resolveSimpleUserBinding(binding: Keypress | null): SimpleKeybinding | null {
 		if (!binding) {
 			return null;
 		}
@@ -185,9 +185,9 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 	}
 
 	public static resolveUserBinding(keybinding: UserKeybinding, os: OperatingSystem): USLayoutResolvedKeybinding[] {
-		const parts: SimpleKeybinding[] = removeElementsAfterNulls(keybinding.parts.map(part => this._resolveSimpleUserBinding(part)));
+		const parts: SimpleKeybinding[] = toEmptyArrayIfContainsNull(keybinding.parts.map(part => this._resolveSimpleUserBinding(part)));
 		if (parts.length > 0) {
-			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), os)];
+			return [new USLayoutResolvedKeybinding(parts, os)];
 		}
 		return [];
 	}

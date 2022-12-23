@@ -7,7 +7,7 @@ import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
 import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const WRITE_FILE_IF_DIFFERENT = false;
@@ -19,7 +19,7 @@ async function createKeyboardMapper(isUSStandard: boolean, file: string, mapAltG
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
 	const keyBinding = createKeybinding(k, OperatingSystem.Windows);
-	assertResolveKeybinding(mapper, keyBinding!, expected);
+	assertResolveUserBinding(mapper, keyBinding!, expected);
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {

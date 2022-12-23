@@ -5,13 +5,13 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeUtils, NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, KeybindingModifier, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, SimpleKeybinding, KeybindingModifier, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { toEmptyArrayIfContainsNull } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const LOG = false;
@@ -410,17 +410,6 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		return this._keyCodeToLabel[keyCode] || KeyCodeUtils.toString(KeyCode.Unknown);
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): WindowsNativeResolvedKeybinding[] {
-		const parts = keybinding.parts;
-		for (let i = 0, len = parts.length; i < len; i++) {
-			const part = parts[i];
-			if (!this._keyCodeExists[part.keyCode]) {
-				return [];
-			}
-		}
-		return [new WindowsNativeResolvedKeybinding(this, parts)];
-	}
-
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): WindowsNativeResolvedKeybinding {
 		const ctrlKey = keyboardEvent.ctrlKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
 		const altKey = keyboardEvent.altKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
@@ -446,7 +435,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveUserBinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
-		const parts: SimpleKeybinding[] = removeElementsAfterNulls(keybinding.parts.map(parts => this._resolveSimpleUserBinding(parts)));
+		const parts: SimpleKeybinding[] = toEmptyArrayIfContainsNull(keybinding.parts.map(parts => this._resolveSimpleUserBinding(parts)));
 		if (parts.length > 0) {
 			return [new WindowsNativeResolvedKeybinding(this, parts)];
 		}

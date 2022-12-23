@@ -7,14 +7,14 @@ import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
 import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
-import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 
 suite('keyboardMapper - MAC fallback', () => {
 
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('resolveKeybinding Cmd+Z', () => {
@@ -232,7 +232,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
+		assertResolveUserBinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+Z', () => {

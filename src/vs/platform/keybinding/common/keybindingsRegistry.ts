@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { createKeybinding, Keybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { createKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -162,44 +161,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		);
 	}
 
-	private static _mightProduceChar(keyCode: KeyCode): boolean {
-		if (keyCode >= KeyCode.Digit0 && keyCode <= KeyCode.Digit9) {
-			return true;
-		}
-		if (keyCode >= KeyCode.KeyA && keyCode <= KeyCode.KeyZ) {
-			return true;
-		}
-		return (
-			keyCode === KeyCode.Semicolon
-			|| keyCode === KeyCode.Equal
-			|| keyCode === KeyCode.Comma
-			|| keyCode === KeyCode.Minus
-			|| keyCode === KeyCode.Period
-			|| keyCode === KeyCode.Slash
-			|| keyCode === KeyCode.Backquote
-			|| keyCode === KeyCode.ABNT_C1
-			|| keyCode === KeyCode.ABNT_C2
-			|| keyCode === KeyCode.BracketLeft
-			|| keyCode === KeyCode.Backslash
-			|| keyCode === KeyCode.BracketRight
-			|| keyCode === KeyCode.Quote
-			|| keyCode === KeyCode.OEM_8
-			|| keyCode === KeyCode.IntlBackslash
-		);
-	}
-
-	private _assertNoCtrlAlt(keybinding: SimpleKeybinding, commandId: string): void {
-		if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
-			if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
-				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
-			}
-		}
-	}
-
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
-		if (OS === OperatingSystem.Windows) {
-			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
-		}
+	private _registerDefaultKeybinding(keybinding: UserKeybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
 		const remove = this._coreKeybindings.push({
 			keybinding: new UserKeybinding(keybinding.parts),
 			command: commandId,

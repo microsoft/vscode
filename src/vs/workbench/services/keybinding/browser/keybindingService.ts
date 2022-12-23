@@ -10,7 +10,7 @@ import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent }
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -499,8 +499,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return false;
 	}
 
-	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
-		return this._keyboardMapper.resolveKeybinding(kb);
+	public resolveKeybinding(kb: UserKeybinding): ResolvedKeybinding[] {
+		return this._keyboardMapper.resolveUserBinding(kb);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {

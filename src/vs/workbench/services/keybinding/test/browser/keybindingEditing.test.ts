@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as json from 'vs/base/common/json';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -268,7 +268,7 @@ suite('KeybindingsEditing', () => {
 				parts.push(aSimpleKeybinding(chordPart));
 			}
 		}
-		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : undefined;
+		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(parts, OS) : undefined;
 		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
 	}
 });

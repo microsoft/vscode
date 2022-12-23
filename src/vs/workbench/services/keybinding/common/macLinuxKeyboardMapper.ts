@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, KeybindingModifier, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, SimpleKeybinding, KeybindingModifier, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
@@ -910,14 +910,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		return null;
-	}
-
-	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
-		const chordParts: ScanCodeBinding[][] = [];
-		for (const part of keybinding.parts) {
-			chordParts.push(this.simpleKeybindingToScanCodeBinding(part));
-		}
-		return this._toResolvedKeybinding(chordParts);
 	}
 
 	private _toResolvedKeybinding(chordParts: ScanCodeBinding[][]): NativeResolvedKeybinding[] {

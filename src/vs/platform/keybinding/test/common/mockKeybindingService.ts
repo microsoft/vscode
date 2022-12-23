@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -104,8 +104,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+	public resolveKeybinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
+		return USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {

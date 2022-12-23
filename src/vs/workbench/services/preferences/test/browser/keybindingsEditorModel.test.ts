@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keybindings';
+import { SimpleKeybinding } from 'vs/base/common/keybindings';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -717,7 +717,7 @@ suite('KeybindingsEditorModel', () => {
 				parts.push(aSimpleKeybinding(chordPart));
 			}
 		}
-		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : undefined;
+		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(parts, OS) : undefined;
 		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
 	}
 

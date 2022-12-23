@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -49,7 +49,7 @@ export interface IKeybindingService {
 	/**
 	 * Returns none, one or many (depending on keyboard layout)!
 	 */
-	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
+	resolveKeybinding(keybinding: UserKeybinding): ResolvedKeybinding[];
 
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 
