@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,7 +26,7 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { truncate } from 'vs/base/common/strings';
 
@@ -242,15 +242,18 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		let label: string;
 		if (isFileNotFound) {
 			label = localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
+		} else if (isEditorOpenError(error)) {
+			label = toErrorMessage(error);
 		} else if (error) {
 			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
 
-		// Actions
+		// Actions / Icon
 		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
-		if (isErrorWithActions(error) && error.actions.length > 0) {
+		let icon = '$(error)';
+		if (isEditorOpenError(error) && error.actions.length > 0) {
 			actions = error.actions.map(action => {
 				return {
 					label: action.label,
@@ -262,6 +265,12 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 					}
 				};
 			});
+
+			if (error.severity === Severity.Info) {
+				icon = '$(info)';
+			} else if (error.severity === Severity.Warning) {
+				icon = '$(warning)';
+			}
 		} else if (group) {
 			actions = [
 				{
@@ -280,6 +289,6 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 			}));
 		}
 
-		return { icon: '$(error)', label, actions: actions ?? [] };
+		return { icon, label, actions: actions ?? [] };
 	}
 }

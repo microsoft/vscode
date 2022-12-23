@@ -7,7 +7,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extname, isEqual } from 'vs/base/common/resources';
@@ -23,7 +22,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -290,7 +289,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 		} catch (e) {
 			console.warn(e);
-			const error = createErrorWithActions(e instanceof Error ? e : new Error((e ? e.message : '')), [
+			const error = createEditorOpenError(e instanceof Error ? e : new Error((e ? e.message : '')), [
 				toAction({
 					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {
 						const activeEditorPane = this._editorService.activeEditorPane;

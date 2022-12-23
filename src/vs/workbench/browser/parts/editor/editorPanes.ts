@@ -8,7 +8,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -23,7 +23,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { isCancellationError } from 'vs/base/common/errors';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
@@ -149,53 +149,10 @@ export class EditorPanes extends Disposable {
 		// Always log the error to figure out what is going on
 		this.logService.error(error);
 
-		// Show as modal dialog when explicit user action
+		// Show as modal dialog when explicit user action unless disabled
 		let errorHandled = false;
 		if (options?.source === EditorOpenSource.USER) {
-
-			// Extract possible error actions from the error
-			let errorActions: readonly IAction[] | undefined = undefined;
-			if (isErrorWithActions(error)) {
-				errorActions = error.actions;
-			}
-
-			const buttons: string[] = [];
-			if (errorActions && errorActions.length > 0) {
-				for (const errorAction of errorActions) {
-					buttons.push(errorAction.label);
-				}
-			} else {
-				buttons.push(localize('ok', 'OK'));
-			}
-
-			let cancelId: number | undefined = undefined;
-			if (buttons.length === 1) {
-				buttons.push(localize('cancel', "Cancel"));
-				cancelId = 1;
-			}
-
-			const result = await this.dialogService.show(
-				Severity.Error,
-				localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
-				buttons,
-				{
-					detail: toErrorMessage(error),
-					cancelId
-				}
-			);
-
-			// Make sure to run any error action if present
-			if (result.choice !== cancelId && errorActions) {
-				const errorAction = errorActions[result.choice];
-				if (errorAction) {
-					const result = errorAction.run();
-					if (result instanceof Promise) {
-						result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
-					}
-
-					errorHandled = true; // consider the error as handled!
-				}
-			}
+			errorHandled = await this.maybeShowErrorDialog(error, editor, errorHandled);
 		}
 
 		// Return early if the user dealt with the error already
@@ -213,6 +170,59 @@ export class EditorPanes extends Disposable {
 			...(await this.doOpenEditor(ErrorPlaceholderEditor.DESCRIPTOR, editor, editorPlaceholderOptions, context)),
 			error
 		};
+	}
+
+	private async maybeShowErrorDialog(error: Error, editor: EditorInput, errorHandled: boolean): Promise<boolean> {
+		let severity = Severity.Error;
+		let errorActions: readonly IAction[] | undefined = undefined;
+		if (isEditorOpenError(error)) {
+			if (!error.forceDialog) {
+				return false; // return early if dialog is explicitly disabled
+			}
+
+			errorActions = error.actions;
+			severity = error.severity ?? Severity.Error;
+		}
+
+		const buttons: string[] = [];
+		if (errorActions && errorActions.length > 0) {
+			for (const errorAction of errorActions) {
+				buttons.push(errorAction.label);
+			}
+		} else {
+			buttons.push(localize('ok', 'OK'));
+		}
+
+		let cancelId: number | undefined = undefined;
+		if (buttons.length === 1) {
+			buttons.push(localize('cancel', "Cancel"));
+			cancelId = 1;
+		}
+
+		const result = await this.dialogService.show(
+			severity,
+			localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+			buttons,
+			{
+				detail: toErrorMessage(error),
+				cancelId
+			}
+		);
+
+		// Make sure to run any error action if present
+		if (result.choice !== cancelId && errorActions) {
+			const errorAction = errorActions[result.choice];
+			if (errorAction) {
+				const result = errorAction.run();
+				if (result instanceof Promise) {
+					result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+				}
+
+				errorHandled = true; // consider the error as handled!
+			}
+		}
+
+		return errorHandled;
 	}
 
 	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {

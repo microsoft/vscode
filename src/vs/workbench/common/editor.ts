@@ -23,6 +23,9 @@ import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'vs/base/common/errorMessage';
+import { IAction } from 'vs/base/common/actions';
+import Severity from 'vs/base/common/severity';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -1462,4 +1465,34 @@ export function isTextEditorViewState(candidate: unknown): candidate is IEditorV
 	const codeEditorViewState = viewState as ICodeEditorViewState;
 
 	return !!(codeEditorViewState.contributionsState && codeEditorViewState.viewState && Array.isArray(codeEditorViewState.cursorState));
+}
+
+export interface IEditorOpenErrorOptions {
+
+	/**
+	 * If set to true, the error will be shown in a dialog
+	 * to the user. Otherwise and by default, the error will
+	 * be shown as place holder in the editor area.
+	 */
+	forceDialog?: boolean;
+
+	/**
+	 * The severity of the error. Defaults to `Severity.Error`.
+	 */
+	severity?: Severity;
+}
+
+export interface IEditorOpenError extends IErrorWithActions, IEditorOpenErrorOptions { }
+
+export function isEditorOpenError(obj: unknown): obj is IEditorOpenError {
+	return isErrorWithActions(obj);
+}
+
+export function createEditorOpenError(messageOrError: string | Error, actions: IAction[], options?: IEditorOpenErrorOptions): IEditorOpenError {
+	const error: IEditorOpenError = createErrorWithActions(messageOrError, actions);
+
+	error.forceDialog = options?.forceDialog;
+	error.severity = options?.severity;
+
+	return error;
 }
