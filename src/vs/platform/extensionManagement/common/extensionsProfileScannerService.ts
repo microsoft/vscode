@@ -18,7 +18,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isObject, isString } from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -87,7 +86,7 @@ export interface IExtensionsProfileScannerService {
 	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
 }
 
-export class ExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
+export abstract class AbstractExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
 
 	private readonly _onAddExtensions = this._register(new Emitter<ProfileExtensionsEvent>());
@@ -105,6 +104,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IScannedProfileExtension[]>>();
 
 	constructor(
+		private readonly extensionsLocation: URI,
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -228,10 +228,10 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 					}
 					let location: URI;
 					if (isString(e.location)) {
-						location = this.resolveExtensionLocation(file, e.location);
+						location = this.resolveExtensionLocation(e.location);
 					} else {
 						location = URI.revive(e.location);
-						const relativePath = this.toRelativePath(file, location);
+						const relativePath = this.toRelativePath(location);
 						if (relativePath) {
 							migrate = true;
 							e.location = relativePath;
@@ -255,7 +255,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					location: this.toRelativePath(file, e.location) ?? e.location.toJSON(),
+					location: this.toRelativePath(e.location) ?? e.location.toJSON(),
 					metadata: e.metadata
 				}));
 				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
@@ -276,20 +276,14 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		throw error;
 	}
 
-	private toRelativePath(extensionsProfileLocation: URI, extensionLocation: URI): string | undefined {
-		// Extension Profile location scheme is always vscode-userdata and Extension location scheme is always file
-		// Hence we need to convert the Extension Profile location scheme to file to resolve the relative path
-		const parent = this.uriIdentityService.extUri.dirname(extensionsProfileLocation).with({ scheme: Schemas.file });
-		if (this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, parent)) {
-			return this.uriIdentityService.extUri.relativePath(parent, extensionLocation);
-		}
-		return undefined;
+	private toRelativePath(extensionLocation: URI): string | undefined {
+		return this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)
+			? this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation)
+			: undefined;
 	}
 
-	private resolveExtensionLocation(extensionsProfileLocation: URI, path: string): URI {
-		// Extension Profile location scheme is always vscode-userdata and Extension location scheme is always file
-		// Hence we need to convert the Extension Profile location scheme to file to resolve extension location
-		return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extensionsProfileLocation), path).with({ scheme: Schemas.file });
+	private resolveExtensionLocation(path: string): URI {
+		return this.uriIdentityService.extUri.joinPath(this.extensionsLocation, path);
 	}
 
 	private _migrationPromise: Promise<IStoredProfileExtension[] | undefined> | undefined;
