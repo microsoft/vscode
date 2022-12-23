@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
+import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
@@ -938,6 +938,742 @@ suite('SplitLinesCollection', () => {
 			);
 		});
 	});
+
+	test('getViewLinesData - with inline folding', () => {
+		const partiallyFoldLineDecoration: IModelDeltaDecoration = {
+			range: new Range(1, 9, 1, 13),
+			options: {
+				before: {
+					content: '',
+					inlineClassName: 'myClassName'
+				},
+				description: 'partial-fold',
+				hideContent: true
+			}
+		};
+		//Invalid decoration, can't fold a full line with empty collapsedText.
+		//Should render the whole line.
+		const fullLineFoldDecoration: IModelDeltaDecoration = {
+			range: new Range(6, 1, 6, 62),
+			options: {
+				before: {
+					content: '',
+					inlineClassName: 'myClassName'
+				},
+				description: 'full-fold',
+				hideContent: true
+			}
+		};
+
+		model.deltaDecorations([], [partiallyFoldLineDecoration, fullLineFoldDecoration]);
+
+		withSplitLinesCollection(model, 'off', 0, (splitLinesCollection) => {
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			const _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'class Ni',
+					minColumn: 1,
+					maxColumn: 9,
+					tokens: [
+						{ endIndex: 5, value: 1 },
+						{ endIndex: 6, value: 2 },
+						{ endIndex: 8, value: 3 },
+					]
+				},
+				{
+					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.log("Hello world");',
+					minColumn: 1,
+					maxColumn: 30,
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 13, value: 13 },
+						{ endIndex: 14, value: 14 },
+						{ endIndex: 27, value: 15 },
+						{ endIndex: 29, value: 16 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	function hello() {',
+					minColumn: 1,
+					maxColumn: 20,
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 10, value: 20 },
+						{ endIndex: 15, value: 21 },
+						{ endIndex: 19, value: 22 },
+					]
+				},
+				{
+					content: '		console.log("Hello world, this is a somewhat longer line");',
+					minColumn: 1,
+					maxColumn: 62,
+					tokens: [
+						{ endIndex: 2, value: 23 },
+						{ endIndex: 9, value: 24 },
+						{ endIndex: 10, value: 25 },
+						{ endIndex: 13, value: 26 },
+						{ endIndex: 14, value: 27 },
+						{ endIndex: 59, value: 28 },
+						{ endIndex: 61, value: 29 },
+					]
+				},
+				{
+					minColumn: 1,
+					maxColumn: 3,
+					content: '	}',
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					minColumn: 1,
+					maxColumn: 2,
+					content: '}',
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+			]);
+
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 5);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+			]);
+		});
+	});
+
+	test('getViewLinesData - with inline folding and collapsedText', () => {
+		const partiallyFoldLineDecoration: IModelDeltaDecoration = {
+			range: new Range(1, 9, 1, 13),
+			options: {
+				before: {
+					content: 'some text',
+					inlineClassName: 'myClassName'
+				},
+				description: 'partial-fold',
+				hideContent: true
+			}
+		};
+
+		const fullLineFoldDecoration: IModelDeltaDecoration = {
+			range: new Range(6, 1, 6, 62),
+			options: {
+				before: {
+					content: 'some another text',
+					inlineClassName: 'myClassName'
+				},
+				description: 'full-fold',
+				hideContent: true
+			}
+		};
+
+		model.deltaDecorations([], [partiallyFoldLineDecoration, fullLineFoldDecoration]);
+
+		withSplitLinesCollection(model, 'off', 0, (splitLinesCollection) => {
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			const _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'class Nisome text',
+					minColumn: 1,
+					maxColumn: 18,
+					tokens: [
+						{ endIndex: 5, value: 1 },
+						{ endIndex: 6, value: 2 },
+						{ endIndex: 8, value: 3 },
+						{ endIndex: 17, value: 1 },
+					]
+				},
+				{
+					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.log("Hello world");',
+					minColumn: 1,
+					maxColumn: 30,
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 13, value: 13 },
+						{ endIndex: 14, value: 14 },
+						{ endIndex: 27, value: 15 },
+						{ endIndex: 29, value: 16 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	function hello() {',
+					minColumn: 1,
+					maxColumn: 20,
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 10, value: 20 },
+						{ endIndex: 15, value: 21 },
+						{ endIndex: 19, value: 22 },
+					]
+				},
+				{
+					content: 'some another text',
+					minColumn: 1,
+					maxColumn: 18,
+					tokens: [
+						{ endIndex: 17, value: 1 },
+					]
+				},
+				{
+					minColumn: 1,
+					maxColumn: 3,
+					content: '	}',
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					minColumn: 1,
+					maxColumn: 2,
+					content: '}',
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+			]);
+
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 5);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+			]);
+		});
+	});
+
+	test('getViewLinesData - with inline fold and wrapping', () => {
+		const beforeWrappingFoldDecoration: IModelDeltaDecoration = {
+			range: new Range(3, 13, 3, 30),
+			options: {
+				before: {
+					content: 'yup gone',
+					inlineClassName: 'myClassName'
+				},
+				description: 'before-wrapping-fold',
+				hideContent: true
+			}
+		};
+
+		const afterWrappingFoldDecoration: IModelDeltaDecoration = {
+			range: new Range(6, 59, 6, 62),
+			options: {
+				before: {
+					content: 'yup also gone',
+					inlineClassName: 'myClassName'
+				},
+				description: 'after-wrapping-fold',
+				hideContent: true
+			}
+		};
+
+		model.deltaDecorations([], [beforeWrappingFoldDecoration, afterWrappingFoldDecoration]);
+
+
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 11);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			const _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'class Nice {',
+					minColumn: 1,
+					maxColumn: 13,
+					tokens: [
+						{ endIndex: 5, value: 1 },
+						{ endIndex: 6, value: 2 },
+						{ endIndex: 10, value: 3 },
+						{ endIndex: 12, value: 4 },
+					]
+				},
+				{
+					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.loyup gone',
+					minColumn: 1,
+					maxColumn: 21,
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 12, value: 13 },
+						{ endIndex: 20, value: 1 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	function hello() {',
+					minColumn: 1,
+					maxColumn: 20,
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 10, value: 20 },
+						{ endIndex: 15, value: 21 },
+						{ endIndex: 19, value: 22 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
+					tokens: [
+						{ endIndex: 2, value: 23 },
+						{ endIndex: 9, value: 24 },
+						{ endIndex: 10, value: 25 },
+						{ endIndex: 13, value: 26 },
+						{ endIndex: 14, value: 27 },
+						{ endIndex: 21, value: 28 },
+					]
+				},
+				{
+					content: '            world, this is a ',
+					minColumn: 13,
+					maxColumn: 30,
+					tokens: [
+						{ endIndex: 29, value: 28 },
+					]
+				},
+				{
+					content: '            somewhat longer ',
+					minColumn: 13,
+					maxColumn: 29,
+					tokens: [
+						{ endIndex: 28, value: 28 },
+					]
+				},
+				{
+					content: '            lineyup also gone',
+					minColumn: 13,
+					maxColumn: 30,
+					tokens: [
+						{ endIndex: 16, value: 28 },
+						{ endIndex: 29, value: 1 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					content: '}',
+					minColumn: 1,
+					maxColumn: 2,
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+				_expected[8],
+				_expected[9],
+				_expected[10],
+			]);
+
+			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), false);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
+			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+				_expected[8],
+				_expected[9],
+			]);
+		});
+	});
+
+
+	test('getViewLinesData - with inline fold, wrapping and injected text', () => {
+		const beforeInjectedTextDecoration: IModelDeltaDecoration = {
+			range: new Range(1, 4, 1, 13),
+			options: {
+				description: 'example',
+				before: {
+					content: 'nothing to see here',
+					inlineClassName: 'myClassName'
+				},
+				hideContent: true
+			}
+		};
+		const longInjectedTextDecoration: IModelDeltaDecoration = {
+			range: new Range(1, 9, 1, 10),
+			options: {
+				description: 'example',
+				after: {
+					content: 'very very long injected text that causes a line break',
+					inlineClassName: 'myClassName'
+				},
+			}
+		};
+		const anotherInjectedTextDecoration: IModelDeltaDecoration = {
+			range: new Range(5, 9, 5, 10),
+			options: {
+				description: 'example',
+				after: {
+					content: 'some injected text',
+					inlineClassName: 'myClassName'
+				}
+			}
+		};
+		const afterInjectedTextDecoration: IModelDeltaDecoration = {
+			range: new Range(5, 16, 5, 20),
+			options: {
+				description: 'example',
+				before: {
+					content: 'should show after',
+					inlineClassName: 'myClassName'
+				},
+				hideContent: true
+			}
+		};
+
+		model.deltaDecorations([], [beforeInjectedTextDecoration, longInjectedTextDecoration, anotherInjectedTextDecoration, afterInjectedTextDecoration]);
+
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
+
+			const _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'clanothing to see here',
+					minColumn: 1,
+					maxColumn: 23,
+					tokens: [
+						{ endIndex: 3, value: 1 },
+						{ endIndex: 22, value: 1 },
+					]
+				},
+				{
+					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 13, value: 13 },
+						{ endIndex: 14, value: 14 },
+						{ endIndex: 21, value: 15 },
+					]
+				},
+				{
+					content: '            world");',
+					minColumn: 13,
+					maxColumn: 21,
+					tokens: [
+						{ endIndex: 18, value: 15 },
+						{ endIndex: 20, value: 16 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	functionsome injected ',
+					minColumn: 1,
+					maxColumn: 24,
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 23, value: 1 },
+					]
+				},
+				{
+					content: '        text helloshould show ',
+					minColumn: 9,
+					maxColumn: 31,
+					tokens: [
+						{ endIndex: 12, value: 1 },
+						{ endIndex: 13, value: 20 },
+						{ endIndex: 18, value: 21 },
+						{ endIndex: 30, value: 1 },
+					]
+				},
+				{
+					content: '        after',
+					minColumn: 9,
+					maxColumn: 14,
+					tokens: [
+						{ endIndex: 13, value: 1 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
+					tokens: [
+						{ endIndex: 2, value: 23 },
+						{ endIndex: 9, value: 24 },
+						{ endIndex: 10, value: 25 },
+						{ endIndex: 13, value: 26 },
+						{ endIndex: 14, value: 27 },
+						{ endIndex: 21, value: 28 },
+					]
+				},
+				{
+					content: '            world, this is a ',
+					minColumn: 13,
+					maxColumn: 30,
+					tokens: [
+						{ endIndex: 29, value: 28 },
+					]
+				},
+				{
+					content: '            somewhat longer ',
+					minColumn: 13,
+					maxColumn: 29,
+					tokens: [
+						{ endIndex: 28, value: 28 },
+					]
+				},
+				{
+					content: '            line");',
+					minColumn: 13,
+					maxColumn: 20,
+					tokens: [
+						{ endIndex: 17, value: 28 },
+						{ endIndex: 19, value: 29 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					content: '}',
+					minColumn: 1,
+					maxColumn: 2,
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+				_expected[8],
+				_expected[9],
+				_expected[10],
+				_expected[11],
+				_expected[12],
+				_expected[13],
+			]);
+
+			const data = splitLinesCollection.getViewLinesData(1, 14, new Array(14).fill(true));
+			assert.deepStrictEqual(
+				data.map((d) => ({
+					inlineDecorations: d.inlineDecorations?.map((d) => ({
+						startOffset: d.startOffset,
+						endOffset: d.endOffset,
+					})),
+				})),
+				[
+					{ inlineDecorations: [{ startOffset: 3, endOffset: 22 }] },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: [{ startOffset: 9, endOffset: 23 }] },
+					{ inlineDecorations: [{ startOffset: 8, endOffset: 12 }, { startOffset: 18, endOffset: 35 }] },
+					{ inlineDecorations: [{ startOffset: 8, endOffset: 13 }] },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+					{ inlineDecorations: undefined },
+				]
+			);
+		});
+	});
+
+
 
 	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const configuration = new TestConfiguration({
