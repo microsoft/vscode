@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, Keybinding, KeybindingModifier, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { ChordKeybinding, Keybinding, KeybindingModifier, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
 import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -184,8 +184,8 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
 	}
 
-	public static resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[], os: OperatingSystem): USLayoutResolvedKeybinding[] {
-		const parts: SimpleKeybinding[] = removeElementsAfterNulls(input.map(keybinding => this._resolveSimpleUserBinding(keybinding)));
+	public static resolveUserBinding(keybinding: UserKeybinding, os: OperatingSystem): USLayoutResolvedKeybinding[] {
+		const parts: SimpleKeybinding[] = removeElementsAfterNulls(keybinding.parts.map(part => this._resolveSimpleUserBinding(part)));
 		if (parts.length > 0) {
 			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), os)];
 		}

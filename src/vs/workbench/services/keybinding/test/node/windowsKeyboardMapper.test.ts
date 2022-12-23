@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, createKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
@@ -290,16 +290,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		);
 	});
 
-	test('resolveUserBinding empty', () => {
-		assertResolveUserBinding(mapper, [], []);
-	});
-
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
-		],
+			mapper, new UserKeybinding([
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+			]),
 			[{
 				label: 'Ctrl+, Ctrl+§',
 				ariaLabel: 'Control+, Control+§',
@@ -371,10 +367,10 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
-		],
+			mapper, new UserKeybinding([
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+			]),
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -390,9 +386,9 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-		],
+			mapper, new UserKeybinding([
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			]),
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',

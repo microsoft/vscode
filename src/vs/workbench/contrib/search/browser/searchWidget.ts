@@ -99,7 +99,7 @@ export class SearchWidget extends Widget {
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
 		const kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
-		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
+		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb);
 	};
 
 	domNode!: HTMLElement;
@@ -313,9 +313,9 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keybindingService),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keybindingService),
-			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keybindingService),
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId)),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId)),
+			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleRegexCommandId)),
 			history: options.searchHistory,
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
@@ -364,7 +364,7 @@ export class SearchWidget extends Widget {
 
 		this.showContextToggle = new Toggle({
 			isChecked: false,
-			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId), this.keybindingService),
+			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
 			...defaultToggleStyles
 		});
@@ -411,7 +411,7 @@ export class SearchWidget extends Widget {
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keybindingService),
+			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.TogglePreserveCaseId)),
 			history: options.replaceHistory,
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,

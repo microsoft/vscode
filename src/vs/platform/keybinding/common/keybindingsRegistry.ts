@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { createKeybinding, Keybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { createKeybinding, Keybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -13,7 +13,7 @@ import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface IKeybindingItem {
-	keybinding: (SimpleKeybinding | ScanCodeBinding)[] | null;
+	keybinding: UserKeybinding | null;
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | null | undefined;
@@ -48,7 +48,7 @@ export interface IKeybindingRule extends IKeybindings {
 }
 
 export interface IExtensionKeybindingRule {
-	keybinding: (SimpleKeybinding | ScanCodeBinding)[];
+	keybinding: UserKeybinding | null;
 	id: string;
 	args?: any;
 	weight: number;
@@ -137,7 +137,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		const result: IKeybindingItem[] = [];
 		let keybindingsLen = 0;
 		for (const rule of rules) {
-			if (rule.keybinding.length > 0) {
+			if (rule.keybinding) {
 				result[keybindingsLen++] = {
 					keybinding: rule.keybinding,
 					command: rule.id,
@@ -201,7 +201,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
 		}
 		const remove = this._coreKeybindings.push({
-			keybinding: keybinding.parts,
+			keybinding: new UserKeybinding(keybinding.parts),
 			command: commandId,
 			commandArgs: commandArgs,
 			when: when,

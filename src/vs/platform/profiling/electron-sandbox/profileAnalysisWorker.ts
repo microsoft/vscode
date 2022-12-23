@@ -86,7 +86,7 @@ function printCallFrame(frame: CdpCallFrame, fullPaths: boolean): string {
 			result += frame.lineNumber + 1;
 		}
 		if (frame.columnNumber >= 0) {
-			result += ',';
+			result += ':';
 			result += frame.columnNumber + 1;
 		}
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -40,7 +40,7 @@ export class FallbackKeyboardMapper implements IKeyboardMapper {
 		return new USLayoutResolvedKeybinding(keybinding.toChord(), this._OS);
 	}
 
-	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
-		return USLayoutResolvedKeybinding.resolveUserBinding(input, this._OS);
+	public resolveUserBinding(keybinding: UserKeybinding): ResolvedKeybinding[] {
+		return USLayoutResolvedKeybinding.resolveUserBinding(keybinding, this._OS);
 	}
 }
