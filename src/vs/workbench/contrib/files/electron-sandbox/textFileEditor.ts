@@ -65,7 +65,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
 			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.textResourceConfigurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-			throw createEditorOpenError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", this.productService.nameShort), [
+			throw createEditorOpenError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory.", this.productService.nameShort), [
 				toAction({
 					id: 'workbench.window.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
 						return this.nativeHostService.relaunch({
@@ -76,7 +76,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 					}
 				}),
 				toAction({
-					id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
+					id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', "Configure Limit"), run: () => {
 						return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
 					}
 				}),
