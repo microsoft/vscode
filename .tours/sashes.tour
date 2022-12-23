@@ -1,0 +1,47 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "sashes",
+  "steps": [
+    {
+      "file": "src/vs/base/browser/ui/sash/sash.ts",
+      "description": "The sash is our UI component which lets the user resize UI elements. We use it across the workbench in our resizeable views, in our editor and workbench grids, in our diff and side-by-side editors, even in some of our widgets like the suggest and find widgets. A sash can either be vertical or horizontal. Usually invisible until in actual use, the sash shows a hover decoration when hovered, letting the user know that it can be dragged around.\r\n\r\n![sash](.tours/sashes/sash.gif)",
+      "line": 248
+    },
+    {
+      "file": "src/vs/base/browser/ui/sash/sash.ts",
+      "description": "When in development mode, switching `DEBUG` to `true` lets you _see_ the sashes across the entire workbench, including corner spots and enablement state.\r\n\r\n![debug](.tours/sashes/debug.png)",
+      "line": 20,
+      "selection": {
+        "start": {
+          "line": 2,
+          "character": 1
+        },
+        "end": {
+          "line": 3,
+          "character": 34
+        }
+      }
+    },
+    {
+      "file": "src/vs/base/browser/ui/sash/sash.ts",
+      "description": "A sash can have a pair of orthogonal sashes configured: one for the start and one for the end. In vertical sashes, _start_ means _top_ and _end_ means _bottom_. In horizontal sashes, _start_ means _left_ and _end_ means _right_. An orthogonal sash should be _orthogonal_ to and perfectly aligned with the main sash. When set, a corner draggable area will be created which lets the user resize both sashes at the same time.\r\n\r\nIn the following example, there are two sashes: the vertical sash to the right of the sidebar and the horizontal sash below the editor. The vertical sash has been configured to be the _start_ orthogonal sash to the horizontal one. In debug mode, you can see the red corner highlighting that draggable zone:\r\n\r\n![orthogonal](.tours/sashes/orthogonal.gif)\r\n\r\nThe same horizontal sash can additionally have one _end_ orthogonal sash. This happens when, for example, the secondary side bar is visible:\r\n\r\n![orthogonal](.tours/sashes/orthogonal2.gif)",
+      "line": 273
+    },
+    {
+      "file": "src/vs/base/browser/ui/splitview/splitview.ts",
+      "description": "The _orthogonal sash_ concept can apply to other widgets as well. The the splitview, for example. It's the widget which renders views across one direction and allows the user to resize each view, according to sizing constraints:\r\n\r\n![debug](.tours/sashes/splitview.gif)\r\n\r\nNotice how the vertical sash (to the right of the side bar) can be configured as the _orthogonal end_ sash to the splitview, effectively creating draggable corners at the end of each sash within the entire split view:\r\n\r\n![debug](.tours/sashes/splitview2.gif)",
+      "line": 476
+    },
+    {
+      "file": "src/vs/base/browser/ui/grid/grid.ts",
+      "description": "A grid widget can also have orthogonal sashes. But it can actually have 4 of them instead of just a _start_ and _end_ orthogonal sashes: _top_, _bottom_, _left_ and _right_. This is visible when you have a complex editor grid configured and it creates draggable corners with both the vertical sash next to the side bar as well as the horizontal sash above the panel:\r\n\r\n![debug](.tours/sashes/grid.gif)",
+      "line": 276
+    },
+    {
+      "file": "src/vs/editor/browser/widget/diffEditorWidget.ts",
+      "description": "Since the _orthogonal sash_ concept is so universal and specific only to sashes, with the right wiring we can create even more useful draggable corners. In this example, the diff editor can be configured with boundary sashes as well and make use of the _bottom_ orthogonal sash to create another useful corner:\r\n\r\n![diff](.tours/sashes/diff.gif)",
+      "line": 2069
+    }
+  ],
+  "ref": "f4bfb23b333e47435e664ad5e978256869458d21"
+}
