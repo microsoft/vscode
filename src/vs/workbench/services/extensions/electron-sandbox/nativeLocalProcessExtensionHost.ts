@@ -90,7 +90,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 				}
 
 				const nodeSocket = new NodeSocket(socket, 'renderer-exthost');
-				const protocol = new PersistentProtocol(nodeSocket);
+				const protocol = new PersistentProtocol({ socket: nodeSocket });
 
 				this._register(toDisposable(() => {
 					// Send the extension host a request to terminate itself

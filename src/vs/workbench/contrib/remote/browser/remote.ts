@@ -52,6 +52,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { connectionHealthToString } from 'vs/base/parts/ipc/common/ipc.net';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -961,6 +962,26 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						});
 
 						hideProgress();
+						break;
+
+					case PersistentConnectionEventType.ConnectionHealthChanged:
+						type RemoteConnectionHealthClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection health has changed (round trip time)';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							connectionHealth: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The health of the connection: good or poor.' };
+						};
+						type RemoteConnectionHealthEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+							connectionHealth: 'good' | 'poor';
+						};
+						telemetryService.publicLog2<RemoteConnectionHealthEvent, RemoteConnectionHealthClassification>('remoteConnectionHealth', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+							connectionHealth: connectionHealthToString(e.connectionHealth)
+						});
 						break;
 				}
 			});

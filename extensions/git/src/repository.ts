@@ -21,6 +21,7 @@ import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
+import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -297,176 +298,8 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
-	clone() {
-		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
-	}
-}
-
-export const enum OperationKind {
-	Status = 'Status',
-	Config = 'Config',
-	Diff = 'Diff',
-	MergeBase = 'MergeBase',
-	Add = 'Add',
-	AddNoProgress = 'AddNoProgress',
-	Remove = 'Remove',
-	RevertFiles = 'RevertFiles',
-	RevertFilesNoProgress = 'RevertFilesNoProgress',
-	Commit = 'Commit',
-	PostCommitCommand = 'PostCommitCommand',
-	Clean = 'Clean',
-	CleanNoProgress = 'CleanNoProgress',
-	Branch = 'Branch',
-	GetBranch = 'GetBranch',
-	GetBranches = 'GetBranches',
-	SetBranchUpstream = 'SetBranchUpstream',
-	HashObject = 'HashObject',
-	Checkout = 'Checkout',
-	CheckoutTracking = 'CheckoutTracking',
-	Reset = 'Reset',
-	Remote = 'Remote',
-	Fetch = 'Fetch',
-	FetchNoProgress = 'FetchNoProgress',
-	Pull = 'Pull',
-	Push = 'Push',
-	CherryPick = 'CherryPick',
-	Sync = 'Sync',
-	Show = 'Show',
-	Stage = 'Stage',
-	GetCommitTemplate = 'GetCommitTemplate',
-	DeleteBranch = 'DeleteBranch',
-	RenameBranch = 'RenameBranch',
-	DeleteRef = 'DeleteRef',
-	Merge = 'Merge',
-	MergeAbort = 'MergeAbort',
-	Rebase = 'Rebase',
-	Ignore = 'Ignore',
-	Tag = 'Tag',
-	DeleteTag = 'DeleteTag',
-	Stash = 'Stash',
-	CheckIgnore = 'CheckIgnore',
-	GetObjectDetails = 'GetObjectDetails',
-	SubmoduleUpdate = 'SubmoduleUpdate',
-	RebaseAbort = 'RebaseAbort',
-	RebaseContinue = 'RebaseContinue',
-	FindTrackingBranches = 'GetTracking',
-	Apply = 'Apply',
-	Blame = 'Blame',
-	Log = 'Log',
-	LogFile = 'LogFile',
-
-	Move = 'Move'
-}
-
-function isReadOnly(operation: OperationKind): boolean {
-	switch (operation) {
-		case OperationKind.Blame:
-		case OperationKind.CheckIgnore:
-		case OperationKind.Diff:
-		case OperationKind.FindTrackingBranches:
-		case OperationKind.GetBranch:
-		case OperationKind.GetCommitTemplate:
-		case OperationKind.GetObjectDetails:
-		case OperationKind.Log:
-		case OperationKind.LogFile:
-		case OperationKind.MergeBase:
-		case OperationKind.Show:
-			return true;
-		default:
-			return false;
-	}
-}
-
-function shouldShowProgress(operation: OperationKind): boolean {
-	switch (operation) {
-		case OperationKind.AddNoProgress:
-		case OperationKind.CleanNoProgress:
-		case OperationKind.FetchNoProgress:
-		case OperationKind.RevertFilesNoProgress:
-		case OperationKind.CheckIgnore:
-		case OperationKind.GetObjectDetails:
-		case OperationKind.Show:
-			return false;
-		default:
-			return true;
-	}
-}
-
-export interface BaseOperation {
-	readonly kind: OperationKind;
-}
-
-export interface CheckoutOperation extends BaseOperation {
-	readonly kind: OperationKind.Checkout | OperationKind.CheckoutTracking;
-	readonly refLabel: string;
-}
-
-export interface Operations {
-	isIdle(): boolean;
-	getOperations(operationKind: OperationKind): BaseOperation[];
-	shouldShowProgress(): boolean;
-	isRunning(operationKind: OperationKind): boolean;
-}
-
-class OperationsImpl implements Operations {
-
-	private operations = new Map<OperationKind, Set<BaseOperation>>();
-
-	constructor(private readonly logger: LogOutputChannel) { }
-
-	start(operation: BaseOperation): void {
-		if (this.operations.has(operation.kind)) {
-			this.operations.get(operation.kind)!.add(operation);
-		} else {
-			this.operations.set(operation.kind, new Set([operation]));
-		}
-
-		this.logger.trace(`Operation start: ${operation.kind}`);
-	}
-
-	end(operation: BaseOperation): void {
-		const operationSet = this.operations.get(operation.kind);
-		if (operationSet) {
-			operationSet.delete(operation);
-			if (operationSet.size === 0) {
-				this.operations.delete(operation.kind);
-			}
-		}
-
-		this.logger.trace(`Operation end: ${operation.kind}`);
-	}
-
-	getOperations(operationKind: OperationKind): BaseOperation[] {
-		const operationSet = this.operations.get(operationKind);
-		return operationSet ? Array.from(operationSet) : [];
-	}
-
-	isRunning(operationKind: OperationKind): boolean {
-		return this.operations.has(operationKind);
-	}
-
-	isIdle(): boolean {
-		const operations = this.operations.keys();
-
-		for (const operation of operations) {
-			if (!isReadOnly(operation)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	shouldShowProgress(): boolean {
-		const operations = this.operations.keys();
-
-		for (const operation of operations) {
-			if (shouldShowProgress(operation)) {
-				return true;
-			}
-		}
-
-		return false;
+	clone(resourceGroupType?: ResourceGroupType) {
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
 	}
 }
 
@@ -479,11 +312,6 @@ interface GitResourceGroups {
 	mergeGroup?: Resource[];
 	untrackedGroup?: Resource[];
 	workingTreeGroup?: Resource[];
-}
-
-export interface OperationResult {
-	operation: OperationKind;
-	error: any;
 }
 
 class ProgressManager {
@@ -895,8 +723,8 @@ export class Repository implements Disposable {
 		return this._mergeInProgress;
 	}
 
-	private _operations = new OperationsImpl(this.logger);
-	get operations(): Operations { return this._operations; }
+	private _operations = new OperationManager(this.logger);
+	get operations(): OperationManager { return this._operations; }
 
 	private _state = RepositoryState.Idle;
 	get state(): RepositoryState { return this._state; }
@@ -1038,7 +866,7 @@ export class Repository implements Disposable {
 		}
 
 		// https://github.com/microsoft/vscode/issues/39039
-		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === OperationKind.Push && !e.error);
+		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation.kind === OperationKind.Push && !e.error);
 		onSuccessfulPush(() => {
 			const gitConfig = workspace.getConfiguration('git');
 
@@ -1170,89 +998,89 @@ export class Repository implements Disposable {
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {
-		return this.run(OperationKind.Config, () => this.repository.getConfigs('local'));
+		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
 	}
 
 	getConfig(key: string): Promise<string> {
-		return this.run(OperationKind.Config, () => this.repository.config('local', key));
+		return this.run(Operation.Config, () => this.repository.config('local', key));
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
-		return this.run(OperationKind.Config, () => this.repository.config('global', key));
+		return this.run(Operation.Config, () => this.repository.config('global', key));
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(OperationKind.Config, () => this.repository.config('local', key, value));
+		return this.run(Operation.Config, () => this.repository.config('local', key, value));
 	}
 
 	log(options?: LogOptions): Promise<Commit[]> {
-		return this.run(OperationKind.Log, () => this.repository.log(options));
+		return this.run(Operation.Log, () => this.repository.log(options));
 	}
 
 	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
 		// TODO: This probably needs per-uri granularity
-		return this.run(OperationKind.LogFile, () => this.repository.logFile(uri, options));
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
 	}
 
 	@throttle
 	async status(): Promise<void> {
-		await this.run(OperationKind.Status);
+		await this.run(Operation.Status);
 	}
 
 	diff(cached?: boolean): Promise<string> {
-		return this.run(OperationKind.Diff, () => this.repository.diff(cached));
+		return this.run(Operation.Diff, () => this.repository.diff(cached));
 	}
 
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
-		return this.run(OperationKind.Diff, () => this.repository.diffWithHEAD(path));
+		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
 	}
 
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	diffWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this.run(OperationKind.Diff, () => this.repository.diffWith(ref, path));
+		return this.run(Operation.Diff, () => this.repository.diffWith(ref, path));
 	}
 
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
 	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
-		return this.run(OperationKind.Diff, () => this.repository.diffIndexWithHEAD(path));
+		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEAD(path));
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this.run(OperationKind.Diff, () => this.repository.diffIndexWith(ref, path));
+		return this.run(Operation.Diff, () => this.repository.diffIndexWith(ref, path));
 	}
 
 	diffBlobs(object1: string, object2: string): Promise<string> {
-		return this.run(OperationKind.Diff, () => this.repository.diffBlobs(object1, object2));
+		return this.run(Operation.Diff, () => this.repository.diffBlobs(object1, object2));
 	}
 
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
-		return this.run(OperationKind.Diff, () => this.repository.diffBetween(ref1, ref2, path));
+		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		return this.run(OperationKind.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
+		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
 	}
 
 	async hashObject(data: string): Promise<string> {
-		return this.run(OperationKind.HashObject, () => this.repository.hashObject(data));
+		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
 		await this.run(
-			this.optimisticUpdateEnabled() ? OperationKind.AddNoProgress : OperationKind.Add,
+			Operation.Add(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.add(resources.map(r => r.fsPath), opts);
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
@@ -1265,7 +1093,7 @@ export class Repository implements Disposable {
 				const addedResourceStates: Resource[] = [];
 				for (const resource of [...this.mergeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.workingTreeGroup.resourceStates]) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath) && !indexGroupResourcePaths.includes(resource.resourceUri.fsPath)) {
-						addedResourceStates.push(resource);
+						addedResourceStates.push(resource.clone(ResourceGroupType.Index));
 					}
 				}
 
@@ -1289,12 +1117,12 @@ export class Repository implements Disposable {
 	}
 
 	async rm(resources: Uri[]): Promise<void> {
-		await this.run(OperationKind.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
+		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
-		await this.run(OperationKind.Stage, async () => {
+		await this.run(Operation.Stage, async () => {
 			await this.repository.stage(path, contents);
 			this.closeDiffEditors([], [...resource.fsPath]);
 		});
@@ -1303,7 +1131,7 @@ export class Repository implements Disposable {
 
 	async revert(resources: Uri[]): Promise<void> {
 		await this.run(
-			this.optimisticUpdateEnabled() ? OperationKind.RevertFilesNoProgress : OperationKind.RevertFiles,
+			Operation.RevertFiles(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
 				this.closeDiffEditors([...resources.length !== 0 ?
@@ -1313,6 +1141,7 @@ export class Repository implements Disposable {
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
 
 				const resourcePaths = resources.length === 0 ?
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
@@ -1323,9 +1152,9 @@ export class Repository implements Disposable {
 				for (const resource of this.indexGroup.resourceStates) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath)) {
 						if (resource.type === Status.INDEX_ADDED) {
-							untrackedResources.push(resource);
+							untrackedResources.push(resource.clone(untrackedChangesResourceGroupType));
 						} else {
-							trackedResources.push(resource);
+							trackedResources.push(resource.clone(ResourceGroupType.WorkingTree));
 						}
 					}
 				}
@@ -1350,7 +1179,7 @@ export class Repository implements Disposable {
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
 		if (this.rebaseCommit) {
 			await this.run(
-				OperationKind.RebaseContinue,
+				Operation.RebaseContinue,
 				async () => {
 					if (opts.all) {
 						const addOpts = opts.all === 'tracked' ? { update: true } : {};
@@ -1366,7 +1195,7 @@ export class Repository implements Disposable {
 			this.commitCommandCenter.postCommitCommand = opts.postCommitCommand;
 
 			await this.run(
-				OperationKind.Commit,
+				Operation.Commit,
 				async () => {
 					if (opts.all) {
 						const addOpts = opts.all === 'tracked' ? { update: true } : {};
@@ -1386,7 +1215,7 @@ export class Repository implements Disposable {
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 
 			// Execute post-commit command
-			await this.run(OperationKind.PostCommitCommand, async () => {
+			await this.run(Operation.PostCommitCommand, async () => {
 				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
 			});
 		}
@@ -1420,7 +1249,7 @@ export class Repository implements Disposable {
 
 	async clean(resources: Uri[]): Promise<void> {
 		await this.run(
-			this.optimisticUpdateEnabled() ? OperationKind.CleanNoProgress : OperationKind.Clean,
+			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
 				const toClean: string[] = [];
 				const toCheckout: string[] = [];
@@ -1508,15 +1337,15 @@ export class Repository implements Disposable {
 	}
 
 	async branch(name: string, _checkout: boolean, _ref?: string): Promise<void> {
-		await this.run(OperationKind.Branch, () => this.repository.branch(name, _checkout, _ref));
+		await this.run(Operation.Branch, () => this.repository.branch(name, _checkout, _ref));
 	}
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
-		await this.run(OperationKind.DeleteBranch, () => this.repository.deleteBranch(name, force));
+		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
 	async renameBranch(name: string): Promise<void> {
-		await this.run(OperationKind.RenameBranch, () => this.repository.renameBranch(name));
+		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
 	@throttle
@@ -1530,7 +1359,7 @@ export class Repository implements Disposable {
 		try {
 			// Fast-forward the branch if possible
 			const options = { remote: branch.upstream.remote, ref: `${branch.upstream.name}:${branch.name}` };
-			await this.run(OperationKind.Fetch, async () => this.repository.fetch(options));
+			await this.run(Operation.Fetch(true), async () => this.repository.fetch(options));
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.BranchFastForwardRejected) {
 				return;
@@ -1541,50 +1370,49 @@ export class Repository implements Disposable {
 	}
 
 	async cherryPick(commitHash: string): Promise<void> {
-		await this.run(OperationKind.CherryPick, () => this.repository.cherryPick(commitHash));
+		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
 
 	async move(from: string, to: string): Promise<void> {
-		await this.run(OperationKind.Move, () => this.repository.move(from, to));
+		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
 
 	async getBranch(name: string): Promise<Branch> {
-		return await this.run(OperationKind.GetBranch, () => this.repository.getBranch(name));
+		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
 
 	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		return await this.run(OperationKind.GetBranches, () => this.repository.getBranches(query));
+		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
 	}
 
 	async setBranchUpstream(name: string, upstream: string): Promise<void> {
-		await this.run(OperationKind.SetBranchUpstream, () => this.repository.setBranchUpstream(name, upstream));
+		await this.run(Operation.SetBranchUpstream, () => this.repository.setBranchUpstream(name, upstream));
 	}
 
 	async merge(ref: string): Promise<void> {
-		await this.run(OperationKind.Merge, () => this.repository.merge(ref));
+		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
 	async mergeAbort(): Promise<void> {
-		await this.run(OperationKind.MergeAbort, async () => await this.repository.mergeAbort());
+		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
 	async rebase(branch: string): Promise<void> {
-		await this.run(OperationKind.Rebase, () => this.repository.rebase(branch));
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
 	}
 
 	async tag(name: string, message?: string): Promise<void> {
-		await this.run(OperationKind.Tag, () => this.repository.tag(name, message));
+		await this.run(Operation.Tag, () => this.repository.tag(name, message));
 	}
 
 	async deleteTag(name: string): Promise<void> {
-		await this.run(OperationKind.DeleteTag, () => this.repository.deleteTag(name));
+		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
 		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
-		const operation: CheckoutOperation = { kind: OperationKind.Checkout, refLabel };
 
-		await this.run(operation,
+		await this.run(Operation.Checkout(refLabel),
 			async () => {
 				if (opts?.pullBeforeCheckout && !opts?.detached) {
 					try {
@@ -1601,13 +1429,11 @@ export class Repository implements Disposable {
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
 		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
-		const operation: CheckoutOperation = { kind: OperationKind.CheckoutTracking, refLabel };
-
-		await this.run(operation, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
-		return await this.run(OperationKind.FindTrackingBranches, () => this.repository.findTrackingBranches(upstreamRef));
+		return await this.run(Operation.FindTrackingBranches, () => this.repository.findTrackingBranches(upstreamRef));
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
@@ -1615,23 +1441,23 @@ export class Repository implements Disposable {
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
-		await this.run(OperationKind.Reset, () => this.repository.reset(treeish, hard));
+		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
 	}
 
 	async deleteRef(ref: string): Promise<void> {
-		await this.run(OperationKind.DeleteRef, () => this.repository.deleteRef(ref));
+		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}
 
 	async addRemote(name: string, url: string): Promise<void> {
-		await this.run(OperationKind.Remote, () => this.repository.addRemote(name, url));
+		await this.run(Operation.Remote, () => this.repository.addRemote(name, url));
 	}
 
 	async removeRemote(name: string): Promise<void> {
-		await this.run(OperationKind.Remote, () => this.repository.removeRemote(name));
+		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
 	}
 
 	async renameRemote(name: string, newName: string): Promise<void> {
-		await this.run(OperationKind.Remote, () => this.repository.renameRemote(name, newName));
+		await this.run(Operation.Remote, () => this.repository.renameRemote(name, newName));
 	}
 
 	@throttle
@@ -1660,8 +1486,7 @@ export class Repository implements Disposable {
 			options.prune = prune;
 		}
 
-		const operation = options.silent === true ? OperationKind.FetchNoProgress : OperationKind.Fetch;
-		await this.run(operation, async () => this.repository.fetch(options));
+		await this.run(Operation.Fetch(options.silent !== true), async () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1691,7 +1516,7 @@ export class Repository implements Disposable {
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
-		await this.run(OperationKind.Pull, async () => {
+		await this.run(Operation.Pull, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
@@ -1735,23 +1560,23 @@ export class Repository implements Disposable {
 			branch = `${head.name}:${head.upstream.name}`;
 		}
 
-		await this.run(OperationKind.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(OperationKind.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(OperationKind.Push, () => this._push(remote, undefined, false, true, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
 	}
 
 	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(OperationKind.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
+		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
 	}
 
 	async blame(path: string): Promise<string> {
-		return await this.run(OperationKind.Blame, () => this.repository.blame(path));
+		return await this.run(Operation.Blame, () => this.repository.blame(path));
 	}
 
 	@throttle
@@ -1770,7 +1595,7 @@ export class Repository implements Disposable {
 			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
-		await this.run(OperationKind.Sync, async () => {
+		await this.run(Operation.Sync, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
@@ -1824,7 +1649,7 @@ export class Repository implements Disposable {
 			return true;
 		}
 
-		const maybeRebased = await this.run(OperationKind.Log, async () => {
+		const maybeRebased = await this.run(Operation.Log, async () => {
 			try {
 				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
@@ -1865,7 +1690,7 @@ export class Repository implements Disposable {
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
-		return await this.run(OperationKind.Show, async () => {
+		return await this.run(Operation.Show, async () => {
 			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
@@ -1885,22 +1710,22 @@ export class Repository implements Disposable {
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this.run(OperationKind.Show, () => {
+		return this.run(Operation.Show, () => {
 			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
 			return this.repository.buffer(`${ref}:${path}`);
 		});
 	}
 
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(OperationKind.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
-		return this.run(OperationKind.Show, () => this.repository.detectObjectType(object));
+		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
 	async apply(patch: string, reverse?: boolean): Promise<void> {
-		return await this.run(OperationKind.Apply, () => this.repository.apply(patch, reverse));
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
 	}
 
 	async getStashes(): Promise<Stash[]> {
@@ -1913,30 +1738,30 @@ export class Repository implements Disposable {
 			...!staged ? this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath) : [],
 			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
 
-		return await this.run(OperationKind.Stash, async () => {
+		return await this.run(Operation.Stash, async () => {
 			await this.repository.createStash(message, includeUntracked, staged);
 			this.closeDiffEditors(indexResources, workingGroupResources);
 		});
 	}
 
 	async popStash(index?: number): Promise<void> {
-		return await this.run(OperationKind.Stash, () => this.repository.popStash(index));
+		return await this.run(Operation.Stash, () => this.repository.popStash(index));
 	}
 
 	async dropStash(index?: number): Promise<void> {
-		return await this.run(OperationKind.Stash, () => this.repository.dropStash(index));
+		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
 	}
 
 	async applyStash(index?: number): Promise<void> {
-		return await this.run(OperationKind.Stash, () => this.repository.applyStash(index));
+		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
 	}
 
 	async getCommitTemplate(): Promise<string> {
-		return await this.run(OperationKind.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
 	async ignore(files: Uri[]): Promise<void> {
-		return await this.run(OperationKind.Ignore, async () => {
+		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
 				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
@@ -1959,11 +1784,11 @@ export class Repository implements Disposable {
 	}
 
 	async rebaseAbort(): Promise<void> {
-		await this.run(OperationKind.RebaseAbort, async () => await this.repository.rebaseAbort());
+		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
 	}
 
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {
-		return this.run(OperationKind.CheckIgnore, () => {
+		return this.run(Operation.CheckIgnore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {
 
 				filePaths = filePaths
@@ -2054,16 +1879,9 @@ export class Repository implements Disposable {
 	}
 
 	private async run<T>(
-		operation: OperationKind | BaseOperation,
+		operation: Operation,
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
-		return this._run<T>(typeof operation === 'object' ? operation : { kind: operation }, runOperation, getOptimisticResourceGroups);
-	}
-
-	private async _run<T>(
-		operation: BaseOperation,
-		runOperation: () => Promise<T>,
-		getOptimisticResourceGroups: () => GitResourceGroups | undefined): Promise<T> {
 
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
@@ -2075,9 +1893,9 @@ export class Repository implements Disposable {
 		this._onRunOperation.fire(operation.kind);
 
 		try {
-			const result = await this._retryRun(operation.kind, runOperation);
+			const result = await this.retryRun(operation, runOperation);
 
-			if (!isReadOnly(operation.kind)) {
+			if (!operation.readOnly) {
 				await this.updateModelState(this.optimisticUpdateEnabled() ? getOptimisticResourceGroups() : undefined);
 			}
 
@@ -2092,11 +1910,11 @@ export class Repository implements Disposable {
 			throw err;
 		} finally {
 			this._operations.end(operation);
-			this._onDidRunOperation.fire({ operation: operation.kind, error });
+			this._onDidRunOperation.fire({ operation: operation, error });
 		}
 	}
 
-	private async _retryRun<T>(operation: OperationKind, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		let attempt = 0;
 
 		while (true) {
@@ -2106,7 +1924,7 @@ export class Repository implements Disposable {
 			} catch (err) {
 				const shouldRetry = attempt <= 10 && (
 					(err.gitErrorCode === GitErrorCodes.RepositoryIsLocked)
-					|| ((operation === OperationKind.Pull || operation === OperationKind.Sync || operation === OperationKind.Fetch) && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
+					|| (operation.retry && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
 				);
 
 				if (shouldRetry) {

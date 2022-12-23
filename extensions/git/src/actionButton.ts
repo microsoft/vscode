@@ -5,8 +5,9 @@
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
 import { Branch, Status } from './api/git';
+import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
-import { Repository, OperationKind } from './repository';
+import { Repository } from './repository';
 import { dispose } from './util';
 
 interface ActionButtonState {

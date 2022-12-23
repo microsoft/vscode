@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCodeUtils, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, Keybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { ChordKeybinding, Keybinding, SimpleKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 export class KeybindingParser {
@@ -107,9 +107,9 @@ export class KeybindingParser {
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	static parseUserBinding(input: string): (SimpleKeybinding | ScanCodeBinding)[] {
+	static parseUserBinding(input: string): UserKeybinding | null {
 		if (!input) {
-			return [];
+			return null;
 		}
 
 		const parts: (SimpleKeybinding | ScanCodeBinding)[] = [];
@@ -119,6 +119,6 @@ export class KeybindingParser {
 			[part, input] = this.parseSimpleUserBinding(input);
 			parts.push(part);
 		}
-		return parts;
+		return (parts.length > 0 ? new UserKeybinding(parts) : null);
 	}
 }

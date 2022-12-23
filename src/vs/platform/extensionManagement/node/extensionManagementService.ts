@@ -39,7 +39,7 @@ import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/ex
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtension, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -251,7 +251,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				installExtensionTask.waitUntilTaskIsFinished().then(() => this.installGalleryExtensionsTasks.delete(key));
 			}
 		}
-		return new InstallExtensionInProfileTask(installExtensionTask, options.profileLocation, this.extensionsProfileScannerService);
+		return new InstallExtensionInProfileTask(installExtensionTask, options.profileLocation, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService);
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
@@ -314,6 +314,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
+		if (!e.affects(this.extensionsScannerService.userExtensionsLocation, FileChangeType.ADDED)) {
+			return;
+		}
+
 		const added: ILocalExtension[] = [];
 		for (const resource of e.rawAdded) {
 			// Check if this is a known directory
@@ -387,7 +391,6 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI | undefined): Promise<ILocalExtension[]> {
-		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation };
 		let scannedExtensions: IScannedExtension[] = [];
 		if (type === null || type === ExtensionType.System) {
@@ -417,7 +420,6 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
-		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
@@ -844,6 +846,9 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 	constructor(
 		private readonly task: IInstallExtensionTask,
 		private readonly profileLocation: URI,
+		private readonly uriIdentityService: IUriIdentityService,
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly extensionsScannerService: IExtensionsScannerService,
 		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
 		this.promise = this.waitAndAddExtensionToProfile();
@@ -851,6 +856,9 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 
 	private async waitAndAddExtensionToProfile(): Promise<{ local: ILocalExtension; metadata: Metadata }> {
 		const result = await this.task.waitUntilTaskIsFinished();
+		if (this.uriIdentityService.extUri.isEqual(this.userDataProfilesService.defaultProfile.extensionsResource, this.profileLocation)) {
+			await this.extensionsScannerService.initializeDefaultProfileExtensions();
+		}
 		await this.extensionsProfileScannerService.addExtensionsToProfile([[result.local, result.metadata]], this.profileLocation);
 		return result;
 	}

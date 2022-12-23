@@ -377,3 +377,11 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container .codicon {
 	color: inherit;
 }
+
+.monaco-workbench .part.titlebar .window-controls-container .window-icon {
+	color: var(--vscode-titleBarActiveForeground);
+}
+
+.monaco-workbench .part.titlebar.inactive .window-controls-container .window-icon {
+	color: var(--vscode-titleBar-inactiveForeground);
+}

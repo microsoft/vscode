@@ -6,6 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -13,7 +14,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * A special class used to denoting a telemetry value which should not be clean.
@@ -91,7 +92,13 @@ export interface URIDescriptor {
 }
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	return configurationService.onDidChangeConfiguration(event => {
+	// Debounce the event by 1000 ms and merge all affected keys into one event
+	const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
+		const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
+		return { ...cur, affectedKeys: newAffectedKeys };
+	}, 1000, true);
+
+	return debouncedConfigService(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
 				owner: 'lramos15, sbatten';
@@ -105,7 +112,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			};
 			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: flattenKeys(event.sourceConfig)
+				configurationKeys: flattenKeys(event.affectedKeys)
 			});
 		}
 	});
@@ -161,7 +168,7 @@ export function isLoggingOnly(productService: IProductService, environmentServic
  */
 export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
 	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
-	const crashReporterConfig = configurationService.getValue<boolean | undefined>('telemetry.enableCrashReporter');
+	const crashReporterConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_CRASH_REPORTER_SETTING_ID);
 	const oldConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_OLD_SETTING_ID);
 
 	// If `telemetry.enableCrashReporter` is false or `telemetry.enableTelemetry' is false, disable telemetry
