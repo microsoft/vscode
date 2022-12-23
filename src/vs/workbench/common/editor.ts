@@ -1470,16 +1470,24 @@ export function isTextEditorViewState(candidate: unknown): candidate is IEditorV
 export interface IEditorOpenErrorOptions {
 
 	/**
-	 * If set to true, the error will be shown in a dialog
-	 * to the user. Otherwise and by default, the error will
-	 * be shown as place holder in the editor area.
+	 * If set to true, the message will be taken
+	 * from the error message entirely and not be
+	 * composed with more text.
 	 */
-	forceDialog?: boolean;
+	forceMessage?: boolean;
 
 	/**
-	 * The severity of the error. Defaults to `Severity.Error`.
+	 * If set, will override the severity of the error.
 	 */
-	severity?: Severity;
+	forceSeverity?: Severity;
+
+	/**
+	 * If set to true, the error may be shown in a dialog
+	 * to the user if the editor opening was triggered by
+	 * user action. Otherwise and by default, the error will
+	 * be shown as place holder in the editor area.
+	 */
+	allowDialog?: boolean;
 }
 
 export interface IEditorOpenError extends IErrorWithActions, IEditorOpenErrorOptions { }
@@ -1491,8 +1499,9 @@ export function isEditorOpenError(obj: unknown): obj is IEditorOpenError {
 export function createEditorOpenError(messageOrError: string | Error, actions: IAction[], options?: IEditorOpenErrorOptions): IEditorOpenError {
 	const error: IEditorOpenError = createErrorWithActions(messageOrError, actions);
 
-	error.forceDialog = options?.forceDialog;
-	error.severity = options?.severity;
+	error.forceMessage = options?.forceMessage;
+	error.forceSeverity = options?.forceSeverity;
+	error.allowDialog = options?.allowDialog;
 
 	return error;
 }

@@ -242,8 +242,8 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		let label: string;
 		if (isFileNotFound) {
 			label = localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
-		} else if (isEditorOpenError(error)) {
-			label = toErrorMessage(error);
+		} else if (isEditorOpenError(error) && error.forceMessage) {
+			label = error.message;
 		} else if (error) {
 			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
 		} else {
@@ -253,9 +253,9 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		// Error Icon
 		let icon = '$(error)';
 		if (isEditorOpenError(error) && error.actions.length > 0) {
-			if (error.severity === Severity.Info) {
+			if (error.forceSeverity === Severity.Info) {
 				icon = '$(info)';
-			} else if (error.severity === Severity.Warning) {
+			} else if (error.forceSeverity === Severity.Warning) {
 				icon = '$(warning)';
 			}
 		}

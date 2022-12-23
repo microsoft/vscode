@@ -316,7 +316,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 						return;
 					}
 				})
-			]);
+			], { allowDialog: true });
 
 			throw error;
 		}

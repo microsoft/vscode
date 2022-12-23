@@ -151,8 +151,8 @@ export class EditorPanes extends Disposable {
 
 		// Show as modal dialog when explicit user action unless disabled
 		let errorHandled = false;
-		if (options?.source === EditorOpenSource.USER) {
-			errorHandled = await this.maybeShowErrorDialog(error, editor, errorHandled);
+		if (options?.source === EditorOpenSource.USER && (!isEditorOpenError(error) || error.allowDialog)) {
+			errorHandled = await this.doShowErrorDialog(error, editor, errorHandled);
 		}
 
 		// Return early if the user dealt with the error already
@@ -172,16 +172,23 @@ export class EditorPanes extends Disposable {
 		};
 	}
 
-	private async maybeShowErrorDialog(error: Error, editor: EditorInput, errorHandled: boolean): Promise<boolean> {
+	private async doShowErrorDialog(error: Error, editor: EditorInput, errorHandled: boolean): Promise<boolean> {
 		let severity = Severity.Error;
+		let message: string | undefined = undefined;
+		let detail: string | undefined = toErrorMessage(error);
 		let errorActions: readonly IAction[] | undefined = undefined;
-		if (isEditorOpenError(error)) {
-			if (!error.forceDialog) {
-				return false; // return early if dialog is explicitly disabled
-			}
 
+		if (isEditorOpenError(error)) {
 			errorActions = error.actions;
-			severity = error.severity ?? Severity.Error;
+			severity = error.forceSeverity ?? Severity.Error;
+			if (error.forceMessage) {
+				message = error.message;
+				detail = undefined;
+			}
+		}
+
+		if (!message) {
+			message = localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName());
 		}
 
 		const buttons: string[] = [];
@@ -201,12 +208,9 @@ export class EditorPanes extends Disposable {
 
 		const result = await this.dialogService.show(
 			severity,
-			localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+			message,
 			buttons,
-			{
-				detail: toErrorMessage(error),
-				cancelId
-			}
+			{ detail, cancelId }
 		);
 
 		// Make sure to run any error action if present

@@ -211,7 +211,10 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 						return this.preferencesService.openUserSettings({ query: 'workbench.editorLargeFileConfirmation' });
 					}
 				}),
-			], { severity: Severity.Warning });
+			], {
+				forceMessage: true,
+				forceSeverity: Severity.Warning
+			});
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
@@ -235,7 +238,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 				// create the file on the go. This is nice when for example following
 				// a link to a file that does not exist to scaffold it quickly.
 
-				forceDialog: true
+				allowDialog: true
 			});
 
 			throw fileNotFoundError;

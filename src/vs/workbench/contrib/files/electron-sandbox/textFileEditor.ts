@@ -78,7 +78,10 @@ export class NativeTextFileEditor extends TextFileEditor {
 						return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
 					}
 				}),
-			], { severity: Severity.Warning });
+			], {
+				forceMessage: true,
+				forceSeverity: Severity.Warning
+			});
 		}
 
 		// Fallback to handling in super type
