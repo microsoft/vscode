@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode, $, EventHelper } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,8 +22,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Link } from 'vs/platform/opener/browser/link';
+import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
@@ -57,8 +57,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
 	}
@@ -113,15 +112,26 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// ARIA label
 		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${truncatedLabel}`);
 
-		// Actions
-		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
-		for (const action of actions) {
-			disposables.add(this.instantiationService.createInstance(Link, actionsContainer, {
-				label: action.label,
-				href: ''
-			}, {
-				opener: () => action.run()
-			}));
+		// Buttons
+		if (actions.length) {
+			const actionsContainer = container.appendChild($('.editor-placeholder-buttons-container'));
+			const buttons = disposables.add(new ButtonBar(actionsContainer));
+
+			for (let i = 0; i < actions.length; i++) {
+				const button = disposables.add(buttons.addButton({
+					...defaultButtonStyles,
+					secondary: i !== 0
+				}));
+
+				button.label = actions[i].label;
+				disposables.add(button.onDidClick(e => {
+					if (e) {
+						EventHelper.stop(e, true);
+					}
+
+					actions[i].run();
+				}));
+			}
 		}
 
 		// Adjust scrollbar
@@ -180,10 +190,9 @@ export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 		@IThemeService themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
-		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -217,11 +226,10 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
