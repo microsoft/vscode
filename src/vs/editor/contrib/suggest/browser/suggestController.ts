@@ -25,7 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { CompletionItemInsertTextRule, CompletionItemProvider } from 'vs/editor/common/languages';
+import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
@@ -230,7 +230,7 @@ export class SuggestController implements IEditorContribution {
 			this._lineSuffix.value = new LineSuffix(this.editor.getModel()!, e.position);
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
-			if (e.shy) {
+			if (e.triggerOptions.shy) {
 				return;
 			}
 			let index = -1;
@@ -245,16 +245,29 @@ export class SuggestController implements IEditorContribution {
 			}
 
 			let noFocus = false;
-			if (e.auto) {
-				// don't "focus" item when configure to do so or when in snippet mode (and configured to do so)
+			if (e.triggerOptions.auto) {
+				// don't "focus" item when configured to do so or when in snippet mode (and configured to do so)
 				const options = this.editor.getOption(EditorOption.suggest);
-				if (!options.selectQuickSuggestions) {
+
+				if (options.snippetsPreventQuickSuggestions && SnippetController2.get(this.editor)?.isInSnippet()) {
+					// SPECIAL: in snippet mode, we never focus unless the user wants to
 					noFocus = true;
-				} else if (options.snippetsPreventQuickSuggestions && SnippetController2.get(this.editor)?.isInSnippet()) {
-					noFocus = true;
+
+				} else if (options.selectionMode === 'never' || options.selectionMode === 'always') {
+					// simple: always or never
+					noFocus = options.selectionMode === 'never';
+
+				} else if (options.selectionMode === 'whenTriggerCharacter') {
+					// on with trigger character
+					noFocus = e.triggerOptions.triggerKind !== CompletionTriggerKind.TriggerCharacter;
+
+				} else if (options.selectionMode === 'whenQuickSuggestion') {
+					// without trigger character or when refiltering
+					noFocus = e.triggerOptions.triggerKind === CompletionTriggerKind.TriggerCharacter && !e.triggerOptions.refilter;
 				}
+
 			}
-			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto, noFocus);
+			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.triggerOptions.auto, noFocus);
 		}));
 		this._toDispose.add(this.model.onDidCancel(e => {
 			if (!e.retrigger) {
