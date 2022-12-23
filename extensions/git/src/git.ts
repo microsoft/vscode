@@ -803,10 +803,11 @@ export class GitStatusParser {
 
 		entry.path = raw.substring(i, lastIndex);
 
+		// HACK
 		// If path ends with slash, it must be a nested git repo
-		if (entry.path[entry.path.length - 1] !== '/') {
-			this.result.push(entry);
-		}
+		// if (entry.path[entry.path.length - 1] !== '/') {
+		this.result.push(entry);
+		// }
 
 		return lastIndex + 1;
 	}
@@ -1987,7 +1988,7 @@ export class Repository {
 		}
 	}
 
-	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; untrackedFolders?: string[]; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -1999,13 +2000,17 @@ export class Repository {
 
 		if (opts?.untrackedChanges === 'hidden') {
 			args.push('-uno');
-		} else {
+		} else if (opts?.untrackedFolders?.length) {
 			args.push('-uall');
+		} else {
+			args.push('-unormal');
 		}
 
 		if (opts?.ignoreSubmodules) {
 			args.push('--ignore-submodules');
 		}
+
+		args.push(...opts?.untrackedFolders || []);
 
 		const child = this.stream(args, { env });
 

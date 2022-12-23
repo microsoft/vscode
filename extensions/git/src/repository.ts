@@ -466,6 +466,16 @@ class ResourceCommandResolver {
 	resolveDefaultCommand(resource: Resource): Command {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const openDiffOnClick = config.get<boolean>('openDiffOnClick', true);
+
+		if (resource.resourceUri.fsPath.endsWith('/')) {
+			return {
+				command: 'git.expandUntrackedFolder',
+				title: l10n.t('Expand Untracked Folder'),
+				// HACK HACK HACK
+				arguments: [resource, resource]
+			};
+		}
+
 		return openDiffOnClick ? this.resolveChangeCommand(resource) : this.resolveFileCommand(resource);
 	}
 
@@ -757,6 +767,7 @@ export class Repository implements Disposable {
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
+	private untrackedFolders: Set<string> = new Set();
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -2033,10 +2044,18 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
+		const untrackedFolders = Array.from(this.untrackedFolders.values());
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+		const [statusResult, statusUntrackedResult] = await Promise.all([
+			this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken }),
+			untrackedFolders.length === 0 ? Promise.resolve({ status: [], statusLength: 0, didHitLimit: false }) :
+				this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, untrackedFolders, cancellationToken })
+		]);
 		const totalTime = new Date().getTime() - start;
+
+		const didHitLimit = statusResult.didHitLimit || statusUntrackedResult.didHitLimit;
+		const statusLength = statusResult.statusLength + statusUntrackedResult.statusLength;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
 
@@ -2115,7 +2134,13 @@ export class Repository implements Disposable {
 			untrackedGroup: Resource[] = [],
 			workingTreeGroup: Resource[] = [];
 
-		status.forEach(raw => {
+		const trackedPaths = new Set<string>(statusResult.status.map(s => s.path));
+		[...statusResult.status, ...statusUntrackedResult.status.filter(s => !trackedPaths.has(s.path))].forEach(raw => {
+			// If the path is in the untracked folders, ignore it since it will be expanded
+			if (untrackedFolders.includes(raw.path)) {
+				return;
+			}
+
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
 			const renameUri = raw.rename
 				? Uri.file(path.join(this.repository.root, raw.rename))
@@ -2404,6 +2429,11 @@ export class Repository implements Disposable {
 
 	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
 		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
+	}
+
+	public async expandUntrackedFolder(resourceUri: Uri): Promise<void> {
+		this.untrackedFolders.add(relativePath(this.root, resourceUri.fsPath));
+		await this.status();
 	}
 
 	dispose(): void {
