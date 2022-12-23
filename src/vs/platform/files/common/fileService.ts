@@ -575,7 +575,9 @@ export class FileService extends Disposable implements IFileService {
 
 		if (error instanceof NotModifiedSinceFileOperationError) {
 			return new NotModifiedSinceFileOperationError(message, error.stat, options);
-		} else if (error instanceof TooLargeFileOperationError) {
+		}
+
+		if (error instanceof TooLargeFileOperationError) {
 			return new TooLargeFileOperationError(message, error.fileOperationResult, error.size, error.options);
 		}
 

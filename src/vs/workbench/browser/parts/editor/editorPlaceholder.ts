@@ -250,9 +250,18 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
 
-		// Actions / Icon
-		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
+		// Error Icon
 		let icon = '$(error)';
+		if (isEditorOpenError(error) && error.actions.length > 0) {
+			if (error.severity === Severity.Info) {
+				icon = '$(info)';
+			} else if (error.severity === Severity.Warning) {
+				icon = '$(warning)';
+			}
+		}
+
+		// Actions
+		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
 		if (isEditorOpenError(error) && error.actions.length > 0) {
 			actions = error.actions.map(action => {
 				return {
@@ -265,12 +274,6 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 					}
 				};
 			});
-
-			if (error.severity === Severity.Info) {
-				icon = '$(info)';
-			} else if (error.severity === Severity.Warning) {
-				icon = '$(warning)';
-			}
 		} else if (group) {
 			actions = [
 				{
