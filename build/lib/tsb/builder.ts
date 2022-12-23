@@ -292,9 +292,14 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 					const fileName = toBeEmitted.pop()!;
 					promise = emitSoon(fileName).then(value => {
 
-						for (const file of value.files) {
-							_log('[emit code]', file.path);
-							out(file);
+						// honour the noEmit flag _after_ generating output. We can't skip the generation
+						// because we need to know the signatures of the files (DTS) to compute impact of
+						// changes
+						if (!cmd.options.noEmit) {
+							for (const file of value.files) {
+								_log('[emit code]', file.path);
+								out(file);
+							}
 						}
 
 						// remember when this was build

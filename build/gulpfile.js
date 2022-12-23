@@ -11,7 +11,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 const gulp = require('gulp');
 const util = require('./lib/util');
 const task = require('./lib/task');
-const { transpileClientSWC, transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = require('./lib/compilation');
+const { transpileClientSWC, transpileTask, compileTask, watchTask, watchTranspileTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = require('./lib/compilation');
 const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./gulpfile.editor');
 const { compileExtensionsTask, watchExtensionsTask, compileExtensionMediaTask } = require('./gulpfile.extensions');
 
@@ -22,6 +22,17 @@ gulp.task(watchApiProposalNamesTask);
 // SWC Client Transpile
 const transpileClientSWCTask = task.define('transpile-client-swc', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src', 'out', true)));
 gulp.task(transpileClientSWCTask);
+
+// SWC Client Watch
+const watchTranspileClient = task.define('watch-client-swc', task.series(
+	util.rimraf('out'),
+	util.buildWebNodePaths('out'),
+	task.parallel(
+		task.define('watch-client-transpile', watchTranspileTask('out', true)),
+		task.define('watch-client-typecheck', watchTask('out', false, { noEmit: true }))
+	)
+));
+gulp.task(watchTranspileClient);
 
 // Transpile only
 const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src', 'out')));

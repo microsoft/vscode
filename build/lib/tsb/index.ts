@@ -14,6 +14,9 @@ import { readFileSync, statSync } from 'fs';
 import * as log from 'fancy-log';
 import colors = require('ansi-colors');
 import { ITranspiler, SwcTranspiler, TscTranspiler } from './transpiler';
+import { Options } from '@swc/core';
+import fancyLog = require('fancy-log');
+import ansiColors = require('ansi-colors');
 
 export interface IncrementalCompiler {
 	(token?: any): Readable & Writable;
@@ -36,7 +39,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithSwc?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithSwc?: boolean | Options },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -96,6 +99,9 @@ export function create(
 
 	// TRANSPILE ONLY stream doing just TS to JS conversion
 	function createTranspileStream(transpiler: ITranspiler): Readable & Writable {
+		const t1 = Date.now();
+		fancyLog('Starting', ansiColors.green('transpile'));
+
 		return through(function (this: through.ThroughStream & { queue(a: any): void }, file: Vinyl) {
 			// give the file to the compiler
 			if (file.isStream()) {
@@ -119,6 +125,7 @@ export function create(
 			transpiler.join().then(() => {
 				this.queue(null);
 				transpiler.onOutfile = undefined;
+				fancyLog('Finished', ansiColors.green('transpile'), 'after', ansiColors.magenta(`${Date.now() - t1} ms`));
 			});
 		});
 	}
@@ -128,7 +135,7 @@ export function create(
 	if (config.transpileOnly) {
 		const transpiler = !config.transpileWithSwc
 			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
-			: new SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
+			: new SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine, typeof config.transpileWithSwc === 'object' ? config.transpileWithSwc : {});
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);

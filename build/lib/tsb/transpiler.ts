@@ -8,6 +8,7 @@ import * as ts from 'typescript';
 import * as threads from 'node:worker_threads';
 import * as Vinyl from 'vinyl';
 import { cpus } from 'node:os';
+import { RawSourceMap } from 'source-map';
 
 interface TranspileReq {
 	readonly tsSrcs: string[];
@@ -310,7 +311,8 @@ export class SwcTranspiler implements ITranspiler {
 		private readonly _logFn: (topic: string, message: string) => void,
 		private readonly _onError: (err: any) => void,
 		configFilePath: string,
-		private readonly _cmdLine: ts.ParsedCommandLine
+		private readonly _cmdLine: ts.ParsedCommandLine,
+		private readonly _extraSwcOptions: Partial<swc.Options>
 	) {
 		_logFn('Transpile', `will use SWC to transpile source files`);
 		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
@@ -331,7 +333,7 @@ export class SwcTranspiler implements ITranspiler {
 		const tsSrc = String(file.contents);
 		const t1 = Date.now();
 
-		let options: swc.Options = SwcTranspiler._swcrcEsm;
+		let options: swc.Options = { ...SwcTranspiler._swcrcEsm, ...this._extraSwcOptions };
 		if (this._cmdLine.options.module === ts.ModuleKind.AMD) {
 			const isAmd = /\n(import|export)/m.test(tsSrc);
 			if (isAmd) {
@@ -352,11 +354,16 @@ export class SwcTranspiler implements ITranspiler {
 			const outBase = this._cmdLine.options.outDir ?? file.base;
 			const outPath = this._outputFileNames.getOutputFileName(file.path);
 
-			this.onOutfile!(new Vinyl({
+			const outFile: Vinyl & { sourceMap?: RawSourceMap } = new Vinyl({
 				path: outPath,
 				base: outBase,
 				contents: Buffer.from(output.code),
-			}));
+			});
+			if (output.map) {
+				outFile.sourceMap = JSON.parse(output.map);
+			}
+
+			this.onOutfile!(outFile);
 
 			this._logFn('Transpile', `swc took ${Date.now() - t1}ms for ${file.path}`);
 

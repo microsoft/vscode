@@ -19,6 +19,7 @@ import * as File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangleTypeScript';
 import { RawSourceMap } from 'source-map';
+import { Options } from '@swc/core';
 const watch = require('./watch');
 
 
@@ -41,13 +42,13 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	return options;
 }
 
-function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean }) {
+function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean | Options }, compilerOptions?: Partial<ts.CompilerOptions>) {
 	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 
 	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
-	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
+	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build), ...compilerOptions };
 	if (!build) {
 		overrideOptions.inlineSourceMap = true;
 	}
@@ -76,7 +77,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls.nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
-			.pipe(transpileOnly ? es.through() : sourcemaps.write('.', {
+			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
 				sourceRoot: overrideOptions.sourceRoot
@@ -149,10 +150,25 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 	};
 }
 
-export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
+export function watchTranspileTask(out: string, swc: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile('src', build, false, false);
+
+		const transpile = createCompile('src', false, false, { swc: swc && { sourceMaps: true } });
+
+		const src = gulp.src('src/**', { base: 'src' });
+		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+
+		return watchSrc
+			.pipe(util.incremental(transpile, src, true))
+			.pipe(gulp.dest(out));
+	};
+}
+
+export function watchTask(out: string, build: boolean, tsCompilerOptions?: ts.CompilerOptions): () => NodeJS.ReadWriteStream {
+
+	return function () {
+		const compile = createCompile('src', build, false, false, tsCompilerOptions);
 
 		const src = gulp.src('src/**', { base: 'src' });
 		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
